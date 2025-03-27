@@ -13,7 +13,7 @@ enum LendingMarket {
 
 struct BorrowData {
     LendingMarket market;
-    bytes borrowData;
+    bytes callData;
 }
 
 /**
@@ -140,7 +140,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
     function exitPosition(
         address onBehalf,
         address receiver,
-        uint256 sharesToWithdraw,
+        uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData,
         bytes calldata callbackData
