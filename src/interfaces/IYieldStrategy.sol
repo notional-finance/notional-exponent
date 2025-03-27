@@ -81,6 +81,12 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 
     /**
+     * @dev Returns the amount of yield tokens that the Vault would exchange for the amount of assets provided, in an ideal
+     * scenario where all the conditions are met.
+     */
+    function convertToYieldToken(uint256 shares) external view returns (uint256 yieldTokens);
+
+    /**
      * @dev Returns the fee rate of the vault where 100% = 1e18.
      */
     function feeRate() external view returns (uint256 feeRate);
@@ -89,6 +95,11 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
      * @dev Returns the balance of yield tokens accrued by the vault.
      */
     function feesAccrued() external view returns (uint256 feesAccrued);
+
+    /**
+     * @dev Collects the fees accrued by the vault. Only callable by the owner.
+     */
+    function collectFees() external;
 
     /**
      * @dev Enters a position by depositing assets and borrowing funds and using
@@ -170,4 +181,14 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
      * @param approved The authorization status.
      */
     function setApproval(address operator, bool approved) external;
+
+    /**
+     * @dev Returns the authorization status of an address.
+     *
+     * @param user The address to check the authorization status of.
+     * @param operator The address to check the authorization status of.
+     *
+     * @return The authorization status.
+     */
+    function isApproved(address user, address operator) external view returns (bool);
 }
