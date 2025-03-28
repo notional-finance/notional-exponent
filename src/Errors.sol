@@ -2,3 +2,4 @@
 pragma solidity >=0.5.0;
 
 error NotAuthorized(address operator, address user);
+error UnauthorizedLendingMarketTransfer(address from, address to, uint256 value);
