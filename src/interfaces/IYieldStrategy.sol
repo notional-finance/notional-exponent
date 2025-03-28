@@ -11,6 +11,11 @@ enum LendingMarket {
     SILO
 }
 
+enum Operation {
+    WITHDRAW_AND_BURN,
+    LIQUIDATE_AND_BURN
+}
+
 struct BorrowData {
     LendingMarket market;
     bytes callData;
@@ -130,7 +135,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
      * @param onBehalf The address to exit the position on behalf of. Requires authorization if
      * msg.sender != onBehalf.
      * @param receiver The address to receive any profits from the exit.
-     * @param sharesToWithdraw The amount of shares to withdraw from the lending market and redeem.
+     * @param sharesToRedeem The amount of shares to withdraw from the lending market and redeem.
      * @param assetToRepay The amount of asset to repay to the lending market.
      * @param redeemData calldata used to redeem the yield token.
      * @param callbackData data to be returned to an optional callback function.
@@ -165,13 +170,15 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
      * ensure that the position can be liquidated in the case of withdraw requests.
      *
      * @param liquidateAccount The address to liquidate.
-     * @param liquidationData calldata used to liquidate the position.
-     * @param callbackData data to be returned to an optional callback function.
+     * @param sharesToLiquidate The amount of shares to liquidate.
+     * @param assetToRepay The amount of asset to repay to the lending market.
+     * @param redeemData calldata used to redeem the yield token.
      */
     function liquidate(
         address liquidateAccount,
-        bytes calldata liquidationData,
-        bytes calldata callbackData
+        uint256 sharesToLiquidate,
+        uint256 assetToRepay,
+        bytes calldata redeemData
     ) external;
 
     /**
