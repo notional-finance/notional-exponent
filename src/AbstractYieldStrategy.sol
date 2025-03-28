@@ -7,8 +7,9 @@ import {NotAuthorized, UnauthorizedLendingMarketTransfer} from "./Errors.sol";
 import {INotionalV4Callback} from "./interfaces/INotionalV4Callback.sol";
 import {BorrowData, IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams} from "./interfaces/Morpho/IMorpho.sol";
+import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 
-abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldStrategy {
+abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldStrategy, IOracle {
     using SafeERC20 for ERC20;
 
     address internal transient t_AllowTransfer_To;
@@ -41,7 +42,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
-        address __oracle,
         address __irm,
         uint256 __lltv
     ) ERC20(name, symbol) {
@@ -52,7 +52,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         _assetDecimals = ERC20(_asset).decimals();
         lastFeeAccrualTime = block.timestamp;
 
-        _oracle = __oracle;
+        // NOTE: this contract will serve as its own oracle
+        _oracle = address(this);
         _irm = __irm;
         _lltv = __lltv;
     }
@@ -87,9 +88,13 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         return convertYieldTokenToShares(yieldTokens);
     }
 
+    function price() public view override returns (uint256) {
+        return convertToAssets(SHARE_PRECISION) * (10 ** (36 + _assetDecimals - 18));
+    }
+
     function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
         // NOTE: rounds down on division
-        return (yieldTokens * 1e18 * totalSupply()) / ((trackedYieldTokenBalance - feesAccrued()) * (10 ** _yieldTokenDecimals));
+        return (yieldTokens * SHARE_PRECISION * totalSupply()) / ((trackedYieldTokenBalance - feesAccrued()) * (10 ** _yieldTokenDecimals));
     }
 
     function convertToAssets(uint256 shares) public view override returns (uint256) {
