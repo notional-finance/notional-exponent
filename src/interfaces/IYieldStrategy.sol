@@ -3,6 +3,7 @@ pragma solidity >=0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import {IOracle} from "./Morpho/IOracle.sol";
 
 enum LendingMarket {
     NONE,
@@ -31,8 +32,10 @@ struct BorrowData {
  *
  * The `transfer` function is non-standard in that transfers off of a lending market
  * are restricted to ensure that liquidation conditions are met.
+ *
+ * This contract also serves as its own oracle.
  */
-interface IYieldStrategy is IERC20, IERC20Metadata {
+interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
 
     /**
      * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
@@ -86,10 +89,20 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 
     /**
-     * @dev Returns the amount of yield tokens that the Vault would exchange for the amount of assets provided, in an ideal
+     * @dev Returns the amount of yield tokens that the Vault would exchange for the amount of shares provided, in an ideal
      * scenario where all the conditions are met.
      */
-    function convertToYieldToken(uint256 shares) external view returns (uint256 yieldTokens);
+    function convertSharesToYieldToken(uint256 shares) external view returns (uint256 yieldTokens);
+
+    /**
+     * @dev Returns the amount of yield tokens that the account would receive for the amount of shares provided.
+     */
+    function convertYieldTokenToShares(uint256 shares) external view returns (uint256 yieldTokens);
+
+    /**
+     * @dev Returns the oracle price of a yield token in terms of the asset token.
+     */
+    function convertYieldTokenToAsset() external view returns (uint256 price);
 
     /**
      * @dev Returns the fee rate of the vault where 100% = 1e18.
@@ -116,17 +129,13 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
      * @param depositAssetAmount The amount of assets to deposit as margin.
      * @param borrowData identifies the lending market and the calldata required to borrow
      * @param depositData calldata used to enter into the yield token.
-     * @param callbackData data to be returned to an optional callback function.
-     *
-     * @return shares The amount of shares minted to the user.
      */
     function enterPosition(
         address onBehalf,
         uint256 depositAssetAmount,
         BorrowData calldata borrowData,
-        bytes calldata depositData,
-        bytes calldata callbackData
-    ) external returns (uint256 shares);
+        bytes calldata depositData
+    ) external;
 
     /**
      * @dev Exits a position by withdrawing shares and repaying borrowed funds. This is the only
@@ -138,7 +147,6 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
      * @param sharesToRedeem The amount of shares to withdraw from the lending market and redeem.
      * @param assetToRepay The amount of asset to repay to the lending market.
      * @param redeemData calldata used to redeem the yield token.
-     * @param callbackData data to be returned to an optional callback function.
      *
      * @return assetsWithdrawn The amount of assets withdrawn from the lending market.
      */
@@ -147,23 +155,8 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
         address receiver,
         uint256 sharesToRedeem,
         uint256 assetToRepay,
-        bytes calldata redeemData,
-        bytes calldata callbackData
+        bytes calldata redeemData
     ) external returns (uint256 assetsWithdrawn);
-
-    /**
-     * @dev Swaps the lending market for the user.
-     *
-     * @param onBehalf The address to swap the lending market on behalf of. Requires authorization if
-     * msg.sender != onBehalf.
-     * @param borrowData identifies the lending market and the calldata required to borrow
-     * @param callbackData data to be returned to an optional callback function.
-     */
-    function swapLendingMarket(
-        address onBehalf,
-        BorrowData calldata borrowData,
-        bytes calldata callbackData
-    ) external;
 
     /**
      * @dev Liquidates a position by repaying borrowed funds and withdrawing assets. Used to
@@ -180,6 +173,15 @@ interface IYieldStrategy is IERC20, IERC20Metadata {
         uint256 assetToRepay,
         bytes calldata redeemData
     ) external;
+
+    /**
+     * @notice Redeems shares for assets. Allows liquidators to redeem shares for assets outside
+     * of a single transaction. This may be required in times of illiquidity.
+     *
+     * @param sharesToRedeem The amount of shares to redeem.
+     * @param redeemData calldata used to redeem the yield token.
+     */
+    function redeem(uint256 sharesToRedeem, bytes memory redeemData) external returns (uint256 assetsWithdrawn);
 
     /**
      * @dev Authorizes an address to manage a user's position.
