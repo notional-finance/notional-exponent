@@ -285,10 +285,12 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         // Clear the approval to prevent re-use in a future call.
         ERC20(asset).approve(address(MORPHO), 0);
 
-        uint256 finalBalance = balanceOf(msg.sender);
+        uint256 sharesToLiquidator = balanceOf(msg.sender) - initialBalance;
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
+
+        _postLiquidation(msg.sender, liquidateAccount, sharesToLiquidator);
         // If the liquidator specifies redeem data then we will redeem the shares and send the assets to the liquidator.
-        if (redeemData.length > 0) redeem(finalBalance - initialBalance, redeemData);
+        if (redeemData.length > 0) redeem(sharesToLiquidator, redeemData);
 
         if (initialAssetBalance < finalAssetBalance) {
             ERC20(asset).safeTransfer(msg.sender, finalAssetBalance - initialAssetBalance);
@@ -379,7 +381,12 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
-    function _canLiquidate(address liquidateAccount) internal view virtual returns (uint256 maxLiquidateShares);
+    function _canLiquidate(address liquidateAccount) internal virtual returns (uint256 maxLiquidateShares) {
+        return balanceOf(liquidateAccount);
+    }
+
+    /// @dev Called after liquidation to update the yield token balance.
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { };
 
     /// @dev Mints yield tokens given a number of assets.
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual returns (uint256 yieldTokensMinted);
