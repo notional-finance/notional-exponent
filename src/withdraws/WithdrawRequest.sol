@@ -201,7 +201,7 @@ abstract contract BaseWithdrawRequestManager is IWithdrawRequestManager {
     /// @return requestId some identifier of the withdraw request
     function _initiateWithdrawImpl(
         address account,
-        uint256 yieldTokens,
+        uint256 yieldTokenAmount,
         bool isForced,
         bytes calldata data
     ) internal virtual returns (uint256 requestId);
@@ -211,10 +211,7 @@ abstract contract BaseWithdrawRequestManager is IWithdrawRequestManager {
     /// necessarily represent the tokens that go to the account if the request has been
     /// split due to liquidation
     /// @return finalized returns true if the withdraw has been finalized
-    function _finalizeWithdrawImpl(
-        address account,
-        uint256 requestId
-    ) internal virtual returns (uint256 tokensWithdrawn, bool finalized);
+    function _finalizeWithdrawImpl(address account, uint256 requestId) internal virtual returns (uint256 tokensWithdrawn, bool finalized);
 
     // function _getValueOfWithdrawRequest(
     //     uint256 requestId, uint256 totalVaultShares, uint256 stakeAssetPrice
