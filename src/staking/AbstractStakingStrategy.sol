@@ -3,7 +3,7 @@ pragma solidity >=0.8.28;
 
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IWithdrawRequestManager, WithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../trading/ITradingModule.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
 
 struct RedeemParams {
     uint8 dexId;
@@ -35,15 +35,15 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     constructor(
-        address _stakingToken,
-        address _borrowToken,
-        address _redemptionToken,
         address _owner,
+        address _asset,
+        address _yieldToken,
         uint256 _feeRate,
         address _irm,
         uint256 _lltv,
+        address _redemptionToken,
         IWithdrawRequestManager _withdrawRequestManager
-    ) AbstractYieldStrategy(_owner, _borrowToken, _stakingToken, _feeRate, _irm, _lltv) {
+    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
         redemptionToken = _redemptionToken;
         withdrawRequestManager = _withdrawRequestManager;
     }
@@ -68,6 +68,23 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         */
     }
 
+    /// @notice Allows an account to initiate a withdraw of their vault shares
+    function initiateWithdraw(bytes calldata data) external returns (uint256 requestId) {
+        requestId = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
+
+        // TODO: check health factor is collateralized
+        require(true);
+    }
+
+    /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
+    function forceWithdraw(address account, bytes calldata data) external onlyOwner returns (uint256 requestId) {
+        requestId = _initiateWithdraw({account: account, isForced: true, data: data});
+    }
+
+    function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
+        // TODO: we need to get the account's balance of yield tokens here....
+        requestId = withdrawRequestManager.initiateWithdraw({account: account, amount: 0, isForced: isForced, data: data});
+    }
 
     function _mintYieldTokens(
         uint256 assets,
@@ -156,21 +173,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         if (address(withdrawRequestManager) != address(0)) {
             withdrawRequestManager.splitWithdrawRequest(liquidator, liquidateAccount, sharesToLiquidator);
         }
-    }
-
-    /// @notice Allows an account to initiate a withdraw of their vault shares
-    function initiateWithdraw(bytes calldata data) external {
-        // TODO: we need to get the account's balance of yield tokens here....
-        withdrawRequestManager.initiateWithdraw({account: msg.sender, amount: 0, isForced: false, data: data});
-
-        // TODO: check health factor is collateralized
-        require(true);
-    }
-
-    /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
-    function forceWithdraw(address account, bytes calldata data) external onlyOwner {
-        // TODO: we need to get the account's balance of yield tokens here....
-        withdrawRequestManager.initiateWithdraw({account: account, amount: 0, isForced: true, data: data});
     }
 
     function _stakeTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual returns (uint256 yieldTokensMinted);

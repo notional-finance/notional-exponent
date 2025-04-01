@@ -14,7 +14,7 @@ contract EtherFiStaking is AbstractStakingStrategy {
         uint256 _lltv,
         IWithdrawRequestManager _withdrawRequestManager
     ) AbstractStakingStrategy(
-        address(weETH), address(WETH), address(0), _owner, _feeRate, _irm, _lltv, _withdrawRequestManager
+        _owner, address(WETH), address(weETH), _feeRate, _irm, _lltv, address(0), _withdrawRequestManager
     ) {
         require(block.chainid == 1);
     }
