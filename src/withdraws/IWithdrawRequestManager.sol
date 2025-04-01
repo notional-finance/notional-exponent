@@ -74,6 +74,22 @@ interface IWithdrawRequestManager {
         uint256 yieldTokenAmount
     ) external;
 
+    /// @notice Allows the emergency exit role to rescue tokens from the withdraw request manager
+    /// @param cooldownHolder the cooldown holder to rescue tokens from
+    /// @param token the token to rescue
+    /// @param receiver the receiver of the rescued tokens
+    /// @param amount the amount of tokens to rescue
+    function rescueTokens(address cooldownHolder, address token, address receiver, uint256 amount) external;
+
+    /// @notice Returns whether a withdraw request can be finalized
+    /// @param requestId the request id of the withdraw request
+    /// @return canFinalize whether the withdraw request can be finalized
     function canFinalizeWithdrawRequest(uint256 requestId) external view returns (bool);
+
+    /// @notice Returns the withdraw request and split withdraw request for an account
+    /// @param vault the vault to get the withdraw request for
+    /// @param account the account to get the withdraw request for
+    /// @return w the withdraw request
+    /// @return s the split withdraw request
     function getWithdrawRequest(address vault, address account) external view returns (WithdrawRequest memory w, SplitWithdrawRequest memory s);
 }

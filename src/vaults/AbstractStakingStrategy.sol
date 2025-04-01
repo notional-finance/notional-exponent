@@ -1,0 +1,177 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity >=0.8.28;
+
+import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
+import {IWithdrawRequestManager, WithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../trading/ITradingModule.sol";
+
+struct RedeemParams {
+    uint8 dexId;
+    uint256 minPurchaseAmount;
+    bytes exchangeData;
+}
+
+struct DepositParams {
+    uint8 dexId;
+    uint256 minPurchaseAmount;
+    bytes exchangeData;
+}
+
+/**
+ * Supports vaults that borrow a token and stake it into a token that earns yield but may
+ * require some illiquid redemption period.
+ */
+abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
+
+    /// @notice if non-zero, the withdraw request manager is used to manage illiquid redemptions
+    IWithdrawRequestManager public immutable withdrawRequestManager;
+
+    /// @notice token that is redeemed from a withdraw request
+    address public immutable redemptionToken;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this function");
+        _;
+    }
+
+    constructor(
+        address _stakingToken,
+        address _borrowToken,
+        address _redemptionToken,
+        address _owner,
+        uint256 _feeRate,
+        address _irm,
+        uint256 _lltv,
+        IWithdrawRequestManager _withdrawRequestManager
+    ) AbstractYieldStrategy(_owner, _borrowToken, _stakingToken, _feeRate, _irm, _lltv) {
+        redemptionToken = _redemptionToken;
+        withdrawRequestManager = _withdrawRequestManager;
+    }
+
+    /// @notice Returns the total value in terms of the borrowed token of the account's position
+    function convertYieldTokenToAsset() public view override returns (uint256) {
+        (int256 price , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
+        require(price > 0);
+        return uint256(price);
+
+        /* TODO: update this to use a transient variable if we are in liquidation
+        WithdrawRequest memory w = getWithdrawRequest(account);
+        uint256 withdrawValue = _calculateValueOfWithdrawRequest(
+            w, stakeAssetPrice, asset, redemptionToken
+        );
+        // This should always be zero if there is a withdraw request.
+        uint256 vaultSharesNotInWithdrawQueue = (vaultShares - w.vaultShares);
+
+        uint256 vaultSharesValue = (vaultSharesNotInWithdrawQueue * stakeAssetPrice * BORROW_PRECISION) /
+            (uint256(Constants.INTERNAL_TOKEN_PRECISION) * Constants.EXCHANGE_RATE_PRECISION);
+        return (withdrawValue + vaultSharesValue).toInt();
+        */
+    }
+
+
+    function _mintYieldTokens(
+        uint256 assets,
+        address receiver,
+        bytes memory depositData
+    ) internal override returns (uint256 yieldTokensMinted) {
+        if (address(withdrawRequestManager) != address(0)) {
+            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), receiver);
+            require(w.requestId == 0, "Withdraw request already exists");
+        }
+
+        return _stakeTokens(assets, receiver, depositData);
+    }
+
+    function _redeemYieldTokens(
+        uint256 yieldTokensToRedeem,
+        address sharesOwner,
+        bytes memory redeemData
+    ) internal override {
+        WithdrawRequest memory accountWithdraw;
+
+        if (address(withdrawRequestManager) != address(0)) {
+            (accountWithdraw, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
+        }
+
+        RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
+        if (accountWithdraw.requestId == 0) {
+            _executeInstantRedemption(yieldTokensToRedeem, params);
+        } else {
+            (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner);
+            require(finalized, "Withdraw request not finalized");
+
+            // Trades may be required here if the borrowed token is not the same as what is
+            // received when redeeming.
+            if (asset != redemptionToken) {
+                Trade memory trade = Trade({
+                    tradeType: TradeType.EXACT_IN_SINGLE,
+                    sellToken: address(redemptionToken),
+                    buyToken: address(asset),
+                    amount: tokensClaimed,
+                    limit: params.minPurchaseAmount,
+                    deadline: block.timestamp,
+                    exchangeData: params.exchangeData
+                });
+
+                _executeTrade(trade, params.dexId);
+            }
+        }
+    }
+
+    /// @notice Default implementation for an instant redemption is to sell the staking token to the
+    /// borrow token through the trading module. Can be overridden if required for different implementations.
+    function _executeInstantRedemption(
+        uint256 yieldTokensToRedeem,
+        RedeemParams memory params
+    ) internal virtual returns (uint256 assetsPurchased) {
+        Trade memory trade = Trade({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            sellToken: address(yieldToken),
+            buyToken: address(asset),
+            amount: yieldTokensToRedeem,
+            limit: params.minPurchaseAmount,
+            deadline: block.timestamp,
+            exchangeData: params.exchangeData
+        });
+
+        // Executes a trade on the given Dex, the vault must have permissions set for
+        // each dex and token it wants to sell.
+        (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
+    }
+
+    /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
+    function _executeTrade(
+        Trade memory trade,
+        uint16 dexId
+    ) internal returns (uint256 amountSold, uint256 amountBought) {
+        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
+            .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
+        if (!success) revert TradeFailed();
+        (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
+    }
+
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
+        // TODO: do we need to check health factor here?
+        // TODO: this may not be correct if shares and yield tokens are not 1:1
+        if (address(withdrawRequestManager) != address(0)) {
+            withdrawRequestManager.splitWithdrawRequest(liquidator, liquidateAccount, sharesToLiquidator);
+        }
+    }
+
+    /// @notice Allows an account to initiate a withdraw of their vault shares
+    function initiateWithdraw(bytes calldata data) external {
+        // TODO: we need to get the account's balance of yield tokens here....
+        withdrawRequestManager.initiateWithdraw({account: msg.sender, amount: 0, isForced: false, data: data});
+
+        // TODO: check health factor is collateralized
+        require(true);
+    }
+
+    /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
+    function forceWithdraw(address account, bytes calldata data) external onlyOwner {
+        // TODO: we need to get the account's balance of yield tokens here....
+        withdrawRequestManager.initiateWithdraw({account: account, amount: 0, isForced: true, data: data});
+    }
+
+    function _stakeTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual returns (uint256 yieldTokensMinted);
+}

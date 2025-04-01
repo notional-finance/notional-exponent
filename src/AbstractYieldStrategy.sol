@@ -327,16 +327,12 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) private returns (uint256 sharesMinted) {
+        if (assets == 0) return 0;
+
         // First accrue fees on the yield token
         _accrueFees();
         uint256 yieldTokensMinted = _mintYieldTokens(assets, receiver, depositData);
         s_trackedYieldTokenBalance += yieldTokensMinted;
-
-        // Sanity check to ensure that the yield token balance is not being manipulated, although this
-        // will pass if there is a donation of yield tokens to the contract.
-        if (ERC20(yieldToken).balanceOf(address(this)) < s_trackedYieldTokenBalance) {
-            revert InsufficientYieldTokenBalance();
-        }
 
         sharesMinted = convertYieldTokenToShares(yieldTokensMinted);
         _mint(receiver, sharesMinted);
@@ -345,6 +341,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) private returns (uint256 assetsWithdrawn) {
+        if (sharesToBurn == 0) return 0;
+
         uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
 
         // First accrue fees on the yield token

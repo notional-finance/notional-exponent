@@ -2,6 +2,7 @@
 pragma solidity >=0.8.28;
 
 import "./IWithdrawRequestManager.sol";
+import "./ClonedCoolDownHolder.sol";
 import "../Errors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -15,7 +16,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * request. It also allows for the withdraw request to be "tokenized" so that shares of the withdraw
  * request can be liquidated.
  */
-abstract contract BaseWithdrawRequestManager is IWithdrawRequestManager {
+abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
     address public immutable yieldToken;
     address public immutable withdrawToken;
@@ -195,6 +196,13 @@ abstract contract BaseWithdrawRequestManager is IWithdrawRequestManager {
         }
 
         // TODO: do we need to ensure that the _to account does not have a balance of vault shares?
+    }
+
+    /// @inheritdoc IWithdrawRequestManager
+    function rescueTokens(
+        address cooldownHolder, address token, address receiver, uint256 amount
+    ) external override onlyOwner {
+        ClonedCoolDownHolder(cooldownHolder).rescueTokens(IERC20(token), receiver, amount);
     }
 
     /// @notice Required implementation to begin the withdraw request
