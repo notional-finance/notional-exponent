@@ -1,18 +1,28 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.28;
 
+import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
+import {IWithdrawRequestManager, WithdrawRequest} from "../withdraws/WithdrawRequest.sol";
+import {weETH, WETH, LiquidityPool, eETH} from "../withdraws/EtherFiWithdrawRequestManager.sol";
+
 contract EtherFiStaking is AbstractYieldStrategy {
-    // Holds weETH, borrows WETH
+    IWithdrawRequestManager public immutable withdrawRequestManager;
+
     constructor(
         address _owner,
         uint256 _feeRate,
         address _irm,
-        uint256 _lltv
-    ) AbstractYieldStrategy(_owner, WETH, weETH, _feeRate, _irm, _lltv) { }
+        uint256 _lltv,
+        IWithdrawRequestManager _withdrawRequestManager
+    ) AbstractYieldStrategy(_owner, address(WETH), address(weETH), _feeRate, _irm, _lltv) {
+        require(block.chainid == 1);
+        withdrawRequestManager = _withdrawRequestManager;
+    }
 
-    function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal override returns (uint256 yieldTokensMinted) {
+    function _mintYieldTokens(uint256 assets, address receiver, bytes memory /* depositData */) internal override returns (uint256 yieldTokensMinted) {
         (WithdrawRequest memory w, /* */) = IWithdrawRequestManager(withdrawRequestManager).getWithdrawRequest(address(this), receiver);
         require(w.requestId == 0, "Withdraw request already exists");
+        WETH.withdraw(assets);
 
         uint256 eEthBalBefore = eETH.balanceOf(address(this));
         LiquidityPool.deposit{value: assets}();

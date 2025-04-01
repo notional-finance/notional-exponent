@@ -56,7 +56,10 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     uint256 internal transient t_AllowTransfer_Amount;
     /****** End Transient Variables ******/
 
+    receive() external payable {}
+
     constructor(
+        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
@@ -80,6 +83,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
         // TODO: If upgradeable then this needs to be called in initialize()
         s_lastFeeAccrualTime = block.timestamp;
+        owner = _owner;
     }
 
     /*** Valuation and Conversion Functions ***/
@@ -386,7 +390,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     /// @dev Called after liquidation to update the yield token balance.
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { };
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { }
 
     /// @dev Mints yield tokens given a number of assets.
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual returns (uint256 yieldTokensMinted);

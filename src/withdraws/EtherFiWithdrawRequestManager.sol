@@ -72,7 +72,14 @@ interface IWithdrawRequestNFT {
     function finalizeRequests(uint256 requestId) external;
 }
 
+interface WETH9 is IERC20 {
+    function deposit() external payable;
+    function withdraw(uint256 wad) external;
+}
+
+
 IweETH constant weETH = IweETH(0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee);
 IERC20 constant eETH = IERC20(0x35fA164735182de50811E8e2E824cFb9B6118ac2);
 ILiquidityPool constant LiquidityPool = ILiquidityPool(0x308861A430be4cce5502d0A12724771Fc6DaF216);
 IWithdrawRequestNFT constant WithdrawRequestNFT = IWithdrawRequestNFT(0x7d5706f6ef3F89B3951E23e557CDFBC3239D4E2c);
+WETH9 constant WETH = WETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
