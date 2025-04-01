@@ -9,6 +9,7 @@ import {INotionalV4Callback} from "./interfaces/INotionalV4Callback.sol";
 import {BorrowData, IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
+import {TRADING_MODULE} from "./interfaces/ITradingModule.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -379,11 +380,16 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /*** Virtual Functions ***/
 
     /// @inheritdoc IYieldStrategy
-    function convertYieldTokenToAsset() public view virtual  returns (uint256 price);
+    function convertYieldTokenToAsset() public view virtual returns (uint256) {
+        (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
+        require(rate > 0);
+        return uint256(rate);
+    }
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
     function _canLiquidate(address liquidateAccount) internal virtual returns (uint256 maxLiquidateShares) {
+        // TODO: get the balance of the account's position in the lending market
         return balanceOf(liquidateAccount);
     }
 

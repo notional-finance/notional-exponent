@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.6;
 
+import {AggregatorV2V3Interface} from "./AggregatorV2V3Interface.sol";
 
 enum DexId {
     _UNUSED,        // flag = 1,  enum = 0
@@ -37,18 +38,6 @@ error InvalidTrade();
 error DynamicTradeFailed();
 error TradeFailed();
 
-interface AggregatorV2V3Interface {
-
-  function decimals() external view returns (uint8);
-  function description() external view returns (string memory);
-  function version() external view returns (uint256);
-
-  // getRoundData and latestRoundData should both raise "No data present"
-  // if they do not have data to report, instead of returning unset values
-  // which could be misinterpreted as actual reported values.
-  function getRoundData(uint80 _roundId) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
-  function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
-}
 
 interface nProxy {
     function getImplementation() external view returns (address);

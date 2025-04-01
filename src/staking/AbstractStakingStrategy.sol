@@ -50,9 +50,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertYieldTokenToAsset() public view override returns (uint256) {
-        (int256 price , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
-        require(price > 0);
-        return uint256(price);
+        return super.convertYieldTokenToAsset();
 
         /* TODO: update this to use a transient variable if we are in liquidation
         WithdrawRequest memory w = getWithdrawRequest(account);
