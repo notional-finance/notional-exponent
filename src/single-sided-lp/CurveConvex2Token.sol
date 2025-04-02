@@ -217,26 +217,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         }
     }
 
-    // function _checkPriceAndCalculateValue() internal view override returns (uint256 oneLPValueInPrimary) {
-    //     uint256[] memory balances = new uint256[](2);
-    //     balances[0] = ICurvePool(CURVE_POOL).balances(0);
-    //     balances[1] = ICurvePool(CURVE_POOL).balances(1);
-
-    //     // The primary index spot price is left as zero.
-    //     uint256[] memory spotPrices = new uint256[](2);
-    //     uint256 primaryPrecision = 10 ** PRIMARY_DECIMALS;
-    //     uint256 secondaryPrecision = 10 ** SECONDARY_DECIMALS;
-
-    //     // `get_dy` returns the price of one unit of the primary token
-    //     // converted to the secondary token. The spot price is in secondary
-    //     // precision and then we convert it to POOL_PRECISION.
-    //     spotPrices[SECONDARY_INDEX] = ICurvePool(CURVE_POOL).get_dy(
-    //         int8(_PRIMARY_INDEX), int8(SECONDARY_INDEX), primaryPrecision
-    //     ) * POOL_PRECISION() / secondaryPrecision;
-
-    //     return _calculateLPTokenValue(balances, spotPrices);
-    // }
-
     function _initialApproveTokens() internal override virtual {
         // If either token is ETH_ADDRESS the check approve will short circuit
         IERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);

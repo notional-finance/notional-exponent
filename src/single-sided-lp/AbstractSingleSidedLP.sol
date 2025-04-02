@@ -86,15 +86,6 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
     /// @notice Precision (i.e. 10 ** decimals) of the LP token.
     function POOL_PRECISION() internal view virtual returns (uint256);
 
-    /// @notice Returns the value of one LP token in terms of the primary borrowed currency by this
-    /// strategy. Will revert if the spot price on the pool is not within some deviation tolerance of
-    /// the implied oracle price. This is intended to prevent any pool manipulation.
-    /// The value of the LP token is calculated as the value of the token if all the balance claims are
-    /// withdrawn proportionally and then converted to the primary currency at the oracle price. Slippage
-    /// from selling the tokens is not considered, any slippage effects will be captured by the maximum
-    /// leverage ratio allowed before liquidation.
-    function _checkPriceAndCalculateValue() internal view virtual returns (uint256 oneLPValueInPrimary);
-
     /// @notice Called once during initialization to set the initial token approvals.
     function _initialApproveTokens() internal virtual;
 
