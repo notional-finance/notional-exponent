@@ -4,12 +4,9 @@ pragma solidity >=0.8.28;
 import {AbstractSingleSidedLP} from "./AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils, IERC20} from "../utils/TokenUtils.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH} from "../Constants.sol";
+import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../Constants.sol";
 import "../interfaces/Curve/ICurve.sol";
-
-interface Minter {
-    function mint(address gauge) external;
-}
+import "../interfaces/Curve/IConvex.sol";
 
 struct DeploymentParams {
     address pool;
@@ -17,6 +14,7 @@ struct DeploymentParams {
     address gauge;
     CurveInterface curveInterface;
     address whitelistedReward;
+    address convexRewardPool;
 }
 
 contract CurveConvex2Token is AbstractSingleSidedLP {
@@ -26,9 +24,16 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     uint256 internal constant CURVE_PRECISION = 1e18;
 
     address internal immutable CURVE_POOL;
-    address internal immutable CURVE_GAUGE;
     IERC20 internal immutable CURVE_POOL_TOKEN;
     CurveInterface internal immutable CURVE_INTERFACE;
+
+    /// @dev Curve gauge contract used when there is no convex reward pool
+    address internal immutable CURVE_GAUGE;
+    /// @dev Convex booster contract used for staking BPT
+    address internal immutable CONVEX_BOOSTER;
+    /// @dev Convex reward pool contract used for unstaking and claiming reward tokens
+    address internal immutable CONVEX_REWARD_POOL;
+    uint256 internal immutable CONVEX_POOL_ID;
 
     uint8 internal immutable _PRIMARY_INDEX;
     uint8 internal immutable SECONDARY_INDEX;
@@ -85,6 +90,21 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         // Allows one of the pool tokens to be whitelisted as a reward token to be re-entered
         // back into the pool to increase LP shares.
         WHITELISTED_REWARD = params.whitelistedReward;
+
+        // If the convex reward pool is set then get the booster and pool id, if not then
+        // we will stake on the curve gauge directly.
+        CONVEX_REWARD_POOL = params.convexRewardPool;
+        address convexBooster;
+        uint256 poolId;
+        if (block.chainid == CHAIN_ID_MAINNET && CONVEX_REWARD_POOL != address(0)) {
+            convexBooster = IConvexRewardPool(CONVEX_REWARD_POOL).operator();
+            poolId = IConvexRewardPool(CONVEX_REWARD_POOL).pid();
+        } else {
+            revert("Unsupported chain");
+        }
+
+        CONVEX_POOL_ID = poolId;
+        CONVEX_BOOSTER = convexBooster;
     }
 
     function _rewriteAltETH(address token) private pure returns (address) {
@@ -105,10 +125,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         } else {
             revert();
         }
-    }
-
-    function _stakeLpTokens(uint256 lpTokens) internal virtual {
-        ICurveGauge(CURVE_GAUGE).deposit(lpTokens);
     }
 
     function _joinPoolAndStake(
@@ -149,10 +165,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         }
 
         _stakeLpTokens(lpTokens);
-    }
-
-    function _unstakeLpTokens(uint256 poolClaim) internal virtual {
-        ICurveGauge(CURVE_GAUGE).withdraw(poolClaim);
     }
 
     function _unstakeAndExitPool(
@@ -229,7 +241,11 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         // If either token is ETH_ADDRESS the check approve will short circuit
         IERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);
         IERC20(TOKEN_2).checkApprove(address(CURVE_POOL), type(uint256).max);
-        CURVE_POOL_TOKEN.checkApprove(address(CURVE_GAUGE), type(uint256).max);
+        if (CONVEX_BOOSTER != address(0)) {
+            CURVE_POOL_TOKEN.checkApprove(address(CONVEX_BOOSTER), type(uint256).max);
+        } else {
+            CURVE_POOL_TOKEN.checkApprove(address(CURVE_GAUGE), type(uint256).max);
+        }
     }
 
     function _isInvalidRewardToken(address token) internal override virtual view returns (bool) {
@@ -238,6 +254,8 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         return (
             token == TOKEN_1 ||
             token == TOKEN_2 ||
+            token == address(CONVEX_REWARD_POOL) ||
+            token == address(CONVEX_BOOSTER) ||
             token == address(CURVE_GAUGE) ||
             token == address(CURVE_POOL_TOKEN) ||
             token == address(ETH_ADDRESS) ||
@@ -245,8 +263,31 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         );
     }
 
-    // function _rewardPoolStorage() internal view override virtual returns (RewardPoolStorage memory r) {
-    //     r.rewardPool = address(0);
-    //     r.poolType = RewardPoolType._UNUSED;
+    // function _rewardPoolStorage() internal view override returns (RewardPoolStorage memory r) {
+    //     r.rewardPool = address(CONVEX_REWARD_POOL);
+    //     if (block.chainid == CHAIN_ID_MAINNET) {
+    //         r.poolType = RewardPoolType.CONVEX_MAINNET;
+    //     } else {
+    //         revert();
+    //     }
     // }
+
+    function _stakeLpTokens(uint256 lpTokens) internal {
+        if (CONVEX_BOOSTER != address(0)) {
+            bool success = IConvexBooster(CONVEX_BOOSTER).deposit(CONVEX_POOL_ID, lpTokens, true);
+            require(success);
+        } else {
+            ICurveGauge(CURVE_GAUGE).deposit(lpTokens);
+        }
+    }
+
+
+    function _unstakeLpTokens(uint256 poolClaim) internal {
+        if (CONVEX_REWARD_POOL != address(0)) {
+            bool success = IConvexRewardPool(CONVEX_REWARD_POOL).withdrawAndUnwrap(poolClaim, false);
+            require(success);
+        } else {
+            ICurveGauge(CURVE_GAUGE).withdraw(poolClaim);
+        }
+    }
 }
