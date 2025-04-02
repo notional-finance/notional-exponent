@@ -34,7 +34,7 @@ interface IWithdrawRequestManager {
     /// @param depositToken the token to stake, will be transferred from the vault
     /// @param amount the amount of tokens to stake
     /// @param data additional data for the stake
-    function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external;
+    function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external returns (uint256 yieldTokensMinted);
 
     /// @notice Initiates a withdraw request
     /// @dev Only approved vaults can initiate withdraw requests

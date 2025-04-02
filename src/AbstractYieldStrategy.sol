@@ -12,6 +12,7 @@ import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TRADING_MODULE} from "./interfaces/ITradingModule.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
+import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -392,6 +393,12 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         Trade memory trade,
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
+        if (trade.tradeType == TradeType.STAKE_TOKEN) {
+            (address withdrawRequestManager, bytes memory stakeData) = abi.decode(trade.exchangeData, (address, bytes));
+            amountBought = IWithdrawRequestManager(withdrawRequestManager).stakeTokens(trade.sellToken, trade.amount, stakeData);
+            return (trade.amount, amountBought);
+        }
+
         (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
             .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
         if (!success) revert TradeFailed();

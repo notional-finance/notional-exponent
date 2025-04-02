@@ -20,7 +20,8 @@ enum TradeType {
     EXACT_IN_SINGLE,  // flag = 1
     EXACT_OUT_SINGLE, // flag = 2
     EXACT_IN_BATCH,   // flag = 4
-    EXACT_OUT_BATCH   // flag = 8
+    EXACT_OUT_BATCH,  // flag = 8
+    STAKE_TOKEN       // flag = 16
 }
 
 struct Trade {
