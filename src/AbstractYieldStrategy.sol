@@ -10,6 +10,7 @@ import {BorrowData, IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TRADING_MODULE} from "./interfaces/ITradingModule.sol";
+import {TokenUtils} from "./utils/TokenUtils.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -73,8 +74,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         feeRate = _feeRate;
         asset = address(_asset);
         yieldToken = address(_yieldToken);
-        _yieldTokenDecimals = ERC20(_yieldToken).decimals();
-        _assetDecimals = ERC20(_asset).decimals();
+        _yieldTokenDecimals = TokenUtils.getDecimals(_yieldToken);
+        _assetDecimals = TokenUtils.getDecimals(_asset);
 
         // If multiple markets exist for the same strategy with different LTVs then we can
         // deploy multiple contracts for each market so that they are 1-1. This simplifies
@@ -213,7 +214,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         MORPHO.borrow(_marketParams(), assets, 0, receiver, address(this));
 
         // Allow for flash loan to be repaid
-        ERC20(asset).approve(address(MORPHO), assets);
+        ERC20(asset).forceApprove(address(MORPHO), assets);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -232,14 +233,14 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
         if (0 < assetToRepay) {
             // Allow Morpho to repay the portion of debt
-            ERC20(asset).approve(address(MORPHO), assetToRepay);
+            ERC20(asset).forceApprove(address(MORPHO), assetToRepay);
 
             // TODO: if assetToRepay is uint256.max then get the morpho borrow shares amount
             // XXX: Morpho market specific code.
             MORPHO.repay(_marketParams(), assetToRepay, 0, onBehalf, "");
 
             // Clear the approval to prevent re-use in a future call.
-            ERC20(asset).approve(address(MORPHO), 0);
+            ERC20(asset).forceApprove(address(MORPHO), 0);
         }
 
         // Withdraw the collateral and allow the transfer of shares from the lending market.
@@ -278,7 +279,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
 
         ERC20(asset).safeTransferFrom(msg.sender, address(this), assetToRepay);
-        ERC20(asset).approve(address(MORPHO), assetToRepay);
+        ERC20(asset).forceApprove(address(MORPHO), assetToRepay);
 
         t_AllowTransfer_To = msg.sender;
         t_AllowTransfer_Amount = maxLiquidateShares;
@@ -288,7 +289,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         delete t_AllowTransfer_Amount;
 
         // Clear the approval to prevent re-use in a future call.
-        ERC20(asset).approve(address(MORPHO), 0);
+        ERC20(asset).forceApprove(address(MORPHO), 0);
 
         uint256 sharesToLiquidator = balanceOf(msg.sender) - initialBalance;
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));

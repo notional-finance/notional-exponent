@@ -8,6 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBalancerPool} from "../interfaces/Balancer/IBalancerPool.sol";
 import {IAuraRewardPool, IAuraBooster} from "../interfaces/Balancer/IAura.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
 import"../interfaces/Balancer/IBalancerVault.sol";
 
 /** Base class for all Balancer LP strategies */
@@ -101,11 +102,11 @@ abstract contract BalancerAuraPoolMixin is AbstractSingleSidedLP {
         TOKEN_4 = _NUM_TOKENS > 3 ? tokens[3] : address(0);
         TOKEN_5 = _NUM_TOKENS > 4 ? tokens[4] : address(0);
 
-        DECIMALS_1 = _NUM_TOKENS > 0 ? ERC20(TOKEN_1).decimals() : 0;
-        DECIMALS_2 = _NUM_TOKENS > 1 ? ERC20(TOKEN_2).decimals() : 0;
-        DECIMALS_3 = _NUM_TOKENS > 2 ? ERC20(TOKEN_3).decimals() : 0;
-        DECIMALS_4 = _NUM_TOKENS > 3 ? ERC20(TOKEN_4).decimals() : 0;
-        DECIMALS_5 = _NUM_TOKENS > 4 ? ERC20(TOKEN_5).decimals() : 0;
+        DECIMALS_1 = _NUM_TOKENS > 0 ? TokenUtils.getDecimals(TOKEN_1) : 0;
+        DECIMALS_2 = _NUM_TOKENS > 1 ? TokenUtils.getDecimals(TOKEN_2) : 0;
+        DECIMALS_3 = _NUM_TOKENS > 2 ? TokenUtils.getDecimals(TOKEN_3) : 0;
+        DECIMALS_4 = _NUM_TOKENS > 3 ? TokenUtils.getDecimals(TOKEN_4) : 0;
+        DECIMALS_5 = _NUM_TOKENS > 4 ? TokenUtils.getDecimals(TOKEN_5) : 0;
 
         uint8 primaryIndex = NOT_FOUND;
         uint8 bptIndex = NOT_FOUND;

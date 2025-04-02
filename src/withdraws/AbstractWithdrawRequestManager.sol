@@ -5,6 +5,7 @@ import "./IWithdrawRequestManager.sol";
 import "./ClonedCoolDownHolder.sol";
 import "../Errors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * Library to handle potentially illiquid withdraw requests of staking tokens where there
@@ -17,6 +18,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * request can be liquidated.
  */
 abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
+    using SafeERC20 for IERC20;
 
     address public immutable yieldToken;
     address public immutable withdrawToken;
@@ -83,7 +85,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
         if (finalized) {
             delete s_accountWithdrawRequest[msg.sender][account];
-            IERC20(withdrawToken).transfer(msg.sender, tokensWithdrawn);
+            IERC20(withdrawToken).safeTransfer(msg.sender, tokensWithdrawn);
         }
     }
 
