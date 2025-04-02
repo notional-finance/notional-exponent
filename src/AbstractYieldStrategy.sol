@@ -11,6 +11,7 @@ import {MORPHO, MarketParams} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TRADING_MODULE} from "./interfaces/ITradingModule.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -378,8 +379,21 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         }
     }
 
-    function getYieldTokenBalance() internal view returns (uint256) {
+    /*** Internal Helper Functions ***/
+
+    function _getYieldTokenBalance() internal view returns (uint256) {
         return s_trackedYieldTokenBalance;
+    }
+
+    /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
+    function _executeTrade(
+        Trade memory trade,
+        uint16 dexId
+    ) internal returns (uint256 amountSold, uint256 amountBought) {
+        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
+            .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
+        if (!success) revert TradeFailed();
+        (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
     /*** Virtual Functions ***/

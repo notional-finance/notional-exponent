@@ -3,27 +3,14 @@ pragma solidity >=0.8.28;
 
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {TradeType} from "../interfaces/ITradingModule.sol";
+import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 
-/// @notice Parameters for trades
 struct TradeParams {
-    /// @notice DEX ID
-    uint16 dexId;
-    /// @notice Trade type (i.e. Single/Batch)
-    TradeType tradeType;
-    /// @notice For dynamic trades, this field specifies the slippage percentage relative to
-    /// the oracle price. For static trades, this field specifies the slippage limit amount.
-    uint256 oracleSlippagePercentOrLimit;
-    /// @notice DEX specific data
-    bytes exchangeData;
-}
-
-/// @notice Deposit trade parameters
-struct DepositTradeParams {
-    /// @notice Amount of primary tokens to sell
     uint256 tradeAmount;
-    /// @notice Trade parameters
-    TradeParams tradeParams;
+    uint16 dexId;
+    TradeType tradeType;
+    uint256 minPurchaseAmount;
+    bytes exchangeData;
 }
 
 /// @notice Deposit parameters
@@ -31,7 +18,7 @@ struct DepositParams {
     /// @notice min pool claim for slippage control
     uint256 minPoolClaim;
     /// @notice DepositTradeParams or empty (single-sided entry)
-    DepositTradeParams[] depositTrades;
+    TradeParams[] depositTrades;
 }
 
 /// @notice Redeem parameters
@@ -40,18 +27,6 @@ struct RedeemParams {
     uint256[] minAmounts;
     /// @notice Redemption trades or empty (single-sided exit)
     TradeParams[] redemptionTrades;
-}
-
-/// @notice Single-sided reinvestment trading parameters
-struct SingleSidedRewardTradeParams {
-    /// @notice Address of the token to sell (typically one of the reward tokens)
-    address sellToken;
-    /// @notice Address of the token to buy (typically one of the pool tokens)
-    address buyToken;
-    /// @notice Amount of tokens to sell
-    uint256 amount;
-    /// @notice Trade params
-    TradeParams tradeParams;
 }
 
 /**
@@ -215,15 +190,8 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
         // Deposit trades are not automatically enabled on vaults since the trading module
         // requires explicit permission for every token that can be sold by an address.
         if (params.depositTrades.length > 0) {
-            (IERC20[] memory tokens, /* */) = TOKENS();
-            // This is an external library call so the memory location of amounts is
-            // different before and after the call.
-            // amounts = StrategyUtils.executeDepositTrades(
-            //     tokens,
-            //     amounts,
-            //     params.depositTrades,
-            //     PRIMARY_INDEX()
-            // );
+            // NOTE: amounts is modified in place
+            _executeDepositTrades(amounts, params.depositTrades);
         }
 
         yieldTokensMinted = _joinPoolAndStake(amounts, params.minPoolClaim);
@@ -231,7 +199,7 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.
         uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / POOL_SHARE_BASIS;
-        uint256 poolClaim = getYieldTokenBalance();
+        uint256 poolClaim = _getYieldTokenBalance();
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
 
         // _updateAccountRewards({
@@ -260,15 +228,9 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
             // If not a single sided trade, will execute trades back to the primary token on
             // external exchanges. This method will execute EXACT_IN trades to ensure that
             // all of the balance in the other tokens is sold for primary.
-            (IERC20[] memory tokens, /* */) = TOKENS();
             // Redemption trades are not automatically enabled on vaults since the trading module
             // requires explicit permission for every token that can be sold by an address.
-            // finalPrimaryBalance = StrategyUtils.executeRedemptionTrades(
-            //     tokens,
-            //     exitBalances,
-            //     params.redemptionTrades,
-            //     PRIMARY_INDEX()
-            // );
+            _executeRedemptionTrades(exitBalances, params.redemptionTrades);
         }
 
         // _updateAccountRewards({
@@ -277,6 +239,72 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
         //     totalVaultSharesBefore: totalVaultSharesBefore,
         //     isMint: false
         // });
+    }
+
+    /// @dev Trades the amount of primary token into other secondary tokens prior to entering a pool.
+    function _executeDepositTrades(
+        uint256[] memory amounts,
+        TradeParams[] memory depositTrades
+    ) internal {
+        (IERC20[] memory tokens, /* */) = TOKENS();
+        address primaryToken = address(tokens[PRIMARY_INDEX()]);
+        Trade memory trade;
+
+        for (uint256 i; i < amounts.length; i++) {
+            if (i == PRIMARY_INDEX()) continue;
+            TradeParams memory t = depositTrades[i];
+
+            if (t.tradeAmount > 0) {
+                trade = Trade({
+                    tradeType: t.tradeType,
+                    sellToken: primaryToken,
+                    buyToken: address(tokens[i]),
+                    amount: t.tradeAmount,
+                    limit: t.minPurchaseAmount,
+                    deadline: block.timestamp,
+                    exchangeData: t.exchangeData
+                });
+                // Always selling the primaryToken and buying the secondary token.
+                (uint256 amountSold, uint256 amountBought) = _executeTrade(trade, t.dexId);
+
+                amounts[i] = amountBought;
+                // Will revert on underflow if over-selling the primary borrowed
+                amounts[PRIMARY_INDEX()] -= amountSold;
+            }
+        }
+    }
+
+    /// @dev Trades the amount of secondary tokens into the primary token after exiting a pool.
+    function _executeRedemptionTrades(
+        uint256[] memory exitBalances,
+        TradeParams[] memory redemptionTrades
+    ) internal returns (uint256 finalPrimaryBalance) {
+        (IERC20[] memory tokens, /* */) = TOKENS();
+        address primaryToken = address(tokens[PRIMARY_INDEX()]);
+
+        for (uint256 i; i < exitBalances.length; i++) {
+            if (i == PRIMARY_INDEX()) {
+                finalPrimaryBalance += exitBalances[i];
+                continue;
+            }
+
+            TradeParams memory t = redemptionTrades[i];
+            // Always sell the entire exit balance to the primary token
+            if (exitBalances[i] > 0) {
+                Trade memory trade = Trade({
+                    tradeType: t.tradeType,
+                    sellToken: address(tokens[i]),
+                    buyToken: primaryToken,
+                    amount: exitBalances[i],
+                    limit: t.minPurchaseAmount,
+                    deadline: block.timestamp,
+                    exchangeData: t.exchangeData
+                });
+                (/* */, uint256 amountBought) = _executeTrade(trade, t.dexId);
+
+                finalPrimaryBalance += amountBought;
+            }
+        }
     }
 
     /************************************************************************

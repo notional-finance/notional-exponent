@@ -3,7 +3,7 @@ pragma solidity >=0.8.28;
 
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IWithdrawRequestManager, WithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
+import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 
 struct RedeemParams {
     uint8 dexId;
@@ -152,17 +152,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         // Executes a trade on the given Dex, the vault must have permissions set for
         // each dex and token it wants to sell.
         (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
-    }
-
-    /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
-    function _executeTrade(
-        Trade memory trade,
-        uint16 dexId
-    ) internal returns (uint256 amountSold, uint256 amountBought) {
-        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
-            .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
-        if (!success) revert TradeFailed();
-        (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
