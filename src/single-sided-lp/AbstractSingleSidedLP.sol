@@ -63,9 +63,6 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
     /// leveraged vault. All valuations are done in terms of this currency.
     function PRIMARY_INDEX() internal view virtual returns (uint256);
 
-    /// @notice Precision (i.e. 10 ** decimals) of the LP token.
-    function POOL_PRECISION() internal view virtual returns (uint256);
-
     /// @notice Called once during initialization to set the initial token approvals.
     function _initialApproveTokens() internal virtual;
 
@@ -81,7 +78,7 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
     /// stake on the relevant booster protocol.
     function _joinPoolAndStake(
         uint256[] memory amounts, uint256 minPoolClaim
-    ) internal virtual returns (uint256 lpTokens);
+    ) internal virtual;
 
     /// @notice Implementation specific wrapper for unstaking from the booster protocol and withdrawing
     /// funds from the LP pool
@@ -179,7 +176,7 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
         uint256 assets,
         address receiver,
         bytes memory depositData
-    ) internal override virtual returns (uint256 yieldTokensMinted) {
+    ) internal override virtual {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
         amounts[PRIMARY_INDEX()] = assets;
@@ -194,7 +191,7 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
             _executeDepositTrades(amounts, params.depositTrades);
         }
 
-        yieldTokensMinted = _joinPoolAndStake(amounts, params.minPoolClaim);
+        _joinPoolAndStake(amounts, params.minPoolClaim);
 
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.

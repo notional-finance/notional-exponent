@@ -6,7 +6,6 @@ import {IWithdrawRequestManager} from "../withdraws/IWithdrawRequestManager.sol"
 import {weETH, WETH, LiquidityPool, eETH} from "../withdraws/EtherFiWithdrawRequestManager.sol";
 
 contract EtherFiStaking is AbstractStakingStrategy {
-
     constructor(
         address _owner,
         uint256 _feeRate,
@@ -17,13 +16,5 @@ contract EtherFiStaking is AbstractStakingStrategy {
         _owner, address(WETH), address(weETH), _feeRate, _irm, _lltv, address(0), _withdrawRequestManager
     ) {
         require(block.chainid == 1);
-    }
-
-    function _stakeTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override returns (uint256 yieldTokensMinted) {
-        WETH.withdraw(assets);
-        uint256 eEthBalBefore = eETH.balanceOf(address(this));
-        LiquidityPool.deposit{value: assets}();
-        uint256 eETHMinted = eETH.balanceOf(address(this)) - eEthBalBefore;
-        yieldTokensMinted = weETH.wrap(eETHMinted);
     }
 }

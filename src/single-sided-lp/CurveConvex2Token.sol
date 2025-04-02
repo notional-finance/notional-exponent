@@ -48,7 +48,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
     function PRIMARY_INDEX() internal view override returns (uint256) { return _PRIMARY_INDEX; }
-    function POOL_PRECISION() internal pure override returns (uint256) { return CURVE_PRECISION; }
     function TOKENS() public view override returns (IERC20[] memory, uint8[] memory) {
         IERC20[] memory tokens = new IERC20[](_NUM_TOKENS);
         uint8[] memory decimals = new uint8[](_NUM_TOKENS);
@@ -130,7 +129,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     function _joinPoolAndStake(
         uint256[] memory _amounts, uint256 minPoolClaim
-    ) internal override returns (uint256 lpTokens) {
+    ) internal override {
         // Only two tokens are ever allowed in this strategy, remaps the array
         // into a fixed length array here.
         uint256[2] memory amounts;
@@ -148,6 +147,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         }
 
         // Slightly different method signatures in v1 and v2
+        uint256 lpTokens;
         if (CURVE_INTERFACE == CurveInterface.V1) {
             lpTokens = ICurve2TokenPoolV1(CURVE_POOL).add_liquidity{value: msgValue}(
                 amounts, minPoolClaim

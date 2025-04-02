@@ -334,9 +334,11 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
         // First accrue fees on the yield token
         _accrueFees();
-        uint256 yieldTokensMinted = _mintYieldTokens(assets, receiver, depositData);
-        s_trackedYieldTokenBalance += yieldTokensMinted;
+        uint256 initialYieldTokenBalance = ERC20(yieldToken).balanceOf(address(this));
+        _mintYieldTokens(assets, receiver, depositData);
+        uint256 yieldTokensMinted = ERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
 
+        s_trackedYieldTokenBalance += yieldTokensMinted;
         sharesMinted = convertYieldTokenToShares(yieldTokensMinted);
         _mint(receiver, sharesMinted);
 
@@ -416,7 +418,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { }
 
     /// @dev Mints yield tokens given a number of assets.
-    function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual returns (uint256 yieldTokensMinted);
+    function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;
 
     /// @dev Redeems yield tokens given a number of yield tokens.
     function _redeemYieldTokens(uint256 yieldTokensToRedeem, address sharesOwner, bytes memory redeemData) internal virtual;

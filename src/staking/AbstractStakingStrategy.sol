@@ -88,13 +88,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 assets,
         address receiver,
         bytes memory depositData
-    ) internal override returns (uint256 yieldTokensMinted) {
+    ) internal override {
         if (address(withdrawRequestManager) != address(0)) {
             (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), receiver);
             require(w.requestId == 0, "Withdraw request already exists");
         }
 
-        return _stakeTokens(assets, receiver, depositData);
+        _stakeTokens(assets, receiver, depositData);
     }
 
     function _redeemYieldTokens(
@@ -162,5 +162,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         }
     }
 
-    function _stakeTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual returns (uint256 yieldTokensMinted);
+    /// @dev By default we can use the withdraw request manager to stake the tokens
+    function _stakeTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal virtual {
+        withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
+    }
 }

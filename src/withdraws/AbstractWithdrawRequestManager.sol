@@ -54,6 +54,17 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     }
 
     /// @inheritdoc IWithdrawRequestManager
+    function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external override onlyApprovedVault {
+        IERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 initialYieldTokenBalance = IERC20(yieldToken).balanceOf(address(this));
+
+        _stakeTokens(depositToken, amount, data);
+
+        uint256 yieldTokensMinted = IERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
+        IERC20(yieldToken).safeTransfer(msg.sender, yieldTokensMinted);
+    }
+
+    /// @inheritdoc IWithdrawRequestManager
     function initiateWithdraw(
         address account,
         uint256 amount,
@@ -222,6 +233,9 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     /// split due to liquidation
     /// @return finalized returns true if the withdraw has been finalized
     function _finalizeWithdrawImpl(address account, uint256 requestId) internal virtual returns (uint256 tokensWithdrawn, bool finalized);
+
+    /// @notice Required implementation to stake the deposit token to the yield token
+    function _stakeTokens(address depositToken, uint256 amount, bytes calldata data) internal virtual;
 
     // function _getValueOfWithdrawRequest(
     //     uint256 requestId, uint256 totalVaultShares, uint256 stakeAssetPrice

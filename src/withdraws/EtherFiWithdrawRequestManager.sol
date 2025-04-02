@@ -7,6 +7,9 @@ import {WETH} from "../Constants.sol";
 
 contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
 
+    /// @dev Required to withdraw WETH
+    receive() external payable {}
+
     constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(0), address(weETH)) { }
 
     function _initiateWithdrawImpl(
@@ -22,6 +25,16 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
 
         eETH.approve(address(LiquidityPool), eETHReceived);
         return LiquidityPool.requestWithdraw(address(this), eETHReceived);
+    }
+
+    function _stakeTokens(address depositToken, uint256 amount, bytes calldata /* data */) internal override {
+        require(depositToken == address(WETH), "Invalid deposit token");
+
+        WETH.withdraw(amount);
+        uint256 eEthBalBefore = eETH.balanceOf(address(this));
+        LiquidityPool.deposit{value: amount}();
+        uint256 eETHMinted = eETH.balanceOf(address(this)) - eEthBalBefore;
+        weETH.wrap(eETHMinted);
     }
 
     // function _getValueOfWithdrawRequest(

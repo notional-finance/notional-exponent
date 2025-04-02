@@ -59,7 +59,7 @@ contract PendlePT is AbstractStakingStrategy {
         uint256 assets,
         address /* receiver */,
         bytes memory data
-    ) internal override returns (uint256 ptReceived) {
+    ) internal override {
         require(!PT.isExpired(), "Expired");
 
         PendleDepositParams memory params = abi.decode(data, (PendleDepositParams));
@@ -88,7 +88,7 @@ contract PendlePT is AbstractStakingStrategy {
 
         ERC20(TOKEN_IN_SY).forceApprove(address(PENDLE_ROUTER), tokenInAmount);
         uint256 msgValue = TOKEN_IN_SY == ETH_ADDRESS ? tokenInAmount : 0;
-        (ptReceived, /* */, /* */) = PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
+        PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
             address(this),
             address(MARKET),
             params.minPtOut,
