@@ -378,6 +378,10 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         }
     }
 
+    function getYieldTokenBalance() internal view returns (uint256) {
+        return s_trackedYieldTokenBalance;
+    }
+
     /*** Virtual Functions ***/
 
     /// @inheritdoc IYieldStrategy

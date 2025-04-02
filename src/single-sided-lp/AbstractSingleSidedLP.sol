@@ -62,7 +62,12 @@ struct SingleSidedRewardTradeParams {
  * the external DEX pool.
  */
 abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
+    error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
+    // TODO: this is storage....
+    uint256 public maxPoolShare;
+
+    uint256 internal constant POOL_SHARE_BASIS = 1e18;
     uint256 internal constant MAX_TOKENS = 5;
     uint8 internal constant NOT_FOUND = type(uint8).max;
 
@@ -122,8 +127,10 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
      * of the Single Sided LP strategy.                                     *
      ************************************************************************/
 
-    constructor(address _owner, address _asset, address _yieldToken, uint256 _feeRate, address _irm, uint256 _lltv)
-        AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {}
+    constructor(uint256 _maxPoolShare, address _owner, address _asset, address _yieldToken, uint256 _feeRate, address _irm, uint256 _lltv)
+        AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
+        maxPoolShare = _maxPoolShare;
+    }
 
     /************************************************************************
      * EXTERNAL VIEW FUNCTIONS                                              *
@@ -223,10 +230,9 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
 
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.
-        // uint256 maxPoolShare = VaultStorage.getStrategyVaultSettings().maxPoolShare;
-        // uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / Constants.VAULT_PERCENT_BASIS;
-        // if (maxSupplyThreshold < state.totalPoolClaim)
-        //     revert Errors.PoolShareTooHigh(state.totalPoolClaim, maxSupplyThreshold);
+        uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / POOL_SHARE_BASIS;
+        uint256 poolClaim = getYieldTokenBalance();
+        if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
 
         // _updateAccountRewards({
         //     account: account,
@@ -272,60 +278,6 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
         //     isMint: false
         // });
     }
-
-    /************************************************************************
-     * REWARD REINVESTMENT                                                  *
-     * Methods used by bots to claim reward tokens and reinvest them as LP  *
-     * tokens which are donated to all vault users.                         *
-     ************************************************************************/
-
-    // /// @notice Ensures that only whitelisted bots can reinvest rewards. Since rewards
-    // /// are typically less liquid than pool tokens and lack oracles, reward reinvestment
-    // /// is done using explicitly set slippage limits by the reinvestment bots. Reinvestment
-    // /// will fail if the spot prices are not close to the oracle prices to ensure that
-    // /// there is no front running the reinvestment.
-    // function reinvestReward(
-    //     SingleSidedRewardTradeParams[] calldata trades,
-    //     uint256 minPoolClaim
-    // ) external whenNotLocked onlyRole(REWARD_REINVESTMENT_ROLE) returns (
-    //     address rewardToken,
-    //     uint256 amountSold,
-    //     uint256 poolClaimAmount
-    // ) {
-    //     // Will revert if spot prices are not in line with the oracle values
-    //     _checkPriceAndCalculateValue();
-
-    //     // Require one trade per token, if we do not want to buy any tokens at a
-    //     // given index then the amount should be set to zero. This applies to pool
-    //     // tokens like in the ComposableStablePool.
-    //     require(trades.length == NUM_TOKENS());
-    //     uint256[] memory amounts;
-    //     // The sell token on all trades must be the same (checked inside executeRewardTrades) so
-    //     // just validate here that the sellToken is a valid reward token (i.e. none of the tokens
-    //     // used in the regular functioning of the vault).
-    //     rewardToken = trades[0].sellToken;
-    //     if (_isInvalidRewardToken(rewardToken)) revert Errors.InvalidRewardToken(rewardToken);
-    //     (amountSold, amounts) = _executeRewardTrades(trades, rewardToken);
-
-    //     poolClaimAmount = _joinPoolAndStake(amounts, minPoolClaim);
-
-    //     // Increase LP token amount without minting additional vault shares
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-    //     // Do not re-invest if there are no vault shares
-    //     require(state.totalVaultSharesGlobal > 0);
-    //     state.totalPoolClaim += poolClaimAmount;
-    //     state.setStrategyVaultState();
-    // }
-
-    // function _executeRewardTrades(
-    //     SingleSidedRewardTradeParams[] calldata trades,
-    //     address rewardToken
-    // ) internal returns (uint256 amountSold, uint256[] memory amounts) {
-    //     (IERC20[] memory tokens, /* */) = TOKENS();
-    //     (amounts, amountSold) = StrategyUtils.executeRewardTrades(
-    //         tokens, trades, rewardToken, address(POOL_TOKEN())
-    //     );
-    // }
 
     /************************************************************************
      * EMERGENCY EXIT                                                       *
