@@ -37,7 +37,7 @@ struct RedeemParams {
  * exits. Inheriting contracts will fill in the implementation details for integration with
  * the external DEX pool.
  */
-abstract contract AbstractSingleSidedLP is AbstractYieldStrategy, RewardManagerMixin {
+abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
     // TODO: this is storage....
@@ -109,10 +109,7 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy, RewardManagerM
         address _irm,
         uint256 _lltv,
         address _rewardManager
-    )
-        AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv)
-        RewardManagerMixin(_rewardManager)
-    {
+    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager) {
         maxPoolShare = _maxPoolShare;
     }
 
@@ -124,13 +121,9 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy, RewardManagerM
      * properly collateralized.                                             *
      ************************************************************************/
 
-    /// @notice This is a virtual function called by BaseStrategyVault which ensures that
-    /// this method is only called by Notional after an initial borrow has been made and
-    /// the deposit amount has been transferred to this vault. Will join the LP pool with
-    /// the funds given and then return the total vault shares minted.
     function _mintYieldTokens(
         uint256 assets,
-        address receiver,
+        address /* receiver */,
         bytes memory depositData
     ) internal override virtual {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
@@ -154,22 +147,11 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy, RewardManagerM
         uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / POOL_SHARE_BASIS;
         uint256 poolClaim = _getYieldTokenBalance();
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
-
-        // _updateAccountRewards({
-        //     account: account,
-        //     vaultShares: vaultShares,
-        //     totalVaultSharesBefore: totalVaultSharesBefore,
-        //     isMint: true
-        // });
     }
 
-    /// @notice This is a virtual function called by BaseStrategyVault which ensures that
-    /// this method is only called by Notional after an initial position has been made. Will
-    /// withdraw the LP tokens from the pool, either single sided or proportionally. On a
-    /// proportional exit, will trade all the tokens back to the primary in order to exit the pool.
     function _redeemYieldTokens(
         uint256 yieldTokensToRedeem,
-        address sharesOwner,
+        address /* sharesOwner */,
         bytes memory redeemData
     ) internal override virtual {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
@@ -185,13 +167,6 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy, RewardManagerM
             // requires explicit permission for every token that can be sold by an address.
             _executeRedemptionTrades(exitBalances, params.redemptionTrades);
         }
-
-        // _updateAccountRewards({
-        //     account: account,
-        //     vaultShares: vaultShares,
-        //     totalVaultSharesBefore: totalVaultSharesBefore,
-        //     isMint: false
-        // });
     }
 
     /// @dev Trades the amount of primary token into other secondary tokens prior to entering a pool.

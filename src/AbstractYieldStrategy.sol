@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "./Errors.sol";
 import {INotionalV4Callback} from "./interfaces/INotionalV4Callback.sol";
 import {BorrowData, IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
-import {MORPHO, MarketParams} from "./interfaces/Morpho/IMorpho.sol";
+import {MORPHO, MarketParams, Id} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TRADING_MODULE} from "./interfaces/ITradingModule.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
@@ -349,7 +349,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         s_lastFeeAccrualTime = uint32(block.timestamp);
     }
 
-    function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) private returns (uint256 sharesMinted) {
+    function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal virtual returns (uint256 sharesMinted) {
         if (assets == 0) return 0;
 
         // First accrue fees on the yield token
@@ -365,7 +365,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         _checkInvariants();
     }
 
-    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) private returns (uint256 assetsWithdrawn) {
+    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
         if (sharesToBurn == 0) return 0;
 
         uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
@@ -376,6 +376,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         _redeemYieldTokens(yieldTokensToBurn, sharesOwner, redeemData);
         s_trackedYieldTokenBalance -= yieldTokensToBurn;
 
+        // TODO: this will revert since we haven't withdrawn collateral yet.
         _burn(sharesOwner, sharesToBurn);
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
@@ -407,6 +408,12 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         return s_trackedYieldTokenBalance;
     }
 
+    function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
+        // TODO: refactor to use market id instead of id
+        Id id = Id.wrap(bytes32(0));
+        collateralBalance = MORPHO.position(id, account).collateral;
+    }
+
     /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
     function _executeTrade(
         Trade memory trade,
@@ -436,8 +443,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
     function _canLiquidate(address liquidateAccount) internal virtual returns (uint256 maxLiquidateShares) {
-        // TODO: get the balance of the account's position in the lending market
-        return balanceOf(liquidateAccount);
+        return _accountCollateralBalance(liquidateAccount);
     }
 
     /// @dev Called after liquidation to update the yield token balance.
