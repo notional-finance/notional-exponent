@@ -41,17 +41,16 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     uint256 internal immutable _lltv;
 
     /********* Storage Variables *********/
-    address public owner;
-
-    // TODO: can we re-use the ERC20 approvals?
-    mapping(address user => mapping(address operator => bool approved)) private _isApproved;
+    address public override owner;
+    bool public override isPaused;
+    uint32 private s_lastFeeAccrualTime;
 
     /// @dev To prevent inflation attacks we track the yield token balance internally. This
     /// is less gas efficient but it is also required for some yield strategies.
     uint256 private s_trackedYieldTokenBalance;
-    uint256 private s_lastFeeAccrualTime;
     uint256 private s_accruedFeesInYieldTokenPerShare;
 
+    mapping(address user => mapping(address operator => bool approved)) private _isApproved;
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
@@ -86,8 +85,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         _lltv = __lltv;
 
         // TODO: If upgradeable then this needs to be called in initialize()
-        s_lastFeeAccrualTime = block.timestamp;
+        s_lastFeeAccrualTime = uint32(block.timestamp);
         owner = _owner;
+        isPaused = false;
     }
 
     /*** Valuation and Conversion Functions ***/
@@ -138,8 +138,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     /// @inheritdoc IYieldStrategy
-    function collectFees() external override {
-        if (msg.sender != owner) revert NotAuthorized(msg.sender, owner);
+    function collectFees() external onlyOwner override {
         _accrueFees();
         uint256 feesToCollect = s_accruedFeesInYieldTokenPerShare * totalSupply() / SHARE_PRECISION;
         ERC20(yieldToken).safeTransfer(owner, feesToCollect);
@@ -147,8 +146,33 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     /*** Authorization Methods ***/
+    modifier isAuthorized(address onBehalf) {
+        if (msg.sender != onBehalf && !isApproved(msg.sender, onBehalf)) {
+            revert NotAuthorized(msg.sender, onBehalf);
+        }
+        _;
+    }
+
+    modifier isNotPaused() {
+        if (isPaused) revert Paused();
+        _;
+    }
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NotAuthorized(msg.sender, owner);
+        _;
+    }
 
     /// @inheritdoc IYieldStrategy
+    function pause() external override onlyOwner {
+        isPaused = true;
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function unpause() external override onlyOwner {
+        isPaused = false;
+    }
+
     function setApproval(address operator, bool approved) external override {
         _isApproved[msg.sender][operator] = approved;
     }
@@ -158,13 +182,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         return _isApproved[user][operator];
     }
 
-
-    modifier isAuthorized(address onBehalf) {
-        if (msg.sender != onBehalf && !isApproved(msg.sender, onBehalf)) {
-            revert NotAuthorized(msg.sender, onBehalf);
-        }
-        _;
-    }
 
     /*** Core Functions ***/
 
@@ -186,7 +203,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 depositAssetAmount,
         BorrowData calldata borrowData,
         bytes calldata depositData
-    ) external override isAuthorized(onBehalf) {
+    ) external override isAuthorized(onBehalf) isNotPaused {
         // First collect the margin deposit
         if (depositAssetAmount > 0) {
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
@@ -201,7 +218,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
     }
 
-    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
+    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external isNotPaused {
+        require(msg.sender == address(MORPHO));
+
         (uint256 depositAssetAmount, bytes memory depositData, address receiver) = abi.decode(
             data, (uint256, bytes, address)
         );
@@ -226,7 +245,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf) returns (uint256 assetsWithdrawn) {
+    ) external override isAuthorized(onBehalf) isNotPaused returns (uint256 assetsWithdrawn) {
         // First optimistically redeem the required yield tokens even though we
         // are not sure if the holder has enough shares to yet since the shares are held
         // by the lending market. If they don't have enough shares then the withdraw
@@ -273,7 +292,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 sharesToLiquidate,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override {
+    ) external override isNotPaused {
         uint256 maxLiquidateShares = _canLiquidate(liquidateAccount);
         if (maxLiquidateShares == 0) revert CannotLiquidate();
 
@@ -308,7 +327,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     /// @inheritdoc IYieldStrategy
-    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public returns (uint256 assetsWithdrawn) {
+    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public isNotPaused returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
@@ -327,7 +346,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         // NOTE: this has to be called before any mints or burns.
         uint256 additionalFeesInYieldToken = _calculateAdditionalFeesInYieldToken();
         s_accruedFeesInYieldTokenPerShare += additionalFeesInYieldToken;
-        s_lastFeeAccrualTime = block.timestamp;
+        s_lastFeeAccrualTime = uint32(block.timestamp);
     }
 
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) private returns (uint256 sharesMinted) {

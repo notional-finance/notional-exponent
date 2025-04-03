@@ -29,11 +29,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     /// @notice token that is redeemed from a withdraw request
     address public immutable redemptionToken;
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
-        _;
-    }
-
     constructor(
         address _owner,
         address _asset,

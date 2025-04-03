@@ -38,6 +38,26 @@ struct BorrowData {
 interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
 
     /**
+     * @dev Returns the address of the owner of the vault.
+     */
+    function owner() external view returns (address ownerAddress);
+
+    /**
+     * @dev Returns the paused status of the vault.
+     */
+    function isPaused() external view returns (bool paused);
+
+    /**
+     * @dev Pauses the vault.
+     */
+    function pause() external;
+
+    /**
+     * @dev Unpauses the vault.
+     */
+    function unpause() external;
+
+    /**
      * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
      *
      * - MUST be an ERC-20 token contract.
