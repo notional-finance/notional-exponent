@@ -154,7 +154,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     /// @notice Called by the vault inside a delegatecall to update the account reward claims.
     function updateAccountRewards(
         address account,
-        uint256 vaultSharesBefore,
+        uint256 accountVaultSharesBefore,
         uint256 vaultShares,
         uint256 totalVaultSharesBefore,
         bool isMint
@@ -162,8 +162,8 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         _claimAccountRewards(
             account,
             totalVaultSharesBefore,
-            vaultSharesBefore,
-            isMint ? vaultSharesBefore + vaultShares : vaultSharesBefore - vaultShares
+            accountVaultSharesBefore,
+            isMint ? accountVaultSharesBefore + vaultShares : accountVaultSharesBefore - vaultShares
         );
     }
 

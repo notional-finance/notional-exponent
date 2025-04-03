@@ -66,8 +66,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         uint256 _feeRate,
         address _irm,
         uint256 _lltv,
+        address _rewardManager,
         DeploymentParams memory params
-    ) AbstractSingleSidedLP(_maxPoolShare, _owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
+    ) AbstractSingleSidedLP(_maxPoolShare, _owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager) {
         CURVE_POOL = params.pool;
         CURVE_GAUGE = params.gauge;
         CURVE_INTERFACE = params.curveInterface;

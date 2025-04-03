@@ -4,6 +4,7 @@ pragma solidity >=0.8.28;
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
+import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
 
 struct TradeParams {
     uint256 tradeAmount;
@@ -36,7 +37,7 @@ struct RedeemParams {
  * exits. Inheriting contracts will fill in the implementation details for integration with
  * the external DEX pool.
  */
-abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
+abstract contract AbstractSingleSidedLP is AbstractYieldStrategy, RewardManagerMixin {
     error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
     // TODO: this is storage....
@@ -99,66 +100,21 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
      * of the Single Sided LP strategy.                                     *
      ************************************************************************/
 
-    constructor(uint256 _maxPoolShare, address _owner, address _asset, address _yieldToken, uint256 _feeRate, address _irm, uint256 _lltv)
-        AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
+    constructor(
+        uint256 _maxPoolShare,
+        address _owner,
+        address _asset,
+        address _yieldToken,
+        uint256 _feeRate,
+        address _irm,
+        uint256 _lltv,
+        address _rewardManager
+    )
+        AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv)
+        RewardManagerMixin(_rewardManager)
+    {
         maxPoolShare = _maxPoolShare;
     }
-
-    /************************************************************************
-     * EXTERNAL VIEW FUNCTIONS                                              *
-     ************************************************************************/
-
-    // /// @notice Returns basic information about the vault for use in the user interface.
-    // function getStrategyVaultInfo() external view override returns (SingleSidedLPStrategyVaultInfo memory) {
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-    //     StrategyVaultSettings memory settings = VaultStorage.getStrategyVaultSettings();
-
-    //     return SingleSidedLPStrategyVaultInfo({
-    //         pool: address(POOL_TOKEN()),
-    //         singleSidedTokenIndex: uint8(PRIMARY_INDEX()),
-    //         totalLPTokens: state.totalPoolClaim,
-    //         totalVaultShares: state.totalVaultSharesGlobal,
-    //         maxPoolShare: settings.maxPoolShare,
-    //         oraclePriceDeviationLimitPercent: settings.oraclePriceDeviationLimitPercent
-    //     });
-    // }
-
-    // /// @notice Returns the current locked status of the vault
-    // function isLocked() public view returns (bool) {
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-    //     return _hasFlag(state.flags, FLAG_LOCKED);
-    // }
-
-    /************************************************************************
-     * ADMIN FUNCTIONS                                                      *
-     * Administrative functions to set settings and initialize the vault.   *
-     * These methods are only callable by the Notional owner.               *
-     ************************************************************************/
-
-    // /// @notice Updates the vault settings include the maximum oracle deviation limit and the
-    // /// maximum percent of the LP pool that the vault can hold.
-    // function setStrategyVaultSettings(StrategyVaultSettings calldata settings) external onlyNotionalOwner {
-    //     // Validation occurs inside this method
-    //     VaultStorage.setStrategyVaultSettings(settings);
-    // }
-
-    // // @notice need to be called with `upgradeToAndCall` when upgrading already deployed vaults
-    // // does not need to be called on any upgrade after that
-    // function setRewardPoolStorage() public onlyNotionalOwner {
-    //     VaultStorage.setRewardPoolStorage(_rewardPoolStorage());
-    // }
-    // /// @notice Called to initialize the vault and set the initial approvals. All of the other vault
-    // /// parameters are set via immutable parameters already.
-    // function initialize(InitParams calldata params) external override initializer onlyNotionalOwner {
-    //     // Initialize the base vault
-    //     __INIT_VAULT(params.name, params.borrowCurrencyId);
-
-    //     // Settings are validated in setStrategyVaultSettings
-    //     VaultStorage.setStrategyVaultSettings(params.settings);
-
-    //     _initialApproveTokens();
-    //     VaultStorage.setRewardPoolStorage(_rewardPoolStorage());
-    // }
 
     /************************************************************************
      * USER FUNCTIONS                                                       *
@@ -314,42 +270,6 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
      * users can withdraw their funds.                                      *
      ************************************************************************/
 
-    // /// @notice Allows the function to execute only when the vault is not locked
-    // modifier whenNotLocked() {
-    //     if (isLocked()) revert Errors.VaultLocked();
-    //     _;
-    // }
-
-    // /// @notice Allows the function to execute only when the vault is locked
-    // modifier whenLocked() {
-    //     if (!isLocked()) revert Errors.VaultNotLocked();
-    //     _;
-    // }
-
-    // /// @notice Checks if a flag bit is set
-    // function _hasFlag(uint32 flags, uint32 flagID) private pure returns (bool) {
-    //     return (flags & flagID) == flagID;
-    // }
-
-    // /// @notice Locks the vault, preventing deposits and redemptions. Used during
-    // /// emergency exit
-    // function _lockVault() internal {
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-    //     // Set locked flag
-    //     state.flags = state.flags | FLAG_LOCKED;
-    //     VaultStorage.setStrategyVaultState(state);
-    //     emit VaultLocked();
-    // }
-
-    // /// @notice Unlocks the vault, called during restore vault.
-    // function _unlockVault() internal {
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-    //     // Remove locked flag
-    //     state.flags = state.flags & ~FLAG_LOCKED;
-    //     VaultStorage.setStrategyVaultState(state);
-    //     emit VaultUnlocked();
-    // }
-
     // /// @notice Allows the emergency exit role to trigger an emergency exit on the vault.
     // /// In this situation, the `claimToExit` is withdrawn proportionally to the underlying
     // /// tokens and held on the vault. The vault is locked so that no entries, exits or
@@ -406,18 +326,5 @@ abstract contract AbstractSingleSidedLP is AbstractYieldStrategy {
     //     // method we do not validate the sell token so we can sell any of the tokens held on the vault
     //     // in exchange for any other token that goes into the pool.
     //     _executeRewardTrades(trades, trades[0].sellToken);
-    // }
-
-    // function _updateAccountRewards(
-    //     address account,
-    //     uint256 vaultShares,
-    //     uint256 totalVaultSharesBefore,
-    //     bool isMint
-    // ) internal {
-    //     (bool success, /* */) = Deployments.VAULT_REWARDER_LIB.delegatecall(abi.encodeWithSelector(
-    //         VaultRewarderLib.updateAccountRewards.selector,
-    //         account, vaultShares, totalVaultSharesBefore, isMint
-    //     ));
-    //     require(success);
     // }
 }
