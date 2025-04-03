@@ -32,4 +32,24 @@ library TokenUtils {
         if (address(token) == address(0)) return;
         IERC20(token).forceApprove(spender, 0);
     }
+
+    function checkReturnCode() internal pure returns (bool success) {
+        uint256[1] memory result;
+        assembly {
+            switch returndatasize()
+                case 0 {
+                    // This is a non-standard ERC-20
+                    success := 1 // set success to true
+                }
+                case 32 {
+                    // This is a compliant ERC-20
+                    returndatacopy(result, 0, 32)
+                    success := mload(result) // Set `success = returndata` of external call
+                }
+                default {
+                    // This is an excessively non-compliant ERC-20, revert.
+                    revert(0, 0)
+                }
+        }
+    }
 }

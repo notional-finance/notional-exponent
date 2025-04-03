@@ -45,12 +45,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         _;
     }
 
-    function addApprovedVault(address vault) external onlyOwner {
-        isApprovedVault[vault] = true;
-    }
-
-    function removeApprovedVault(address vault) external onlyOwner {
-        isApprovedVault[vault] = false;
+    function setApprovedVault(address vault, bool isApproved) external onlyOwner {
+        isApprovedVault[vault] = isApproved;
     }
 
     /// @inheritdoc IWithdrawRequestManager
