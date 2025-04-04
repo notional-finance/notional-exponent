@@ -2,7 +2,8 @@
 pragma solidity >=0.8.28;
 
 import "./IRewardManager.sol";
-import "../Constants.sol";
+import "../utils/Constants.sol";
+import "../utils/TypeConvert.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";

@@ -4,7 +4,7 @@ pragma solidity >=0.8.28;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./Errors.sol";
+import "./utils/Errors.sol";
 import {INotionalV4Callback} from "./interfaces/INotionalV4Callback.sol";
 import {BorrowData, IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams, Id} from "./interfaces/Morpho/IMorpho.sol";

@@ -5,7 +5,7 @@ import {IPMarket, IPOracle, PENDLE_ORACLE} from "../interfaces/IPendle.sol";
 import {AggregatorV2V3Interface} from "../interfaces/AggregatorV2V3Interface.sol";
 import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TypeConvert} from "../Constants.sol";
+import {TypeConvert} from "../utils/TypeConvert.sol";
 
 contract PendlePTOracle is AbstractCustomOracle {
     using TypeConvert for uint256;

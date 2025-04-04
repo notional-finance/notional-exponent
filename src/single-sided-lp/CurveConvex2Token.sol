@@ -4,7 +4,7 @@ pragma solidity >=0.8.28;
 import {AbstractSingleSidedLP} from "./AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils, IERC20} from "../utils/TokenUtils.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../Constants.sol";
+import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Constants.sol";
 import "../interfaces/Curve/ICurve.sol";
 import "../interfaces/Curve/IConvex.sol";
 

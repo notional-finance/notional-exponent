@@ -4,8 +4,8 @@ pragma solidity >=0.8.28;
 import {AbstractLPOracle, IERC20} from "./AbstractLPOracle.sol";
 import {ICurvePool} from "../interfaces/Curve/ICurve.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS} from "../Constants.sol";
-import {TypeConvert} from "../Constants.sol";
+import {ETH_ADDRESS, ALT_ETH_ADDRESS} from "../utils/Constants.sol";
+import {TypeConvert} from "../utils/TypeConvert.sol";
 
 contract Curve2TokenOracle is AbstractLPOracle {
     using TypeConvert for uint256;

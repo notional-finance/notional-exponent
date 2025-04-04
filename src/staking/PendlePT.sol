@@ -3,7 +3,7 @@ pragma solidity >=0.8.28;
 
 import "./AbstractStakingStrategy.sol";
 import "../interfaces/IPendle.sol";
-import "../Constants.sol";
+import "../utils/Constants.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -87,6 +87,7 @@ contract PendlePT is AbstractStakingStrategy {
         IPRouter.LimitOrderData memory EMPTY_LIMIT;
 
         ERC20(TOKEN_IN_SY).forceApprove(address(PENDLE_ROUTER), tokenInAmount);
+        // TODO: add pendle orderbook here as well
         uint256 msgValue = TOKEN_IN_SY == ETH_ADDRESS ? tokenInAmount : 0;
         PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
             address(this),
@@ -117,6 +118,7 @@ contract PendlePT is AbstractStakingStrategy {
             netSyOut = YT.redeemPY(address(SY));
         } else {
             PT.transfer(address(MARKET), netPtIn);
+            // TODO: add pendle orderbook here as well and go via the router
             (netSyOut, ) = MARKET.swapExactPtForSy(address(SY), netPtIn, "");
         }
 

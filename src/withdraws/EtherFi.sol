@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.24;
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity >=0.8.28;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {WETH} from "../Constants.sol";
+import {WETH} from "../utils/Constants.sol";
 
 contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
 
@@ -59,7 +59,7 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         }
     }
 
-    function canFinalizeWithdrawRequest(uint256 requestId) public view returns (bool) {
+    function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         return (
             WithdrawRequestNFT.isFinalized(requestId) &&
             WithdrawRequestNFT.ownerOf(requestId) != address(0)

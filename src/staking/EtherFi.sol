@@ -3,7 +3,7 @@ pragma solidity >=0.8.28;
 
 import {AbstractStakingStrategy} from "./AbstractStakingStrategy.sol";
 import {IWithdrawRequestManager} from "../withdraws/IWithdrawRequestManager.sol";
-import {weETH, WETH, LiquidityPool, eETH} from "../withdraws/EtherFiWithdrawRequestManager.sol";
+import {weETH, WETH, LiquidityPool, eETH} from "../withdraws/EtherFi.sol";
 
 contract EtherFiStaking is AbstractStakingStrategy {
     constructor(

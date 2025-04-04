@@ -3,7 +3,7 @@ pragma solidity >=0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS} from "../Constants.sol";
+import {ETH_ADDRESS, ALT_ETH_ADDRESS} from "./Constants.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 library TokenUtils {
