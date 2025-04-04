@@ -15,11 +15,11 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     using TokenUtils for IERC20;
 
     // TODO: move these into an offset storage contract
-    RewardPoolStorage private s_rewardPoolState;
-    VaultRewardState[] private s_vaultRewardState;
+    RewardPoolStorage internal s_rewardPoolState;
+    VaultRewardState[] internal s_vaultRewardState;
     // Reward Token -> Account -> Reward Debt
-    mapping(address => mapping(address => uint256)) private s_accountRewardDebt;
-    address private s_rewardManager;
+    mapping(address => mapping(address => uint256)) internal s_accountRewardDebt;
+    address internal s_rewardManager;
 
     modifier onlyRewardManager() {
         require(msg.sender == s_rewardManager, "Only the reward manager can call this function");
@@ -128,7 +128,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         RewardPoolStorage memory oldRewardPool = s_rewardPoolState;
 
         if (oldRewardPool.rewardPool != address(0)) {
-            _withdrawFromPreviousRewardPool(poolToken, oldRewardPool);
+            _withdrawFromPreviousRewardPool(oldRewardPool);
 
             // Clear approvals on the old pool.
             IERC20(poolToken).checkRevoke(address(oldRewardPool.rewardPool));
@@ -150,6 +150,14 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         // vault shares value is valid.
         uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
         _claimVaultRewards(totalVaultSharesBefore, s_vaultRewardState);
+    }
+
+    function claimAccountRewards(address account) external nonReentrant {
+        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
+        uint256 accountShares;
+        // TODO: add this methods
+        //  = IAbstractVault(address(this)).getAccountVaultShare(account);
+        _claimAccountRewards(account, totalVaultSharesBefore, accountShares, accountShares);
     }
 
     /// @notice Called by the vault inside a delegatecall to update the account reward claims.
@@ -378,6 +386,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
 
     /// @notice Executes the proper call for various rewarder types.
     function _executeClaim() internal virtual;
-    function _withdrawFromPreviousRewardPool(address poolToken, RewardPoolStorage memory r) internal virtual;
+    function _withdrawFromPreviousRewardPool(RewardPoolStorage memory oldRewardPool) internal virtual;
     function _depositIntoNewRewardPool(address poolToken, uint256 poolTokens, RewardPoolStorage memory newRewardPool) internal virtual;
 }

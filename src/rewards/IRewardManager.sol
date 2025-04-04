@@ -54,11 +54,13 @@ interface IRewardManager {
 
     /// @notice Updates account rewards during enter and exit vault operations
     /// @param account Address of the account
+    /// @param accountVaultSharesBefore Number of vault shares before the operation
     /// @param vaultShares Number of vault shares
     /// @param totalVaultSharesBefore Total vault shares before the operation
     /// @param isMint Whether this is a mint operation
     function updateAccountRewards(
         address account,
+        uint256 accountVaultSharesBefore,
         uint256 vaultShares,
         uint256 totalVaultSharesBefore,
         bool isMint

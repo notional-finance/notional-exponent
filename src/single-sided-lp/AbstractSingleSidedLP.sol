@@ -235,6 +235,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         }
     }
 
+    // TODO: add initiate withdraw....
+
     /************************************************************************
      * EMERGENCY EXIT                                                       *
      * In case of an emergency, will allow a whitelisted guardian to exit   *
