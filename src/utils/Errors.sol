@@ -8,3 +8,4 @@ error InsufficientYieldTokenBalance();
 error InsufficientAssetsForRepayment(uint256 assetToRepay, uint256 assetsWithdrawn);
 error CannotLiquidate();
 error Paused();
+error CannotExitPositionWithinCooldownPeriod();

@@ -3,6 +3,7 @@ pragma solidity >=0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {console2} from "forge-std/src/console2.sol";
 
 import "./utils/Errors.sol";
 import {INotionalV4Callback} from "./interfaces/INotionalV4Callback.sol";
@@ -52,6 +53,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     uint256 private s_accruedFeesInYieldTokenPerShare;
 
     mapping(address user => mapping(address operator => bool approved)) private _isApproved;
+    mapping(address user => uint256 lastEntryTime) private _lastEntryTime;
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
@@ -222,9 +224,12 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         // At this point we will flash borrow funds from the lending market and then
         // receive control in a different function on a callback.
         bytes memory flashLoanData = abi.encode(depositAssetAmount, depositData, onBehalf);
-        
         // XXX: below here is Morpho market specific code.
         MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
+
+        _lastEntryTime[onBehalf] = block.timestamp;
+
+        _checkInvariants();
     }
 
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external isNotPaused {
@@ -256,6 +261,10 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 assetToRepay,
         bytes calldata redeemData
     ) external override isAuthorized(onBehalf) isNotPaused returns (uint256 assetsWithdrawn) {
+        if (block.timestamp - _lastEntryTime[onBehalf] < 5 minutes) {
+            revert CannotExitPositionWithinCooldownPeriod();
+        }
+
         // First optimistically redeem the required yield tokens even though we
         // are not sure if the holder has enough shares to yet since the shares are held
         // by the lending market. If they don't have enough shares then the withdraw
@@ -283,6 +292,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
 
+        // Do this after withdraw collateral since onBehalf will now have the shares
+        _burn(onBehalf, sharesToRedeem);
+
         // Transfer any profits to the receiver
         if (assetsWithdrawn < assetToRepay) {
             // We have to revert in this case because we've already redeemed the yield tokens
@@ -294,6 +306,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
             profitsWithdrawn = assetsWithdrawn - assetToRepay;
         }
         ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
+
+        _checkInvariants();
     }
 
     /// @inheritdoc IYieldStrategy
@@ -334,11 +348,15 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         } else if (finalAssetBalance < initialAssetBalance) {
             revert InsufficientAssetsForRepayment(assetToRepay, initialAssetBalance - finalAssetBalance);
         }
+
+        _checkInvariants();
     }
 
     /// @inheritdoc IYieldStrategy
     function redeem(uint256 sharesToRedeem, bytes memory redeemData) public isNotPaused returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
+        // Do this after burn shares to remove the shares held by msg.sender
+        _burn(msg.sender, sharesToRedeem);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
 
@@ -371,8 +389,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         s_trackedYieldTokenBalance += yieldTokensMinted;
         sharesMinted = convertYieldTokenToShares(yieldTokensMinted);
         _mint(receiver, sharesMinted);
-
-        _checkInvariants();
     }
 
     function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
@@ -386,12 +402,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         _redeemYieldTokens(yieldTokensToBurn, sharesOwner, redeemData);
         s_trackedYieldTokenBalance -= yieldTokensToBurn;
 
-        // TODO: this will revert since we haven't withdrawn collateral yet.
-        _burn(sharesOwner, sharesToBurn);
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
-
-        _checkInvariants();
     }
 
     function _update(address from, address to, uint256 value) internal override {

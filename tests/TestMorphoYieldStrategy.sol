@@ -6,16 +6,21 @@ import "../src/AbstractYieldStrategy.sol";
 import "../src/oracles/AbstractCustomOracle.sol";
 
 contract MockWrapperERC20 is ERC20 {
-    constructor() ERC20("MockWrapperERC20", "MWE") {
+    ERC20 public token;
+
+    constructor(ERC20 _token) ERC20("MockWrapperERC20", "MWE") {
+        token = _token;
         _mint(msg.sender, 1000000 * 10e18);
     }
 
     function deposit(uint256 amount) public {
-        _mint(msg.sender, amount);
+        token.transferFrom(msg.sender, address(this), amount);
+        _mint(msg.sender, amount * 1e18 / 1e6);
     }
 
     function withdraw(uint256 amount) public {
         _burn(msg.sender, amount);
+        token.transfer(msg.sender, amount * 1e6 / 1e18);
     }
 }
 
@@ -42,7 +47,9 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         uint256 _feeRate,
         address _irm,
         uint256 _lltv
-    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) { }
+    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
+        ERC20(_asset).approve(address(_yieldToken), type(uint256).max);
+    }
 
     function _preLiquidation(address liquidateAccount, address /* liquidator */) internal view override returns (uint256 maxLiquidateShares) {
         return _accountCollateralBalance(liquidateAccount);
@@ -71,7 +78,7 @@ contract TestMorphoYieldStrategy is Test {
     function setUp() public {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
 
-        w = new MockWrapperERC20();
+        w = new MockWrapperERC20(USDC);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             owner,
@@ -89,7 +96,7 @@ contract TestMorphoYieldStrategy is Test {
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
         USDC.transfer(msg.sender, 100_000e6);
-        USDC.transfer(owner, 10_000_000e6);
+        USDC.transfer(owner, 15_000_000e6);
         vm.stopPrank();
 
         vm.startPrank(owner);
@@ -98,20 +105,58 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
-    function test_enterPosition() public { 
-        vm.startPrank(msg.sender);
+    function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {
+        vm.startPrank(user);
         MORPHO.setAuthorization(address(y), true);
-        USDC.approve(address(y), 100_000e6);
-        y.enterPosition(msg.sender, 100_000e6, 100_000e6, bytes(""));
+        USDC.approve(address(y), depositAmount);
+        y.enterPosition(user, depositAmount, borrowAmount, bytes(""));
         vm.stopPrank();
+    }
+
+    function test_enterPosition() public { 
+        _enterPosition(msg.sender, 100_000e6, 100_000e6);
 
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0);
         assertEq(w.balanceOf(address(y)), y.totalSupply());
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
         assertEq(y.balanceOf(msg.sender), 0);
-        assertEq(y.balanceOfShares(msg.sender), 200_000e6);
+        assertEq(y.balanceOfShares(msg.sender), 200_000e18);
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
     }
+
+    function test_exitPosition_fullExit() public {
+        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.prank(owner);
+        USDC.transfer(msg.sender, 200_000e6);
+
+        vm.startPrank(msg.sender);
+        y.exitPosition(msg.sender, msg.sender, 75_000e18, 50_000e6, bytes(""));
+        vm.stopPrank();
+
+        vm.prank(owner);
+        y.collectFees();
+
+        // Check that the yield token balance is correct
+        assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
+        assertEq(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), "Yield token is 1-1 with collateral shares");
+        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
+        assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), 125_000e18, "Account has collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+    }
+
+    function test_exitPosition_revertsIf_BeforeCooldownPeriod() public { 
+        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+
+        vm.startPrank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(CannotExitPositionWithinCooldownPeriod.selector));
+        y.exitPosition(msg.sender, msg.sender, 100_000e6, 100_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
 
 }
