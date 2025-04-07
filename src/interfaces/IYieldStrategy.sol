@@ -17,11 +17,6 @@ enum Operation {
     LIQUIDATE_AND_BURN
 }
 
-struct BorrowData {
-    LendingMarket market;
-    bytes callData;
-}
-
 /**
  * @notice A strategy vault that is specifically designed for leveraged yield
  * strategies. Minting and burning shares are restricted to the `enterPosition`
@@ -64,6 +59,12 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * - MUST NOT revert.
      */
     function asset() external view returns (address assetTokenAddress);
+
+    /**
+     * @dev Returns the balance of shares for an account including shares held on lending
+     * markets as collateral.
+     */
+    function balanceOfShares(address account) external view returns (uint256);
 
     /**
      * @dev Returns the address of the yield token held by the vault. Does not equal the share token,
@@ -147,13 +148,13 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * @param onBehalf The address to enter the position on behalf of. Requires authorization if
      * msg.sender != onBehalf.
      * @param depositAssetAmount The amount of assets to deposit as margin.
-     * @param borrowData identifies the lending market and the calldata required to borrow
+     * @param borrowAmount The amount of assets to borrow from the lending market.
      * @param depositData calldata used to enter into the yield token.
      */
     function enterPosition(
         address onBehalf,
         uint256 depositAssetAmount,
-        BorrowData calldata borrowData,
+        uint256 borrowAmount,
         bytes calldata depositData
     ) external;
 
