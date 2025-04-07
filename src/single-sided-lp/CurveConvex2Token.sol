@@ -112,7 +112,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         return token == address(ALT_ETH_ADDRESS) ? ETH_ADDRESS : address(token);
     }
 
-    function _checkReentrancyContext() internal {
+    function _checkReentrancyContext() internal override {
         uint256[2] memory minAmounts;
         if (CURVE_INTERFACE == CurveInterface.V1) {
             ICurve2TokenPoolV1(CURVE_POOL).remove_liquidity(0, minAmounts);

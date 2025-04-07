@@ -61,6 +61,10 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         */
     }
 
+    function _preLiquidation(address liquidateAccount, address /* liquidator */) internal view override returns (uint256 maxLiquidateShares) {
+        return _accountCollateralBalance(liquidateAccount);
+    }
+
     /// @notice Allows an account to initiate a withdraw of their vault shares
     function initiateWithdraw(bytes calldata data) external returns (uint256 requestId) {
         requestId = _initiateWithdraw({account: msg.sender, isForced: false, data: data});

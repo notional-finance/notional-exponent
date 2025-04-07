@@ -235,6 +235,13 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         }
     }
 
+    function _checkReentrancyContext() internal virtual;
+
+    function _preLiquidation(address liquidateAccount, address /* liquidator */) internal override returns (uint256 maxLiquidateShares) {
+        _checkReentrancyContext();
+        return _accountCollateralBalance(liquidateAccount);
+    }
+
     // TODO: add initiate withdraw....
 
     /************************************************************************
