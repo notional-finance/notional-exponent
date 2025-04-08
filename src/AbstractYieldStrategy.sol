@@ -7,7 +7,7 @@ import {console2} from "forge-std/src/console2.sol";
 
 import "./utils/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
-import {MORPHO, MarketParams, Id} from "./interfaces/Morpho/IMorpho.sol";
+import {MORPHO, MarketParams, Id, Position, Market} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
@@ -116,7 +116,17 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
-        return convertToAssets(SHARE_PRECISION) * (10 ** (36 + _assetDecimals - 18));
+        return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 18));
+    }
+
+    function isHealthy(address borrower) public view returns (bool) {
+        Position memory position = MORPHO.position(id, borrower);
+        Market memory market = MORPHO.market(id);
+
+        uint256 borrowed = position.borrowShares * market.totalBorrowAssets / market.totalBorrowShares;
+        uint256 maxBorrow = (position.collateral * price()) / 1e36 * _lltv / 1e18;
+
+        return borrowed <= maxBorrow;
     }
 
     /// @inheritdoc IYieldStrategy
@@ -131,7 +141,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         uint256 yieldTokens = convertSharesToYieldToken(shares);
         // NOTE: rounds down on division
-        return (yieldTokens * convertYieldTokenToAsset()) / (10 ** _yieldTokenDecimals);
+        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + 18));
     }
 
     /// @inheritdoc IYieldStrategy
@@ -329,23 +339,23 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares == 0) revert CannotLiquidate();
 
-        uint256 initialBalance = balanceOf(msg.sender);
         uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
 
         ERC20(asset).safeTransferFrom(msg.sender, address(this), assetToRepay);
         ERC20(asset).forceApprove(address(MORPHO), assetToRepay);
 
-        t_AllowTransfer_To = msg.sender;
+        t_AllowTransfer_To = address(this);
         t_AllowTransfer_Amount = maxLiquidateShares;
         /// XXX: Morpho market specific code.
-        MORPHO.liquidate(marketParams(), liquidateAccount, sharesToLiquidate, assetToRepay, "");
+        (uint256 sharesToLiquidator, /* */) = MORPHO.liquidate(marketParams(), liquidateAccount, sharesToLiquidate, assetToRepay, "");
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
 
+        // Transfer the shares to the liquidator
+        _transfer(address(this), msg.sender, sharesToLiquidator);
         // Clear the approval to prevent re-use in a future call.
         ERC20(asset).forceApprove(address(MORPHO), 0);
 
-        uint256 sharesToLiquidator = balanceOf(msg.sender) - initialBalance;
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
 
         _postLiquidation(msg.sender, liquidateAccount, sharesToLiquidator);
@@ -418,7 +428,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         if (from == address(MORPHO)) {
             // Any transfers off of the lending market must be authorized here.
             if (t_AllowTransfer_To != to) revert UnauthorizedLendingMarketTransfer(from, to, value);
-            if (t_AllowTransfer_Amount > value) revert UnauthorizedLendingMarketTransfer(from, to, value);
+            if (t_AllowTransfer_Amount < value) revert UnauthorizedLendingMarketTransfer(from, to, value);
         }
 
         super._update(from, to, value);

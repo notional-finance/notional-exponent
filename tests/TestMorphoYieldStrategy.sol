@@ -291,13 +291,16 @@ contract TestMorphoYieldStrategy is Test {
         
     // }
 
-    // function test_liquidate() public {
-    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    function test_liquidate() public {
+        _enterPosition(msg.sender, 10_000e6, 90_000e6);
 
-    //     vm.startPrank(msg.sender);
-    //     y.liquidate(msg.sender, 100_000e18, 100_000e6, bytes(""));
-    //     vm.stopPrank();
-    // }
+        o.setPrice(0.95e18);
+
+        vm.startPrank(owner);
+        USDC.approve(address(y), 90_000e6);
+        y.liquidate(msg.sender, 0, 90_000e6, bytes(""));
+        vm.stopPrank();
+    }
 
     // function test_liquidate_RevertsIf_BeforeCooldownPeriod() public {
     //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
