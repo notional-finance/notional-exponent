@@ -6,11 +6,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {console2} from "forge-std/src/console2.sol";
 
 import "./utils/Errors.sol";
-import {INotionalV4Callback} from "./interfaces/INotionalV4Callback.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams, Id} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
-import {TRADING_MODULE} from "./interfaces/ITradingModule.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
@@ -50,7 +48,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /// @dev To prevent inflation attacks we track the yield token balance internally. This
     /// is less gas efficient but it is also required for some yield strategies.
     uint256 private s_trackedYieldTokenBalance;
-    uint256 private s_accruedFeesInYieldTokenPerShare;
+    uint256 private s_accruedFeesInYieldToken;
 
     mapping(address user => mapping(address operator => bool approved)) private _isApproved;
     mapping(address user => uint256 lastEntryTime) private _lastEntryTime;
@@ -123,9 +121,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
-        if (totalSupply() == 0) {
-            return yieldTokens * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
-        }
+        if (totalSupply() == 0) return yieldTokens * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
+
         // NOTE: rounds down on division
         return (yieldTokens * SHARE_PRECISION * totalSupply()) / ((s_trackedYieldTokenBalance - feesAccrued()) * (10 ** _yieldTokenDecimals));
     }
@@ -146,19 +143,19 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @inheritdoc IYieldStrategy
     function feesAccrued() public view virtual override returns (uint256 feesAccruedInYieldToken) {
-        if (totalSupply() == 0) return s_trackedYieldTokenBalance;
-
-        uint256 additionalFeesInYieldToken = _calculateAdditionalFeesInYieldToken();
-        uint256 accruedFeesPerShare = s_accruedFeesInYieldTokenPerShare + additionalFeesInYieldToken;
-        return accruedFeesPerShare * totalSupply() / SHARE_PRECISION;
+        return s_accruedFeesInYieldToken + _calculateAdditionalFeesInYieldToken();
     }
 
     /// @inheritdoc IYieldStrategy
     function collectFees() external onlyOwner override {
         _accrueFees();
-        uint256 feesToCollect = s_accruedFeesInYieldTokenPerShare * totalSupply() / SHARE_PRECISION;
-        ERC20(yieldToken).safeTransfer(owner, feesToCollect);
-        s_trackedYieldTokenBalance -= feesToCollect;
+        // Mint shares to the owner while keeping the yield token to shares ratio the same
+        uint256 divisor = (s_trackedYieldTokenBalance - s_accruedFeesInYieldToken);
+        // Rounding up
+        uint256 sharesMinted = (totalSupply() * s_accruedFeesInYieldToken + (divisor - 1)) / divisor;
+        // Mint the fees as shares directly to the owner and reset the accrued fees
+        s_accruedFeesInYieldToken = 0;
+        _mint(owner, sharesMinted);
     }
 
     /*** Authorization Methods ***/
@@ -366,8 +363,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @inheritdoc IYieldStrategy
     function redeem(uint256 sharesToRedeem, bytes memory redeemData) public isNotPaused returns (uint256 assetsWithdrawn) {
+        // TODO: this is not re-entrancy safe
         assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
-        // Do this after burn shares to remove the shares held by msg.sender
         _burn(msg.sender, sharesToRedeem);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
@@ -375,19 +372,16 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /*** Private Functions ***/
 
     function _calculateAdditionalFeesInYieldToken() private view returns (uint256 additionalFeesInYieldToken) {
-        if (totalSupply() == 0) return 0;
-
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
-        // TODO: round up on division
+        uint256 divisor = YEAR * SHARE_PRECISION;
         additionalFeesInYieldToken =
-            (s_trackedYieldTokenBalance * timeSinceLastFeeAccrual * feeRate) / (YEAR * totalSupply());
+            ((s_trackedYieldTokenBalance * timeSinceLastFeeAccrual * feeRate) + (divisor - 1)) / divisor;
     }
 
     function _accrueFees() private {
         if (s_lastFeeAccrualTime == block.timestamp) return;
         // NOTE: this has to be called before any mints or burns.
-        uint256 additionalFeesInYieldToken = _calculateAdditionalFeesInYieldToken();
-        s_accruedFeesInYieldTokenPerShare += additionalFeesInYieldToken;
+        s_accruedFeesInYieldToken += _calculateAdditionalFeesInYieldToken();
         s_lastFeeAccrualTime = uint32(block.timestamp);
     }
 

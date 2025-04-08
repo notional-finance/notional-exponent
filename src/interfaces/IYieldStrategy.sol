@@ -133,7 +133,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     /**
      * @dev Returns the balance of yield tokens accrued by the vault.
      */
-    function feesAccrued() external view returns (uint256 feesAccrued);
+    function feesAccrued() external view returns (uint256 feesAccruedInYieldToken);
 
     /**
      * @dev Collects the fees accrued by the vault. Only callable by the owner.

@@ -134,9 +134,6 @@ contract TestMorphoYieldStrategy is Test {
         y.exitPosition(msg.sender, msg.sender, 75_000e18, 50_000e6, bytes(""));
         vm.stopPrank();
 
-        vm.prank(owner);
-        y.collectFees();
-
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
         assertEq(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), "Yield token is 1-1 with collateral shares");
@@ -154,9 +151,6 @@ contract TestMorphoYieldStrategy is Test {
         vm.startPrank(msg.sender);
         y.exitPosition(msg.sender, msg.sender, y.balanceOfShares(msg.sender), type(uint256).max, bytes(""));
         vm.stopPrank();
-
-        vm.prank(owner);
-        y.collectFees();
 
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
@@ -268,11 +262,30 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
-    // function test_collectFees() public {
-    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    function test_collectFees() public {
+        _enterPosition(msg.sender, 10_000e6, 90_000e6);
+        assertEq(y.totalSupply(), 100_000e18);
 
-    //     vm.warp(block.timestamp + 6 minutes);
-    // }
+        uint256 yieldTokensPerShare0 = y.convertSharesToYieldToken(1e18);
+        vm.warp(block.timestamp + 365 days);
+        uint256 yieldTokensPerShare1 = y.convertSharesToYieldToken(1e18);
+        assertLt(yieldTokensPerShare1, yieldTokensPerShare0);
+
+        assertEq(y.feesAccrued(), 100e18);
+
+        vm.prank(owner);
+        y.collectFees();
+        uint256 yieldTokensPerShare2 = y.convertSharesToYieldToken(1e18);
+
+        assertEq(yieldTokensPerShare1, yieldTokensPerShare2 + 1);
+        assertEq(y.feesAccrued(), 0);
+        assertEq(y.convertSharesToYieldToken(y.balanceOf(owner)), 100e18);
+
+        vm.startPrank(owner);
+        uint256 assets = y.redeem(y.balanceOf(owner), "");
+        assertEq(assets, 100e6);
+        vm.stopPrank();
+    }
 
     // function test_share_valuation() public {
         
