@@ -130,9 +130,6 @@ contract TestMorphoYieldStrategy is Test {
 
         vm.warp(block.timestamp + 6 minutes);
 
-        vm.prank(owner);
-        USDC.transfer(msg.sender, 200_000e6);
-
         vm.startPrank(msg.sender);
         y.exitPosition(msg.sender, msg.sender, 75_000e18, 50_000e6, bytes(""));
         vm.stopPrank();
@@ -147,6 +144,37 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
         assertEq(y.balanceOfShares(msg.sender), 125_000e18, "Account has collateral shares");
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+    }
+
+    function test_exitPosition_partialExit() public {
+        _enterPosition(msg.sender, 10_000e6, 100_000e6);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(msg.sender);
+        y.exitPosition(msg.sender, msg.sender, y.balanceOfShares(msg.sender), type(uint256).max, bytes(""));
+        vm.stopPrank();
+
+        vm.prank(owner);
+        y.collectFees();
+
+        // Check that the yield token balance is correct
+        assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
+        assertEq(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), "Yield token is 1-1 with collateral shares");
+        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
+        assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), 0, "Account has collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+    }
+
+    function test_RevertsIf_MorphoWithdrawCollateral() public {
+        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+
+        vm.startPrank(msg.sender);
+        MarketParams memory marketParams = y.marketParams();
+        // NOTE: this is the morpho revert message
+        vm.expectRevert("transfer reverted");
+        MORPHO.withdrawCollateral(marketParams, 10e18, msg.sender, msg.sender);
     }
 
     function test_exitPosition_revertsIf_BeforeCooldownPeriod() public { 
@@ -239,4 +267,35 @@ contract TestMorphoYieldStrategy is Test {
         y.setApproval(msg.sender, true);
         vm.stopPrank();
     }
+
+    // function test_collectFees() public {
+    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+
+    //     vm.warp(block.timestamp + 6 minutes);
+    // }
+
+    // function test_share_valuation() public {
+        
+    // }
+
+    // function test_liquidate() public {
+    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+
+    //     vm.startPrank(msg.sender);
+    //     y.liquidate(msg.sender, 100_000e18, 100_000e6, bytes(""));
+    //     vm.stopPrank();
+    // }
+
+    // function test_liquidate_RevertsIf_BeforeCooldownPeriod() public {
+    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    // }
+
+    // function test_liquidate_RevertsIf_InsufficientAssetsForRepayment() public {
+    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    // }
+
+    // function test_liquidate_RevertsIf_CalledOnMorpho() public {
+    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    // }
+ 
 }

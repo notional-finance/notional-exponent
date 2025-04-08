@@ -103,6 +103,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view virtual override returns (uint256) {
+        if (totalSupply() == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
+
         // NOTE: rounds down on division
         return (shares * (s_trackedYieldTokenBalance - feesAccrued())) / totalSupply();
     }
@@ -144,6 +146,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /// @inheritdoc IYieldStrategy
     function feesAccrued() public view virtual override returns (uint256 feesAccruedInYieldToken) {
+        if (totalSupply() == 0) return s_trackedYieldTokenBalance;
+
         uint256 additionalFeesInYieldToken = _calculateAdditionalFeesInYieldToken();
         uint256 accruedFeesPerShare = s_accruedFeesInYieldTokenPerShare + additionalFeesInYieldToken;
         return accruedFeesPerShare * totalSupply() / SHARE_PRECISION;
@@ -277,9 +281,15 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
             // Allow Morpho to repay the portion of debt
             ERC20(asset).forceApprove(address(MORPHO), assetToRepay);
 
-            // TODO: if assetToRepay is uint256.max then get the morpho borrow shares amount
             // XXX: Morpho market specific code.
-            MORPHO.repay(marketParams(), assetToRepay, 0, onBehalf, "");
+            if (assetToRepay == type(uint256).max) {
+                // If assetToRepay is uint256.max then get the morpho borrow shares amount to
+                // get a full exit.
+                uint256 sharesToRepay = MORPHO.position(id, onBehalf).borrowShares;
+                (assetToRepay, ) = MORPHO.repay(marketParams(), 0, sharesToRepay, onBehalf, "");
+            } else {
+                MORPHO.repay(marketParams(), assetToRepay, 0, onBehalf, "");
+            }
 
             // Clear the approval to prevent re-use in a future call.
             ERC20(asset).forceApprove(address(MORPHO), 0);
@@ -365,6 +375,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /*** Private Functions ***/
 
     function _calculateAdditionalFeesInYieldToken() private view returns (uint256 additionalFeesInYieldToken) {
+        if (totalSupply() == 0) return 0;
+
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
         // TODO: round up on division
         additionalFeesInYieldToken =
