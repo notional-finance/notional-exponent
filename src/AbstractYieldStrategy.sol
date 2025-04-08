@@ -159,7 +159,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
 
     /*** Authorization Methods ***/
     modifier isAuthorized(address onBehalf) {
-        if (msg.sender != onBehalf && !isApproved(msg.sender, onBehalf)) {
+        // In this case msg.sender is the operator
+        if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
             revert NotAuthorized(msg.sender, onBehalf);
         }
         _;
@@ -186,6 +187,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     function setApproval(address operator, bool approved) external override {
+        if (operator == msg.sender) revert NotAuthorized(msg.sender, operator);
         _isApproved[msg.sender][operator] = approved;
     }
 

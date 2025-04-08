@@ -158,5 +158,85 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
+    function test_pause_unpause() public {
+        // Initially not paused
+        assertEq(y.isPaused(), false);
 
+        // Only owner can pause
+        vm.prank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
+        y.pause();
+
+        vm.prank(owner);
+        y.pause();
+        assertEq(y.isPaused(), true);
+
+        // Cannot perform operations while paused
+        vm.prank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(Paused.selector));
+        y.enterPosition(msg.sender, 100_000e6, 100_000e6, bytes(""));
+
+        // Only owner can unpause
+        vm.prank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
+        y.unpause();
+
+        vm.prank(owner);
+        y.unpause();
+        assertEq(y.isPaused(), false);
+
+        // Can perform operations after unpause
+        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    }
+
+    function test_setApproval() public {
+        address operator = address(0x123);
+        
+        // Initially not approved
+        assertEq(y.isApproved(msg.sender, operator), false);
+
+        // Can set approval
+        vm.prank(msg.sender);
+        y.setApproval(operator, true);
+        assertEq(y.isApproved(msg.sender, operator), true);
+
+        // Can revoke approval
+        vm.prank(msg.sender);
+        y.setApproval(operator, false);
+        assertEq(y.isApproved(msg.sender, operator), false);
+
+        // Test that approvals work for operations
+        vm.prank(msg.sender);
+        y.setApproval(operator, true);
+        
+        // Operator can perform operations on behalf of user
+        vm.prank(owner);
+        USDC.transfer(operator, 100_000e6);
+
+        vm.prank(msg.sender);
+        MORPHO.setAuthorization(address(y), true);
+
+        vm.startPrank(operator);
+        USDC.approve(address(y), 100_000e6);
+        y.enterPosition(msg.sender, 100_000e6, 100_000e6, bytes(""));
+        vm.stopPrank();
+
+        // Revoke approval
+        vm.prank(msg.sender);
+        y.setApproval(operator, false);
+
+        // Operator can no longer perform operations
+        vm.startPrank(operator);
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, operator, msg.sender));
+        y.enterPosition(msg.sender, 100_000e6, 100_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_setApproval_self() public {
+        // Cannot approve self
+        vm.startPrank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, msg.sender));
+        y.setApproval(msg.sender, true);
+        vm.stopPrank();
+    }
 }
