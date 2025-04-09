@@ -3,6 +3,7 @@ pragma solidity >=0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {console2} from "forge-std/src/console2.sol";
 
 import "./utils/Errors.sol";
@@ -16,10 +17,11 @@ import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
 /// minting, burning and the valuation of tokens.
-abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldStrategy {
+abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, ReentrancyGuardTransient, IYieldStrategy {
     using SafeERC20 for ERC20;
 
     uint256 internal constant SHARE_PRECISION = 1e18;
+    uint256 internal constant RATE_DECIMALS = 18;
     uint256 internal constant YEAR = 365 days;
 
     // TODO: if we want to use immutables, then we need to have new deployments for
@@ -110,7 +112,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /// @inheritdoc IYieldStrategy
     function convertToShares(uint256 assets) public view override returns (uint256) {
         // NOTE: rounds down on division
-        uint256 yieldTokens = assets * (10 ** (_yieldTokenDecimals + 18)) / (convertYieldTokenToAsset() * (10 ** _assetDecimals));
+        uint256 yieldTokens = assets * (10 ** (_yieldTokenDecimals + RATE_DECIMALS)) / (convertYieldTokenToAsset() * (10 ** _assetDecimals));
         return convertYieldTokenToShares(yieldTokens);
     }
 
@@ -141,7 +143,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         uint256 yieldTokens = convertSharesToYieldToken(shares);
         // NOTE: rounds down on division
-        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + 18));
+        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
     }
 
     /// @inheritdoc IYieldStrategy
@@ -228,7 +230,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) external override isAuthorized(onBehalf) isNotPaused {
+    ) external override isAuthorized(onBehalf) isNotPaused nonReentrant {
         // First collect the margin deposit
         if (depositAssetAmount > 0) {
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
@@ -273,7 +275,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf) isNotPaused returns (uint256 assetsWithdrawn) {
+    ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 assetsWithdrawn) {
         if (block.timestamp - _lastEntryTime[onBehalf] < 5 minutes) {
             revert CannotExitPositionWithinCooldownPeriod();
         }
@@ -335,7 +337,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         uint256 seizedAssets,
         uint256 repaidShares,
         bytes calldata redeemData
-    ) external override isNotPaused returns (uint256 sharesToLiquidator) {
+    ) external override isNotPaused nonReentrant returns (uint256 sharesToLiquidator) {
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
 
@@ -369,8 +371,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     }
 
     /// @inheritdoc IYieldStrategy
-    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public isNotPaused returns (uint256 assetsWithdrawn) {
-        // TODO: this is not re-entrancy safe
+    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public isNotPaused nonReentrant returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
         _burn(msg.sender, sharesToRedeem);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
