@@ -110,7 +110,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /// @inheritdoc IYieldStrategy
     function convertToShares(uint256 assets) public view override returns (uint256) {
         // NOTE: rounds down on division
-        uint256 yieldTokens = assets * (10 ** _yieldTokenDecimals) / convertYieldTokenToAsset();
+        uint256 yieldTokens = assets * (10 ** (_yieldTokenDecimals + 18)) / (convertYieldTokenToAsset() * (10 ** _assetDecimals));
         return convertYieldTokenToShares(yieldTokens);
     }
 

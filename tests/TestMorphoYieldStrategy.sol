@@ -287,9 +287,20 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
-    // function test_share_valuation() public {
-        
-    // }
+    function test_share_valuation() public {
+        address user = msg.sender;
+        _enterPosition(user, 10_000e6, 90_000e6);
+
+        uint256 shares = y.balanceOfShares(user);
+        uint256 assets = y.convertToAssets(shares);
+        uint256 yieldTokens = y.convertSharesToYieldToken(shares);
+        assertEq(yieldTokens, w.balanceOf(address(y)), "yield token balance should be equal to yield tokens");
+
+        // Since this uses the USDC/USD market price there is some drift
+        assertApproxEqRel(assets, USDC.balanceOf(address(w)), 0.0001e18, "assets should be equal to USDC balance of wrapper");
+        assertEq(shares, y.convertYieldTokenToShares(yieldTokens), "convertYieldTokenToShares should equal shares");
+        assertApproxEqRel(shares, y.convertToShares(assets), 0.0001e18, "convertToShares(convertToAssets(balanceOfShares)) should be equal to balanceOfShares");
+    }
 
     function test_liquidate() public {
         _enterPosition(msg.sender, 10_000e6, 90_000e6);
