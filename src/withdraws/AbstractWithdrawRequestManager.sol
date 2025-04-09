@@ -20,11 +20,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     using SafeERC20 for IERC20;
 
-    address public immutable yieldToken;
-    address public immutable withdrawToken;
+    address public override immutable yieldToken;
+    address public override immutable withdrawToken;
 
-    address public owner;
-    mapping(address => bool) public isApprovedVault;
+    address public override owner;
+    mapping(address => bool) public override isApprovedVault;
     // vault => account => withdraw request
     mapping(address => mapping(address => WithdrawRequest)) internal s_accountWithdrawRequest;
     mapping(uint256 => SplitWithdrawRequest) internal s_splitWithdrawRequest;
@@ -45,8 +45,16 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         _;
     }
 
-    function setApprovedVault(address vault, bool isApproved) external onlyOwner {
+    /// @notice Returns the status of a withdraw request
+    function getWithdrawRequest(address vault, address account) public view returns (WithdrawRequest memory w, SplitWithdrawRequest memory s) {
+        w = s_accountWithdrawRequest[vault][account];
+        s = s_splitWithdrawRequest[w.requestId];
+    }
+
+    /// @inheritdoc IWithdrawRequestManager
+    function setApprovedVault(address vault, bool isApproved) external override onlyOwner {
         isApprovedVault[vault] = isApproved;
+        emit ApprovedVault(vault, isApproved);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -63,22 +71,22 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     /// @inheritdoc IWithdrawRequestManager
     function initiateWithdraw(
         address account,
-        uint256 amount,
+        uint256 yieldTokenAmount,
         bool isForced,
         bytes calldata data
     ) external override onlyApprovedVault returns (uint256 requestId) {
         // Receive the requested amount of yield tokens from the approved vault.
-        IERC20(yieldToken).transferFrom(msg.sender, address(this), amount);
+        IERC20(yieldToken).transferFrom(msg.sender, address(this), yieldTokenAmount);
 
         WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
         if (accountWithdraw.requestId != 0) revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
 
-        requestId = _initiateWithdrawImpl(account, amount, isForced, data);
+        requestId = _initiateWithdrawImpl(account, yieldTokenAmount, isForced, data);
         accountWithdraw.requestId = requestId;
         accountWithdraw.hasSplit = false;
-        accountWithdraw.yieldTokenAmount = amount;
+        accountWithdraw.yieldTokenAmount = yieldTokenAmount;
 
-        emit InitiateWithdrawRequest(account, isForced, amount, requestId);
+        emit InitiateWithdrawRequest(account, isForced, yieldTokenAmount, requestId);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -117,45 +125,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
             });
 
             accountWithdraw.hasSplit = true;
-        }
-    }
-
-    /// @notice Returns the status of a withdraw request
-    function getWithdrawRequest(address vault, address account) public view returns (WithdrawRequest memory w, SplitWithdrawRequest memory s) {
-        w = s_accountWithdrawRequest[vault][account];
-        s = s_splitWithdrawRequest[w.requestId];
-    }
-
-    /// @notice Finalizes a withdraw request and updates the account required to determine how many
-    /// tokens the account has a claim over.
-    function _finalizeWithdraw(
-        address account,
-        WithdrawRequest memory w
-    ) internal returns (uint256 tokensWithdrawn, bool finalized) {
-        SplitWithdrawRequest memory s;
-        if (w.hasSplit) {
-            s = s_splitWithdrawRequest[w.requestId];
-
-            // If the split request was already finalized in a different transaction
-            // then return the values here and we can short circuit the withdraw impl
-            if (s.finalized) {
-                return (s.totalWithdraw * w.yieldTokenAmount / s.totalYieldTokenAmount, true);
-            }
-        }
-
-        // These values are the total tokens claimed from the withdraw request, does not
-        // account for potential splitting.
-        (tokensWithdrawn, finalized) = _finalizeWithdrawImpl(account, w.requestId);
-
-        if (w.hasSplit && finalized) {
-            s.totalWithdraw = tokensWithdrawn;
-            s.finalized = true;
-            s_splitWithdrawRequest[w.requestId] = s;
-
-            tokensWithdrawn = s.totalWithdraw * w.yieldTokenAmount / s.totalYieldTokenAmount;
-        } else if (!finalized) {
-            // No tokens claimed if not finalized
-            require(tokensWithdrawn == 0);
         }
     }
 
@@ -213,6 +182,40 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     ) external override onlyOwner {
         ClonedCoolDownHolder(cooldownHolder).rescueTokens(IERC20(token), receiver, amount);
     }
+
+    /// @notice Finalizes a withdraw request and updates the account required to determine how many
+    /// tokens the account has a claim over.
+    function _finalizeWithdraw(
+        address account,
+        WithdrawRequest memory w
+    ) internal returns (uint256 tokensWithdrawn, bool finalized) {
+        SplitWithdrawRequest memory s;
+        if (w.hasSplit) {
+            s = s_splitWithdrawRequest[w.requestId];
+
+            // If the split request was already finalized in a different transaction
+            // then return the values here and we can short circuit the withdraw impl
+            if (s.finalized) {
+                return (s.totalWithdraw * w.yieldTokenAmount / s.totalYieldTokenAmount, true);
+            }
+        }
+
+        // These values are the total tokens claimed from the withdraw request, does not
+        // account for potential splitting.
+        (tokensWithdrawn, finalized) = _finalizeWithdrawImpl(account, w.requestId);
+
+        if (w.hasSplit && finalized) {
+            s.totalWithdraw = tokensWithdrawn;
+            s.finalized = true;
+            s_splitWithdrawRequest[w.requestId] = s;
+
+            tokensWithdrawn = s.totalWithdraw * w.yieldTokenAmount / s.totalYieldTokenAmount;
+        } else if (!finalized) {
+            // No tokens claimed if not finalized
+            require(tokensWithdrawn == 0);
+        }
+    }
+
 
     /// @notice Required implementation to begin the withdraw request
     /// @return requestId some identifier of the withdraw request

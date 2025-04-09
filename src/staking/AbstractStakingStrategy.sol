@@ -2,7 +2,7 @@
 pragma solidity >=0.8.28;
 
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {IWithdrawRequestManager, WithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest, CannotInitiateWithdraw, ExistingWithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 
 struct RedeemParams {
@@ -69,8 +69,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function initiateWithdraw(bytes calldata data) external returns (uint256 requestId) {
         requestId = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
 
-        // TODO: check health factor is collateralized
-        require(true);
+        if (!isHealthy(msg.sender)) revert CannotInitiateWithdraw(msg.sender);
     }
 
     /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
@@ -79,8 +78,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
-        // TODO: we need to get the account's balance of yield tokens here....
-        requestId = withdrawRequestManager.initiateWithdraw({account: account, amount: 0, isForced: isForced, data: data});
+        // TODO: this may initiate withdraws across both native balance and collateral balance
+        uint256 yieldTokenAmount = convertSharesToYieldToken(balanceOfShares(account));
+        requestId = withdrawRequestManager.initiateWithdraw({account: account, yieldTokenAmount: yieldTokenAmount, isForced: isForced, data: data});
     }
 
     function _mintYieldTokens(
@@ -90,17 +90,17 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     ) internal override {
         if (address(withdrawRequestManager) != address(0)) {
             (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), receiver);
-            require(w.requestId == 0, "Withdraw request already exists");
+            if (w.requestId != 0) revert ExistingWithdrawRequest(address(this), receiver, w.requestId);
         }
 
         _stakeTokens(assets, receiver, depositData);
     }
 
-    function _redeemYieldTokens(
-        uint256 yieldTokensToRedeem,
+    function _redeemShares(
+        uint256 sharesToRedeem,
         address sharesOwner,
         bytes memory redeemData
-    ) internal override {
+    ) internal override returns (uint256 yieldTokensBurned) {
         WithdrawRequest memory accountWithdraw;
 
         if (address(withdrawRequestManager) != address(0)) {
@@ -109,8 +109,12 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         if (accountWithdraw.requestId == 0) {
-            _executeInstantRedemption(yieldTokensToRedeem, params);
+            yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+            _executeInstantRedemption(yieldTokensBurned, params);
         } else {
+            require(balanceOfShares(sharesOwner) == sharesToRedeem, "Must Redeem All Shares");
+            yieldTokensBurned = 0;
+
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner);
             require(finalized, "Withdraw request not finalized");
 
@@ -155,9 +159,10 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
         // TODO: do we need to check health factor here?
-        // TODO: this may not be correct if shares and yield tokens are not 1:1
+
         if (address(withdrawRequestManager) != address(0)) {
-            withdrawRequestManager.splitWithdrawRequest(liquidator, liquidateAccount, sharesToLiquidator);
+            uint256 yieldTokenAmount = convertSharesToYieldToken(sharesToLiquidator);
+            withdrawRequestManager.splitWithdrawRequest(liquidator, liquidateAccount, yieldTokenAmount);
         }
     }
 

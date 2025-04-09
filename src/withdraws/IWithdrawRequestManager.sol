@@ -20,14 +20,38 @@ struct SplitWithdrawRequest {
 error ExistingWithdrawRequest(address strategy, address account, uint256 requestId);
 error NoWithdrawRequest(address vault, address account);
 error InvalidWithdrawRequestSplit();
+error CannotInitiateWithdraw(address account);
 
 interface IWithdrawRequestManager {
+    event ApprovedVault(address indexed vault, bool indexed isApproved);
     event InitiateWithdrawRequest(
         address indexed account,
         bool indexed isForced,
         uint256 amount,
         uint256 requestId
     );
+
+    /// @notice Returns the token that will be the result of staking
+    /// @return yieldToken the yield token of the withdraw request manager
+    function yieldToken() external view returns (address);
+
+    /// @notice Returns the token that will be the result of the withdraw request
+    /// @return withdrawToken the withdraw token of the withdraw request manager
+    function withdrawToken() external view returns (address);
+
+    /// @notice Returns the owner of the withdraw request manager, allowed to set approved vaults
+    /// @return owner the owner of the withdraw request manager
+    function owner() external view returns (address);
+
+    /// @notice Returns whether a vault is approved to initiate withdraw requests
+    /// @param vault the vault to check the approval for
+    /// @return isApproved whether the vault is approved
+    function isApprovedVault(address vault) external view returns (bool);
+
+    /// @notice Sets whether a vault is approved to initiate withdraw requests
+    /// @param vault the vault to set the approval for
+    /// @param isApproved whether the vault is approved
+    function setApprovedVault(address vault, bool isApproved) external;
 
     /// @notice Stakes the deposit token to the yield token and transfers it back to the vault
     /// @dev Only approved vaults can stake tokens
@@ -39,13 +63,13 @@ interface IWithdrawRequestManager {
     /// @notice Initiates a withdraw request
     /// @dev Only approved vaults can initiate withdraw requests
     /// @param account the account to initiate the withdraw request for
-    /// @param amount the amount of yield tokens to withdraw
+    /// @param yieldTokenAmount the amount of yield tokens to withdraw
     /// @param isForced whether the withdraw request is forced
     /// @param data additional data for the withdraw request
     /// @return requestId the request id of the withdraw request
     function initiateWithdraw(
         address account,
-        uint256 amount,
+        uint256 yieldTokenAmount,
         bool isForced,
         bytes calldata data
     ) external returns (uint256 requestId);

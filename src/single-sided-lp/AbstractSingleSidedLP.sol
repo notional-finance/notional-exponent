@@ -149,16 +149,17 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
     }
 
-    function _redeemYieldTokens(
-        uint256 yieldTokensToRedeem,
+    function _redeemShares(
+        uint256 sharesToRedeem,
         address /* sharesOwner */,
         bytes memory redeemData
-    ) internal override virtual {
+    ) internal override virtual returns (uint256 yieldTokensBurned) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
+        yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
 
         bool isSingleSided = params.redemptionTrades.length == 0;
         // Returns the amount of each token that has been withdrawn from the pool.
-        uint256[] memory exitBalances = _unstakeAndExitPool(yieldTokensToRedeem, params.minAmounts, isSingleSided);
+        uint256[] memory exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
         if (!isSingleSided) {
             // If not a single sided trade, will execute trades back to the primary token on
             // external exchanges. This method will execute EXACT_IN trades to ensure that

@@ -414,9 +414,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
 
         // First accrue fees on the yield token
         _accrueFees();
-        uint256 yieldTokensToBurn = convertSharesToYieldToken(sharesToBurn);
-        _redeemYieldTokens(yieldTokensToBurn, sharesOwner, redeemData);
-        s_trackedYieldTokenBalance -= yieldTokensToBurn;
+        uint256 yieldTokensBurned = _redeemShares(sharesToBurn, sharesOwner, redeemData);
+        s_trackedYieldTokenBalance -= yieldTokensBurned;
 
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
@@ -486,7 +485,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// @dev Mints yield tokens given a number of assets.
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;
 
-    /// @dev Redeems yield tokens given a number of yield tokens.
-    function _redeemYieldTokens(uint256 yieldTokensToRedeem, address sharesOwner, bytes memory redeemData) internal virtual;
+    /// @dev Redeems shares
+    function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory redeemData) internal virtual returns (uint256 yieldTokensBurned);
 }
 
