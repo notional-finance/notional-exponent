@@ -193,7 +193,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
         uint256 sharesToLiquidate,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external;
+    ) external returns (uint256 sharesToLiquidator);
 
     /**
      * @notice Redeems shares for assets. Allows liquidators to redeem shares for assets outside

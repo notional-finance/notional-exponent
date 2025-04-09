@@ -294,24 +294,58 @@ contract TestMorphoYieldStrategy is Test {
     function test_liquidate() public {
         _enterPosition(msg.sender, 10_000e6, 90_000e6);
 
-        o.setPrice(0.95e18);
+        o.setPrice(0.90e18);
 
         vm.startPrank(owner);
+        uint256 balanceBefore = y.balanceOfShares(msg.sender);
         USDC.approve(address(y), 90_000e6);
+        uint256 usdcBefore = USDC.balanceOf(owner);
+        uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+        uint256 usdcAfter = USDC.balanceOf(owner);
+        uint256 netUSDC = usdcBefore - usdcAfter;
+
+        assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
+        assertEq(y.balanceOf(owner), sharesToLiquidator);
+
+        uint256 assets = y.redeem(sharesToLiquidator, bytes(""));
+        assertGt(assets, netUSDC);
+        vm.stopPrank();
+    }
+
+    function test_liquidate_RevertsIf_InsufficientAssetsForRepayment() public {
+        _enterPosition(msg.sender, 10_000e6, 90_000e6);
+        address liquidator = makeAddr("liquidator");
+
+        o.setPrice(0.95e18);
+
+        vm.startPrank(liquidator);
+        USDC.approve(address(y), 90_000e6);
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
         y.liquidate(msg.sender, 0, 90_000e6, bytes(""));
         vm.stopPrank();
     }
 
-    // function test_liquidate_RevertsIf_BeforeCooldownPeriod() public {
-    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
-    // }
+    function test_liquidate_RevertsIf_CalledOnMorpho() public {
+        _enterPosition(msg.sender, 10_000e6, 90_000e6);
 
-    // function test_liquidate_RevertsIf_InsufficientAssetsForRepayment() public {
-    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
-    // }
+        o.setPrice(0.95e18);
 
-    // function test_liquidate_RevertsIf_CalledOnMorpho() public {
-    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
-    // }
+        vm.startPrank(owner);
+        USDC.approve(address(y), 90_000e6);
+        MarketParams memory marketParams = y.marketParams();
+        vm.expectRevert("transfer reverted");
+        MORPHO.liquidate(marketParams, msg.sender, 0, 90_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_RevertIf_callbacksCalledByNonMorpho() public {
+        vm.startPrank(msg.sender);
+        vm.expectRevert();
+        y.onMorphoFlashLoan(10_000e6, bytes(""));
+
+        vm.expectRevert();
+        y.onMorphoLiquidate(10_000e6, bytes("")); 
+        vm.stopPrank();
+    }
  
 }

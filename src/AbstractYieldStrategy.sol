@@ -245,7 +245,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         _checkInvariants();
     }
 
-    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external isNotPaused {
+    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
         require(msg.sender == address(MORPHO));
 
         (uint256 depositAssetAmount, bytes memory depositData, address receiver) = abi.decode(
@@ -332,22 +332,19 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
     /// @inheritdoc IYieldStrategy
     function liquidate(
         address liquidateAccount,
-        uint256 sharesToLiquidate,
-        uint256 assetToRepay,
+        uint256 seizedAssets,
+        uint256 repaidShares,
         bytes calldata redeemData
-    ) external override isNotPaused {
+    ) external override isNotPaused returns (uint256 sharesToLiquidator) {
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
-        if (maxLiquidateShares == 0) revert CannotLiquidate();
-
-        uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
-
-        ERC20(asset).safeTransferFrom(msg.sender, address(this), assetToRepay);
-        ERC20(asset).forceApprove(address(MORPHO), assetToRepay);
+        if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
 
         t_AllowTransfer_To = address(this);
         t_AllowTransfer_Amount = maxLiquidateShares;
         /// XXX: Morpho market specific code.
-        (uint256 sharesToLiquidator, /* */) = MORPHO.liquidate(marketParams(), liquidateAccount, sharesToLiquidate, assetToRepay, "");
+        (sharesToLiquidator, /* */) = MORPHO.liquidate(
+            marketParams(), liquidateAccount, seizedAssets, repaidShares, abi.encode(msg.sender)
+        );
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
 
@@ -356,19 +353,19 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, IYieldS
         // Clear the approval to prevent re-use in a future call.
         ERC20(asset).forceApprove(address(MORPHO), 0);
 
-        uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
-
         _postLiquidation(msg.sender, liquidateAccount, sharesToLiquidator);
         // If the liquidator specifies redeem data then we will redeem the shares and send the assets to the liquidator.
         if (redeemData.length > 0) redeem(sharesToLiquidator, redeemData);
 
-        if (initialAssetBalance < finalAssetBalance) {
-            ERC20(asset).safeTransfer(msg.sender, finalAssetBalance - initialAssetBalance);
-        } else if (finalAssetBalance < initialAssetBalance) {
-            revert InsufficientAssetsForRepayment(assetToRepay, initialAssetBalance - finalAssetBalance);
-        }
-
         _checkInvariants();
+    }
+
+    function onMorphoLiquidate(uint256 repaidAssets, bytes calldata data) external {
+        require(msg.sender == address(MORPHO));
+        (address liquidator) = abi.decode(data, (address));
+
+        ERC20(asset).safeTransferFrom(liquidator, address(this), repaidAssets);
+        ERC20(asset).forceApprove(address(MORPHO), repaidAssets);
     }
 
     /// @inheritdoc IYieldStrategy
