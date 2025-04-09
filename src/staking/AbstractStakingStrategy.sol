@@ -162,6 +162,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
         if (address(withdrawRequestManager) != address(0)) {
             uint256 yieldTokenAmount = convertSharesToYieldToken(sharesToLiquidator);
+            // TODO: is this possible that we are unable to split the withdraw request b/c the yield token
+            // amount is greater than the amount in the withdraw request? It would happen due to a changing
+            // ratio of shares to yield tokens.
             withdrawRequestManager.splitWithdrawRequest(liquidator, liquidateAccount, yieldTokenAmount);
         }
     }

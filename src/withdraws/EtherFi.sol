@@ -3,14 +3,15 @@ pragma solidity >=0.8.28;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {WETH} from "../utils/Constants.sol";
 
-contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
+contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721Holder {
 
     /// @dev Required to withdraw WETH
     receive() external payable {}
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(0), address(weETH)) { }
+    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(weETH)) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -34,6 +35,7 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         uint256 eEthBalBefore = eETH.balanceOf(address(this));
         LiquidityPool.deposit{value: amount}();
         uint256 eETHMinted = eETH.balanceOf(address(this)) - eEthBalBefore;
+        eETH.approve(address(weETH), eETHMinted);
         weETH.wrap(eETHMinted);
     }
 
@@ -56,6 +58,7 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager {
             uint256 balanceBefore = address(this).balance;
             WithdrawRequestNFT.claimWithdraw(requestId);
             tokensClaimed = address(this).balance - balanceBefore;
+            WETH.deposit{value: tokensClaimed}();
         }
     }
 
