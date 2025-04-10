@@ -113,6 +113,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             _executeInstantRedemption(yieldTokensBurned, params);
         } else {
+            // TODO: fix this to allow partial redemption
             require(balanceOfShares(sharesOwner) == sharesToRedeem, "Must Redeem All Shares");
             yieldTokensBurned = 0;
 

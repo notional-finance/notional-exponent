@@ -33,7 +33,8 @@ interface IOriginVault {
     function withdrawalQueueMetadata() external view returns (WithdrawalQueueMetadata memory);
     function requestWithdrawal(uint256 amount) external returns (uint256 requestId, uint256 queued);
     function mint(address token, uint256 amount, uint256 minAmountOut) external;
-    function claimWithdraw(uint256 requestId) external;
+    function claimWithdrawal(uint256 requestId) external returns (uint256 amount);
+    function addWithdrawalQueueLiquidity() external;
 }
 
 IOriginVault constant OriginVault = IOriginVault(0x39254033945AA2E4809Cc2977E7087BEE48bd7Ab);
@@ -54,8 +55,10 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function _stakeTokens(address depositToken, uint256 amount, bytes calldata data) internal override {
+        require(depositToken == address(WETH), "Invalid deposit token");
         uint256 minAmountOut;
         if (data.length > 0) (minAmountOut) = abi.decode(data, (uint256));
+        WETH.approve(address(OriginVault), amount);
         OriginVault.mint(depositToken, amount, minAmountOut);
     }
 
@@ -67,7 +70,7 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
 
         if (finalized) {
             uint256 balanceBefore = WETH.balanceOf(address(this));
-            OriginVault.claimWithdraw(requestId);
+            OriginVault.claimWithdrawal(requestId);
             tokensClaimed = WETH.balanceOf(address(this)) - balanceBefore;
         }
     }

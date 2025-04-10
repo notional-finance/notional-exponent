@@ -6,6 +6,7 @@ import "../src/withdraws/EtherFi.sol";
 import "../src/withdraws/Ethena.sol";
 import "../src/withdraws/GenericERC4626.sol";
 import "../src/withdraws/GenericERC20.sol";
+import "../src/withdraws/Origin.sol";
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) internal override {
@@ -64,6 +65,26 @@ contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
         manager = new GenericERC20WithdrawRequestManager(owner, address(DAI));
         allowedDepositTokens.push(ERC20(address(DAI)));
         deal(address(DAI), address(this), 10_000e18);
+        depositCallData = "";
+        withdrawCallData = "";
+    }
+}
+
+contract TestOriginWithdrawRequest is TestWithdrawRequest {
+
+    function finalizeWithdrawRequest(uint256 /* requestId */) internal override {
+        uint256 claimDelay = OriginVault.withdrawalClaimDelay();
+        vm.warp(block.timestamp + claimDelay);
+
+        deal(address(WETH), address(OriginVault), 1_000e18);
+        OriginVault.addWithdrawalQueueLiquidity();
+    }
+
+    function setUp() public override {
+        super.setUp();
+        manager = new OriginWithdrawRequestManager(owner);
+        allowedDepositTokens.push(ERC20(address(WETH)));
+        WETH.deposit{value: 10e18}();
         depositCallData = "";
         withdrawCallData = "";
     }
