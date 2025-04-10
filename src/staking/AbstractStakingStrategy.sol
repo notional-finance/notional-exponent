@@ -78,6 +78,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
+        // TODO: do we also need to accrue fee shares here?
         // TODO: this may initiate withdraws across both native balance and collateral balance
         uint256 yieldTokenAmount = convertSharesToYieldToken(balanceOfShares(account));
         requestId = withdrawRequestManager.initiateWithdraw({account: account, yieldTokenAmount: yieldTokenAmount, isForced: isForced, data: data});
@@ -161,6 +162,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         // TODO: do we need to check health factor here?
 
         if (address(withdrawRequestManager) != address(0)) {
+            // TODO: do we need to accrue fee shares here?
             uint256 yieldTokenAmount = convertSharesToYieldToken(sharesToLiquidator);
             // TODO: is this possible that we are unable to split the withdraw request b/c the yield token
             // amount is greater than the amount in the withdraw request? It would happen due to a changing

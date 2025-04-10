@@ -59,8 +59,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
     /// @inheritdoc IWithdrawRequestManager
     function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
-        IERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         uint256 initialYieldTokenBalance = IERC20(yieldToken).balanceOf(address(this));
+        IERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
 
         _stakeTokens(depositToken, amount, data);
 

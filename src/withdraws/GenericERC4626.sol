@@ -4,13 +4,15 @@ pragma solidity >=0.8.28;
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {console2} from "forge-std/src/console2.sol";
 
 contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager {
 
     uint256 private currentRequestId;
     mapping(uint256 => uint256) private s_withdrawRequestShares;
 
-    constructor(address _owner, address _erc4626) AbstractWithdrawRequestManager(_owner, _erc4626, IERC4626(_erc4626).asset()) { }
+    constructor(address _owner, address _erc4626)
+        AbstractWithdrawRequestManager(_owner, IERC4626(_erc4626).asset(), _erc4626) { }
 
     function _initiateWithdrawImpl(
         address /* account */,

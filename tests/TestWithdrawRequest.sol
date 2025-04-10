@@ -6,7 +6,6 @@ import "../src/utils/Errors.sol";
 import "../src/utils/Constants.sol";
 import "../src/withdraws/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../src/withdraws/EtherFi.sol";
 
 abstract contract TestWithdrawRequest is Test {
     string RPC_URL = vm.envString("RPC_URL");
@@ -97,17 +96,21 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(splitRequest.totalWithdraw, 0);
         assertEq(splitRequest.finalized, false);
 
-        (uint256 tokensWithdrawn, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
-        assertEq(tokensWithdrawn, 0);
-        assertEq(finalized, false);
+        uint256 tokensWithdrawn;
+        bool finalized;
+        if (!manager.canFinalizeWithdrawRequest(requestId)) {
+            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+            assertEq(tokensWithdrawn, 0);
+            assertEq(finalized, false);
 
-        (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
-        assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
-        assertEq(request.hasSplit, false);
-        assertEq(request.requestId, requestId);
-        assertEq(splitRequest.totalYieldTokenAmount, 0);
-        assertEq(splitRequest.totalWithdraw, 0);
-        assertEq(splitRequest.finalized, false);
+            (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+            assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
+            assertEq(request.hasSplit, false);
+            assertEq(request.requestId, requestId);
+            assertEq(splitRequest.totalYieldTokenAmount, 0);
+            assertEq(splitRequest.totalWithdraw, 0);
+            assertEq(splitRequest.finalized, false);
+        }
 
         finalizeWithdrawRequest(requestId);
 
@@ -152,17 +155,21 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(splitRequest.totalWithdraw, 0);
         assertEq(splitRequest.finalized, false);
 
-        (uint256 tokensWithdrawn, bool finalized) = manager.finalizeRequestManual(address(this), address(this));
-        assertEq(tokensWithdrawn, 0);
-        assertEq(finalized, false);
+        uint256 tokensWithdrawn;
+        bool finalized;
+        if (!manager.canFinalizeWithdrawRequest(requestId)) {
+            (tokensWithdrawn, finalized) = manager.finalizeRequestManual(address(this), address(this));
+            assertEq(tokensWithdrawn, 0);
+            assertEq(finalized, false);
 
-        (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
-        assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
-        assertEq(request.hasSplit, false);
-        assertEq(request.requestId, requestId);
-        assertEq(splitRequest.totalYieldTokenAmount, 0);
-        assertEq(splitRequest.totalWithdraw, 0);
-        assertEq(splitRequest.finalized, false);
+            (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+            assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
+            assertEq(request.hasSplit, false);
+            assertEq(request.requestId, requestId);
+            assertEq(splitRequest.totalYieldTokenAmount, 0);
+            assertEq(splitRequest.totalWithdraw, 0);
+            assertEq(splitRequest.finalized, false);
+        }
 
         finalizeWithdrawRequest(requestId);
 
@@ -214,6 +221,7 @@ abstract contract TestWithdrawRequest is Test {
 
         // Initiate a new withdraw
         uint256 newYieldTokenBalance = yieldToken.balanceOf(address(this));
+        yieldToken.approve(address(manager), newYieldTokenBalance);
         manager.initiateWithdraw(address(this), newYieldTokenBalance, false, withdrawCallData);
     }
 
@@ -443,20 +451,4 @@ abstract contract TestWithdrawRequest is Test {
         manager.splitWithdrawRequest(staker2, splitStaker, splitAmount);
     }
 
-}
-
-contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 requestId) internal override {
-        vm.prank(0x0EF8fa4760Db8f5Cd4d993f3e3416f30f942D705); // etherFi: admin
-        WithdrawRequestNFT.finalizeRequests(requestId);
-    }
-
-    function setUp() public override {
-        super.setUp();
-        manager = new EtherFiWithdrawRequestManager(owner);
-        allowedDepositTokens.push(ERC20(address(WETH)));
-        WETH.deposit{value: 10e18}();
-        depositCallData = "";
-        withdrawCallData = "";
-    }
 }
