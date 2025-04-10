@@ -17,7 +17,7 @@ struct SplitWithdrawRequest {
     bool finalized;
 }
 
-error ExistingWithdrawRequest(address strategy, address account, uint256 requestId);
+error ExistingWithdrawRequest(address vault, address account, uint256 requestId);
 error NoWithdrawRequest(address vault, address account);
 error InvalidWithdrawRequestSplit();
 error CannotInitiateWithdraw(address account);

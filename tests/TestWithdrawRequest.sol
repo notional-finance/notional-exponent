@@ -217,7 +217,7 @@ abstract contract TestWithdrawRequest is Test {
         manager.initiateWithdraw(address(this), newYieldTokenBalance, false, withdrawCallData);
     }
 
-    function test_splitWithdrawRequest() public approveVaultAndStakeTokens {
+    function test_splitWithdrawRequest(bool useManualFinalize) public approveVaultAndStakeTokens {
         address to = makeAddr("to");
         ERC20 yieldToken = ERC20(manager.yieldToken());
         yieldToken.approve(address(manager), type(uint256).max);
@@ -249,18 +249,30 @@ abstract contract TestWithdrawRequest is Test {
         // Finalize the split request
         finalizeWithdrawRequest(requestId);
 
-        // TODO: test manual finalize
-        (uint256 tokensWithdrawn, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
-        assertEq(tokensWithdrawn, ERC20(manager.withdrawToken()).balanceOf(address(this)));
-        assertEq(finalized, true);
+        bool finalized;
+        uint256 tokensWithdrawn;
+        if (useManualFinalize) {
+            (tokensWithdrawn, finalized) = manager.finalizeRequestManual(address(this), address(this));
 
-        (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
-        assertEq(request.yieldTokenAmount, 0);
-        assertEq(request.hasSplit, false);
-        assertEq(request.requestId, 0);
-        assertEq(splitRequest.totalYieldTokenAmount, 0);
-        assertEq(splitRequest.totalWithdraw, 0);
-        assertEq(splitRequest.finalized, false);
+            (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+            assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount);
+            assertEq(request.hasSplit, true);
+            assertEq(request.requestId, requestId);
+            assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+            assertApproxEqAbs(splitRequest.totalWithdraw, tokensWithdrawn * 2, 1);
+            assertEq(splitRequest.finalized, true);
+        } else {
+            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+            assertEq(finalized, true);
+
+            (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+            assertEq(request.yieldTokenAmount, 0);
+            assertEq(request.hasSplit, false);
+            assertEq(request.requestId, 0);
+            assertEq(splitRequest.totalYieldTokenAmount, 0);
+            assertEq(splitRequest.totalWithdraw, 0);
+            assertEq(splitRequest.finalized, false);
+        }
 
         (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, splitAmount);
@@ -272,6 +284,73 @@ abstract contract TestWithdrawRequest is Test {
 
         (/* */, finalized) = manager.finalizeAndRedeemWithdrawRequest(to);
         assertEq(finalized, true);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
+        assertEq(request.yieldTokenAmount, 0);
+        assertEq(request.hasSplit, false);
+        assertEq(request.requestId, 0);
+        assertEq(splitRequest.totalYieldTokenAmount, 0);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+    }
+
+    function test_splitWithdrawRequest_fullAmount(bool useManualFinalize) public approveVaultAndStakeTokens {
+        address to = makeAddr("to");
+        ERC20 yieldToken = ERC20(manager.yieldToken());
+        yieldToken.approve(address(manager), type(uint256).max);
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+
+        uint256 requestId = manager.initiateWithdraw(address(this), initialYieldTokenBalance, false, withdrawCallData);
+
+        // Split the full request
+        manager.splitWithdrawRequest(address(this), to, initialYieldTokenBalance);
+
+        (WithdrawRequest memory request, SplitWithdrawRequest memory splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+        assertEq(request.yieldTokenAmount, 0);
+        assertEq(request.hasSplit, false);
+        assertEq(request.requestId, 0);
+        assertEq(splitRequest.totalYieldTokenAmount, 0);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
+        assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
+        assertEq(request.hasSplit, true);
+        assertEq(request.requestId, requestId);
+        assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        // Finalize the split request
+        finalizeWithdrawRequest(requestId);
+
+        (/* */, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+        assertEq(finalized, false);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+        assertEq(request.yieldTokenAmount, 0);
+        assertEq(request.hasSplit, false);
+        assertEq(request.requestId, 0);
+        assertEq(splitRequest.totalYieldTokenAmount, 0);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
+        assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
+        assertEq(request.hasSplit, true);
+        assertEq(request.requestId, requestId);
+        assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        uint256 tokensClaimed;
+        if (useManualFinalize) {
+            (tokensClaimed, finalized) = manager.finalizeRequestManual(address(this), to);
+            assertEq(finalized, true);
+        }
+        (tokensClaimed, finalized) = manager.finalizeAndRedeemWithdrawRequest(to);
+        assertEq(finalized, true);
+        assertEq(tokensClaimed, ERC20(manager.withdrawToken()).balanceOf(address(this)));
 
         (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, 0);
@@ -295,9 +374,74 @@ abstract contract TestWithdrawRequest is Test {
     }
 
 
-    // function test_splitWithdrawRequest_RevertIf_ExistingWithdrawRequest() public {
+    function test_splitWithdrawRequest_SplitSameRequestTwice() public approveVaultAndStakeTokens {
+        address addr1 = makeAddr("addr1");
+        ERC20 yieldToken = ERC20(manager.yieldToken());
+        yieldToken.approve(address(manager), type(uint256).max);
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
 
-    // }
+        uint256 requestId = manager.initiateWithdraw(address(this), initialYieldTokenBalance, false, withdrawCallData);
+
+        // Split the request once
+        uint256 splitAmount = initialYieldTokenBalance / 10;
+        manager.splitWithdrawRequest(address(this), addr1, splitAmount);
+
+        (WithdrawRequest memory request, SplitWithdrawRequest memory splitRequest) = manager.getWithdrawRequest(address(this), addr1);
+        assertEq(request.yieldTokenAmount, splitAmount);
+        assertEq(request.hasSplit, true);
+        assertEq(request.requestId, requestId);
+        assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+        assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount);
+        assertEq(request.hasSplit, true);
+        assertEq(request.requestId, requestId);
+        assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        // Split the withdraw request again
+        manager.splitWithdrawRequest(address(this), addr1, splitAmount);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), addr1);
+        assertEq(request.yieldTokenAmount, splitAmount * 2);
+        assertEq(request.hasSplit, true);
+        assertEq(request.requestId, requestId);
+        assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+
+        (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
+        assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount * 2);
+        assertEq(request.hasSplit, true);
+        assertEq(request.requestId, requestId);
+        assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+        assertEq(splitRequest.totalWithdraw, 0);
+        assertEq(splitRequest.finalized, false);
+    }
+
+    function test_splitWithdrawRequest_RevertIf_ExistingSplitWithdrawRequest() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+        address splitStaker = makeAddr("splitStaker");
+
+        ERC20 yieldToken = ERC20(manager.yieldToken());
+        yieldToken.approve(address(manager), type(uint256).max);
+        uint256 withdrawAmount = yieldToken.balanceOf(address(this)) / 4;
+
+        uint256 request1 = manager.initiateWithdraw(staker1, withdrawAmount, false, withdrawCallData);
+        manager.initiateWithdraw(staker2, withdrawAmount, false, withdrawCallData);
+
+        // Split the request once
+        uint256 splitAmount = withdrawAmount / 10;
+        manager.splitWithdrawRequest(staker1, splitStaker, splitAmount);
+
+        // Reverts when splitStaker tries to take the split of a different request
+        vm.expectRevert(abi.encodeWithSelector(ExistingWithdrawRequest.selector, address(this), splitStaker, request1));
+        manager.splitWithdrawRequest(staker2, splitStaker, splitAmount);
+    }
 
 }
 
