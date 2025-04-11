@@ -6,9 +6,22 @@ import "../src/staking/AbstractStakingStrategy.sol";
 import "./TestMorphoYieldStrategy.sol";
 import "../src/staking/EtherFi.sol";
 import "../src/withdraws/EtherFi.sol";
+import "../src/interfaces/ITradingModule.sol";
 
 contract TestStakingStrategy is TestMorphoYieldStrategy {
     EtherFiWithdrawRequestManager public manager;
+
+    function getRedeemData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal pure override returns (bytes memory redeemData) {
+        uint24 fee = 500;
+        return abi.encode(RedeemParams({
+            minPurchaseAmount: 0,
+            dexId: uint8(DexId.UNISWAP_V3),
+            exchangeData: abi.encode((fee))
+        }));
+    }
 
     function deployYieldStrategy() internal override {
         manager = new EtherFiWithdrawRequestManager(owner);
@@ -27,7 +40,16 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         defaultDeposit = 100e18;
         defaultBorrow = 900e18;
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         manager.setApprovedVault(address(y), true);
+
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(weETH),
+            ITradingModule.TokenPermissions(
+            // UniswapV3, EXACT_IN_SINGLE, EXACT_IN_BATCH
+            { allowSell: true, dexFlags: 4, tradeTypeFlags: 5 }
+        ));
+        vm.stopPrank();
     }
 }
