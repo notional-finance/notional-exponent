@@ -7,6 +7,7 @@ import "../src/withdraws/Ethena.sol";
 import "../src/withdraws/GenericERC4626.sol";
 import "../src/withdraws/GenericERC20.sol";
 import "../src/withdraws/Origin.sol";
+import "../src/withdraws/Dinero.sol";
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) internal override {
@@ -83,6 +84,36 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
     function setUp() public override {
         super.setUp();
         manager = new OriginWithdrawRequestManager(owner);
+        allowedDepositTokens.push(ERC20(address(WETH)));
+        WETH.deposit{value: 10e18}();
+        depositCallData = "";
+        withdrawCallData = "";
+    }
+}
+
+contract TestDineropxETHWithdrawRequest is TestWithdrawRequest {
+
+    function finalizeWithdrawRequest(uint256 requestId) internal override {
+        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
+        uint256 finalBatchId = requestId & type(uint120).max;
+        address rewardRecipient = PirexETH.rewardRecipient();
+
+        for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
+            bytes memory validator = PirexETH.batchIdToValidator(i);
+            vm.record();
+            uint8 status = uint8(PirexETH.status(validator));
+            (bytes32[] memory reads, ) = vm.accesses(address(PirexETH));
+            vm.store(address(PirexETH), reads[0], bytes32(uint256(IPirexETH.ValidatorStatus.Withdrawable)));
+
+            deal(rewardRecipient, 32e18);
+            vm.prank(rewardRecipient);
+            PirexETH.dissolveValidator{value: 32e18}(validator);
+        }
+    }
+
+    function setUp() public override {
+        super.setUp();
+        manager = new DineroWithdrawRequestManager(owner, address(pxETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
         WETH.deposit{value: 10e18}();
         depositCallData = "";
