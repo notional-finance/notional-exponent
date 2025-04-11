@@ -4,6 +4,7 @@ pragma solidity >=0.8.28;
 import "forge-std/src/Test.sol";
 import "../src/AbstractYieldStrategy.sol";
 import "../src/oracles/AbstractCustomOracle.sol";
+import "../src/utils/Constants.sol";
 
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
@@ -72,6 +73,9 @@ contract TestMorphoYieldStrategy is Test {
     ERC20 public w;
     MockOracle public o;
     IYieldStrategy public y;
+    ERC20 public asset;
+    uint256 public defaultDeposit;
+    uint256 public defaultBorrow;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -88,12 +92,20 @@ contract TestMorphoYieldStrategy is Test {
             address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC),
             0.915e18 // 91.5% LTV
         );
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+    }
+
+    function setMaxOracleFreshness() internal {
+        vm.prank(owner);
+        TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
     function setUp() public virtual {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
 
         deployYieldStrategy();
+        asset = ERC20(y.asset());
 
         vm.prank(owner);
         TRADING_MODULE.setPriceOracle(address(w), AggregatorV2V3Interface(address(o)));
@@ -104,34 +116,40 @@ contract TestMorphoYieldStrategy is Test {
         USDC.transfer(owner, 15_000_000e6);
         vm.stopPrank();
 
+        // Deal WETH
+        deal(address(WETH), owner, 1_500_000e18);
+        vm.prank(owner);
+        WETH.transfer(msg.sender, 500_000e18);
+
         vm.startPrank(owner);
-        USDC.approve(address(MORPHO), 10_000_000e6);
-        MORPHO.supply(y.marketParams(), 10_000_000e6, 0, owner, "");
+        asset.approve(address(MORPHO), 1_000_000 * 10 ** asset.decimals());
+        MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");
         vm.stopPrank();
     }
 
     function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {
         vm.startPrank(user);
         MORPHO.setAuthorization(address(y), true);
-        USDC.approve(address(y), depositAmount);
+        asset.approve(address(y), depositAmount);
         y.enterPosition(user, depositAmount, borrowAmount, bytes(""));
         vm.stopPrank();
     }
 
     function test_enterPosition() public { 
-        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0);
         assertEq(w.balanceOf(address(y)), y.totalSupply());
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
         assertEq(y.balanceOf(msg.sender), 0);
-        assertEq(y.balanceOfShares(msg.sender), 200_000e18);
+        assertGt(y.balanceOfShares(msg.sender), 0);
+        assertEq(y.balanceOfShares(msg.sender), w.balanceOf(address(y)));
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
     }
 
     function test_exitPosition_fullExit() public {
-        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.warp(block.timestamp + 6 minutes);
 
@@ -149,7 +167,7 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_exitPosition_partialExit() public {
-        _enterPosition(msg.sender, 10_000e6, 100_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.warp(block.timestamp + 6 minutes);
 
@@ -167,17 +185,17 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_RevertsIf_MorphoWithdrawCollateral() public {
-        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
         MarketParams memory marketParams = y.marketParams();
         // NOTE: this is the morpho revert message
         vm.expectRevert("transfer reverted");
-        MORPHO.withdrawCollateral(marketParams, 10e18, msg.sender, msg.sender);
+        MORPHO.withdrawCollateral(marketParams, 1, msg.sender, msg.sender);
     }
 
     function test_exitPosition_revertsIf_BeforeCooldownPeriod() public { 
-        _enterPosition(msg.sender, 100_000e6, 100_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
         vm.expectRevert(abi.encodeWithSelector(CannotExitPositionWithinCooldownPeriod.selector));
@@ -268,33 +286,36 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_collectFees() public {
-        _enterPosition(msg.sender, 10_000e6, 90_000e6);
-        assertEq(y.totalSupply(), 100_000e18);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 totalSupply = y.totalSupply();
+        setMaxOracleFreshness();
 
         uint256 yieldTokensPerShare0 = y.convertSharesToYieldToken(1e18);
         vm.warp(block.timestamp + 365 days);
         uint256 yieldTokensPerShare1 = y.convertSharesToYieldToken(1e18);
         assertLt(yieldTokensPerShare1, yieldTokensPerShare0);
 
-        assertEq(y.feesAccrued(), 100e18);
+        uint256 expectedFees = totalSupply * 0.0010e18 / 1e18 + 1;
+        assertEq(y.feesAccrued(), expectedFees);
 
         vm.prank(owner);
         y.collectFees();
         uint256 yieldTokensPerShare2 = y.convertSharesToYieldToken(1e18);
 
-        assertEq(yieldTokensPerShare1, yieldTokensPerShare2 + 1);
+        assertEq(yieldTokensPerShare1, yieldTokensPerShare2);
         assertEq(y.feesAccrued(), 0);
-        assertEq(y.convertSharesToYieldToken(y.balanceOf(owner)), 100e18);
+        assertApproxEqAbs(y.convertSharesToYieldToken(y.balanceOf(owner)), expectedFees, 1);
+        uint256 expectedAssets = y.convertToAssets(y.balanceOf(owner));
 
         vm.startPrank(owner);
         uint256 assets = y.redeem(y.balanceOf(owner), "");
-        assertEq(assets, 100e6);
+        assertEq(assets, expectedAssets);
         vm.stopPrank();
     }
 
     function test_share_valuation() public {
         address user = msg.sender;
-        _enterPosition(user, 10_000e6, 90_000e6);
+        _enterPosition(user, defaultDeposit, defaultBorrow);
 
         uint256 shares = y.balanceOfShares(user);
         uint256 assets = y.convertToAssets(shares);
@@ -308,7 +329,7 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_liquidate() public {
-        _enterPosition(msg.sender, 10_000e6, 90_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         o.setPrice(0.90e18);
 
@@ -329,7 +350,7 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_liquidate_RevertsIf_InsufficientAssetsForRepayment() public {
-        _enterPosition(msg.sender, 10_000e6, 90_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         address liquidator = makeAddr("liquidator");
 
         o.setPrice(0.95e18);
@@ -342,7 +363,7 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_liquidate_RevertsIf_CalledOnMorpho() public {
-        _enterPosition(msg.sender, 10_000e6, 90_000e6);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         o.setPrice(0.95e18);
 

@@ -23,5 +23,11 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         w = ERC20(y.yieldToken());
         (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
         o = new MockOracle(oracle.latestAnswer());
+
+        defaultDeposit = 100e18;
+        defaultBorrow = 900e18;
+
+        vm.prank(owner);
+        manager.setApprovedVault(address(y), true);
     }
 }

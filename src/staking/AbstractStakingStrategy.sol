@@ -4,6 +4,8 @@ pragma solidity >=0.8.28;
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IWithdrawRequestManager, WithdrawRequest, CannotInitiateWithdraw, ExistingWithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 struct RedeemParams {
     uint8 dexId;
@@ -22,6 +24,7 @@ struct DepositParams {
  * require some illiquid redemption period.
  */
 abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
+    using SafeERC20 for ERC20;
 
     /// @notice if non-zero, the withdraw request manager is used to manage illiquid redemptions
     IWithdrawRequestManager public immutable withdrawRequestManager;
@@ -94,6 +97,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             if (w.requestId != 0) revert ExistingWithdrawRequest(address(this), receiver, w.requestId);
         }
 
+        ERC20(asset).approve(address(withdrawRequestManager), assets);
         _stakeTokens(assets, receiver, depositData);
     }
 
