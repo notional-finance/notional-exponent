@@ -30,7 +30,7 @@ contract MockOracle is AbstractCustomOracle {
 
     constructor(int256 _price) AbstractCustomOracle("MockOracle", address(0)) { price = _price; }
 
-    function setPrice(int256 _price) public {  
+    function setPrice(int256 _price) public {
         price = _price;
     }
 
@@ -69,16 +69,14 @@ contract TestMorphoYieldStrategy is Test {
     string RPC_URL = vm.envString("RPC_URL");
     uint256 FORK_BLOCK = vm.envUint("FORK_BLOCK");
 
-    MockWrapperERC20 public w;
+    ERC20 public w;
     MockOracle public o;
-    MockYieldStrategy public y;
+    IYieldStrategy public y;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
-    function setUp() public {
-        vm.createSelectFork(RPC_URL, FORK_BLOCK);
-
+    function deployYieldStrategy() internal virtual {
         w = new MockWrapperERC20(USDC);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
@@ -90,6 +88,12 @@ contract TestMorphoYieldStrategy is Test {
             address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC),
             0.915e18 // 91.5% LTV
         );
+    }
+
+    function setUp() public virtual {
+        vm.createSelectFork(RPC_URL, FORK_BLOCK);
+
+        deployYieldStrategy();
 
         vm.prank(owner);
         TRADING_MODULE.setPriceOracle(address(w), AggregatorV2V3Interface(address(o)));

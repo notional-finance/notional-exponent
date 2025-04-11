@@ -4,6 +4,8 @@ pragma solidity >=0.8.28;
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {IOracle} from "./Morpho/IOracle.sol";
+import {MarketParams} from "./Morpho/IMorpho.sol";
+import {IMorphoLiquidateCallback, IMorphoFlashLoanCallback} from "./Morpho/IMorphoCallbacks.sol";
 
 enum LendingMarket {
     NONE,
@@ -30,7 +32,7 @@ enum Operation {
  *
  * This contract also serves as its own oracle.
  */
-interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
+interface IYieldStrategy is IERC20, IERC20Metadata, IOracle, IMorphoLiquidateCallback, IMorphoFlashLoanCallback {
 
     /**
      * @dev Returns the address of the owner of the vault.
@@ -139,6 +141,11 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * @dev Collects the fees accrued by the vault. Only callable by the owner.
      */
     function collectFees() external;
+
+    /**
+     * @dev Returns the market parameters for the lending market.
+     */
+    function marketParams() external view returns (MarketParams memory marketParams);
 
     /**
      * @dev Enters a position by depositing assets and borrowing funds and using
