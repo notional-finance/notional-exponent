@@ -186,8 +186,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
             w.yieldTokenAmount = w.yieldTokenAmount - yieldTokenAmount;
             w.hasSplit = true;
         }
-
-        // TODO: do we need to ensure that the _to account does not have a balance of vault shares?
     }
 
     /// @inheritdoc IWithdrawRequestManager

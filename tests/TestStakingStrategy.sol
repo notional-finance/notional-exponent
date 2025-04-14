@@ -225,6 +225,8 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_withdrawRequestValuation() public { }
+    function test_withdrawRequestValuation() public {
+        assertEq(true, false);
+    }
 
 }

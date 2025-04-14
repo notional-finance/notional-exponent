@@ -115,7 +115,7 @@ contract TestDineropxETHWithdrawRequest is TestWithdrawRequest {
         super.setUp();
         manager = new DineroWithdrawRequestManager(owner, address(pxETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
-        WETH.deposit{value: 10e18}();
+        WETH.deposit{value: 45e18}();
         depositCallData = "";
         withdrawCallData = "";
     }

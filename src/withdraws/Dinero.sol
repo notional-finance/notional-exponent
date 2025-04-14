@@ -7,6 +7,7 @@ import {IERC1155} from "@openzeppelin/contracts/interfaces/IERC1155.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {WETH} from "../utils/Constants.sol";
+import {console2} from "forge-std/src/console2.sol";
 
 interface IPirexETH {
     error StatusNotDissolvedOrSlashed();
@@ -78,8 +79,7 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         require(initialBatchId < type(uint120).max);
         require(finalBatchId < type(uint120).max);
         // Initial and final batch ids may overlap between requests so the nonce is used to ensure uniqueness
-        // TODO: do we need the plus 1?
-        return nonce << 240 | initialBatchId << 120 | finalBatchId + 1;
+        return nonce << 240 | initialBatchId << 120 | finalBatchId;
     }
 
     function _stakeTokens(address depositToken, uint256 amount, bytes calldata /* data */) internal override {
