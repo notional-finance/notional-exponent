@@ -415,8 +415,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         _mintYieldTokens(assets, receiver, depositData);
         uint256 yieldTokensMinted = ERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
 
-        s_trackedYieldTokenBalance += yieldTokensMinted;
         sharesMinted = convertYieldTokenToShares(yieldTokensMinted);
+        // Update the tracked yield token balance after calculating the shares to mint
+        s_trackedYieldTokenBalance += yieldTokensMinted;
         _mint(receiver, sharesMinted);
     }
 

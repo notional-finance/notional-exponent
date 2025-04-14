@@ -118,7 +118,37 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
     
-    function test_exitPosition_PartialWithdrawRequest() public { }
+    function test_exitPosition_PartialWithdrawRequest() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        setMaxOracleFreshness();
+
+        vm.startPrank(msg.sender);
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        vm.stopPrank();
+
+        // No fees should accrue at this point since all yield tokens are escrowed
+        uint256 feesAccruedBefore = y.feesAccrued();
+        vm.warp(block.timestamp + 90 days);
+        uint256 feesAccruedAfter = y.feesAccrued();
+        assertEq(feesAccruedBefore, feesAccruedAfter, "Fees should not have accrued");
+
+        address staker2 = makeAddr("staker2");
+        vm.prank(owner);
+        asset.transfer(staker2, defaultDeposit);
+
+        _enterPosition(staker2, defaultDeposit, defaultBorrow);
+
+        // Fees should accrue now on the new staker's position only
+        feesAccruedBefore = y.feesAccrued();
+        vm.warp(block.timestamp + 90 days);
+        feesAccruedAfter = y.feesAccrued();
+        assertApproxEqRel(
+            feesAccruedAfter - feesAccruedBefore,
+            y.balanceOfShares(staker2) * 0.00025e18 / 1e18,
+            0.03e18,
+        "Fees should have accrued");
+    }
+
     function test_withdrawRequest_FeeCollection() public { }
     function test_withdrawRequest_acrossBalances() public { }
 
