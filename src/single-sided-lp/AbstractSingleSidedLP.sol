@@ -70,11 +70,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     // /// @notice Called to claim reward tokens
     // function _rewardPoolStorage() internal view virtual returns (RewardPoolStorage memory);
 
-    /// @notice Called during reward reinvestment to validate that the token being sold is not one
-    /// of the tokens that is required for the vault to function properly (i.e. one of the pool tokens
-    /// or any of the reward booster tokens).
-    function _isInvalidRewardToken(address token) internal view virtual returns (bool);
-
     /// @notice Implementation specific wrapper for joining a pool with the given amounts. Will also
     /// stake on the relevant booster protocol.
     function _joinPoolAndStake(

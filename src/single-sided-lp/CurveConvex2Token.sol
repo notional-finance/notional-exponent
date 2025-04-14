@@ -13,7 +13,6 @@ struct DeploymentParams {
     address poolToken;
     address gauge;
     CurveInterface curveInterface;
-    address whitelistedReward;
     address convexRewardPool;
 }
 
@@ -43,8 +42,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     uint8 internal immutable DECIMALS_2;
     uint8 internal immutable PRIMARY_DECIMALS;
     uint8 internal immutable SECONDARY_DECIMALS;
-
-    address immutable WHITELISTED_REWARD;
 
     function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
     function PRIMARY_INDEX() internal view override returns (uint256) { return _PRIMARY_INDEX; }
@@ -88,10 +85,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         PRIMARY_DECIMALS = _PRIMARY_INDEX == 0 ? DECIMALS_1 : DECIMALS_2;
         SECONDARY_DECIMALS = _PRIMARY_INDEX == 0 ? DECIMALS_2 : DECIMALS_1;
 
-        // Allows one of the pool tokens to be whitelisted as a reward token to be re-entered
-        // back into the pool to increase LP shares.
-        WHITELISTED_REWARD = params.whitelistedReward;
-
         // If the convex reward pool is set then get the booster and pool id, if not then
         // we will stake on the curve gauge directly.
         CONVEX_REWARD_POOL = params.convexRewardPool;
@@ -101,7 +94,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
             convexBooster = IConvexRewardPool(CONVEX_REWARD_POOL).operator();
             poolId = IConvexRewardPool(CONVEX_REWARD_POOL).pid();
         } else {
-            revert("Unsupported chain");
+            revert();
         }
 
         CONVEX_POOL_ID = poolId;
@@ -228,21 +221,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         } else {
             CURVE_POOL_TOKEN.checkApprove(address(CURVE_GAUGE), type(uint256).max);
         }
-    }
-
-    function _isInvalidRewardToken(address token) internal override virtual view returns (bool) {
-        if (WHITELISTED_REWARD != address(0) && token == WHITELISTED_REWARD) return false;
-
-        return (
-            token == TOKEN_1 ||
-            token == TOKEN_2 ||
-            token == address(CONVEX_REWARD_POOL) ||
-            token == address(CONVEX_BOOSTER) ||
-            token == address(CURVE_GAUGE) ||
-            token == address(CURVE_POOL_TOKEN) ||
-            token == address(ETH_ADDRESS) ||
-            token == address(WETH)
-        );
     }
 
     // function _rewardPoolStorage() internal view override returns (RewardPoolStorage memory r) {
