@@ -115,10 +115,31 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
             type(uint256).max,
             getRedeemData(msg.sender, y.balanceOfShares(msg.sender))
         );
+        // TODO: this needs to clear the escrowed yield tokens
+        vm.stopPrank();
+    }
+
+    function test_exitPosition_PartialWithdrawRequest() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        vm.stopPrank();
+        finalizeWithdrawRequest(msg.sender);
+
+        vm.warp(block.timestamp + 5 minutes);
+        vm.startPrank(msg.sender);
+        y.exitPosition(
+            msg.sender,
+            msg.sender,
+            y.balanceOfShares(msg.sender) / 2,
+            defaultBorrow / 2,
+            getRedeemData(msg.sender, y.balanceOfShares(msg.sender) / 2)
+        );
         vm.stopPrank();
     }
     
-    function test_exitPosition_PartialWithdrawRequest() public {
+    function test_withdrawRequest_FeeCollection() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         setMaxOracleFreshness();
 
@@ -149,10 +170,10 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         "Fees should have accrued");
     }
 
-    function test_withdrawRequest_FeeCollection() public { }
+    function test_liquidate_splitsWithdrawRequest() public { }
+
     function test_withdrawRequest_acrossBalances() public { }
 
     function test_withdrawRequestValuation() public { }
-    function test_liquidate_splitsWithdrawRequest() public { }
 
 }

@@ -153,7 +153,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 sharesToRedeem,
         address /* sharesOwner */,
         bytes memory redeemData
-    ) internal override virtual returns (uint256 yieldTokensBurned) {
+    ) internal override virtual returns (uint256 yieldTokensBurned, bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
 
@@ -168,6 +168,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // requires explicit permission for every token that can be sold by an address.
             _executeRedemptionTrades(exitBalances, params.redemptionTrades);
         }
+
+        // TODO: fix this
+        wasEscrowed = false;
     }
 
     /// @dev Trades the amount of primary token into other secondary tokens prior to entering a pool.

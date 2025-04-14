@@ -60,9 +60,10 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         MockWrapperERC20(yieldToken).deposit(assets);
     }
 
-    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (uint256 yieldTokensBurned) {
+    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (uint256 yieldTokensBurned, bool wasEscrowed) {
         yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
         MockWrapperERC20(yieldToken).withdraw(yieldTokensBurned);
+        wasEscrowed = false;
     }
 }
 

@@ -76,10 +76,12 @@ interface IWithdrawRequestManager {
 
     /// @notice Attempts to redeem active withdraw requests during vault exit
     /// @param account the account to finalize and redeem the withdraw request for
+    /// @param withdrawYieldTokenAmount the amount of yield tokens to withdraw
     /// @return tokensWithdrawn amount of withdraw tokens redeemed from the withdraw requests
     /// @return finalized whether the withdraw request was finalized
     function finalizeAndRedeemWithdrawRequest(
-        address account
+        address account,
+        uint256 withdrawYieldTokenAmount
     ) external returns (uint256 tokensWithdrawn, bool finalized);
 
     /// @notice Finalizes withdraw requests outside of a vault exit. This may be required in cases if an

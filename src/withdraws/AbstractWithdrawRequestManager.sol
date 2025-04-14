@@ -91,7 +91,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
     /// @inheritdoc IWithdrawRequestManager
     function finalizeAndRedeemWithdrawRequest(
-        address account
+        address account,
+        uint256 withdrawYieldTokenAmount
     ) external override onlyApprovedVault returns (uint256 tokensWithdrawn, bool finalized) {
         WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
         if (accountWithdraw.requestId == 0) return (0, false);
@@ -99,7 +100,16 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         (tokensWithdrawn, finalized) = _finalizeWithdraw(account, accountWithdraw);
 
         if (finalized) {
-            delete s_accountWithdrawRequest[msg.sender][account];
+            // Allows for partial withdrawal of yield tokens
+            if (withdrawYieldTokenAmount < accountWithdraw.yieldTokenAmount) {
+                _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
+                tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / accountWithdraw.yieldTokenAmount;
+                accountWithdraw.yieldTokenAmount -= accountWithdraw.yieldTokenAmount;
+            } else {
+                require(accountWithdraw.yieldTokenAmount == withdrawYieldTokenAmount);
+                delete s_accountWithdrawRequest[msg.sender][account];
+            }
+
             IERC20(withdrawToken).safeTransfer(msg.sender, tokensWithdrawn);
         }
     }
@@ -113,11 +123,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (accountWithdraw.requestId == 0) revert NoWithdrawRequest(vault, account);
 
         (tokensWithdrawn, finalized) = _finalizeWithdraw(account, accountWithdraw);
+        if (finalized) _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
+    }
 
+    function _splitPartialWithdrawRequest(WithdrawRequest memory accountWithdraw, uint256 tokensWithdrawn) internal {
         // If the account has not split, we store the total tokens withdrawn in the split withdraw
-        // request. When the account does exit, they will skip `_finalizeWithdrawImpl` and get the
-        // full share of totalWithdraw (unless they are liquidated after this withdraw has been finalized).
-        if (!accountWithdraw.hasSplit && finalized) {
+        // request. When the account does exit, they will skip `_finalizeWithdrawImpl`
+        if (!accountWithdraw.hasSplit) {
             s_splitWithdrawRequest[accountWithdraw.requestId] = SplitWithdrawRequest({
                 totalYieldTokenAmount: accountWithdraw.yieldTokenAmount,
                 totalWithdraw: tokensWithdrawn,

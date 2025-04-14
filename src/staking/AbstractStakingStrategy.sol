@@ -110,7 +110,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 sharesToRedeem,
         address sharesOwner,
         bytes memory redeemData
-    ) internal override returns (uint256 yieldTokensBurned) {
+    ) internal override returns (uint256 yieldTokensBurned, bool wasEscrowed) {
         WithdrawRequest memory accountWithdraw;
 
         if (address(withdrawRequestManager) != address(0)) {
@@ -121,12 +121,14 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         if (accountWithdraw.requestId == 0) {
             yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             _executeInstantRedemption(yieldTokensBurned, params);
+            wasEscrowed = false;
         } else {
-            // TODO: fix this to allow partial redemption
-            require(balanceOfShares(sharesOwner) == sharesToRedeem, "Must Redeem All Shares");
-            yieldTokensBurned = 0;
+            uint256 balanceOfShares = balanceOfShares(sharesOwner);
+            require(sharesToRedeem <= balanceOfShares);
+            yieldTokensBurned = accountWithdraw.yieldTokenAmount * sharesToRedeem / balanceOfShares;
+            wasEscrowed = true;
 
-            (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner);
+            (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner, yieldTokensBurned);
             require(finalized, "Withdraw request not finalized");
 
             // Trades may be required here if the borrowed token is not the same as what is

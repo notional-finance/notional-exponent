@@ -61,7 +61,7 @@ abstract contract TestWithdrawRequest is Test {
         manager.initiateWithdraw(caller, 100, false, depositCallData);
 
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, caller));
-        manager.finalizeAndRedeemWithdrawRequest(caller);
+        manager.finalizeAndRedeemWithdrawRequest(caller, 100);
 
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, caller));
         manager.splitWithdrawRequest(caller, caller, 100);
@@ -99,7 +99,7 @@ abstract contract TestWithdrawRequest is Test {
         uint256 tokensWithdrawn;
         bool finalized;
         if (!manager.canFinalizeWithdrawRequest(requestId)) {
-            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
             assertEq(tokensWithdrawn, 0);
             assertEq(finalized, false);
 
@@ -114,7 +114,7 @@ abstract contract TestWithdrawRequest is Test {
 
         finalizeWithdrawRequest(requestId);
 
-        (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+        (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
         assertEq(tokensWithdrawn, ERC20(manager.withdrawToken()).balanceOf(address(this)));
         assertEq(finalized, true);
 
@@ -189,7 +189,7 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(splitRequest.finalized, true);
 
         // Now we should be able to finalize the withdraw request via the vault
-        (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+        (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
         assertEq(tokensWithdrawn, ERC20(manager.withdrawToken()).balanceOf(address(this)));
         assertEq(0, ERC20(manager.withdrawToken()).balanceOf(address(manager)));
         assertEq(finalized, true);
@@ -212,7 +212,7 @@ abstract contract TestWithdrawRequest is Test {
         uint256 requestId = manager.initiateWithdraw(address(this), initialYieldTokenBalance, false, withdrawCallData);
         finalizeWithdrawRequest(requestId);
 
-        (/* */, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+        (/* */, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
         assertEq(finalized, true);
 
         // Stake new tokens
@@ -270,7 +270,7 @@ abstract contract TestWithdrawRequest is Test {
             assertApproxEqAbs(splitRequest.totalWithdraw, tokensWithdrawn * 2, 1);
             assertEq(splitRequest.finalized, true);
         } else {
-            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
             assertEq(finalized, true);
 
             (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
@@ -290,7 +290,7 @@ abstract contract TestWithdrawRequest is Test {
         assertApproxEqAbs(splitRequest.totalWithdraw, tokensWithdrawn * 2, 1);
         assertEq(splitRequest.finalized, true);
 
-        (/* */, finalized) = manager.finalizeAndRedeemWithdrawRequest(to);
+        (/* */, finalized) = manager.finalizeAndRedeemWithdrawRequest(to, splitAmount);
         assertEq(finalized, true);
 
         (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
@@ -332,7 +332,7 @@ abstract contract TestWithdrawRequest is Test {
         // Finalize the split request
         finalizeWithdrawRequest(requestId);
 
-        (/* */, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this));
+        (/* */, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
         assertEq(finalized, false);
 
         (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
@@ -356,7 +356,7 @@ abstract contract TestWithdrawRequest is Test {
             (tokensClaimed, finalized) = manager.finalizeRequestManual(address(this), to);
             assertEq(finalized, true);
         }
-        (tokensClaimed, finalized) = manager.finalizeAndRedeemWithdrawRequest(to);
+        (tokensClaimed, finalized) = manager.finalizeAndRedeemWithdrawRequest(to, initialYieldTokenBalance);
         assertEq(finalized, true);
         assertEq(tokensClaimed, ERC20(manager.withdrawToken()).balanceOf(address(this)));
 
