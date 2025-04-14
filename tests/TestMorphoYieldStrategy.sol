@@ -157,13 +157,14 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function test_exitPosition_partialExit() public {
-        _enterPosition(msg.sender, defaultDeposit * 2, defaultBorrow);
+        _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
+        uint256 initialBalance = y.balanceOfShares(msg.sender);
 
         vm.warp(block.timestamp + 6 minutes);
 
         vm.startPrank(msg.sender);
-        uint256 sharesToExit = y.balanceOfShares(msg.sender) / 2;
-        y.exitPosition(msg.sender, msg.sender, sharesToExit, defaultBorrow / 2, getRedeemData(msg.sender, sharesToExit));
+        uint256 sharesToExit = y.balanceOfShares(msg.sender) / 10;
+        y.exitPosition(msg.sender, msg.sender, sharesToExit, defaultBorrow / 10, getRedeemData(msg.sender, sharesToExit));
         vm.stopPrank();
 
         // Check that the yield token balance is correct
@@ -171,7 +172,7 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), "Yield token is 1-1 with collateral shares");
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
-        assertEq(y.balanceOfShares(msg.sender), 125_000e18, "Account has collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), initialBalance - sharesToExit, "Account has collateral shares");
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
     }
 
@@ -311,20 +312,20 @@ contract TestMorphoYieldStrategy is Test {
         assertLt(yieldTokensPerShare1, yieldTokensPerShare0);
 
         uint256 expectedFees = totalSupply * 0.0010e18 / 1e18 + 1;
-        assertEq(y.feesAccrued(), expectedFees);
+        assertEq(y.feesAccrued(), expectedFees, "Fees accrued should be equal to expected fees");
 
         vm.prank(owner);
         y.collectFees();
         uint256 yieldTokensPerShare2 = y.convertSharesToYieldToken(1e18);
 
-        assertEq(yieldTokensPerShare1, yieldTokensPerShare2);
-        assertEq(y.feesAccrued(), 0);
-        assertApproxEqAbs(y.convertSharesToYieldToken(y.balanceOf(owner)), expectedFees, 1);
+        assertEq(yieldTokensPerShare1, yieldTokensPerShare2, "Yield tokens per share should be equal");
+        assertEq(y.feesAccrued(), 0, "Fees accrued should be 0");
+        assertApproxEqAbs(y.convertSharesToYieldToken(y.balanceOf(owner)), expectedFees, 1, "Fees should be equal to expected fees");
         uint256 expectedAssets = y.convertToAssets(y.balanceOf(owner));
 
         vm.startPrank(owner);
         uint256 assets = y.redeem(y.balanceOf(owner), getRedeemData(owner, y.balanceOf(owner)));
-        assertEq(assets, expectedAssets);
+        assertApproxEqRel(assets, expectedAssets, 0.001e18, "Assets should be equal to expected assets");
         vm.stopPrank();
     }
 

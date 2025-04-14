@@ -120,7 +120,7 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
 
     function test_exitPosition_PartialWithdrawRequest() public {
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
 
         vm.startPrank(msg.sender);
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
@@ -132,9 +132,17 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         y.exitPosition(
             msg.sender,
             msg.sender,
-            y.balanceOfShares(msg.sender) / 2,
-            defaultBorrow / 2,
-            getRedeemData(msg.sender, y.balanceOfShares(msg.sender) / 2)
+            y.balanceOfShares(msg.sender) * 0.10e18 / 1e18,
+            0,
+            getRedeemData(msg.sender, y.balanceOfShares(msg.sender) * 0.10e18 / 1e18)
+        );
+
+        y.exitPosition(
+            msg.sender,
+            msg.sender,
+            y.balanceOfShares(msg.sender) * 0.10e18 / 1e18,
+            0,
+            getRedeemData(msg.sender, y.balanceOfShares(msg.sender) * 0.10e18 / 1e18)
         );
         vm.stopPrank();
     }

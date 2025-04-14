@@ -126,7 +126,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (finalized) _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
     }
 
-    function _splitPartialWithdrawRequest(WithdrawRequest memory accountWithdraw, uint256 tokensWithdrawn) internal {
+    function _splitPartialWithdrawRequest(WithdrawRequest storage accountWithdraw, uint256 tokensWithdrawn) internal {
         // If the account has not split, we store the total tokens withdrawn in the split withdraw
         // request. When the account does exit, they will skip `_finalizeWithdrawImpl`
         if (!accountWithdraw.hasSplit) {
