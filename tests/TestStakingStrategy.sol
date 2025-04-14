@@ -207,7 +207,23 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_withdrawRequest_acrossBalances() public { }
+    function test_liquidate_RevertsIf_LiquidatorHasCollateralBalance() public {
+        _enterPosition(owner, defaultDeposit, defaultBorrow);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        vm.stopPrank();
+
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+
+        vm.startPrank(owner);
+        uint256 balanceBefore = y.balanceOfShares(msg.sender);
+        asset.approve(address(y), type(uint256).max);
+        vm.expectRevert(abi.encodeWithSelector(CannotReceiveSplitWithdrawRequest.selector));
+        y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+        vm.stopPrank();
+    }
 
     function test_withdrawRequestValuation() public { }
 

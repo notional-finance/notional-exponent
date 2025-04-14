@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.28;
 
+import "../utils/Errors.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IWithdrawRequestManager, WithdrawRequest, CannotInitiateWithdraw, ExistingWithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
@@ -123,6 +124,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             _executeInstantRedemption(yieldTokensBurned, params);
             wasEscrowed = false;
         } else {
+            // This assumes that the the account cannot get more shares once they initiate a withdraw. That
+            // is why accounts are restricted from receiving split withdraw requests if they already have an
+            // active position.
             uint256 balanceOfShares = balanceOfShares(sharesOwner);
             require(sharesToRedeem <= balanceOfShares);
             yieldTokensBurned = accountWithdraw.yieldTokenAmount * sharesToRedeem / balanceOfShares;
@@ -174,7 +178,11 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         // TODO: do we need to check health factor here?
 
         if (address(withdrawRequestManager) != address(0)) {
-            // TODO: do we need to accrue fee shares here?
+            // If the liquidator has a collateral balance then they cannot receive a split withdraw request
+            // or the redemption calculation will be incorrect.
+            if (_accountCollateralBalance(liquidator) > 0) revert CannotReceiveSplitWithdrawRequest();
+
+            // No need to accrue fees because neither the total supply or total yield token balance is changing.
             uint256 yieldTokenAmount = convertSharesToYieldToken(sharesToLiquidator);
             // TODO: is this possible that we are unable to split the withdraw request b/c the yield token
             // amount is greater than the amount in the withdraw request? It would happen due to a changing
