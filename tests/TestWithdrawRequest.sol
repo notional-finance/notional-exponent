@@ -270,7 +270,7 @@ abstract contract TestWithdrawRequest is Test {
             assertApproxEqAbs(splitRequest.totalWithdraw, tokensWithdrawn * 2, 1);
             assertEq(splitRequest.finalized, true);
         } else {
-            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance);
+            (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance - splitAmount);
             assertEq(finalized, true);
 
             (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));

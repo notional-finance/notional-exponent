@@ -101,6 +101,7 @@ contract TestDineropxETHWithdrawRequest is TestWithdrawRequest {
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
             bytes memory validator = PirexETH.batchIdToValidator(i);
             vm.record();
+            PirexETH.status(validator);
             (bytes32[] memory reads, ) = vm.accesses(address(PirexETH));
             vm.store(address(PirexETH), reads[0], bytes32(uint256(IPirexETH.ValidatorStatus.Withdrawable)));
 
