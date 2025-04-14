@@ -178,7 +178,34 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
         "Fees should have accrued");
     }
 
-    function test_liquidate_splitsWithdrawRequest() public { }
+    function test_liquidate_splitsWithdrawRequest() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        vm.stopPrank();
+
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+
+        vm.startPrank(owner);
+        uint256 balanceBefore = y.balanceOfShares(msg.sender);
+        asset.approve(address(y), type(uint256).max);
+        uint256 assetBefore = asset.balanceOf(owner);
+        uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+        uint256 assetAfter = asset.balanceOf(owner);
+        uint256 netAsset = assetBefore - assetAfter;
+
+        assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
+        assertEq(y.balanceOf(owner), sharesToLiquidator);
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(owner);
+
+        vm.startPrank(owner);
+        uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
+        assertGt(assets, netAsset);
+        vm.stopPrank();
+    }
 
     function test_withdrawRequest_acrossBalances() public { }
 
