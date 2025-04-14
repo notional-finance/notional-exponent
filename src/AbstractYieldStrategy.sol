@@ -51,6 +51,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// is less gas efficient but it is also required for some yield strategies.
     uint256 private s_trackedYieldTokenBalance;
     uint256 private s_accruedFeesInYieldToken;
+    uint256 private s_escrowedYieldTokens;
 
     mapping(address user => mapping(address operator => bool approved)) private _isApproved;
     mapping(address user => uint256 lastEntryTime) private _lastEntryTime;
@@ -106,7 +107,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         if (totalSupply() == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
 
         // NOTE: rounds down on division
-        return (shares * (s_trackedYieldTokenBalance - feesAccrued())) / totalSupply();
+        return (shares * (s_trackedYieldTokenBalance + s_escrowedYieldTokens - feesAccrued())) / totalSupply();
     }
 
     /// @inheritdoc IYieldStrategy
@@ -125,8 +126,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         Position memory position = MORPHO.position(id, borrower);
         Market memory market = MORPHO.market(id);
 
-        uint256 borrowed = position.borrowShares * market.totalBorrowAssets / market.totalBorrowShares;
-        uint256 maxBorrow = (position.collateral * price()) / 1e36 * _lltv / 1e18;
+        uint256 borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
+        uint256 maxBorrow = (uint256(position.collateral) * price()) / 1e36 * _lltv / 1e18;
 
         return borrowed <= maxBorrow;
     }
@@ -136,7 +137,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         if (totalSupply() == 0) return yieldTokens * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
 
         // NOTE: rounds down on division
-        return (yieldTokens * SHARE_PRECISION * totalSupply()) / ((s_trackedYieldTokenBalance - feesAccrued()) * (10 ** _yieldTokenDecimals));
+        return (yieldTokens * SHARE_PRECISION * totalSupply()) / (
+            (s_trackedYieldTokenBalance + s_escrowedYieldTokens - feesAccrued()) * (10 ** _yieldTokenDecimals)
+        );
     }
 
     /// @inheritdoc IYieldStrategy
@@ -393,6 +396,16 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         s_lastFeeAccrualTime = uint32(block.timestamp);
     }
 
+    /// @dev Returns the number of yield tokens that are currently escrowed in a withdraw manager or
+    /// other contract. This is used to maintain a consistent share to yield token ratio but excludes
+    /// yield tokens from being collected as fees.
+    function _escrowYieldTokens(uint256 yieldTokens) internal virtual {
+        _accrueFees();
+
+        s_escrowedYieldTokens += yieldTokens;
+        s_trackedYieldTokenBalance -= yieldTokens;
+    }
+
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal virtual returns (uint256 sharesMinted) {
         if (assets == 0) return 0;
 
@@ -487,5 +500,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
 
     /// @dev Redeems shares
     function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory redeemData) internal virtual returns (uint256 yieldTokensBurned);
+
 }
 

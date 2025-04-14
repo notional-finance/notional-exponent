@@ -2,6 +2,7 @@
 pragma solidity >=0.8.28;
 
 import "forge-std/src/Test.sol";
+import "./TestWithdrawRequestImpl.sol";
 import "../src/staking/AbstractStakingStrategy.sol";
 import "./TestMorphoYieldStrategy.sol";
 import "../src/staking/EtherFi.sol";
@@ -10,6 +11,7 @@ import "../src/interfaces/ITradingModule.sol";
 
 contract TestStakingStrategy is TestMorphoYieldStrategy {
     EtherFiWithdrawRequestManager public manager;
+    TestWithdrawRequest public withdrawRequest;
 
     function getRedeemData(
         address /* user */,
@@ -21,6 +23,18 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
             dexId: uint8(DexId.UNISWAP_V3),
             exchangeData: abi.encode((fee))
         }));
+    }
+
+    function getWithdrawRequestData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal pure virtual returns (bytes memory withdrawRequestData) {
+        return bytes("");
+    }
+
+    function finalizeWithdrawRequest(address user) internal {
+        (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), user);
+        withdrawRequest.finalizeWithdrawRequest(w.requestId);
     }
 
     function deployYieldStrategy() internal override {
@@ -51,5 +65,64 @@ contract TestStakingStrategy is TestMorphoYieldStrategy {
             { allowSell: true, dexFlags: 4, tradeTypeFlags: 5 }
         ));
         vm.stopPrank();
+
+        withdrawRequest = new TestEtherFiWithdrawRequest();
     }
+
+    function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+
+        asset.approve(address(y), defaultDeposit);
+
+        vm.expectRevert();
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_initiateWithdrawRequest_RevertIf_InsufficientCollateral() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+
+        vm.startPrank(msg.sender);
+        bytes memory data = getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender));
+        vm.expectRevert(abi.encodeWithSelector(CannotInitiateWithdraw.selector, msg.sender));
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(data);
+        vm.stopPrank();
+    }
+
+    function test_exitPosition_FullWithdrawRequest() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        uint256 priceBefore = y.price();
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        uint256 priceAfter = y.price();
+        assertEq(priceBefore, priceAfter, "Price changed during withdraw request");
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(msg.sender);
+
+        vm.warp(block.timestamp + 5 minutes);
+        vm.startPrank(msg.sender);
+        y.exitPosition(
+            msg.sender,
+            msg.sender,
+            y.balanceOfShares(msg.sender),
+            type(uint256).max,
+            getRedeemData(msg.sender, y.balanceOfShares(msg.sender))
+        );
+        vm.stopPrank();
+    }
+    
+    function test_exitPosition_PartialWithdrawRequest() public { }
+    function test_withdrawRequest_FeeCollection() public { }
+    function test_withdrawRequest_acrossBalances() public { }
+
+    function test_withdrawRequestValuation() public { }
+    function test_liquidate_splitsWithdrawRequest() public { }
+
 }

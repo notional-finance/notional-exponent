@@ -26,6 +26,8 @@ struct DepositParams {
 abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     using SafeERC20 for ERC20;
 
+    uint256 internal s_escrowedYieldTokens;
+
     /// @notice if non-zero, the withdraw request manager is used to manage illiquid redemptions
     IWithdrawRequestManager public immutable withdrawRequestManager;
 
@@ -81,10 +83,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
-        // TODO: do we also need to accrue fee shares here?
         // TODO: this may initiate withdraws across both native balance and collateral balance
         uint256 yieldTokenAmount = convertSharesToYieldToken(balanceOfShares(account));
+        _escrowYieldTokens(yieldTokenAmount);
+        
+        ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({account: account, yieldTokenAmount: yieldTokenAmount, isForced: isForced, data: data});
+        _checkInvariants();
     }
 
     function _mintYieldTokens(

@@ -10,7 +10,7 @@ import "../src/withdraws/Origin.sol";
 import "../src/withdraws/Dinero.sol";
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 requestId) internal override {
+    function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.prank(0x0EF8fa4760Db8f5Cd4d993f3e3416f30f942D705); // etherFi: admin
         WithdrawRequestNFT.finalizeRequests(requestId);
     }
@@ -26,7 +26,7 @@ contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestEthenaWithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 requestId) internal override {
+    function finalizeWithdrawRequest(uint256 requestId) public override {
         IsUSDe.UserCooldown memory wCooldown = sUSDe.cooldowns(address(uint160(requestId)));
         vm.warp(wCooldown.cooldownEnd);
     }
@@ -42,7 +42,7 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */) internal pure override {
+    function finalizeWithdrawRequest(uint256 /* requestId */) public pure override {
         return;
     }
 
@@ -57,7 +57,7 @@ contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */) internal pure override {
+    function finalizeWithdrawRequest(uint256 /* requestId */) public pure override {
         return;
     }
 
@@ -73,7 +73,7 @@ contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
 
 contract TestOriginWithdrawRequest is TestWithdrawRequest {
 
-    function finalizeWithdrawRequest(uint256 /* requestId */) internal override {
+    function finalizeWithdrawRequest(uint256 /* requestId */) public override {
         uint256 claimDelay = OriginVault.withdrawalClaimDelay();
         vm.warp(block.timestamp + claimDelay);
 
@@ -93,7 +93,7 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
 
 contract TestDineropxETHWithdrawRequest is TestWithdrawRequest {
 
-    function finalizeWithdrawRequest(uint256 requestId) internal override {
+    function finalizeWithdrawRequest(uint256 requestId) public override {
         uint256 initialBatchId = requestId >> 120 & type(uint120).max;
         uint256 finalBatchId = requestId & type(uint120).max;
         address rewardRecipient = PirexETH.rewardRecipient();

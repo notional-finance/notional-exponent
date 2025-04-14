@@ -38,7 +38,7 @@ abstract contract TestWithdrawRequest is Test {
         _;
     }
 
-    function finalizeWithdrawRequest(uint256 requestId) internal virtual;
+    function finalizeWithdrawRequest(uint256 requestId) public virtual;
 
     function test_setApprovedVault() public {
         vm.prank(address(0x123));
