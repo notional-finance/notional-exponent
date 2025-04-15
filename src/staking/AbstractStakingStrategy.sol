@@ -103,8 +103,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             if (w.requestId != 0) revert ExistingWithdrawRequest(address(this), receiver, w.requestId);
         }
 
-        ERC20(asset).approve(address(withdrawRequestManager), assets);
         _stakeTokens(assets, receiver, depositData);
+    }
+
+    /// @dev By default we can use the withdraw request manager to stake the tokens
+    function _stakeTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal virtual {
+        ERC20(asset).approve(address(withdrawRequestManager), assets);
+        withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
     }
 
     function _redeemShares(
@@ -191,8 +196,4 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         }
     }
 
-    /// @dev By default we can use the withdraw request manager to stake the tokens
-    function _stakeTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal virtual {
-        withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
-    }
 }

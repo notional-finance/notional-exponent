@@ -11,6 +11,11 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     IWithdrawRequestManager public manager;
     TestWithdrawRequest public withdrawRequest;
 
+    modifier onlyIfWithdrawRequestManager() {
+        vm.skip(address(manager) == address(0));
+        _;
+    }
+
     function getWithdrawRequestData(
         address /* user */,
         uint256 /* shares */
@@ -23,7 +28,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         withdrawRequest.finalizeWithdrawRequest(w.requestId);
     }
 
-    function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public {
+    function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
@@ -36,7 +41,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_initiateWithdrawRequest_RevertIf_InsufficientCollateral() public {
+    function test_initiateWithdrawRequest_RevertIf_InsufficientCollateral() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
@@ -48,7 +53,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_exitPosition_FullWithdrawRequest() public {
+    function test_exitPosition_FullWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
@@ -72,7 +77,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_exitPosition_PartialWithdrawRequest() public {
+    function test_exitPosition_PartialWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
 
         vm.startPrank(msg.sender);
@@ -100,7 +105,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
     
-    function test_withdrawRequest_FeeCollection() public {
+    function test_withdrawRequest_FeeCollection() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         setMaxOracleFreshness();
 
@@ -131,7 +136,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         "Fees should have accrued");
     }
 
-    function test_liquidate_splitsWithdrawRequest() public {
+    function test_liquidate_splitsWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
@@ -160,7 +165,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_liquidate_RevertsIf_LiquidatorHasCollateralBalance() public {
+    function test_liquidate_RevertsIf_LiquidatorHasCollateralBalance() public onlyIfWithdrawRequestManager {
         _enterPosition(owner, defaultDeposit, defaultBorrow);
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
@@ -178,7 +183,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_withdrawRequestValuation() public {
+    function test_withdrawRequestValuation() public onlyIfWithdrawRequestManager {
         assertEq(true, false);
     }
 

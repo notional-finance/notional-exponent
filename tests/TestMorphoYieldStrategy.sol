@@ -332,7 +332,8 @@ contract TestMorphoYieldStrategy is Test {
 
         vm.startPrank(owner);
         uint256 assets = y.redeem(y.balanceOf(owner), getRedeemData(owner, y.balanceOf(owner)));
-        assertApproxEqRel(assets, expectedAssets, 0.001e18, "Assets should be equal to expected assets");
+        // NOTE: this is dependent on the difference between the oracle price and slippage
+        assertApproxEqRel(assets, expectedAssets, 0.01e18, "Assets should be equal to expected assets");
         vm.stopPrank();
     }
 

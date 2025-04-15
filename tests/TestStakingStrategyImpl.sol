@@ -141,5 +141,23 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy {
         );
 
         o = new MockOracle(pendleOracle.latestAnswer());
+
+        vm.startPrank(owner);
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(USDC),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: 1 << 7, tradeTypeFlags: 5 }
+        ));
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(USDe),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: 1 << 7, tradeTypeFlags: 5 }
+        ));
+        vm.stopPrank();
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
     }
 }
