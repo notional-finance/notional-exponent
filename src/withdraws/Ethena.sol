@@ -139,55 +139,6 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
         (tokensClaimed, finalized) = holder.finalizeCooldown();
     }
 
-    // /// @notice The vast majority of the sUSDe liquidity is in an sDAI/sUSDe curve pool.
-    // /// sDAI has much greater liquidity once it is unwrapped as DAI so that is done manually
-    // /// in this method.
-    // function _sellStakedUSDe(
-    //     uint256 sUSDeAmount,
-    //     address borrowToken,
-    //     uint256 minPurchaseAmount,
-    //     bytes memory exchangeData,
-    //     uint16 dexId
-    // ) internal returns (uint256 borrowedCurrencyAmount) {
-    //     Trade memory sDAITrade = Trade({
-    //         tradeType: TradeType.EXACT_IN_SINGLE,
-    //         sellToken: address(sUSDe),
-    //         buyToken: address(sDAI),
-    //         amount: sUSDeAmount,
-    //         limit: 0, // NOTE: no slippage guard is set here, it is enforced in the second leg
-    //                   // of the trade.
-    //         deadline: block.timestamp,
-    //         exchangeData: abi.encode(CurveV2Adapter.CurveV2SingleData({
-    //             pool: 0x167478921b907422F8E88B43C4Af2B8BEa278d3A,
-    //             fromIndex: 1, // sUSDe
-    //             toIndex: 0 // sDAI
-    //         }))
-    //     });
-
-    //     (/* */, uint256 sDAIAmount) = sDAITrade._executeTrade(uint16(DexId.CURVE_V2));
-
-    //     // Unwraps the sDAI to DAI
-    //     uint256 daiAmount = sDAI.redeem(sDAIAmount, address(this), address(this));
-        
-    //     if (borrowToken != address(DAI)) {
-    //         Trade memory trade = Trade({
-    //             tradeType: TradeType.EXACT_IN_SINGLE,
-    //             sellToken: address(DAI),
-    //             buyToken: borrowToken,
-    //             amount: daiAmount,
-    //             limit: minPurchaseAmount,
-    //             deadline: block.timestamp,
-    //             exchangeData: exchangeData
-    //         });
-
-    //         // Trades the unwrapped DAI back to the given token.
-    //         (/* */, borrowedCurrencyAmount) = trade._executeTrade(dexId);
-    //     } else {
-    //         require(minPurchaseAmount <= daiAmount, "Slippage");
-    //         borrowedCurrencyAmount = daiAmount;
-    //     }
-    // }
-
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         uint24 duration = sUSDe.cooldownDuration();
         address holder = address(uint160(requestId));
