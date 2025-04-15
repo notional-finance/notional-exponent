@@ -74,6 +74,8 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         address /* user */,
         uint256 /* depositAmount */
     ) internal view override returns (bytes memory) {
+        IPRouter.LimitOrderData memory limitOrderData;
+
         PendleDepositParams memory d = PendleDepositParams({
             dexId: defaultDexId,
             minPurchaseAmount: 0,
@@ -85,7 +87,8 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 guessOffchain: 0,
                 maxIteration: 256,
                 eps: 1e15 // recommended setting (0.1%)
-            })
+            }),
+            limitOrderData: limitOrderData
         });
 
         return abi.encode(d);

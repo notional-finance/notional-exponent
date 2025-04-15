@@ -13,6 +13,7 @@ struct PendleDepositParams {
     bytes exchangeData;
     uint256 minPtOut;
     IPRouter.ApproxParams approxParams;
+    IPRouter.LimitOrderData limitOrderData;
 }
 
 /** Base implementation for Pendle PT vaults */
@@ -84,10 +85,8 @@ contract PendlePT is AbstractStakingStrategy {
         }
 
         IPRouter.SwapData memory EMPTY_SWAP;
-        IPRouter.LimitOrderData memory EMPTY_LIMIT;
 
         ERC20(TOKEN_IN_SY).forceApprove(address(PENDLE_ROUTER), tokenInAmount);
-        // TODO: add pendle orderbook here as well
         uint256 msgValue = TOKEN_IN_SY == ETH_ADDRESS ? tokenInAmount : 0;
         PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
             address(this),
@@ -104,25 +103,35 @@ contract PendlePT is AbstractStakingStrategy {
                 pendleSwap: address(0),
                 swapData: EMPTY_SWAP
             }),
-            EMPTY_LIMIT
+            params.limitOrderData
         );
     }
 
     /// @notice Handles PT redemption whether it is expired or not
     function _redeemPT(uint256 netPtIn) internal returns (uint256 netTokenOut) {
-        uint256 netSyOut;
-
-        // PT tokens are known to be ERC20 compatible
         if (PT.isExpired()) {
             PT.transfer(address(YT), netPtIn);
-            netSyOut = YT.redeemPY(address(SY));
+            uint256 netSyOut = YT.redeemPY(address(SY));
+            netTokenOut = SY.redeem(address(this), netSyOut, TOKEN_OUT_SY, 0, true);
         } else {
-            PT.transfer(address(MARKET), netPtIn);
-            // TODO: add pendle orderbook here as well and go via the router
-            (netSyOut, ) = MARKET.swapExactPtForSy(address(SY), netPtIn, "");
+            IPRouter.SwapData memory EMPTY_SWAP;
+            (netTokenOut, , ) = PENDLE_ROUTER.swapExactPtForToken(
+                address(this),
+                address(MARKET),
+                netPtIn,
+                // When tokenIn == tokenMintSy then the swap router can be set to
+                // empty data. This means that the vault must hold the underlying sy
+                // token when we begin the execution.
+                IPRouter.TokenOutput({
+                    tokenOut: TOKEN_OUT_SY,
+                    minTokenOut: 0,
+                    tokenRedeemSy: TOKEN_OUT_SY,
+                    pendleSwap: address(0),
+                    swapData: EMPTY_SWAP
+                }),
+                params.limitOrderData
+            );
         }
-
-        netTokenOut = SY.redeem(address(this), netSyOut, TOKEN_OUT_SY, 0, true);
     }
 
     function _executeInstantRedemption(
