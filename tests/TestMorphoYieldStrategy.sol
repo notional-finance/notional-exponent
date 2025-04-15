@@ -80,11 +80,19 @@ contract TestMorphoYieldStrategy is Test {
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    address constant IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
     ) internal view virtual returns (bytes memory redeemData) {
+        return "";
+    }
+
+    function getDepositData(
+        address /* user */,
+        uint256 /* depositAmount */
+    ) internal view virtual returns (bytes memory depositData) {
         return "";
     }
 
@@ -96,8 +104,7 @@ contract TestMorphoYieldStrategy is Test {
             address(USDC),
             address(w),
             0.0010e18, // 0.1% fee rate
-            // Adaptive Curve IRM
-            address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC),
+            IRM,
             0.915e18 // 91.5% LTV
         );
         defaultDeposit = 10_000e6;
@@ -139,7 +146,7 @@ contract TestMorphoYieldStrategy is Test {
         vm.startPrank(user);
         MORPHO.setAuthorization(address(y), true);
         asset.approve(address(y), depositAmount);
-        y.enterPosition(user, depositAmount, borrowAmount, bytes(""));
+        y.enterPosition(user, depositAmount, borrowAmount, getDepositData(user, depositAmount));
         vm.stopPrank();
     }
 
@@ -235,7 +242,7 @@ contract TestMorphoYieldStrategy is Test {
         // Cannot perform operations while paused
         vm.prank(msg.sender);
         vm.expectRevert(abi.encodeWithSelector(Paused.selector));
-        y.enterPosition(msg.sender, 100_000e6, 100_000e6, bytes(""));
+        y.enterPosition(msg.sender, 100_000e6, 100_000e6, getDepositData(msg.sender, 100_000e6));
 
         // Only owner can unpause
         vm.prank(msg.sender);
@@ -279,7 +286,7 @@ contract TestMorphoYieldStrategy is Test {
 
         vm.startPrank(operator);
         asset.approve(address(y), defaultDeposit);
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, bytes(""));
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
         vm.stopPrank();
 
         // Revoke approval
@@ -289,7 +296,7 @@ contract TestMorphoYieldStrategy is Test {
         // Operator can no longer perform operations
         vm.startPrank(operator);
         vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, operator, msg.sender));
-        y.enterPosition(msg.sender, 100_000e6, 100_000e6, bytes(""));
+        y.enterPosition(msg.sender, 100_000e6, 100_000e6, getDepositData(msg.sender, 100_000e6));
         vm.stopPrank();
     }
 

@@ -24,6 +24,38 @@ enum TradeType {
     STAKE_TOKEN       // flag = 16
 }
 
+struct UniV3SingleData { uint24 fee; }
+
+// Path is packed encoding `token, fee, token, fee, outToken`
+struct UniV3BatchData { bytes path; }
+
+struct CurveV2SingleData {
+    // Address of the pool to use for the swap
+    address pool;
+    int128 fromIndex;
+    int128 toIndex;
+}
+
+struct CurveV2BatchData { 
+    // Array of [initial token, pool, token, pool, token, ...]
+    // The array is iterated until a pool address of 0x00, then the last
+    // given token is transferred to `_receiver`
+    address[9] route;
+    // Multidimensional array of [i, j, swap type] where i and j are the correct
+    // values for the n'th pool in `_route`. The swap type should be
+    // 1 for a stableswap `exchange`,
+    // 2 for stableswap `exchange_underlying`,
+    // 3 for a cryptoswap `exchange`,
+    // 4 for a cryptoswap `exchange_underlying`,
+    // 5 for factory metapools with lending base pool `exchange_underlying`,
+    // 6 for factory crypto-meta pools underlying exchange (`exchange` method in zap),
+    // 7-11 for wrapped coin (underlying for lending or fake pool) -> LP token "exchange" (actually `add_liquidity`),
+    // 12-14 for LP token -> wrapped coin (underlying for lending pool) "exchange" (actually `remove_liquidity_one_coin`)
+    // 15 for WETH -> ETH "exchange" (actually deposit/withdraw)
+    uint256[3][4] swapParams;
+}
+
+
 struct Trade {
     TradeType tradeType;
     address sellToken;
