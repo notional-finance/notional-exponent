@@ -51,7 +51,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// is less gas efficient but it is also required for some yield strategies.
     uint256 private s_trackedYieldTokenBalance;
     uint256 private s_accruedFeesInYieldToken;
-    uint256 private s_escrowedYieldTokens;
+    uint256 private s_escrowedShares;
 
     mapping(address user => mapping(address operator => bool approved)) private _isApproved;
     mapping(address user => uint256 lastEntryTime) private _lastEntryTime;
@@ -59,6 +59,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
 
     /********* Transient Variables *********/
     // Used to authorize transfers off of the lending market
+    address internal transient t_Liquidate_Account;
     address internal transient t_AllowTransfer_To;
     uint256 internal transient t_AllowTransfer_Amount;
     /****** End Transient Variables ******/
@@ -104,10 +105,22 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
 
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view virtual override returns (uint256) {
-        if (totalSupply() == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
+        uint256 effectiveSupply = totalSupply() - s_escrowedShares;
+        if (effectiveSupply == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
 
         // NOTE: rounds down on division
-        return (shares * (s_trackedYieldTokenBalance + s_escrowedYieldTokens - feesAccrued())) / totalSupply();
+        return (shares * (s_trackedYieldTokenBalance - feesAccrued())) / effectiveSupply;
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
+        uint256 effectiveSupply = totalSupply() - s_escrowedShares;
+        if (effectiveSupply == 0) return yieldTokens * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
+
+        // NOTE: rounds down on division
+        return (yieldTokens * SHARE_PRECISION * effectiveSupply) / (
+            (s_trackedYieldTokenBalance - feesAccrued()) * (10 ** _yieldTokenDecimals)
+        );
     }
 
     /// @inheritdoc IYieldStrategy
@@ -130,16 +143,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint256 maxBorrow = (uint256(position.collateral) * price()) / 1e36 * _lltv / 1e18;
 
         return borrowed <= maxBorrow;
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
-        if (totalSupply() == 0) return yieldTokens * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
-
-        // NOTE: rounds down on division
-        return (yieldTokens * SHARE_PRECISION * totalSupply()) / (
-            (s_trackedYieldTokenBalance + s_escrowedYieldTokens - feesAccrued()) * (10 ** _yieldTokenDecimals)
-        );
     }
 
     /// @inheritdoc IYieldStrategy
@@ -341,6 +344,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint256 repaidShares,
         bytes calldata redeemData
     ) external override isNotPaused nonReentrant returns (uint256 sharesToLiquidator) {
+        t_Liquidate_Account = liquidateAccount;
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
 
@@ -352,6 +356,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         );
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
+        delete t_Liquidate_Account;
 
         // Transfer the shares to the liquidator
         _transfer(address(this), msg.sender, sharesToLiquidator);
@@ -399,10 +404,10 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// @dev Returns the number of yield tokens that are currently escrowed in a withdraw manager or
     /// other contract. This is used to maintain a consistent share to yield token ratio but excludes
     /// yield tokens from being collected as fees.
-    function _escrowYieldTokens(uint256 yieldTokens) internal virtual {
+    function _escrowShares(uint256 shares, uint256 yieldTokens) internal virtual {
         _accrueFees();
 
-        s_escrowedYieldTokens += yieldTokens;
+        s_escrowedShares += shares;
         s_trackedYieldTokenBalance -= yieldTokens;
     }
 
@@ -430,7 +435,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         _accrueFees();
         (uint256 yieldTokensBurned, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
         if (wasEscrowed) {
-            s_escrowedYieldTokens -= yieldTokensBurned;
+            s_escrowedShares -= sharesToBurn;
         } else {
             s_trackedYieldTokenBalance -= yieldTokensBurned;
         }

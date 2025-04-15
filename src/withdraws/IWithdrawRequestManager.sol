@@ -7,13 +7,14 @@ pragma solidity >=0.8.28;
 
 struct WithdrawRequest {
     uint256 requestId;
-    uint256 yieldTokenAmount;
+    uint120 yieldTokenAmount;
+    uint120 sharesAmount;
     bool hasSplit;
 }
 
 struct SplitWithdrawRequest {
-    uint256 totalYieldTokenAmount;
-    uint256 totalWithdraw;
+    uint120 totalYieldTokenAmount;
+    uint120 totalWithdraw;
     bool finalized;
 }
 

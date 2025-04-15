@@ -27,8 +27,6 @@ struct DepositParams {
 abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     using SafeERC20 for ERC20;
 
-    uint256 internal s_escrowedYieldTokens;
-
     /// @notice if non-zero, the withdraw request manager is used to manage illiquid redemptions
     IWithdrawRequestManager public immutable withdrawRequestManager;
 
@@ -51,20 +49,12 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertYieldTokenToAsset() public view override returns (uint256) {
-        return super.convertYieldTokenToAsset();
+        uint256 price = super.convertYieldTokenToAsset();
+        if (t_Liquidate_Account == address(0) || address(withdrawRequestManager) == address(0)) return price;
+        (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), t_Liquidate_Account);
+        if (w.requestId == 0) return price;
 
-        /* TODO: update this to use a transient variable if we are in liquidation
-        WithdrawRequest memory w = getWithdrawRequest(account);
-        uint256 withdrawValue = _calculateValueOfWithdrawRequest(
-            w, stakeAssetPrice, asset, redemptionToken
-        );
-        // This should always be zero if there is a withdraw request.
-        uint256 vaultSharesNotInWithdrawQueue = (vaultShares - w.vaultShares);
-
-        uint256 vaultSharesValue = (vaultSharesNotInWithdrawQueue * stakeAssetPrice * BORROW_PRECISION) /
-            (uint256(Constants.INTERNAL_TOKEN_PRECISION) * Constants.EXCHANGE_RATE_PRECISION);
-        return (withdrawValue + vaultSharesValue).toInt();
-        */
+        return price * (w.sharesAmount * 10 ** _yieldTokenDecimals) / (w.yieldTokenAmount * SHARE_PRECISION);
     }
 
     function _preLiquidation(address liquidateAccount, address /* liquidator */) internal view override returns (uint256 maxLiquidateShares) {
@@ -85,8 +75,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
         // TODO: this may initiate withdraws across both native balance and collateral balance
-        uint256 yieldTokenAmount = convertSharesToYieldToken(balanceOfShares(account));
-        _escrowYieldTokens(yieldTokenAmount);
+        uint256 sharesHeld = balanceOfShares(account);
+        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        _escrowShares(sharesHeld, yieldTokenAmount);
         
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({account: account, yieldTokenAmount: yieldTokenAmount, isForced: isForced, data: data});
