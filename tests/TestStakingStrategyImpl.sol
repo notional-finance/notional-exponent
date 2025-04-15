@@ -68,6 +68,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     uint8 internal defaultDexId;
     bytes internal defaultDepositExchangeData;
     bytes internal defaultRedeemExchangeData;
+    bytes internal defaultWithdrawRequestExchangeData;
 
     function getDepositData(
         address /* user */,
@@ -91,16 +92,30 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     }
 
     function getRedeemData(
-        address /* user */,
+        address user,
         uint256 /* shares */
     ) internal view override returns (bytes memory) {
+        (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), user);
         RedeemParams memory r;
 
         r.minPurchaseAmount = 0;
         r.dexId = defaultDexId;
-        r.exchangeData = defaultRedeemExchangeData;
+        if (w.requestId == 0) {
+            r.exchangeData = defaultRedeemExchangeData;
+        } else {
+            r.exchangeData = defaultWithdrawRequestExchangeData;
+        }
 
         return abi.encode(r);
+    }
+
+    function getWithdrawRequestData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal pure override returns (bytes memory withdrawRequestData) {
+        uint256 minTokenOutSy = 0;
+        bytes memory withdrawData = "";
+        return abi.encode(minTokenOutSy, withdrawData);
     }
 
     function setMarketVariables() virtual internal;
@@ -127,6 +142,13 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             TRADING_MODULE.setTokenPermissions(
                 address(y),
                 address(DAI),
+                ITradingModule.TokenPermissions(
+                { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
+            ));
+            // Allow trading of USDe
+            TRADING_MODULE.setTokenPermissions(
+                address(y),
+                address(tokenIn),
                 ITradingModule.TokenPermissions(
                 { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
             ));
@@ -162,7 +184,9 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
 
         o = new MockOracle(pendleOracle.latestAnswer());
 
+
         vm.startPrank(owner);
+        if (address(manager) != address(0)) manager.setApprovedVault(address(y), true);
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(y.asset()),
@@ -223,6 +247,12 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
             pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
             fromIndex: 0, // DAI
             toIndex: 1 // USDC
+        }));
+        defaultWithdrawRequestExchangeData = abi.encode(CurveV2SingleData({
+            // Sells via the USDe/USDC pool
+            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+            fromIndex: 0,
+            toIndex: 1
         }));
 
         defaultDeposit = 10_000e6;

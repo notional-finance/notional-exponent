@@ -153,6 +153,7 @@ contract PendlePT is AbstractStakingStrategy {
 
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal override returns (uint256 requestId) {
         uint256 ptAmount = convertSharesToYieldToken(balanceOfShares(account));
+        _escrowYieldTokens(ptAmount);
         // When doing a direct withdraw for PTs, we first redeem or trade out of the PT
         // and then initiate a withdraw on the TOKEN_OUT_SY. Since the vault shares are
         // stored in PT terms, we pass tokenOutSy terms (i.e. weETH or sUSDe) to the withdraw
@@ -161,6 +162,7 @@ contract PendlePT is AbstractStakingStrategy {
         uint256 tokenOutSy = _redeemPT(ptAmount);
         require(minTokenOutSy <= tokenOutSy, "Slippage");
 
+        ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
         requestId = withdrawRequestManager.initiateWithdraw({
             account: account, yieldTokenAmount: tokenOutSy, isForced: isForced, data: withdrawData
         });

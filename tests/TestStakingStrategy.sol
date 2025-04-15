@@ -79,6 +79,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
     function test_exitPosition_PartialWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
+        setMaxOracleFreshness();
 
         vm.startPrank(msg.sender);
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));

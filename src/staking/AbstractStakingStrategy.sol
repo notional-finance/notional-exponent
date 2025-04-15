@@ -192,6 +192,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             // TODO: is this possible that we are unable to split the withdraw request b/c the yield token
             // amount is greater than the amount in the withdraw request? It would happen due to a changing
             // ratio of shares to yield tokens.
+            // TODO: this is not correct for PTs since the PT is the yield token but we
+            // use token out sy terms for the withdraw request.
             withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, yieldTokenAmount);
         }
     }
