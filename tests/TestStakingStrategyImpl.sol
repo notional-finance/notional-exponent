@@ -57,31 +57,30 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
     }
 }
 
-contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy {
-    address internal constant market = 0x85667e484a32d884010Cf16427D90049CCf46e97;
+abstract contract TestStakingStrategy_PT is TestStakingStrategy {
+    address internal market;
     // USDe (Token In/Token Out)
-    address internal constant tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
-    address internal constant tokenOut = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+    address internal tokenIn;
+    address internal tokenOut;
     // Redemption Token USDe
-    address internal constant redemptionToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+    address internal redemptionToken;
     // eUSDe PT May 28 2025
-    address internal constant ptToken = 0x50D2C7992b802Eef16c04FeADAB310f31866a545;
+    address internal ptToken;
     // No withdraw request manager
-    address internal constant withdrawRequestManager = address(0);
+    address internal withdrawRequestManager = address(0);
 
+    uint8 internal defaultDexId;
+    bytes internal defaultDepositExchangeData;
+    bytes internal defaultRedeemExchangeData;
 
     function getDepositData(
         address /* user */,
         uint256 /* depositAmount */
-    ) internal pure override returns (bytes memory) {
+    ) internal view override returns (bytes memory) {
         PendleDepositParams memory d = PendleDepositParams({
-            dexId: uint8(DexId.CURVE_V2),
+            dexId: defaultDexId,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-                fromIndex: 1,
-                toIndex: 0
-            })),
+            exchangeData: defaultDepositExchangeData,
             minPtOut: 0,
             approxParams: IPRouter.ApproxParams({
                 guessMin: 0,
@@ -98,22 +97,20 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy {
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
-    ) internal pure override returns (bytes memory) {
+    ) internal view override returns (bytes memory) {
         RedeemParams memory r;
 
         r.minPurchaseAmount = 0;
-        r.dexId = uint8(DexId.CURVE_V2);
-        // For CurveV2 we need to swap the in and out indexes on exit
-        CurveV2SingleData memory d;
-        d.pool = 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72;
-        d.fromIndex = 0;
-        d.toIndex = 1;
-        r.exchangeData = abi.encode(d);
+        r.dexId = defaultDexId;
+        r.exchangeData = defaultRedeemExchangeData;
 
         return abi.encode(r);
     }
 
+    function setMarketVariables() virtual internal;
+
     function deployYieldStrategy() internal override {
+        setMarketVariables();
         y = new PendlePT(
             market,
             tokenIn,
@@ -145,15 +142,15 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy {
         vm.startPrank(owner);
         TRADING_MODULE.setTokenPermissions(
             address(y),
-            address(USDC),
+            address(y.asset()),
             ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: 1 << 7, tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
         ));
         TRADING_MODULE.setTokenPermissions(
             address(y),
-            address(USDe),
+            address(tokenOut),
             ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: 1 << 7, tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
         ));
         vm.stopPrank();
 
@@ -161,3 +158,29 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy {
         defaultBorrow = 90_000e6;
     }
 }
+
+contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy_PT {
+    function setMarketVariables() internal override {
+        market = 0x85667e484a32d884010Cf16427D90049CCf46e97;
+        tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        tokenOut = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        redemptionToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        ptToken = 0x50D2C7992b802Eef16c04FeADAB310f31866a545;
+        withdrawRequestManager = address(0);
+        defaultDexId = uint8(DexId.CURVE_V2);
+        defaultDepositExchangeData = abi.encode(CurveV2SingleData({
+            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+            fromIndex: 1,
+            toIndex: 0
+        }));
+        defaultRedeemExchangeData = abi.encode(CurveV2SingleData({
+            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+            fromIndex: 0,
+            toIndex: 1
+        }));
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+    }
+}
+
