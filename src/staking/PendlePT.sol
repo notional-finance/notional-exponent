@@ -16,6 +16,19 @@ struct PendleDepositParams {
     IPRouter.LimitOrderData limitOrderData;
 }
 
+struct PendleRedeemParams {
+    uint8 dexId;
+    uint256 minPurchaseAmount;
+    bytes exchangeData;
+    IPRouter.LimitOrderData limitOrderData;
+}
+
+struct PendleWithdrawParams {
+    uint256 minTokenOutSy;
+    bytes withdrawData;
+    IPRouter.LimitOrderData limitOrderData;
+}
+
 /** Base implementation for Pendle PT vaults */
 contract PendlePT is AbstractStakingStrategy {
     using SafeERC20 for ERC20;
@@ -108,7 +121,7 @@ contract PendlePT is AbstractStakingStrategy {
     }
 
     /// @notice Handles PT redemption whether it is expired or not
-    function _redeemPT(uint256 netPtIn) internal returns (uint256 netTokenOut) {
+    function _redeemPT(uint256 netPtIn, IPRouter.LimitOrderData memory limitOrderData) internal returns (uint256 netTokenOut) {
         if (PT.isExpired()) {
             PT.transfer(address(YT), netPtIn);
             uint256 netSyOut = YT.redeemPY(address(SY));
@@ -129,16 +142,17 @@ contract PendlePT is AbstractStakingStrategy {
                     pendleSwap: address(0),
                     swapData: EMPTY_SWAP
                 }),
-                params.limitOrderData
+                limitOrderData
             );
         }
     }
 
     function _executeInstantRedemption(
         uint256 yieldTokensToRedeem,
-        RedeemParams memory params
+        bytes memory redeemData
     ) internal override virtual returns (uint256 assetsPurchased) {
-        uint256 netTokenOut = _redeemPT(yieldTokensToRedeem);
+        PendleRedeemParams memory params = abi.decode(redeemData, (PendleRedeemParams));
+        uint256 netTokenOut = _redeemPT(yieldTokensToRedeem, params.limitOrderData);
 
         if (TOKEN_OUT_SY != asset) {
             Trade memory trade = Trade({
@@ -168,13 +182,13 @@ contract PendlePT is AbstractStakingStrategy {
         // and then initiate a withdraw on the TOKEN_OUT_SY. Since the vault shares are
         // stored in PT terms, we pass tokenOutSy terms (i.e. weETH or sUSDe) to the withdraw
         // implementation.
-        (uint256 minTokenOutSy, bytes memory withdrawData) = abi.decode(data, (uint256, bytes));
-        uint256 tokenOutSy = _redeemPT(ptAmount);
-        require(minTokenOutSy <= tokenOutSy, "Slippage");
+        PendleWithdrawParams memory params = abi.decode(data, (PendleWithdrawParams));
+        uint256 tokenOutSy = _redeemPT(ptAmount, params.limitOrderData);
+        require(params.minTokenOutSy <= tokenOutSy, "Slippage");
 
         ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
         requestId = withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: tokenOutSy, isForced: isForced, data: withdrawData
+            account: account, yieldTokenAmount: tokenOutSy, isForced: isForced, data: params.withdrawData
         });
     }
 }

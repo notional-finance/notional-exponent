@@ -114,10 +114,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             (accountWithdraw, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
         }
 
-        RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         if (accountWithdraw.requestId == 0) {
             yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
-            _executeInstantRedemption(yieldTokensBurned, params);
+            _executeInstantRedemption(yieldTokensBurned, redeemData);
             wasEscrowed = false;
         } else {
             // This assumes that the the account cannot get more shares once they initiate a withdraw. That
@@ -134,6 +133,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             // Trades may be required here if the borrowed token is not the same as what is
             // received when redeeming.
             if (asset != redemptionToken) {
+                RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
                 Trade memory trade = Trade({
                     tradeType: TradeType.EXACT_IN_SINGLE,
                     sellToken: address(redemptionToken),
@@ -153,8 +153,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     /// borrow token through the trading module. Can be overridden if required for different implementations.
     function _executeInstantRedemption(
         uint256 yieldTokensToRedeem,
-        RedeemParams memory params
+        bytes memory redeemData
     ) internal virtual returns (uint256 assetsPurchased) {
+        RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         Trade memory trade = Trade({
             tradeType: TradeType.EXACT_IN_SINGLE,
             sellToken: address(yieldToken),

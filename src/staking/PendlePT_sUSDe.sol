@@ -29,9 +29,10 @@ contract PendlePT_sUSDe is PendlePT {
     /// in this method.
     function _executeInstantRedemption(
         uint256 yieldTokensToRedeem,
-        RedeemParams memory params
+        bytes memory redeemData
     ) internal override virtual returns (uint256 assetsPurchased) {
-        uint256 netTokenOut = _redeemPT(yieldTokensToRedeem);
+        PendleRedeemParams memory params = abi.decode(redeemData, (PendleRedeemParams));
+        uint256 netTokenOut = _redeemPT(yieldTokensToRedeem, params.limitOrderData);
 
         Trade memory sDAITrade = Trade({
             tradeType: TradeType.EXACT_IN_SINGLE,
