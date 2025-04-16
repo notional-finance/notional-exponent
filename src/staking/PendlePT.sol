@@ -128,6 +128,7 @@ contract PendlePT is AbstractStakingStrategy {
             netTokenOut = SY.redeem(address(this), netSyOut, TOKEN_OUT_SY, 0, true);
         } else {
             IPRouter.SwapData memory EMPTY_SWAP;
+            PT.approve(address(PENDLE_ROUTER), netPtIn);
             (netTokenOut, , ) = PENDLE_ROUTER.swapExactPtForToken(
                 address(this),
                 address(MARKET),

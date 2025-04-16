@@ -7,6 +7,7 @@ import {IWithdrawRequestManager, WithdrawRequest, CannotInitiateWithdraw, Existi
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "forge-std/src/console2.sol";
 
 struct RedeemParams {
     uint8 dexId;
@@ -48,13 +49,25 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
-    function convertYieldTokenToAsset() public view override returns (uint256) {
-        uint256 price = super.convertYieldTokenToAsset();
-        if (t_Liquidate_Account == address(0) || address(withdrawRequestManager) == address(0)) return price;
-        (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), t_Liquidate_Account);
-        if (w.requestId == 0) return price;
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
+        if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
+            // TODO: need to handle the case where we have already finalized the split
+            // withdraw request.
+            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), t_CurrentAccount);
+            if (w.requestId != 0) {
+                console2.log("t_CurrentAccount", t_CurrentAccount);
+                uint256 rate = super.convertYieldTokenToAsset();
+                console2.log("rate", rate);
+                console2.log("w.sharesAmount", w.sharesAmount);
+                console2.log("w.yieldTokenAmount", w.yieldTokenAmount);
+                // TODO: is this correct for the sUSDe case? the yield token is token out sy
+                rate = rate * (w.yieldTokenAmount * (SHARE_PRECISION)) / (w.sharesAmount * (10 ** _yieldTokenDecimals));
+                console2.log("rate", rate);
+                return rate * (10 ** _assetDecimals) * shares / (SHARE_PRECISION * 1e18);
+            }
+        }
 
-        return price * (w.sharesAmount * 10 ** _yieldTokenDecimals) / (w.yieldTokenAmount * SHARE_PRECISION);
+        return super.convertToAssets(shares);
     }
 
     function _preLiquidation(address liquidateAccount, address /* liquidator */) internal view override returns (uint256 maxLiquidateShares) {
@@ -126,7 +139,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             // active position.
             uint256 balanceOfShares = balanceOfShares(sharesOwner);
             require(sharesToRedeem <= balanceOfShares);
-            yieldTokensBurned = accountWithdraw.yieldTokenAmount * sharesToRedeem / balanceOfShares;
+            yieldTokensBurned = uint256(accountWithdraw.yieldTokenAmount) * sharesToRedeem / balanceOfShares;
             wasEscrowed = true;
 
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({

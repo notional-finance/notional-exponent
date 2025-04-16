@@ -110,7 +110,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
                 _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
                 tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / accountWithdraw.yieldTokenAmount;
                 accountWithdraw.sharesAmount -= sharesToBurn.toUint120();
-                accountWithdraw.yieldTokenAmount -= accountWithdraw.yieldTokenAmount;
+                accountWithdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
             } else {
                 require(accountWithdraw.yieldTokenAmount == withdrawYieldTokenAmount);
                 delete s_accountWithdrawRequest[msg.sender][account];

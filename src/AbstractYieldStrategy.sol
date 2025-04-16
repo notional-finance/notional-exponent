@@ -59,7 +59,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
 
     /********* Transient Variables *********/
     // Used to authorize transfers off of the lending market
-    address internal transient t_Liquidate_Account;
+    address internal transient t_CurrentAccount;
     address internal transient t_AllowTransfer_To;
     uint256 internal transient t_AllowTransfer_Amount;
     /****** End Transient Variables ******/
@@ -104,7 +104,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     }
 
     /// @inheritdoc IYieldStrategy
-    function convertSharesToYieldToken(uint256 shares) public view virtual override returns (uint256) {
+    function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
         uint256 effectiveSupply = totalSupply() - s_escrowedShares;
         if (effectiveSupply == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
 
@@ -146,7 +146,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     }
 
     /// @inheritdoc IYieldStrategy
-    function convertToAssets(uint256 shares) public view override returns (uint256) {
+    function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
         uint256 yieldTokens = convertSharesToYieldToken(shares);
         // NOTE: rounds down on division
         return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
@@ -182,7 +182,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
             revert NotAuthorized(msg.sender, onBehalf);
         }
+        t_CurrentAccount = onBehalf;
         _;
+        delete t_CurrentAccount;
     }
 
     modifier isNotPaused() {
@@ -344,7 +346,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint256 repaidShares,
         bytes calldata redeemData
     ) external override isNotPaused nonReentrant returns (uint256 sharesToLiquidator) {
-        t_Liquidate_Account = liquidateAccount;
+        t_CurrentAccount = liquidateAccount;
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
 
@@ -356,7 +358,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         );
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
-        delete t_Liquidate_Account;
+        delete t_CurrentAccount;
 
         // Transfer the shares to the liquidator
         _transfer(address(this), msg.sender, sharesToLiquidator);
@@ -434,6 +436,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         // First accrue fees on the yield token
         _accrueFees();
         (uint256 yieldTokensBurned, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
+        // TODO: this may happen too soon on exitPosition because the shares to burn come back but
+        // the yield tokens are already burned.
         if (wasEscrowed) {
             s_escrowedShares -= sharesToBurn;
         } else {

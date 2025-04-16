@@ -98,8 +98,11 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         address user,
         uint256 /* shares */
     ) internal view override returns (bytes memory) {
-        (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), user);
-        RedeemParams memory r;
+        WithdrawRequest memory w;
+        if (address(manager) != address(0)) {
+            (w, /* */) = manager.getWithdrawRequest(address(y), user);
+        }
+        PendleRedeemParams memory r;
 
         r.minPurchaseAmount = 0;
         r.dexId = defaultDexId;
@@ -116,9 +119,8 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         address /* user */,
         uint256 /* shares */
     ) internal pure override returns (bytes memory withdrawRequestData) {
-        uint256 minTokenOutSy = 0;
-        bytes memory withdrawData = "";
-        return abi.encode(minTokenOutSy, withdrawData);
+        PendleWithdrawParams memory w;
+        return abi.encode(w);
     }
 
     function setMarketVariables() virtual internal;

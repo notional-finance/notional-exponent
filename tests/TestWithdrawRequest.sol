@@ -133,6 +133,7 @@ abstract contract TestWithdrawRequest is Test {
 
         finalizeWithdrawRequest(requestId);
 
+        // TODO: need to test partial withdraws
         // Now we should be able to finalize the withdraw request and get the full amount back
         (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(
             address(this), initialYieldTokenBalance, sharesAmount
