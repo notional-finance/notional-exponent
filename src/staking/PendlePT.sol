@@ -188,7 +188,8 @@ contract PendlePT is AbstractStakingStrategy {
 
         ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
         requestId = withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: tokenOutSy, isForced: isForced, data: params.withdrawData
+            account: account, yieldTokenAmount: tokenOutSy, sharesAmount: sharesHeld,
+            isForced: isForced, data: params.withdrawData
         });
     }
 }

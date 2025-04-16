@@ -80,7 +80,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         _escrowShares(sharesHeld, yieldTokenAmount);
         
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
-        requestId = withdrawRequestManager.initiateWithdraw({account: account, yieldTokenAmount: yieldTokenAmount, isForced: isForced, data: data});
+        requestId = withdrawRequestManager.initiateWithdraw({
+            account: account, yieldTokenAmount: yieldTokenAmount, sharesAmount: sharesHeld, isForced: isForced, data: data
+        });
         _checkInvariants();
     }
 
@@ -127,7 +129,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             yieldTokensBurned = accountWithdraw.yieldTokenAmount * sharesToRedeem / balanceOfShares;
             wasEscrowed = true;
 
-            (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner, yieldTokensBurned);
+            (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
+                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
+            });
             require(finalized, "Withdraw request not finalized");
 
             // Trades may be required here if the borrowed token is not the same as what is
@@ -180,13 +184,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             if (_accountCollateralBalance(liquidator) > 0) revert CannotReceiveSplitWithdrawRequest();
 
             // No need to accrue fees because neither the total supply or total yield token balance is changing.
-            uint256 yieldTokenAmount = convertSharesToYieldToken(sharesToLiquidator);
-            // TODO: is this possible that we are unable to split the withdraw request b/c the yield token
-            // amount is greater than the amount in the withdraw request? It would happen due to a changing
-            // ratio of shares to yield tokens.
-            // TODO: this is not correct for PTs since the PT is the yield token but we
-            // use token out sy terms for the withdraw request.
-            withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, yieldTokenAmount);
+            withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
 

@@ -4,6 +4,7 @@ pragma solidity >=0.8.28;
 import "./IWithdrawRequestManager.sol";
 import "./ClonedCoolDownHolder.sol";
 import "../utils/Errors.sol";
+import "../utils/TypeConvert.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -19,6 +20,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  */
 abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     using SafeERC20 for IERC20;
+    using TypeConvert for uint256;
 
     address public override immutable yieldToken;
     address public override immutable withdrawToken;
@@ -72,6 +74,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function initiateWithdraw(
         address account,
         uint256 yieldTokenAmount,
+        uint256 sharesAmount,
         bool isForced,
         bytes calldata data
     ) external override onlyApprovedVault returns (uint256 requestId) {
@@ -84,15 +87,17 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         requestId = _initiateWithdrawImpl(account, yieldTokenAmount, isForced, data);
         accountWithdraw.requestId = requestId;
         accountWithdraw.hasSplit = false;
-        accountWithdraw.yieldTokenAmount = yieldTokenAmount;
+        accountWithdraw.yieldTokenAmount = yieldTokenAmount.toUint120();
+        accountWithdraw.sharesAmount = sharesAmount.toUint120();
 
-        emit InitiateWithdrawRequest(account, isForced, yieldTokenAmount, requestId);
+        emit InitiateWithdrawRequest(account, isForced, yieldTokenAmount, sharesAmount, requestId);
     }
 
     /// @inheritdoc IWithdrawRequestManager
     function finalizeAndRedeemWithdrawRequest(
         address account,
-        uint256 withdrawYieldTokenAmount
+        uint256 withdrawYieldTokenAmount,
+        uint256 sharesToBurn
     ) external override onlyApprovedVault returns (uint256 tokensWithdrawn, bool finalized) {
         WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
         if (accountWithdraw.requestId == 0) return (0, false);
@@ -104,6 +109,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
             if (withdrawYieldTokenAmount < accountWithdraw.yieldTokenAmount) {
                 _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
                 tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / accountWithdraw.yieldTokenAmount;
+                accountWithdraw.sharesAmount -= sharesToBurn.toUint120();
                 accountWithdraw.yieldTokenAmount -= accountWithdraw.yieldTokenAmount;
             } else {
                 require(accountWithdraw.yieldTokenAmount == withdrawYieldTokenAmount);
@@ -132,7 +138,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (!accountWithdraw.hasSplit) {
             s_splitWithdrawRequest[accountWithdraw.requestId] = SplitWithdrawRequest({
                 totalYieldTokenAmount: accountWithdraw.yieldTokenAmount,
-                totalWithdraw: tokensWithdrawn,
+                totalWithdraw: tokensWithdrawn.toUint120(),
                 finalized: true
             });
 
@@ -144,7 +150,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function splitWithdrawRequest(
         address _from,
         address _to,
-        uint256 yieldTokenAmount
+        uint256 sharesAmount
     ) external override onlyApprovedVault {
         if (_from == _to) revert InvalidWithdrawRequestSplit();
 
@@ -153,7 +159,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
         // Create a new split withdraw request
         if (!w.hasSplit) {
-            SplitWithdrawRequest memory s = s_splitWithdrawRequest[w.requestId];
+            SplitWithdrawRequest storage s = s_splitWithdrawRequest[w.requestId];
             // Safety check to ensure that the split withdraw request is not active, split withdraw
             // requests are never deleted. This presumes that all withdraw request ids are unique.
             require(s.finalized == false && s.totalYieldTokenAmount == 0);
@@ -171,19 +177,23 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         toWithdraw.requestId = w.requestId;
         toWithdraw.hasSplit = true;
 
-        if (w.yieldTokenAmount < yieldTokenAmount) {
+        if (w.sharesAmount < sharesAmount) {
             // This should never occur given the checks below.
             revert InvalidWithdrawRequestSplit();
-        } else if (w.yieldTokenAmount == yieldTokenAmount) {
+        } else if (w.sharesAmount == sharesAmount) {
             // If the resulting vault shares is zero, then delete the request. The _from account's
             // withdraw request is fully transferred to _to. In this case, the _to account receives
             // the full amount of the _from account's withdraw request.
             toWithdraw.yieldTokenAmount = toWithdraw.yieldTokenAmount + w.yieldTokenAmount;
+            toWithdraw.sharesAmount = toWithdraw.sharesAmount + w.sharesAmount;
             delete s_accountWithdrawRequest[msg.sender][_from];
         } else {
             // In this case, the amount of yield tokens is transferred from one account to the other.
-            toWithdraw.yieldTokenAmount = toWithdraw.yieldTokenAmount + yieldTokenAmount;
-            w.yieldTokenAmount = w.yieldTokenAmount - yieldTokenAmount;
+            uint256 yieldTokenAmount = w.yieldTokenAmount * sharesAmount / w.sharesAmount;
+            toWithdraw.yieldTokenAmount = (toWithdraw.yieldTokenAmount + yieldTokenAmount).toUint120();
+            toWithdraw.sharesAmount = (toWithdraw.sharesAmount + sharesAmount).toUint120();
+            w.yieldTokenAmount = (w.yieldTokenAmount - yieldTokenAmount).toUint120();
+            w.sharesAmount = (w.sharesAmount - sharesAmount).toUint120();
             w.hasSplit = true;
         }
     }
@@ -208,7 +218,10 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
             // If the split request was already finalized in a different transaction
             // then return the values here and we can short circuit the withdraw impl
             if (s.finalized) {
-                return (s.totalWithdraw * w.yieldTokenAmount / s.totalYieldTokenAmount, true);
+                return (
+                    uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount),
+                    true
+                );
             }
         }
 
@@ -217,11 +230,11 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         (tokensWithdrawn, finalized) = _finalizeWithdrawImpl(account, w.requestId);
 
         if (w.hasSplit && finalized) {
-            s.totalWithdraw = tokensWithdrawn;
+            s.totalWithdraw = tokensWithdrawn.toUint120();
             s.finalized = true;
             s_splitWithdrawRequest[w.requestId] = s;
 
-            tokensWithdrawn = s.totalWithdraw * w.yieldTokenAmount / s.totalYieldTokenAmount;
+            tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
         } else if (!finalized) {
             // No tokens claimed if not finalized
             require(tokensWithdrawn == 0);

@@ -28,7 +28,8 @@ interface IWithdrawRequestManager {
     event InitiateWithdrawRequest(
         address indexed account,
         bool indexed isForced,
-        uint256 amount,
+        uint256 yieldTokenAmount,
+        uint256 sharesAmount,
         uint256 requestId
     );
 
@@ -65,12 +66,15 @@ interface IWithdrawRequestManager {
     /// @dev Only approved vaults can initiate withdraw requests
     /// @param account the account to initiate the withdraw request for
     /// @param yieldTokenAmount the amount of yield tokens to withdraw
+    /// @param sharesAmount the amount of shares to withdraw, used to mark the shares to
+    /// yield token ratio at the time of the withdraw request
     /// @param isForced whether the withdraw request is forced
     /// @param data additional data for the withdraw request
     /// @return requestId the request id of the withdraw request
     function initiateWithdraw(
         address account,
         uint256 yieldTokenAmount,
+        uint256 sharesAmount,
         bool isForced,
         bytes calldata data
     ) external returns (uint256 requestId);
@@ -78,11 +82,13 @@ interface IWithdrawRequestManager {
     /// @notice Attempts to redeem active withdraw requests during vault exit
     /// @param account the account to finalize and redeem the withdraw request for
     /// @param withdrawYieldTokenAmount the amount of yield tokens to withdraw
+    /// @param sharesToBurn the amount of shares to burn for the yield token
     /// @return tokensWithdrawn amount of withdraw tokens redeemed from the withdraw requests
     /// @return finalized whether the withdraw request was finalized
     function finalizeAndRedeemWithdrawRequest(
         address account,
-        uint256 withdrawYieldTokenAmount
+        uint256 withdrawYieldTokenAmount,
+        uint256 sharesToBurn
     ) external returns (uint256 tokensWithdrawn, bool finalized);
 
     /// @notice Finalizes withdraw requests outside of a vault exit. This may be required in cases if an
@@ -101,11 +107,11 @@ interface IWithdrawRequestManager {
     /// @dev Only approved vaults can split withdraw requests
     /// @param from the account that is being liquidated
     /// @param to the liquidator
-    /// @param yieldTokenAmount the amount of yield tokens that have been transferred to the liquidator
+    /// @param sharesAmount the amount of shares to the liquidator
     function splitWithdrawRequest(
         address from,
         address to,
-        uint256 yieldTokenAmount
+        uint256 sharesAmount
     ) external;
 
     /// @notice Allows the emergency exit role to rescue tokens from the withdraw request manager

@@ -18,4 +18,9 @@ library TypeConvert {
         return uint128(x);
     }
 
+    function toUint120(uint256 x) internal pure returns (uint120) {
+        require(x <= uint120(type(uint120).max)); // dev: toUint120 overflow
+        return uint120(x);
+    }
+
 }
