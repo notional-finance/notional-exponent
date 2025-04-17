@@ -283,7 +283,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 assetsWithdrawn) {
+    ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 profitsWithdrawn) {
         if (block.timestamp - _lastEntryTime[onBehalf] < 5 minutes) {
             revert CannotExitPositionWithinCooldownPeriod();
         }
@@ -292,7 +292,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         // are not sure if the holder has enough shares to yet since the shares are held
         // by the lending market. If they don't have enough shares then the withdraw
         // will fail.
-        assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, onBehalf);
+        uint256 assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, onBehalf);
 
         if (0 < assetToRepay) {
             // Allow Morpho to repay the portion of debt
@@ -330,7 +330,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
             revert InsufficientAssetsForRepayment(assetToRepay, assetsWithdrawn);
         }
 
-        uint256 profitsWithdrawn;
         unchecked {
             profitsWithdrawn = assetsWithdrawn - assetToRepay;
         }

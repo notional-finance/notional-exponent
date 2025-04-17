@@ -77,6 +77,8 @@ contract TestMorphoYieldStrategy is Test {
     ERC20 public asset;
     uint256 public defaultDeposit;
     uint256 public defaultBorrow;
+    uint256 public maxEntryValuationSlippage = 0.0010e18;
+    uint256 public maxExitValuationSlippage = 0.0010e18;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -161,6 +163,7 @@ contract TestMorphoYieldStrategy is Test {
         assertGt(y.balanceOfShares(msg.sender), 0);
         assertEq(y.balanceOfShares(msg.sender), w.balanceOf(address(y)));
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
+        assertApproxEqRel(defaultDeposit + defaultBorrow, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
 
     function test_exitPosition_partialExit() public {
@@ -170,8 +173,12 @@ contract TestMorphoYieldStrategy is Test {
         vm.warp(block.timestamp + 6 minutes);
 
         vm.startPrank(msg.sender);
+        uint256 netWorthBefore = y.convertToAssets(y.balanceOfShares(msg.sender)) - defaultBorrow;
         uint256 sharesToExit = y.balanceOfShares(msg.sender) / 10;
-        y.exitPosition(msg.sender, msg.sender, sharesToExit, defaultBorrow / 10, getRedeemData(msg.sender, sharesToExit));
+        uint256 profitsWithdrawn = y.exitPosition(
+            msg.sender, msg.sender, sharesToExit, defaultBorrow / 10, getRedeemData(msg.sender, sharesToExit)
+        );
+        uint256 netWorthAfter = y.convertToAssets(y.balanceOfShares(msg.sender)) - (defaultBorrow - defaultBorrow / 10);
         vm.stopPrank();
 
         // Check that the yield token balance is correct
@@ -181,6 +188,8 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
         assertEq(y.balanceOfShares(msg.sender), initialBalance - sharesToExit, "Account has collateral shares");
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+
+        assertApproxEqRel(netWorthBefore - netWorthAfter, profitsWithdrawn, maxExitValuationSlippage);
     }
 
     function test_exitPosition_fullExit() public {
@@ -189,7 +198,8 @@ contract TestMorphoYieldStrategy is Test {
         vm.warp(block.timestamp + 6 minutes);
 
         vm.startPrank(msg.sender);
-        y.exitPosition(
+        uint256 netWorthBefore = y.convertToAssets(y.balanceOfShares(msg.sender)) - defaultBorrow;
+        uint256 profitsWithdrawn = y.exitPosition(
             msg.sender,
             msg.sender,
             y.balanceOfShares(msg.sender),
@@ -205,6 +215,7 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
         assertEq(y.balanceOfShares(msg.sender), 0, "Account has collateral shares");
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+        assertApproxEqRel(netWorthBefore, profitsWithdrawn, maxExitValuationSlippage);
     }
 
     function test_RevertsIf_MorphoWithdrawCollateral() public {
@@ -355,8 +366,9 @@ contract TestMorphoYieldStrategy is Test {
 
     function test_liquidate() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        int256 originalPrice = o.latestAnswer();
 
-        o.setPrice(o.latestAnswer() * 0.90e18 / 1e18);
+        o.setPrice(originalPrice * 0.90e18 / 1e18);
 
         vm.startPrank(owner);
         uint256 balanceBefore = y.balanceOfShares(msg.sender);
@@ -371,6 +383,10 @@ contract TestMorphoYieldStrategy is Test {
 
         uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
         assertGt(assets, netAsset);
+
+        // Set the price back for the valuation assertion
+        o.setPrice(originalPrice);
+        assertApproxEqRel(assets, y.convertToAssets(sharesToLiquidator), maxExitValuationSlippage);
         vm.stopPrank();
     }
 
@@ -409,5 +425,9 @@ contract TestMorphoYieldStrategy is Test {
         y.onMorphoLiquidate(10_000e6, bytes("")); 
         vm.stopPrank();
     }
- 
+
+    function test_multiple_entries_exits() public {
+        assertEq(true, false);
+        // TODO: check that asset valuation is continuous for multiple entries and exits
+    }
 }
