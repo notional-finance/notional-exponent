@@ -37,7 +37,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         asset.approve(address(y), defaultDeposit);
 
         vm.expectRevert();
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, bytes(""));
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
         vm.stopPrank();
     }
 
@@ -57,6 +57,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
+        // TODO: need to get price using isHealthy
         uint256 priceBefore = y.price();
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
         uint256 priceAfter = y.price();
@@ -185,7 +186,23 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
 
     function test_withdrawRequestValuation() public onlyIfWithdrawRequestManager {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(
+            getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
+        );
+        vm.stopPrank();
+        // Check price after withdraw request
+
+        // Check price after finalize
+
+
         assertEq(true, false);
     }
 
+    // function test_multiple_entries_exits_with_withdrawRequest() public {
+    //     assertEq(true, false);
+    //     // TODO: check that asset valuation is continuous for multiple entries and exits
+    // }
 }

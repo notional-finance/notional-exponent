@@ -47,13 +47,12 @@ contract PendlePT is AbstractStakingStrategy {
         address tokenOutSY,
         address asset,
         address yieldToken,
-        address redemptionToken,
         address owner,
         uint256 feeRate,
         address irm,
         uint256 lltv,
         IWithdrawRequestManager withdrawRequestManager
-    ) AbstractStakingStrategy(owner, asset, yieldToken, feeRate, irm, lltv, redemptionToken, withdrawRequestManager) {
+    ) AbstractStakingStrategy(owner, asset, yieldToken, feeRate, irm, lltv, withdrawRequestManager) {
         MARKET = IPMarket(market);
         (address sy, address pt, address yt) = MARKET.readTokens();
         SY = IStandardizedYield(sy);

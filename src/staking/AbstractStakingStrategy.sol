@@ -3,8 +3,14 @@ pragma solidity >=0.8.28;
 
 import "../utils/Errors.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {IWithdrawRequestManager, WithdrawRequest, CannotInitiateWithdraw, ExistingWithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
-import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
+import {
+    IWithdrawRequestManager,
+    WithdrawRequest,
+    SplitWithdrawRequest,
+    CannotInitiateWithdraw,
+    ExistingWithdrawRequest
+} from "../withdraws/IWithdrawRequestManager.sol";
+import {Trade, TradeType, TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "forge-std/src/console2.sol";
@@ -32,7 +38,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     IWithdrawRequestManager public immutable withdrawRequestManager;
 
     /// @notice token that is redeemed from a withdraw request
-    address public immutable redemptionToken;
+    address public immutable withdrawToken;
 
     constructor(
         address _owner,
@@ -41,30 +47,37 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 _feeRate,
         address _irm,
         uint256 _lltv,
-        address _redemptionToken,
         IWithdrawRequestManager _withdrawRequestManager
     ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
-        redemptionToken = _redemptionToken;
         withdrawRequestManager = _withdrawRequestManager;
+        withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.withdrawToken() : address(0);
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
-            // TODO: need to handle the case where we have already finalized the split
-            // withdraw request.
-            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), t_CurrentAccount);
-            if (w.requestId != 0) {
-                console2.log("t_CurrentAccount", t_CurrentAccount);
-                uint256 rate = super.convertYieldTokenToAsset();
-                console2.log("rate", rate);
-                console2.log("w.sharesAmount", w.sharesAmount);
-                console2.log("w.yieldTokenAmount", w.yieldTokenAmount);
-                // TODO: is this correct for the sUSDe case? the yield token is token out sy
-                rate = rate * (w.yieldTokenAmount * (SHARE_PRECISION)) / (w.sharesAmount * (10 ** _yieldTokenDecimals));
-                console2.log("rate", rate);
-                return rate * (10 ** _assetDecimals) * shares / (SHARE_PRECISION * 1e18);
+            (WithdrawRequest memory w, SplitWithdrawRequest memory s) = withdrawRequestManager.getWithdrawRequest(address(this), t_CurrentAccount);
+            if (w.requestId == 0) return super.convertToAssets(shares);
+            if (s.finalized) {
+                // If finalized the withdraw request is locked to the tokens withdrawn
+                (int256 withdrawTokenRate, /* */) = TRADING_MODULE.getOraclePrice(withdrawToken, asset);
+                uint256 withdrawTokenDecimals = ERC20(withdrawToken).decimals();
+                uint256 withdrawTokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
+
+                return (uint256(withdrawTokenRate) * withdrawTokenAmount * (10 ** _assetDecimals)) /
+                    (10 ** withdrawTokenDecimals * 1e18);
             }
+
+            console2.log("t_CurrentAccount", t_CurrentAccount);
+            uint256 rate = super.convertYieldTokenToAsset();
+            console2.log("rate", rate);
+            console2.log("w.sharesAmount", w.sharesAmount);
+            console2.log("w.yieldTokenAmount", w.yieldTokenAmount);
+            // TODO: is this correct for the sUSDe case? the yield token is token out sy
+            rate = rate * (w.yieldTokenAmount * (SHARE_PRECISION)) / (w.sharesAmount * (10 ** _yieldTokenDecimals));
+            console2.log("rate", rate);
+
+            return rate * (10 ** _assetDecimals) * shares / (SHARE_PRECISION * 1e18);
         }
 
         return super.convertToAssets(shares);
@@ -78,7 +91,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function initiateWithdraw(bytes calldata data) external returns (uint256 requestId) {
         requestId = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
 
-        if (!isHealthy(msg.sender)) revert CannotInitiateWithdraw(msg.sender);
+        // Can only initiate a withdraw if health factor remains positive
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender);
+        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
     }
 
     /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
@@ -149,11 +164,11 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
             // Trades may be required here if the borrowed token is not the same as what is
             // received when redeeming.
-            if (asset != redemptionToken) {
+            if (asset != withdrawToken) {
                 RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
                 Trade memory trade = Trade({
                     tradeType: TradeType.EXACT_IN_SINGLE,
-                    sellToken: address(redemptionToken),
+                    sellToken: address(withdrawToken),
                     buyToken: address(asset),
                     amount: tokensClaimed,
                     limit: params.minPurchaseAmount,

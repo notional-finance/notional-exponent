@@ -17,11 +17,14 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         address /* user */,
         uint256 /* shares */
     ) internal pure override returns (bytes memory redeemData) {
-        uint24 fee = 500;
         return abi.encode(RedeemParams({
             minPurchaseAmount: 0,
-            dexId: uint8(DexId.UNISWAP_V3),
-            exchangeData: abi.encode((fee))
+            dexId: uint8(DexId.CURVE_V2),
+            exchangeData: abi.encode(CurveV2SingleData({
+                pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5,
+                fromIndex: 1,
+                toIndex: 0
+            }))
         }));
     }
 
@@ -39,8 +42,10 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
         o = new MockOracle(oracle.latestAnswer());
 
-        defaultDeposit = 100e18;
-        defaultBorrow = 900e18;
+        defaultDeposit = 10e18;
+        defaultBorrow = 90e18;
+        maxEntryValuationSlippage = 0.0050e18;
+        maxExitValuationSlippage = 0.0050e18;
 
         vm.startPrank(owner);
         manager.setApprovedVault(address(y), true);
@@ -49,8 +54,7 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
             address(y),
             address(weETH),
             ITradingModule.TokenPermissions(
-            // UniswapV3, EXACT_IN_SINGLE, EXACT_IN_BATCH
-            { allowSell: true, dexFlags: 4, tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
         vm.stopPrank();
 
@@ -62,7 +66,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     address internal market;
     address internal tokenIn;
     address internal tokenOut;
-    address internal redemptionToken;
+    address internal withdrawToken;
     address internal ptToken;
 
     uint8 internal defaultDexId;
@@ -136,7 +140,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 tokenOut,
                 address(USDC),
                 ptToken,
-                redemptionToken,
                 owner,
                 0.0010e18,
                 IRM,
@@ -165,7 +168,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 tokenOut,
                 address(USDC),
                 ptToken,
-                redemptionToken,
                 owner,
                 0.0010e18,
                 IRM,
@@ -205,6 +207,9 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
         ));
         vm.stopPrank();
+
+        maxEntryValuationSlippage = 0.01e18;
+        maxExitValuationSlippage = 0.01e18;
     }
 }
 
@@ -213,7 +218,7 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy_PT {
         market = 0x85667e484a32d884010Cf16427D90049CCf46e97;
         tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         tokenOut = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
-        redemptionToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         ptToken = 0x50D2C7992b802Eef16c04FeADAB310f31866a545;
         defaultDexId = uint8(DexId.CURVE_V2);
         defaultDepositExchangeData = abi.encode(CurveV2SingleData({
@@ -238,7 +243,7 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         market = 0xB162B764044697cf03617C2EFbcB1f42e31E4766;
         tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         tokenOut = address(sUSDe);
-        redemptionToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         ptToken = 0xb7de5dFCb74d25c2f21841fbd6230355C50d9308;
         manager = new EthenaWithdrawRequestManager(owner);
         withdrawRequest = new TestEthenaWithdrawRequest();

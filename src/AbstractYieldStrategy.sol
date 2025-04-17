@@ -135,14 +135,20 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 18));
     }
 
-    function isHealthy(address borrower) public view returns (bool) {
+    function healthFactor(address borrower) public returns (
+        uint256 borrowed, uint256 collateralValue, uint256 maxBorrow
+    ) {
+        address _currentAccount = t_CurrentAccount;
+        t_CurrentAccount = borrower;
+
         Position memory position = MORPHO.position(id, borrower);
         Market memory market = MORPHO.market(id);
 
-        uint256 borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
-        uint256 maxBorrow = (uint256(position.collateral) * price()) / 1e36 * _lltv / 1e18;
+        borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
+        collateralValue = (uint256(position.collateral) * price()) / 1e36;
+        maxBorrow = collateralValue * _lltv / 1e18;
 
-        return borrowed <= maxBorrow;
+        t_CurrentAccount = _currentAccount;
     }
 
     /// @inheritdoc IYieldStrategy
