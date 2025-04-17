@@ -193,6 +193,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
             revert NotAuthorized(msg.sender, onBehalf);
         }
+        require(onBehalf != owner);
+
         t_CurrentAccount = onBehalf;
         _;
         delete t_CurrentAccount;
@@ -356,6 +358,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint256 repaidShares,
         bytes calldata redeemData
     ) external override isNotPaused nonReentrant returns (uint256 sharesToLiquidator) {
+        require(msg.sender != owner);
         t_CurrentAccount = liquidateAccount;
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);

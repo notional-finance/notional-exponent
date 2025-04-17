@@ -391,19 +391,23 @@ contract TestMorphoYieldStrategy is Test {
     function test_liquidate() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();
+        address liquidator = makeAddr("liquidator");
+        
+        vm.prank(owner);
+        asset.transfer(liquidator, defaultDeposit + defaultBorrow);
 
         o.setPrice(originalPrice * 0.90e18 / 1e18);
 
-        vm.startPrank(owner);
+        vm.startPrank(liquidator);
         uint256 balanceBefore = y.balanceOfShares(msg.sender);
         asset.approve(address(y), type(uint256).max);
-        uint256 assetBefore = asset.balanceOf(owner);
+        uint256 assetBefore = asset.balanceOf(liquidator);
         uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
-        uint256 assetAfter = asset.balanceOf(owner);
+        uint256 assetAfter = asset.balanceOf(liquidator);
         uint256 netAsset = assetBefore - assetAfter;
 
         assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
-        assertEq(y.balanceOf(owner), sharesToLiquidator);
+        assertEq(y.balanceOf(liquidator), sharesToLiquidator);
 
         uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
         assertGt(assets, netAsset);
