@@ -362,7 +362,7 @@ contract TestMorphoYieldStrategy is Test {
 
         assertApproxEqAbs(yieldTokensPerShare1, yieldTokensPerShare2, 1, "Yield tokens per share should be equal");
         assertEq(y.feesAccrued(), 0, "Fees accrued should be 0");
-        assertApproxEqAbs(y.convertSharesToYieldToken(y.balanceOf(owner)), expectedFees, 1, "Fees should be equal to expected fees");
+        assertApproxEqAbs(w.balanceOf(owner), expectedFees, 1, "Fees should be equal to expected fees");
         uint256 expectedAssets = y.convertToAssets(y.balanceOf(owner));
 
         vm.startPrank(owner);

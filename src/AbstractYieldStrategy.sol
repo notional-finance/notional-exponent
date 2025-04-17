@@ -167,24 +167,10 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// @inheritdoc IYieldStrategy
     function collectFees() external onlyOwner override {
         _accrueFees();
-        uint256 accruedFeesInYieldToken = s_accruedFeesInYieldToken;
-        // Mint shares to the owner while keeping the yield token to shares ratio the same
-        uint256 divisor = (s_trackedYieldTokenBalance - accruedFeesInYieldToken);
-        uint256 effectiveSupply = totalSupply() - s_escrowedShares;
-        uint256 sharesMinted;
-        if (divisor == 0 && effectiveSupply == 0) {
-            // If the divisor is zero and the total supply is zero then we can just
-            // mint all the fees as shares.
-            sharesMinted = accruedFeesInYieldToken * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
-        } else {
-            sharesMinted = (effectiveSupply * accruedFeesInYieldToken) / divisor;
-        }
- 
-        // Mint the fees as shares directly to the owner and reset the accrued fees
+        ERC20(yieldToken).safeTransfer(owner, s_accruedFeesInYieldToken);
+        s_trackedYieldTokenBalance -= s_accruedFeesInYieldToken;
+
         delete s_accruedFeesInYieldToken;
-        _mint(owner, sharesMinted);
-        // Escrow these shares so that they are no longer used to pay fees.
-        _escrowShares(sharesMinted, accruedFeesInYieldToken);
     }
 
     /*** Authorization Methods ***/
@@ -193,7 +179,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
             revert NotAuthorized(msg.sender, onBehalf);
         }
-        require(onBehalf != owner);
 
         t_CurrentAccount = onBehalf;
         _;
@@ -256,6 +241,8 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         if (depositAssetAmount > 0) {
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
         }
+
+        // TODO: what if borrow amount is 0?
 
         // At this point we will flash borrow funds from the lending market and then
         // receive control in a different function on a callback.
@@ -358,7 +345,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint256 repaidShares,
         bytes calldata redeemData
     ) external override isNotPaused nonReentrant returns (uint256 sharesToLiquidator) {
-        require(msg.sender != owner);
         t_CurrentAccount = liquidateAccount;
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
@@ -449,7 +435,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         (uint256 yieldTokensBurned, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
         // TODO: this may happen too soon on exitPosition because the shares to burn come back but
         // the yield tokens are already burned.
-        if (wasEscrowed || sharesOwner == owner) {
+        if (wasEscrowed) {
             s_escrowedShares -= sharesToBurn;
         } else {
             s_trackedYieldTokenBalance -= yieldTokensBurned;
