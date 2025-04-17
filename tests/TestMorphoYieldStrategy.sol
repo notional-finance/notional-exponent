@@ -146,10 +146,34 @@ contract TestMorphoYieldStrategy is Test {
 
     function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {
         vm.startPrank(user);
-        MORPHO.setAuthorization(address(y), true);
+        if (!MORPHO.isAuthorized(user, address(y))) MORPHO.setAuthorization(address(y), true);
         asset.approve(address(y), depositAmount);
         y.enterPosition(user, depositAmount, borrowAmount, getDepositData(user, depositAmount));
         vm.stopPrank();
+    }
+
+    function checkInvariants(address[] memory users) internal {
+        // Collect fees to ensure that shares are minted
+        vm.prank(owner);
+        y.collectFees();
+
+        uint256 totalSupply = y.totalSupply();
+        uint256 computedTotalSupply = y.balanceOf(y.owner());
+
+        for (uint256 i = 0; i < users.length; i++) {
+            address user = users[i];
+            assertEq(w.balanceOf(user), 0, "User has no wrapped tokens");
+            assertGe(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()),
+                "Yield token balance matches total supply"
+            );
+            assertEq(y.balanceOf(address(MORPHO)), y.totalSupply() - y.balanceOf(y.owner()),
+                "Morpho has all collateral shares"
+            );
+            assertEq(y.balanceOf(user), 0, "User has no collateral shares");
+            computedTotalSupply += y.balanceOfShares(user);
+        }
+
+        assertEq(computedTotalSupply, totalSupply, "Total supply is correct");
     }
 
     function test_enterPosition() public { 
@@ -426,8 +450,42 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
-    function test_multiple_entries_exits() public {
-        assertEq(true, false);
-        // TODO: check that asset valuation is continuous for multiple entries and exits
+    function test_multiple_entries_exits(uint256[10] memory userActions) public {
+        address[] memory users = new address[](3);
+        users[0] = makeAddr("user1");
+        users[1] = makeAddr("user2");
+        users[2] = makeAddr("user3");
+
+        vm.startPrank(owner);
+        asset.transfer(users[0], defaultDeposit * 2);
+        asset.transfer(users[1], defaultDeposit * 2);
+        asset.transfer(users[2], defaultDeposit * 2);
+        vm.stopPrank();
+        uint256 borrowAmount = defaultBorrow / 2;
+
+        for (uint256 i = 0; i < userActions.length; i++) {
+            uint256 userId = userActions[i] % 3;
+            address user = users[userId];
+
+            if (y.balanceOfShares(user) == 0) {
+                _enterPosition(user, defaultDeposit, borrowAmount);
+            } else {
+                vm.warp(block.timestamp + 6 minutes);
+                bool isPartial = userActions[i] % 7 == 0;
+                vm.startPrank(user);
+                if (isPartial) {
+                    uint256 amountToRepay = borrowAmount / 10;
+                    uint256 sharesToExit = y.convertToShares(amountToRepay) * 105 / 100;
+                    y.exitPosition(
+                        user, user, sharesToExit, amountToRepay, getRedeemData(user, sharesToExit)
+                    );
+                } else {
+                    y.exitPosition(user, user, y.balanceOfShares(user), type(uint256).max, getRedeemData(user, y.balanceOfShares(user)));
+                }
+                vm.stopPrank();
+            }
+
+            checkInvariants(users);
+        }
     }
 }

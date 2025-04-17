@@ -167,13 +167,24 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// @inheritdoc IYieldStrategy
     function collectFees() external onlyOwner override {
         _accrueFees();
+        uint256 accruedFeesInYieldToken = s_accruedFeesInYieldToken;
         // Mint shares to the owner while keeping the yield token to shares ratio the same
-        uint256 divisor = (s_trackedYieldTokenBalance - s_accruedFeesInYieldToken);
-        // Rounding up
-        uint256 sharesMinted = (totalSupply() * s_accruedFeesInYieldToken + (divisor - 1)) / divisor;
+        uint256 divisor = (s_trackedYieldTokenBalance - accruedFeesInYieldToken);
+        uint256 effectiveSupply = totalSupply() - s_escrowedShares;
+        uint256 sharesMinted;
+        if (divisor == 0 && effectiveSupply == 0) {
+            // If the divisor is zero and the total supply is zero then we can just
+            // mint all the fees as shares.
+            sharesMinted = accruedFeesInYieldToken * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
+        } else {
+            sharesMinted = (effectiveSupply * accruedFeesInYieldToken) / divisor;
+        }
+ 
         // Mint the fees as shares directly to the owner and reset the accrued fees
-        s_accruedFeesInYieldToken = 0;
+        delete s_accruedFeesInYieldToken;
         _mint(owner, sharesMinted);
+        // Escrow these shares so that they are no longer used to pay fees.
+        _escrowShares(sharesMinted, accruedFeesInYieldToken);
     }
 
     /*** Authorization Methods ***/
@@ -402,9 +413,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         s_lastFeeAccrualTime = uint32(block.timestamp);
     }
 
-    /// @dev Returns the number of yield tokens that are currently escrowed in a withdraw manager or
-    /// other contract. This is used to maintain a consistent share to yield token ratio but excludes
-    /// yield tokens from being collected as fees.
+    /// @dev Removes some shares from the "pool" that is used to pay fees.
     function _escrowShares(uint256 shares, uint256 yieldTokens) internal virtual {
         _accrueFees();
 
@@ -437,7 +446,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         (uint256 yieldTokensBurned, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
         // TODO: this may happen too soon on exitPosition because the shares to burn come back but
         // the yield tokens are already burned.
-        if (wasEscrowed) {
+        if (wasEscrowed || sharesOwner == owner) {
             s_escrowedShares -= sharesToBurn;
         } else {
             s_trackedYieldTokenBalance -= yieldTokensBurned;
