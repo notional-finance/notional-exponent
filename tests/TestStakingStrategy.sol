@@ -186,19 +186,44 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
 
     function test_withdrawRequestValuation() public onlyIfWithdrawRequestManager {
+        address staker = makeAddr("staker");
+        vm.prank(owner);
+        asset.transfer(staker, defaultDeposit);
+
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        // The staker exists to generate fees on the position to test the withdraw valuation
+        _enterPosition(staker, defaultDeposit, defaultBorrow);
+        setMaxOracleFreshness();
+
+        (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
+        assertEq(collateralValueBefore, collateralValueBeforeStaker);
 
         vm.startPrank(msg.sender);
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(
             getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
         );
         vm.stopPrank();
-        // Check price after withdraw request
+        (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
+        assertEq(collateralValueBefore, collateralValueAfter);
+
+        vm.warp(block.timestamp + 10 days);
+        (/* */, uint256 collateralValueAfterWarp, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueAfterWarpStaker, /* */) = y.healthFactor(staker);
+
+        // Collateral value for the withdrawer should not change over time
+        assertEq(collateralValueAfter, collateralValueAfterWarp);
+
+        // For the staker, the collateral value should have decreased due to fees
+        assertGt(collateralValueBeforeStaker, collateralValueAfterWarpStaker);
 
         // Check price after finalize
+        finalizeWithdrawRequest(msg.sender);
+        manager.finalizeRequestManual(address(y), msg.sender);
+        (/* */, uint256 collateralValueAfterFinalize, /* */) = y.healthFactor(msg.sender);
 
-
-        assertEq(true, false);
+        assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18);
+        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp);
     }
 
     // function test_multiple_entries_exits_with_withdrawRequest() public {

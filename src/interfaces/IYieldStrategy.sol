@@ -138,6 +138,14 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle, IMorphoLiquidateCal
     function feesAccrued() external view returns (uint256 feesAccruedInYieldToken);
 
     /**
+     * @dev Returns the health factor of the vault. This method is stateful because it
+     * sets the current account transient variable.
+     */
+    function healthFactor(address borrower) external returns (
+        uint256 borrowed, uint256 collateralValue, uint256 maxBorrow
+    );
+
+    /**
      * @dev Collects the fees accrued by the vault. Only callable by the owner.
      */
     function collectFees() external;

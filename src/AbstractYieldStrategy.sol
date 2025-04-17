@@ -135,7 +135,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 18));
     }
 
-    function healthFactor(address borrower) public returns (
+    function healthFactor(address borrower) public override returns (
         uint256 borrowed, uint256 collateralValue, uint256 maxBorrow
     ) {
         address _currentAccount = t_CurrentAccount;

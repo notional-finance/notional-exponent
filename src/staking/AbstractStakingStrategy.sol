@@ -64,8 +64,10 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
                 uint256 withdrawTokenDecimals = ERC20(withdrawToken).decimals();
                 uint256 withdrawTokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
 
-                return (uint256(withdrawTokenRate) * withdrawTokenAmount * (10 ** _assetDecimals)) /
-                    (10 ** withdrawTokenDecimals * 1e18);
+                uint256 totalValue = (uint256(withdrawTokenRate) * withdrawTokenAmount * (10 ** _assetDecimals)) /
+                    (10 ** (withdrawTokenDecimals + 18));
+                // NOTE: returns the normalized value given the shares input
+                return totalValue * shares / w.sharesAmount;
             }
 
             console2.log("t_CurrentAccount", t_CurrentAccount);
