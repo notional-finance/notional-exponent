@@ -190,6 +190,20 @@ contract TestMorphoYieldStrategy is Test {
         assertApproxEqRel(defaultDeposit + defaultBorrow, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
 
+    function test_enterPosition_zeroBorrow() public { 
+        _enterPosition(msg.sender, defaultDeposit, 0);
+
+        // Check that the yield token balance is correct
+        assertEq(w.balanceOf(msg.sender), 0);
+        assertEq(w.balanceOf(address(y)), y.totalSupply());
+        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
+        assertEq(y.balanceOf(msg.sender), 0);
+        assertGt(y.balanceOfShares(msg.sender), 0);
+        assertEq(y.balanceOfShares(msg.sender), w.balanceOf(address(y)));
+        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
+        assertApproxEqRel(defaultDeposit, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
+    }
+
     function test_exitPosition_partialExit() public {
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
         uint256 initialBalance = y.balanceOfShares(msg.sender);

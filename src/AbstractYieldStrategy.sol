@@ -242,13 +242,15 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
         }
 
-        // TODO: what if borrow amount is 0?
-
-        // At this point we will flash borrow funds from the lending market and then
-        // receive control in a different function on a callback.
-        bytes memory flashLoanData = abi.encode(depositAssetAmount, depositData, onBehalf);
-        // XXX: below here is Morpho market specific code.
-        MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
+        if (borrowAmount > 0) {
+            // At this point we will flash borrow funds from the lending market and then
+            // receive control in a different function on a callback.
+            bytes memory flashLoanData = abi.encode(depositAssetAmount, depositData, onBehalf);
+            // XXX: below here is Morpho market specific code.
+            MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
+        } else {
+            _mintSharesAndSupplyCollateral(depositAssetAmount, depositData, onBehalf);
+        }
 
         _lastEntryTime[onBehalf] = block.timestamp;
 
@@ -262,12 +264,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
             data, (uint256, bytes, address)
         );
 
-        uint256 sharesMinted = _mintSharesGivenAssets(assets + depositAssetAmount, depositData, receiver);
-
-        // Allow Morpho to transferFrom the receiver the minted shares.
-        _transfer(receiver, address(this), sharesMinted);
-        _approve(address(this), address(MORPHO), sharesMinted);
-        MORPHO.supplyCollateral(marketParams(), sharesMinted, receiver, "");
+        _mintSharesAndSupplyCollateral(assets + depositAssetAmount, depositData, receiver);
 
         // Borrow the assets in order to repay the flash loan
         MORPHO.borrow(marketParams(), assets, 0, receiver, address(this));
@@ -275,6 +272,16 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         // Allow for flash loan to be repaid
         ERC20(asset).forceApprove(address(MORPHO), assets);
     }
+
+    function _mintSharesAndSupplyCollateral(uint256 assets, bytes memory depositData, address receiver) internal {
+        uint256 sharesMinted = _mintSharesGivenAssets(assets, depositData, receiver);
+
+        // Allow Morpho to transferFrom the receiver the minted shares.
+        _transfer(receiver, address(this), sharesMinted);
+        _approve(address(this), address(MORPHO), sharesMinted);
+        MORPHO.supplyCollateral(marketParams(), sharesMinted, receiver, "");
+    }
+
 
     /// @inheritdoc IYieldStrategy
     function exitPosition(
