@@ -191,7 +191,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
 
         o = new MockOracle(pendleOracle.latestAnswer());
 
-
         vm.startPrank(owner);
         if (address(manager) != address(0)) manager.setApprovedVault(address(y), true);
         TRADING_MODULE.setTokenPermissions(
@@ -267,6 +266,13 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+
+        (AggregatorV2V3Interface tokenOutSyOracle, /* */) = TRADING_MODULE.priceOracles(address(tokenOut));
+        withdrawTokenOracle = new MockOracle(tokenOutSyOracle.latestAnswer() * int256(10 ** (18 - tokenOutSyOracle.decimals())));
+
+        vm.startPrank(owner);
+        TRADING_MODULE.setPriceOracle(address(tokenOut), AggregatorV2V3Interface(address(withdrawTokenOracle)));
+        vm.stopPrank();
     }
 }
 

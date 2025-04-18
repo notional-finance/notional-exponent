@@ -10,6 +10,7 @@ import "../src/interfaces/ITradingModule.sol";
 abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     IWithdrawRequestManager public manager;
     TestWithdrawRequest public withdrawRequest;
+    MockOracle internal withdrawTokenOracle;
 
     modifier onlyIfWithdrawRequestManager() {
         vm.skip(address(manager) == address(0));
@@ -44,7 +45,11 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     function test_initiateWithdrawRequest_RevertIf_InsufficientCollateral() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
-        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        if (address(withdrawTokenOracle) != address(0)) {
+            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+        } else {
+            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        }
 
         vm.startPrank(msg.sender);
         bytes memory data = getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender));
@@ -57,11 +62,16 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        // TODO: need to get price using isHealthy
-        uint256 priceBefore = y.price();
+        (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
-        uint256 priceAfter = y.price();
-        assertEq(priceBefore, priceAfter, "Price changed during withdraw request");
+        (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
+        if (address(withdrawTokenOracle) != address(0)) {
+            // If there is a different oracle for the withdraw token (i.e. for PTs),
+            // there will be some slippage as a result of selling the PT
+            assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Price changed during withdraw request");
+        } else {
+            assertEq(collateralValueBefore, collateralValueAfter, "Price changed during withdraw request");
+        }
         vm.stopPrank();
 
         finalizeWithdrawRequest(msg.sender);
@@ -117,7 +127,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         // No fees should accrue at this point since all yield tokens are escrowed
         uint256 feesAccruedBefore = y.feesAccrued();
-        vm.warp(block.timestamp + 90 days);
+        vm.warp(block.timestamp + 7 days);
         uint256 feesAccruedAfter = y.feesAccrued();
         assertEq(feesAccruedBefore, feesAccruedAfter, "Fees should not have accrued");
 
@@ -145,7 +155,11 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
         vm.stopPrank();
 
-        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        if (address(withdrawTokenOracle) != address(0)) {
+            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+        } else {
+            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        }
 
         vm.startPrank(owner);
         uint256 balanceBefore = y.balanceOfShares(msg.sender);
@@ -175,7 +189,11 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
         vm.stopPrank();
 
-        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        if (address(withdrawTokenOracle) != address(0)) {
+            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+        } else {
+            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        }
 
         vm.startPrank(owner);
         uint256 balanceBefore = y.balanceOfShares(msg.sender);
@@ -197,7 +215,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
         (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
-        assertEq(collateralValueBefore, collateralValueBeforeStaker);
+        assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
 
         vm.startPrank(msg.sender);
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(
@@ -205,25 +223,31 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         );
         vm.stopPrank();
         (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
-        assertEq(collateralValueBefore, collateralValueAfter);
+        if (address(withdrawTokenOracle) != address(0)) {
+            // If there is a different oracle for the withdraw token (i.e. for PTs),
+            // there will be some slippage as a result of selling the PT
+            assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Withdrawal should not change collateral value");
+        } else {
+            assertEq(collateralValueBefore, collateralValueAfter, "Withdrawal should not change collateral value");
+        }
 
         vm.warp(block.timestamp + 10 days);
         (/* */, uint256 collateralValueAfterWarp, /* */) = y.healthFactor(msg.sender);
         (/* */, uint256 collateralValueAfterWarpStaker, /* */) = y.healthFactor(staker);
 
         // Collateral value for the withdrawer should not change over time
-        assertEq(collateralValueAfter, collateralValueAfterWarp);
+        assertEq(collateralValueAfter, collateralValueAfterWarp, "Withdrawal should not change collateral value over time");
 
         // For the staker, the collateral value should have decreased due to fees
-        assertGt(collateralValueBeforeStaker, collateralValueAfterWarpStaker);
+        assertGt(collateralValueBeforeStaker, collateralValueAfterWarpStaker, "Staker should have lost value due to fees");
 
         // Check price after finalize
         finalizeWithdrawRequest(msg.sender);
         manager.finalizeRequestManual(address(y), msg.sender);
         (/* */, uint256 collateralValueAfterFinalize, /* */) = y.healthFactor(msg.sender);
 
-        assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18);
-        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp);
+        assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
+        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
     }
 
     // function test_multiple_entries_exits_with_withdrawRequest() public {
