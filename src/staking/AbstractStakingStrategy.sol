@@ -53,6 +53,10 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.withdrawToken() : address(0);
     }
 
+    function _withdrawRequestYieldTokenRate() internal view virtual returns (uint256) {
+        return super.convertYieldTokenToAsset();
+    }
+
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
@@ -61,6 +65,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             if (s.finalized) {
                 // If finalized the withdraw request is locked to the tokens withdrawn
                 (int256 withdrawTokenRate, /* */) = TRADING_MODULE.getOraclePrice(withdrawToken, asset);
+                require(withdrawTokenRate > 0);
                 uint256 withdrawTokenDecimals = ERC20(withdrawToken).decimals();
                 uint256 withdrawTokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
 
@@ -71,11 +76,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             }
 
             console2.log("t_CurrentAccount", t_CurrentAccount);
-            uint256 rate = super.convertYieldTokenToAsset();
-            console2.log("rate", rate);
+            uint256 rate = _withdrawRequestYieldTokenRate();
             console2.log("w.sharesAmount", w.sharesAmount);
             console2.log("w.yieldTokenAmount", w.yieldTokenAmount);
-            // TODO: is this correct for the sUSDe case? the yield token is token out sy
             rate = rate * (w.yieldTokenAmount * (SHARE_PRECISION)) / (w.sharesAmount * (10 ** _yieldTokenDecimals));
             console2.log("rate", rate);
 
@@ -95,6 +98,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
         // Can only initiate a withdraw if health factor remains positive
         (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender);
+        console2.log("borrowed", borrowed);
+        console2.log("maxBorrow", maxBorrow);
         if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
     }
 

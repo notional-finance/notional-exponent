@@ -68,6 +68,12 @@ contract PendlePT is AbstractStakingStrategy {
         TOKEN_OUT_SY = tokenOutSY;
     }
 
+    function _withdrawRequestYieldTokenRate() internal view override returns (uint256) {
+        (int256 tokenOutSyRate, /* */) = TRADING_MODULE.getOraclePrice(TOKEN_OUT_SY, asset);
+        require(tokenOutSyRate > 0);
+        return uint256(tokenOutSyRate);
+    }
+
     function _stakeTokens(
         uint256 assets,
         address /* receiver */,
