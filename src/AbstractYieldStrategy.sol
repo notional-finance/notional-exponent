@@ -514,7 +514,9 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
-    function _preLiquidation(address liquidateAccount, address liquidator) internal virtual returns (uint256 maxLiquidateShares);
+    function _preLiquidation(address liquidateAccount, address /* liquidator */) internal virtual returns (uint256 maxLiquidateShares) {
+        return _accountCollateralBalance(liquidateAccount);
+    }
 
     /// @dev Called after liquidation to update the yield token balance.
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { }

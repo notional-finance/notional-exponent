@@ -6,6 +6,8 @@ import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
+    uint256 transient t_Liquidator_SharesBefore;
+    uint256 transient t_LiquidateAccount_SharesBefore;
 
     constructor(
         address _owner,
@@ -19,20 +21,59 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         REWARD_MANAGER = IRewardManager(_rewardManager);
     }
 
-    // TODO: add pre and post hooks to liquidation
+    function _preLiquidation(address liquidateAccount, address liquidator) internal override virtual returns (uint256 maxLiquidateShares) {
+        t_Liquidator_SharesBefore = balanceOfShares(liquidator);
+        t_LiquidateAccount_SharesBefore = balanceOfShares(liquidateAccount);
+        return super._preLiquidation(liquidateAccount, liquidator);
+    }
+
+    function _postLiquidation(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) internal override {
+        super._postLiquidation(liquidateAccount, liquidator, sharesToLiquidator);
+       
+        // Total supply does not change during liquidation
+        uint256 totalSupplyBefore = totalSupply();
+
+        _updateAccountRewards({
+            account: liquidator,
+            accountVaultSharesBefore: t_Liquidator_SharesBefore,
+            vaultShares: sharesToLiquidator,
+            totalVaultSharesBefore: totalSupplyBefore,
+            isMint: true
+        });
+
+        _updateAccountRewards({
+            account: liquidateAccount,
+            accountVaultSharesBefore: t_LiquidateAccount_SharesBefore,
+            vaultShares: sharesToLiquidator,
+            totalVaultSharesBefore: totalSupplyBefore,
+            isMint: false
+        });
+    }
 
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal override returns (uint256 sharesMinted) {
         uint256 totalSupplyBefore = totalSupply();
-        uint256 initialVaultShares = balanceOf(receiver) + _accountCollateralBalance(receiver);
+        uint256 initialVaultShares = balanceOfShares(receiver);
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
-        _updateAccountRewards(receiver, initialVaultShares, sharesMinted, totalSupplyBefore, true);
+        _updateAccountRewards({
+            account: receiver,
+            accountVaultSharesBefore: initialVaultShares,
+            vaultShares: sharesMinted,
+            totalVaultSharesBefore: totalSupplyBefore,
+            isMint: true
+        });
     }
 
     function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal override returns (uint256 assetsWithdrawn) {
         uint256 totalSupplyBefore = totalSupply();
-        uint256 initialVaultShares = balanceOf(sharesOwner) + _accountCollateralBalance(sharesOwner);
+        uint256 initialVaultShares = balanceOfShares(sharesOwner);
         assetsWithdrawn = super._burnShares(sharesToBurn, redeemData, sharesOwner);
-        _updateAccountRewards(sharesOwner, initialVaultShares, sharesToBurn, totalSupplyBefore, false);
+        _updateAccountRewards({
+            account: sharesOwner,
+            accountVaultSharesBefore: initialVaultShares,
+            vaultShares: sharesToBurn,
+            totalVaultSharesBefore: totalSupplyBefore,
+            isMint: false
+        });
     }
 
     function _updateAccountRewards(
