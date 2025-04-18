@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >=0.8.0;
 
+event OrderFilledV2(
+    bytes32 indexed orderHash,
+    IPRouter.OrderType indexed orderType,
+    address indexed YT,
+    address token,
+    uint256 netInputFromMaker,
+    uint256 netOutputToMaker,
+    uint256 feeAmount,
+    uint256 notionalVolume,
+    address maker,
+    address taker
+);
+
 interface IPOracle {
     function getPtToAssetRate(address market, uint32 duration) external view returns (uint256);
 

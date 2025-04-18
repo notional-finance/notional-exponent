@@ -210,6 +210,74 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         maxEntryValuationSlippage = 0.01e18;
         maxExitValuationSlippage = 0.01e18;
     }
+
+    function test_enterPosition_usingLimitOrder() public {
+        vm.startPrank(msg.sender);
+        MORPHO.setAuthorization(address(y), true);
+        asset.approve(address(y), defaultDeposit);
+        IPRouter.FillOrderParams[] memory normalFills = new IPRouter.FillOrderParams[](1);
+        normalFills[0] = IPRouter.FillOrderParams({
+            order: IPRouter.Order({
+                salt: 19469591171947499253468162102472271481263342847250706930547002030455303708701,
+                expiry: 1745040087,
+                nonce: 0,
+                orderType: IPRouter.OrderType.SY_FOR_PT,
+                token: 0x90D2af7d622ca3141efA4d8f1F24d86E5974Cc8F,
+                YT: 0x708dD9B344dDc7842f44C7b90492CF0e1E3eb868,
+                maker: 0xdf9E6BeaC070699B262dF28bB7B0bCd7EFf33D95,
+                receiver: 0xdf9E6BeaC070699B262dF28bB7B0bCd7EFf33D95,
+                makingAmount: 31123900097362432437534,
+                lnImpliedRate: 86085948913128898,
+                failSafeRate: 900000000000000000,
+                permit: bytes("")
+            }),
+            signature: hex"718003b0bb89dc2051cde6e3ac0495fa8e81cca0541d955124fe78d7435e409466e4011a9554784b0ed1fe4be6a6a6989304f4815332b166398236fc43fb661c1b",
+            makingAmount: 31123900097362432437534
+        });
+
+        IPRouter.LimitOrderData memory limitOrderData = IPRouter.LimitOrderData({
+            limitRouter: 0x000000000000c9B3E2C3Ec88B1B4c0cD853f4321,
+            epsSkipMarket: 0,
+            normalFills: normalFills,
+            flashFills: new IPRouter.FillOrderParams[](0),
+            optData: bytes("")
+        });
+
+        PendleDepositParams memory d = PendleDepositParams({
+            dexId: defaultDexId,
+            minPurchaseAmount: 0,
+            exchangeData: defaultDepositExchangeData,
+            minPtOut: 0,
+            approxParams: IPRouter.ApproxParams({
+                guessMin: 0,
+                guessMax: type(uint256).max,
+                guessOffchain: 0,
+                maxIteration: 256,
+                eps: 1e15 // recommended setting (0.1%)
+            }),
+            limitOrderData: limitOrderData
+        });
+
+        bytes memory depositData = abi.encode(d);
+
+        vm.expectEmit(false, false, false, false, 0x000000000000c9B3E2C3Ec88B1B4c0cD853f4321);
+        emit OrderFilledV2(
+            bytes32(0),
+            IPRouter.OrderType.SY_FOR_PT,
+            0x708dD9B344dDc7842f44C7b90492CF0e1E3eb868,
+            address(tokenIn),
+            0,
+            0,
+            0,
+            0,
+            msg.sender,
+            msg.sender
+        );
+
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
+        vm.stopPrank();
+        assertEq(true, false);
+    }
 }
 
 contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy_PT {
