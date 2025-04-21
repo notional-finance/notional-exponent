@@ -218,21 +218,21 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         IPRouter.FillOrderParams[] memory normalFills = new IPRouter.FillOrderParams[](1);
         normalFills[0] = IPRouter.FillOrderParams({
             order: IPRouter.Order({
-                salt: 19469591171947499253468162102472271481263342847250706930547002030455303708701,
-                expiry: 1745040087,
+                salt: 1272298264258536272942376644425766518232160717710904308615777799358817600096,
+                expiry: 1745853785,
                 nonce: 0,
-                orderType: IPRouter.OrderType.SY_FOR_PT,
-                token: 0x90D2af7d622ca3141efA4d8f1F24d86E5974Cc8F,
-                YT: 0x708dD9B344dDc7842f44C7b90492CF0e1E3eb868,
-                maker: 0xdf9E6BeaC070699B262dF28bB7B0bCd7EFf33D95,
-                receiver: 0xdf9E6BeaC070699B262dF28bB7B0bCd7EFf33D95,
-                makingAmount: 31123900097362432437534,
-                lnImpliedRate: 86085948913128898,
+                orderType: IPRouter.OrderType.YT_FOR_SY,
+                token: 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497,
+                YT: 0x1de6Ff19FDA7496DdC12f2161f6ad6427c52aBBe,
+                maker: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
+                receiver: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
+                makingAmount: 20083061612967988565283,
+                lnImpliedRate: 74913576139103066,
                 failSafeRate: 900000000000000000,
                 permit: bytes("")
             }),
-            signature: hex"718003b0bb89dc2051cde6e3ac0495fa8e81cca0541d955124fe78d7435e409466e4011a9554784b0ed1fe4be6a6a6989304f4815332b166398236fc43fb661c1b",
-            makingAmount: 31123900097362432437534
+            signature: hex"56929fa970eead4bcbb454fb2e837d31d138aef4021409eb42a31c95cd83d860577abbcc5e1233882ebe3d53d7281d4e9880181df8b8ca3360fabf67a84f1c1e1c",
+            makingAmount: 20083061612967988565283
         });
 
         IPRouter.LimitOrderData memory limitOrderData = IPRouter.LimitOrderData({
@@ -276,7 +276,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
 
         y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
-        assertEq(true, false);
     }
 }
 
