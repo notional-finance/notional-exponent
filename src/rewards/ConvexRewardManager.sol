@@ -10,8 +10,6 @@ import {LibStorage} from "../utils/LibStorage.sol";
 contract ConvexRewardManager is AbstractRewardManager {
     using TokenUtils for IERC20;
 
-    constructor(address rewardManager) AbstractRewardManager(rewardManager) { }
-
     function _executeClaim() internal override {
         address rewardPool = LibStorage.getRewardPoolSlot().rewardPool;
         require(IConvexRewardPool(rewardPool).getReward(address(this), true));
@@ -26,6 +24,9 @@ contract ConvexRewardManager is AbstractRewardManager {
         uint256 poolId = IConvexRewardPool(newRewardPool.rewardPool).pid();
         address booster = IConvexRewardPool(newRewardPool.rewardPool).operator();
         IERC20(poolToken).checkApprove(booster, type(uint256).max);
-        require(IConvexBooster(booster).deposit(poolId, poolTokens, true));
+
+        if (poolTokens > 0) {
+            require(IConvexBooster(booster).deposit(poolId, poolTokens, true));
+        }
     }
 }

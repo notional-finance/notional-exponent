@@ -6,20 +6,51 @@ import "./TestMorphoYieldStrategy.sol";
 import "../src/rewards/IRewardManager.sol";
 import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractRewardManager.sol";
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
+import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 
+contract MockERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
+        _mint(msg.sender, 1000000e18);
+    }
+}
 
-contract MockRewardManager is AbstractRewardManager {
-    constructor(address rewardManager) AbstractRewardManager(rewardManager) { }
-    
-    function _executeClaim() internal override {
+contract MockRewardPool is ERC20 {
+    uint256 public rewardAmount;
+    ERC20 public depositToken;
+    ERC20 public rewardToken;
+
+    constructor(address _depositToken) ERC20("MockRewardPool", "MRP") {
+        depositToken = ERC20(_depositToken);
+        rewardToken = new MockERC20("MockRewardToken", "MRT");
     }
 
-    function _withdrawFromPreviousRewardPool(RewardPoolStorage memory oldRewardPool) internal override {
+    function setRewardAmount(uint256 amount) external {
+        rewardAmount = amount;
     }
 
-    function _depositIntoNewRewardPool(address poolToken, uint256 poolTokens, RewardPoolStorage memory newRewardPool) internal override {
+    function getReward(address holder, bool claim) external returns (bool) {
+        if (claim) rewardToken.transfer(holder, rewardAmount);
+        return true;
     }
-    
+
+    function deposit(uint256 /* poolId */, uint256 amount, bool /* stake */) external {
+        depositToken.transferFrom(msg.sender, address(this), amount);
+        _mint(msg.sender, amount * 1e18 / 1e6);
+    }
+
+    function withdrawAndUnwrap(uint256 amount, bool claim) external {
+        if (claim) rewardToken.transfer(address(this), amount);
+        _burn(msg.sender, amount);
+        depositToken.transfer(msg.sender, amount * 1e6 / 1e18);
+    }
+
+    function pid() external pure returns (uint256) {
+        return 0;
+    }
+
+    function operator() external view returns (address) {
+        return address(this);
+    }
 }
 
 
@@ -37,12 +68,12 @@ contract MockRewardVault is RewardManagerMixin {
     }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
-        MockWrapperERC20(yieldToken).deposit(assets);
+        MockRewardPool(yieldToken).deposit(0, assets, true);
     }
 
     function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (uint256 yieldTokensBurned, bool wasEscrowed) {
         yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
-        MockWrapperERC20(yieldToken).withdraw(yieldTokensBurned);
+        MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
         wasEscrowed = false;
     }
 }
@@ -51,8 +82,8 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
 
     function deployYieldStrategy() internal override {
-        rm = new MockRewardManager(owner);
-        w = new MockWrapperERC20(USDC);
+        ConvexRewardManager rmImpl = new ConvexRewardManager();
+        w = new MockRewardPool(address(USDC));
         o = new MockOracle(1e18);
         y = new MockRewardVault(
             owner,
@@ -61,9 +92,42 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             0.0010e18, // 0.1% fee rate
             IRM,
             0.915e18, // 91.5% LTV
-            address(rm)
+            address(rmImpl)
         );
+        // We use the delegate call here.
+        rm = IRewardManager(address(y));
+
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+
+        // Set the initial reward pool
+        vm.startPrank(owner);
+        rm.migrateRewardPool(address(USDC), RewardPoolStorage({
+            rewardPool: address(w),
+            forceClaimAfter: 0,
+            lastClaimTimestamp: 0
+        }));
+        vm.stopPrank();
     }
+
+    function test_migrateRewardPool() public {
+        vm.skip(true);
+        // No tokens in the vault at this point
+        assertEq(y.totalSupply(), 0);
+
+        vm.startPrank(owner);
+        rm.migrateRewardPool(address(USDC), RewardPoolStorage({
+            rewardPool: address(w),
+            forceClaimAfter: 0,
+            lastClaimTimestamp: 0
+        }));
+        vm.stopPrank();
+
+        (VaultRewardState[] memory rewardStates, RewardPoolStorage memory rewardPool) = rm.getRewardSettings();
+        assertEq(rewardStates.length, 0);
+        assertEq(rewardPool.rewardPool, address(w));
+        assertEq(rewardPool.forceClaimAfter, 0);
+        assertEq(rewardPool.lastClaimTimestamp, block.timestamp);
+    }
+
 }

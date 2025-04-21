@@ -21,10 +21,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         _;
     }
 
-    constructor(address rewardManager) {
-        LibStorage._rewardManagerSlot()[0] = rewardManager;
-    }
-
     /// @inheritdoc IRewardManager
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyRewardManager nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
@@ -42,6 +38,8 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         uint256 poolTokens = IERC20(poolToken).balanceOf(address(this));
         _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
 
+        // TODO: this will break the parent b/c the yield token will change due to the new reward pool
+        // migration.
         // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
         // earlier in this method.
         LibStorage.getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
@@ -208,9 +206,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         uint256 totalVaultSharesBefore,
         VaultRewardState[] memory state
     ) internal {
-        uint256 lastClaimTimestamp = LibStorage.getRewardPoolSlot().lastClaimTimestamp;
-        uint256 forceClaimAfter = LibStorage.getRewardPoolSlot().forceClaimAfter;
-        if (block.timestamp < lastClaimTimestamp + forceClaimAfter) return;
+        RewardPoolStorage memory rewardPool = LibStorage.getRewardPoolSlot();
+        if (rewardPool.rewardPool == address(0)) return;
+        if (block.timestamp < rewardPool.lastClaimTimestamp + rewardPool.forceClaimAfter) return;
 
         uint256[] memory balancesBefore = new uint256[](state.length);
         // Run a generic call against the reward pool and then do a balance

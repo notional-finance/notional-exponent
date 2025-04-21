@@ -3,6 +3,7 @@ pragma solidity >=0.8.28;
 
 import {IRewardManager} from "./IRewardManager.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
+import {LibStorage} from "../utils/LibStorage.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
@@ -19,6 +20,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address _rewardManager
     ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
         REWARD_MANAGER = IRewardManager(_rewardManager);
+        LibStorage._rewardManagerSlot()[0] = _owner;
     }
 
     function _preLiquidation(address liquidateAccount, address liquidator) internal override virtual returns (uint256 maxLiquidateShares) {
