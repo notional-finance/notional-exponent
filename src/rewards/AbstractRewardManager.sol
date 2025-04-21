@@ -95,9 +95,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         uint32 endTime
     ) external override onlyRewardManager {
         uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        VaultRewardState memory state = LibStorage.getVaultRewardStateSlot()[index];
+        uint256 numRewardStates = LibStorage.getVaultRewardStateSlot().length;
 
-        if (index < LibStorage.getVaultRewardStateSlot().length) {
+        if (index < numRewardStates) {
+            VaultRewardState memory state = LibStorage.getVaultRewardStateSlot()[index];
             // Safety check to ensure that the correct token is specified, we can never change the
             // token address once set.
             require(state.rewardToken == rewardToken);
@@ -117,22 +118,21 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
                 state.endTime = endTime;
             }
             LibStorage.getVaultRewardStateSlot()[index] = state;
-        } else if (index == LibStorage.getVaultRewardStateSlot().length) {
+        } else if (index == numRewardStates) {
             // This sets a new reward token, ensure that the current slot is empty
-            require(state.rewardToken == address(0));
-            LibStorage.getVaultRewardStateSlot().push(state);
-            state.rewardToken = rewardToken;
-
+            VaultRewardState[] storage states = LibStorage.getVaultRewardStateSlot();
             // If no emission rate is set then governance is just adding a token that can be claimed
             // via the LP tokens without an emission rate. These settings will be left empty and the
             // subsequent _claimVaultRewards method will set the initial accumulatedRewardPerVaultShare.
-            if (0 < emissionRatePerYear) {
-                state.emissionRatePerYear = emissionRatePerYear;
-                require(block.timestamp < endTime);
-                state.endTime = endTime;
-                state.lastAccumulatedTime = uint32(block.timestamp);
-            }
-            LibStorage.getVaultRewardStateSlot()[index] = state;
+            if (0 < emissionRatePerYear) require(block.timestamp < endTime);
+
+            states.push(VaultRewardState({
+                rewardToken: rewardToken,
+                lastAccumulatedTime: uint32(block.timestamp),
+                endTime: endTime,
+                emissionRatePerYear: emissionRatePerYear,
+                accumulatedRewardPerVaultShare: 0
+            }));
         } else {
             // Can only append or modify existing tokens
             revert();

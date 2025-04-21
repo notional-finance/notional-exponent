@@ -80,6 +80,7 @@ contract MockRewardVault is RewardManagerMixin {
 
 contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
+    ERC20 rewardToken;
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
@@ -99,6 +100,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+        rewardToken = MockRewardPool(address(w)).rewardToken();
 
         // Set the initial reward pool
         vm.startPrank(owner);
@@ -107,6 +109,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             forceClaimAfter: 0,
             lastClaimTimestamp: 0
         }));
+        rm.updateRewardToken(0, address(rewardToken), 0, 0);
         vm.stopPrank();
     }
 
@@ -128,6 +131,42 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardPool.rewardPool, address(w));
         assertEq(rewardPool.forceClaimAfter, 0);
         assertEq(rewardPool.lastClaimTimestamp, block.timestamp);
+    }
+
+    function test_callUpdateRewardToken_RevertIf_NotRewardManager() public {
+        vm.expectRevert("Only the reward manager can call this function");
+        rm.updateRewardToken(0, address(rewardToken), 0, 0);
+    }
+
+    function test_callUpdateAccountRewards_RevertIf_NotVault() public {
+        vm.expectRevert("Only the reward manager can call this function");
+        rm.updateAccountRewards(msg.sender, 0, 0, 0, true);
+    }
+
+    function test_enterPosition() public override {
+        super.test_enterPosition();
+
+        // Check balance of reward token
+        assertEq(rewardToken.balanceOf(msg.sender), 0);
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+
+        MockRewardPool(address(w)).setRewardAmount(1e18);
+        rm.claimRewardTokens();
+        MockRewardPool(address(w)).setRewardAmount(0);
+
+        // Still no reward debt
+        assertEq(rewardToken.balanceOf(msg.sender), 0);
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+
+        rm.claimAccountRewards(msg.sender);
+
+        assertEq(rewardToken.balanceOf(msg.sender), 1e18);
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 1e18);
+
+        rm.claimAccountRewards(msg.sender);
+
+        assertEq(rewardToken.balanceOf(msg.sender), 1e18);
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 1e18);
     }
 
 }

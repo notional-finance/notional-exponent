@@ -148,7 +148,7 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
-    function checkInvariants(address[] memory users) internal {
+    function checkInvariants(address[] memory users) internal virtual {
         // Collect fees to ensure that shares are minted
         vm.prank(owner);
         y.collectFees();
@@ -172,7 +172,7 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(computedTotalSupply, totalSupply, "Total supply is correct");
     }
 
-    function test_enterPosition() public { 
+    function test_enterPosition() public virtual {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         // Check that the yield token balance is correct
@@ -186,7 +186,7 @@ contract TestMorphoYieldStrategy is Test {
         assertApproxEqRel(defaultDeposit + defaultBorrow, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
 
-    function test_enterPosition_zeroBorrow() public { 
+    function test_enterPosition_zeroBorrow() public virtual { 
         _enterPosition(msg.sender, defaultDeposit, 0);
 
         // Check that the yield token balance is correct
@@ -200,7 +200,7 @@ contract TestMorphoYieldStrategy is Test {
         assertApproxEqRel(defaultDeposit, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
 
-    function test_exitPosition_partialExit() public {
+    function test_exitPosition_partialExit() public virtual {
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
         uint256 initialBalance = y.balanceOfShares(msg.sender);
 
@@ -226,7 +226,7 @@ contract TestMorphoYieldStrategy is Test {
         assertApproxEqRel(netWorthBefore - netWorthAfter, profitsWithdrawn, maxExitValuationSlippage);
     }
 
-    function test_exitPosition_fullExit() public {
+    function test_exitPosition_fullExit() public virtual {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.warp(block.timestamp + 6 minutes);
@@ -398,7 +398,7 @@ contract TestMorphoYieldStrategy is Test {
         assertApproxEqRel(shares, y.convertToShares(assets), 0.0001e18, "convertToShares(convertToAssets(balanceOfShares)) should be equal to balanceOfShares");
     }
 
-    function test_liquidate() public {
+    function test_liquidate() public virtual {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();
         address liquidator = makeAddr("liquidator");
