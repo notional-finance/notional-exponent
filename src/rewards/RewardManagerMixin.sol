@@ -29,8 +29,8 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
-    function _postLiquidation(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) internal override {
-        super._postLiquidation(liquidateAccount, liquidator, sharesToLiquidator);
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
+        super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
        
         // Total supply does not change during liquidation
         uint256 totalSupplyBefore = totalSupply();

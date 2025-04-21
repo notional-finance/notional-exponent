@@ -29,7 +29,10 @@ contract MockRewardPool is ERC20 {
     }
 
     function getReward(address holder, bool claim) external returns (bool) {
+        if (rewardAmount == 0) return true;
         if (claim) rewardToken.transfer(holder, rewardAmount);
+        // Clear the reward amount every time it's claimed
+        rewardAmount = 0;
         return true;
     }
 
@@ -234,9 +237,38 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (isFullExit) {
             assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
         }
+
+        // Since there were two claims before, the owner should receive 2x the rewards
+        // as the balance of shares.
+        rm.claimAccountRewards(owner);
+        assertEq(rewardToken.balanceOf(owner), y.balanceOfShares(owner) * 2);
     }
 
-    // function test_liquidate() public override {
-    //     super.test_liquidate();
-    // }
+    function test_liquidate_withRewards() public {
+        int256 originalPrice = o.latestAnswer();
+        address liquidator = makeAddr("liquidator");
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        _enterPosition(owner, defaultDeposit, 0);
+        
+        vm.prank(owner);
+        asset.transfer(liquidator, defaultDeposit + defaultBorrow);
+
+        o.setPrice(originalPrice * 0.90e18 / 1e18);
+
+        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        vm.startPrank(liquidator);
+        uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        asset.approve(address(y), type(uint256).max);
+        // This should trigger a claim on rewards
+        uint256 sharesToLiquidator = y.liquidate(msg.sender, sharesBefore, 0, bytes(""));
+        vm.stopPrank();
+
+        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Liquidated account shares");
+        assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
+
+        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        rm.claimAccountRewards(liquidator);
+        assertEq(rewardToken.balanceOf(liquidator), sharesToLiquidator, "Liquidator account rewards");
+    }
 }
