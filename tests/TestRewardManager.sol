@@ -139,7 +139,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     }
 
     function test_callUpdateAccountRewards_RevertIf_NotVault() public {
-        vm.expectRevert("Only the reward manager can call this function");
+        vm.expectRevert();
         rm.updateAccountRewards(msg.sender, 0, 0, 0, true);
     }
 
@@ -158,15 +158,32 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(msg.sender), 0);
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
 
+        uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
+        assertEq(rewards.length, 1);
+        assertEq(rewards[0], 1e18);
         rm.claimAccountRewards(msg.sender);
 
         assertEq(rewardToken.balanceOf(msg.sender), 1e18);
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 1e18);
 
+        rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
+        assertEq(rewards.length, 1);
+        assertEq(rewards[0], 0);
         rm.claimAccountRewards(msg.sender);
 
         assertEq(rewardToken.balanceOf(msg.sender), 1e18);
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 1e18);
     }
 
+    function test_exitPosition_fullExit() public override {
+        super.test_exitPosition_fullExit();
+    }
+
+    function test_exitPosition_partialExit() public override {
+        super.test_exitPosition_partialExit();
+    }
+
+    function test_liquidate() public override {
+        super.test_liquidate();
+    }
 }

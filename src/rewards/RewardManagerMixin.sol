@@ -94,6 +94,8 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
     fallback() external {
         address target = address(REWARD_MANAGER);
+        // Cannot call updateAccountRewards unless it's through the internal methods
+        require(msg.sig != IRewardManager.updateAccountRewards.selector);
         assembly {
             calldatacopy(0, 0, calldatasize())
             let result := delegatecall(gas(), target, 0, calldatasize(), 0, 0)

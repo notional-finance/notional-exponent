@@ -74,8 +74,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         rewards = new uint256[](rewardStates.length);
 
         uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        uint256 vaultSharesBefore = 0;
-        // uint256 vaultSharesBefore = IAbstractVault(address(this)).getAccountVaultShare(account);
+        uint256 vaultSharesBefore = IYieldStrategy(address(this)).balanceOfShares(account);
 
         for (uint256 i; i < rewards.length; i++) {
             uint256 rewardsPerVaultShare = _getAccumulatedRewardViaEmissionRate(
