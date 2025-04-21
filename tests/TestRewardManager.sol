@@ -143,14 +143,14 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         rm.updateAccountRewards(msg.sender, 0, 0, 0, true);
     }
 
-    function test_enterPosition() public override {
-        super.test_enterPosition();
+    function test_enterPosition_withRewards() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         // Check balance of reward token
         assertEq(rewardToken.balanceOf(msg.sender), 0);
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
 
-        MockRewardPool(address(w)).setRewardAmount(1e18);
+        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
         rm.claimRewardTokens();
         MockRewardPool(address(w)).setRewardAmount(0);
 
@@ -158,32 +158,85 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(msg.sender), 0);
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
 
+        uint256 sharesBefore = y.balanceOfShares(msg.sender);
         uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
         assertEq(rewards.length, 1);
-        assertEq(rewards[0], 1e18);
+        assertEq(rewards[0], sharesBefore);
         rm.claimAccountRewards(msg.sender);
 
-        assertEq(rewardToken.balanceOf(msg.sender), 1e18);
-        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 1e18);
+        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore);
 
         rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
         assertEq(rewards.length, 1);
         assertEq(rewards[0], 0);
         rm.claimAccountRewards(msg.sender);
 
-        assertEq(rewardToken.balanceOf(msg.sender), 1e18);
-        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 1e18);
+        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore);
+
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 sharesAfter = y.balanceOfShares(msg.sender);
+
+        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        rm.claimAccountRewards(msg.sender);
+        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter);
     }
 
-    function test_exitPosition_fullExit() public override {
-        super.test_exitPosition_fullExit();
+    function test_exitPosition_withRewards(bool isFullExit) public {
+        _enterPosition(owner, defaultDeposit, defaultBorrow);
+        _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        // Rewards are 1-1 with yield tokens
+        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+
+        uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        vm.startPrank(msg.sender);
+        if (isFullExit) {
+            y.exitPosition(
+                msg.sender,
+                msg.sender,
+                y.balanceOfShares(msg.sender),
+                type(uint256).max,
+                getRedeemData(msg.sender, y.balanceOfShares(msg.sender))
+            );
+        } else {
+            // Partial exit
+            y.exitPosition(
+                msg.sender,
+                msg.sender,
+                sharesBefore / 10,
+                defaultBorrow / 10,
+                getRedeemData(msg.sender, sharesBefore / 10)
+            );
+        }
+        vm.stopPrank();
+
+        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
+
+        if (isFullExit) {
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+        }
+
+        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        uint256 sharesAfter = y.balanceOfShares(msg.sender);
+        rm.claimRewardTokens();
+        uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
+        assertEq(rewards.length, 1);
+        assertEq(rewards[0], sharesAfter);
+
+        MockRewardPool(address(w)).setRewardAmount(0);
+        rm.claimAccountRewards(msg.sender);
+
+        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter);
+        if (isFullExit) {
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+        }
     }
 
-    function test_exitPosition_partialExit() public override {
-        super.test_exitPosition_partialExit();
-    }
-
-    function test_liquidate() public override {
-        super.test_liquidate();
-    }
+    // function test_liquidate() public override {
+    //     super.test_liquidate();
+    // }
 }
