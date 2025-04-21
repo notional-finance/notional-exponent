@@ -10,6 +10,8 @@ import {LibStorage} from "../utils/LibStorage.sol";
 contract ConvexRewardManager is AbstractRewardManager {
     using TokenUtils for IERC20;
 
+    constructor(address rewardManager) AbstractRewardManager(rewardManager) { }
+
     function _executeClaim() internal override {
         address rewardPool = LibStorage.getRewardPoolSlot().rewardPool;
         require(IConvexRewardPool(rewardPool).getReward(address(this), true));

@@ -88,7 +88,8 @@ interface IRewardManager {
         uint32 endTime
     ) external;
 
-    /// @notice Migrates the reward pool to a new reward pool
+    /// @notice Migrates the reward pool to a new reward pool, needs to be called initially
+    /// to set the reward pool storage and when the reward pool is updated.
     /// @param poolToken The pool token to migrate
     /// @param newRewardPool The new reward pool storage configuration
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external;

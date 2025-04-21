@@ -52,10 +52,6 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         ERC20(_asset).approve(address(_yieldToken), type(uint256).max);
     }
 
-    function _preLiquidation(address liquidateAccount, address /* liquidator */) internal view override returns (uint256 maxLiquidateShares) {
-        return _accountCollateralBalance(liquidateAccount);
-    }
-
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
         MockWrapperERC20(yieldToken).deposit(assets);
     }

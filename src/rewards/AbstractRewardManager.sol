@@ -21,6 +21,35 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         _;
     }
 
+    constructor(address rewardManager) {
+        LibStorage._rewardManagerSlot()[0] = rewardManager;
+    }
+
+    /// @inheritdoc IRewardManager
+    function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyRewardManager nonReentrant {
+        // Claim all rewards from the previous reward pool before withdrawing
+        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
+        _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
+        RewardPoolStorage memory oldRewardPool = LibStorage.getRewardPoolSlot();
+
+        if (oldRewardPool.rewardPool != address(0)) {
+            _withdrawFromPreviousRewardPool(oldRewardPool);
+
+            // Clear approvals on the old pool.
+            IERC20(poolToken).checkRevoke(address(oldRewardPool.rewardPool));
+        }
+
+        uint256 poolTokens = IERC20(poolToken).balanceOf(address(this));
+        _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
+
+        // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
+        // earlier in this method.
+        LibStorage.getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
+        LibStorage.getRewardPoolSlot().rewardPool = newRewardPool.rewardPool;
+        LibStorage.getRewardPoolSlot().forceClaimAfter = newRewardPool.forceClaimAfter;
+    }
+
+
     /// @inheritdoc IRewardManager
     function getRewardSettings() external view override returns (
         VaultRewardState[] memory rewardStates,
@@ -116,29 +145,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         emit VaultRewardUpdate(rewardToken, emissionRatePerYear, endTime);
     }
 
-    function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyRewardManager nonReentrant {
-        // Claim all rewards from the previous reward pool before withdrawing
-        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
-        RewardPoolStorage memory oldRewardPool = LibStorage.getRewardPoolSlot();
-
-        if (oldRewardPool.rewardPool != address(0)) {
-            _withdrawFromPreviousRewardPool(oldRewardPool);
-
-            // Clear approvals on the old pool.
-            IERC20(poolToken).checkRevoke(address(oldRewardPool.rewardPool));
-        }
-
-        uint256 poolTokens = IERC20(poolToken).balanceOf(address(this));
-        _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
-
-        // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
-        // earlier in this method.
-        LibStorage.getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
-        LibStorage.getRewardPoolSlot().rewardPool = newRewardPool.rewardPool;
-        LibStorage.getRewardPoolSlot().forceClaimAfter = newRewardPool.forceClaimAfter;
-    }
-
     /// @notice Claims all the rewards for the entire vault and updates the accumulators. Does not
     /// update emission rewarders since those are automatically updated on every account claim.
     function claimRewardTokens() external nonReentrant {
@@ -169,40 +175,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
             isMint ? accountVaultSharesBefore + vaultShares : accountVaultSharesBefore - vaultShares
         );
     }
-
-    // /// @notice Called to ensure that rewarders are properly updated during deleverage, when
-    // /// vault shares are transferred from an account to the liquidator.
-    // function deleverageAccount(
-    //     address account,
-    //     address vault,
-    //     address liquidator,
-    //     uint16 currencyIndex,
-    //     int256 depositUnderlyingInternal
-    // ) external payable returns (uint256 vaultSharesFromLiquidation, int256 depositAmountPrimeCash) {
-    //     // Record all vault share values before
-    //     uint256 totalVaultSharesBefore = VaultStorage.getStrategyVaultState().totalVaultSharesGlobal;
-    //     uint256 accountVaultSharesBefore = _getVaultSharesBefore(account);
-    //     uint256 liquidatorVaultSharesBefore = _getVaultSharesBefore(liquidator);
-
-    //     // Forward the liquidation call to Notional
-    //     (
-    //         vaultSharesFromLiquidation,
-    //         depositAmountPrimeCash
-    //     ) = Deployments.NOTIONAL.deleverageAccount{value: msg.value}(
-    //         account, vault, liquidator, currencyIndex, depositUnderlyingInternal
-    //     );
-
-    //     _claimAccountRewards(
-    //         account, totalVaultSharesBefore, accountVaultSharesBefore,
-    //         accountVaultSharesBefore - vaultSharesFromLiquidation
-    //     );
-    //     // The second claim will be skipped as a gas optimization because the last claim
-    //     // timestamp will equal the current timestamp.
-    //     _claimAccountRewards(
-    //         liquidator, totalVaultSharesBefore, liquidatorVaultSharesBefore,
-    //         liquidatorVaultSharesBefore + vaultSharesFromLiquidation
-    //     );
-    // }
 
     /// @notice Executes a claim on account rewards
     function _claimAccountRewards(

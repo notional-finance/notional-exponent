@@ -54,7 +54,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _withdrawRequestYieldTokenRate() internal view virtual returns (uint256) {
-        return super.convertYieldTokenToAsset();
+        return convertYieldTokenToAsset();
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position

@@ -503,14 +503,14 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
-    /*** Virtual Functions ***/
-
     /// @inheritdoc IYieldStrategy
-    function convertYieldTokenToAsset() public view virtual returns (uint256) {
+    function convertYieldTokenToAsset() public view returns (uint256) {
         (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
         require(rate > 0);
         return uint256(rate);
     }
+
+    /*** Virtual Functions ***/
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
