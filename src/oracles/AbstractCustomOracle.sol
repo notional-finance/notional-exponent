@@ -9,7 +9,7 @@ abstract contract AbstractCustomOracle is AggregatorV2V3Interface {
     string public override description;
 
     uint8 public override constant decimals = 18;
-    int256 public constant rateDecimals = 10**18;
+    uint256 public constant rateDecimals = 10**18;
 
     AggregatorV2V3Interface public immutable sequencerUptimeOracle;
     uint256 public constant SEQUENCER_UPTIME_GRACE_PERIOD = 1 hours;

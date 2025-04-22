@@ -100,6 +100,8 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
         CONVEX_POOL_ID = poolId;
         CONVEX_BOOSTER = convexBooster;
+
+        _initialApproveTokens();
     }
 
     function _rewriteAltETH(address token) private pure returns (address) {

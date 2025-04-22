@@ -66,10 +66,11 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         uint8[] memory decimals,
         uint256[] memory balances,
         uint256[] memory spotPrices
-    ) internal view returns (uint256 oneLPValueInPrimary) {
+    ) internal view returns (uint256) {
         address primaryToken = address(tokens[PRIMARY_INDEX]);
         uint256 primaryDecimals = 10 ** decimals[PRIMARY_INDEX];
         uint256 totalSupply = _totalPoolSupply();
+        uint256 oneLPValueInPrimary;
 
         for (uint256 i; i < tokens.length; i++) {
             // Skip the pool token if it is in the token list (i.e. ComposablePools)
@@ -95,6 +96,9 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
                     (price * secondaryDecimals);
             }
         }
+
+        // Scale this up to the correct precision
+        return oneLPValueInPrimary * rateDecimals / primaryDecimals;
     }
 
 }

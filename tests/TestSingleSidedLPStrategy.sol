@@ -5,12 +5,36 @@ import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 import "../src/single-sided-lp/CurveConvex2Token.sol";
+import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 
 contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     ERC20 lpToken;
     address rewardPool;
     IRewardManager rm;
+
+    function getDepositData(
+        address /* user */,
+        uint256 /* depositAmount */
+    ) internal view virtual override returns (bytes memory depositData) {
+        DepositParams memory params = DepositParams({
+            minPoolClaim: 0,
+            depositTrades: new TradeParams[](0)
+        });
+        return abi.encode(params);
+    }
+
+    function getRedeemData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal view virtual override returns (bytes memory redeemData) {
+        RedeemParams memory params = RedeemParams({
+            minAmounts: new uint256[](2),
+            redemptionTrades: new TradeParams[](0)
+        });
+        return abi.encode(params);
+    }
+    
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
@@ -35,6 +59,8 @@ contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 convexRewardPool: address(rewardPool)
             })
         );
+
+        w = ERC20(rewardPool);
 
         Curve2TokenOracle oracle = new Curve2TokenOracle(
             0.95e18,
