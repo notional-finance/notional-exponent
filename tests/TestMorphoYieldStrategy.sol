@@ -116,6 +116,7 @@ contract TestMorphoYieldStrategy is Test {
 
     function setUp() public virtual {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
+        setMaxOracleFreshness();
 
         deployYieldStrategy();
         asset = ERC20(y.asset());

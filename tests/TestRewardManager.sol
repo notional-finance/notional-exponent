@@ -84,6 +84,7 @@ contract MockRewardVault is RewardManagerMixin {
 contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
     ERC20 rewardToken;
+    ERC20 emissionsToken;
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
@@ -107,6 +108,8 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // Set the initial reward pool
         vm.startPrank(owner);
+        emissionsToken = new MockERC20("MockEmissionsToken", "MET");
+        emissionsToken.transfer(address(rm), 100_0000e18);
         rm.migrateRewardPool(address(USDC), RewardPoolStorage({
             rewardPool: address(w),
             forceClaimAfter: 0,
@@ -146,56 +149,96 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         rm.updateAccountRewards(msg.sender, 0, 0, 0, true);
     }
 
-    function test_enterPosition_withRewards() public {
+    function test_enterPosition_withRewards(bool hasEmissions, bool hasRewards) public {
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         // Check balance of reward token
-        assertEq(rewardToken.balanceOf(msg.sender), 0);
-        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+        assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
 
-        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
         rm.claimRewardTokens();
-        MockRewardPool(address(w)).setRewardAmount(0);
 
         // Still no reward debt
-        assertEq(rewardToken.balanceOf(msg.sender), 0);
-        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+        assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
+        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
 
         uint256 sharesBefore = y.balanceOfShares(msg.sender);
         uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
-        assertEq(rewards.length, 1);
-        assertEq(rewards[0], sharesBefore);
+        assertEq(rewards.length, hasEmissions ? 2 : 1, "Rewards length is incorrect");
+        assertEq(rewards[0], hasRewards ? sharesBefore : 0, "Rewards are incorrect");
+        if (hasEmissions) assertEq(rewards[1], 1e18, "Emissions tokens are incorrect");
+
         rm.claimAccountRewards(msg.sender);
 
-        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
-        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore);
+        if (hasRewards) {
+            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Rewards are claimed");
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore, "Reward debt is updated");
+        } else {
+            assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
+        }
+
+        if (hasEmissions) {
+            assertEq(emissionsToken.balanceOf(msg.sender), 1e18, "Emissions tokens are claimed");
+            assertEq(rm.getRewardDebt(address(emissionsToken), msg.sender), 1e18, "Emissions debt is updated");
+        }
 
         rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
-        assertEq(rewards.length, 1);
-        assertEq(rewards[0], 0);
+        assertEq(rewards[0], 0, "Rewards are empty");
+        if (hasEmissions) assertEq(rewards[1], 0, "Emissions tokens are empty");
+
         rm.claimAccountRewards(msg.sender);
 
-        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
-        assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore);
+        if (hasRewards) {
+            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore);
+        } else {
+            assertEq(rewardToken.balanceOf(msg.sender), 0);
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+        }
+
+        if (hasEmissions) {
+            assertEq(emissionsToken.balanceOf(msg.sender), 1e18);
+            assertEq(rm.getRewardDebt(address(emissionsToken), msg.sender), 1e18);
+        }
 
         _enterPosition(msg.sender, defaultDeposit, 0);
         uint256 sharesAfter = y.balanceOfShares(msg.sender);
 
-        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
         rm.claimAccountRewards(msg.sender);
-        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter);
+        if (hasRewards) {
+            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter, "Rewards are claimed");
+        } else {
+            assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
+        }
+        // No additional emissions tokens are claimed
+        if (hasEmissions) assertEq(emissionsToken.balanceOf(msg.sender), 1e18, "Emissions tokens are claimed");
     }
 
-    function test_exitPosition_withRewards(bool isFullExit) public {
+    function test_exitPosition_withRewards(bool isFullExit, bool hasRewards, bool hasEmissions) public {
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
         _enterPosition(owner, defaultDeposit, defaultBorrow);
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
 
-        vm.warp(block.timestamp + 6 minutes);
+        vm.warp(block.timestamp + 7 days);
 
         // Rewards are 1-1 with yield tokens
-        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
 
         uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 emissionsForUser = 7e18 * sharesBefore / y.totalSupply();
         vm.startPrank(msg.sender);
         if (isFullExit) {
             y.exitPosition(
@@ -217,58 +260,110 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
         vm.stopPrank();
 
-        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
-
-        if (isFullExit) {
-            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+        if (hasRewards) {
+            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Rewards are claimed");
+        } else {
+            assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         }
 
-        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasEmissions) {
+            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Emissions tokens are claimed");
+        }
+
+        if (isFullExit) {
+            assertEq(rm.getRewardDebt(address(emissionsToken), msg.sender), 0, "Emissions debt is updated");
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is updated");
+        }
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
         uint256 sharesAfter = y.balanceOfShares(msg.sender);
         rm.claimRewardTokens();
         uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
-        assertEq(rewards.length, 1);
-        assertEq(rewards[0], sharesAfter);
+        assertEq(rewards.length, hasEmissions ? 2 : 1);
+        assertEq(rewards[0], hasRewards ? sharesAfter : 0);
+        if (hasEmissions) assertEq(rewards[1], 0, "Emissions tokens are claimed");
 
-        MockRewardPool(address(w)).setRewardAmount(0);
         rm.claimAccountRewards(msg.sender);
 
-        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter);
+        if (hasRewards) {
+            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter, "Rewards are claimed");
+        } else {
+            assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
+        }
+
+        if (hasEmissions) {
+            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Emissions tokens are claimed");
+        }
+
         if (isFullExit) {
-            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
+            assertEq(rm.getRewardDebt(address(emissionsToken), msg.sender), 0, "Emissions debt is updated");
+            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is updated");
         }
 
         // Since there were two claims before, the owner should receive 2x the rewards
         // as the balance of shares.
         rm.claimAccountRewards(owner);
-        assertEq(rewardToken.balanceOf(owner), y.balanceOfShares(owner) * 2);
+        if (hasRewards) {
+            assertEq(rewardToken.balanceOf(owner), y.balanceOfShares(owner) * 2, "Rewards are claimed");
+        } else {
+            assertEq(rewardToken.balanceOf(owner), 0, "Rewards are empty");
+        }
+
+        if (hasEmissions) {
+            uint256 emissionsForOwner = 7e18 - emissionsForUser;
+            assertApproxEqRel(emissionsToken.balanceOf(owner), emissionsForOwner, 0.0010e18, "Emissions tokens are claimed for owner");
+        }
     }
 
-    function test_liquidate_withRewards() public {
+    function test_liquidate_withRewards(bool hasEmissions, bool hasRewards) public {
         int256 originalPrice = o.latestAnswer();
         address liquidator = makeAddr("liquidator");
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
 
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         _enterPosition(owner, defaultDeposit, 0);
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
         
         vm.prank(owner);
         asset.transfer(liquidator, defaultDeposit + defaultBorrow);
 
         o.setPrice(originalPrice * 0.90e18 / 1e18);
 
-        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+
         vm.startPrank(liquidator);
         uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 emissionsForUser = 1e18 * sharesBefore / y.totalSupply();
         asset.approve(address(y), type(uint256).max);
         // This should trigger a claim on rewards
         uint256 sharesToLiquidator = y.liquidate(msg.sender, sharesBefore, 0, bytes(""));
         vm.stopPrank();
 
-        assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Liquidated account shares");
-        assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
+        if (hasRewards) assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Liquidated account shares");
+        if (hasEmissions) {
+            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Liquidated account emissions");
+        }
 
-        MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
+        assertEq(emissionsToken.balanceOf(liquidator), 0, "Liquidator account emissions");
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        uint256 emissionsForLiquidator = 1e18 * sharesToLiquidator / y.totalSupply();
+
         rm.claimAccountRewards(liquidator);
-        assertEq(rewardToken.balanceOf(liquidator), sharesToLiquidator, "Liquidator account rewards");
+
+        if (hasRewards) assertEq(rewardToken.balanceOf(liquidator), sharesToLiquidator, "Liquidator account rewards");
+        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.0010e18, "Liquidator account emissions");
+
+        rm.claimAccountRewards(msg.sender);
+        uint256 emissionsForUserAfter = 1e18 * y.balanceOfShares(msg.sender) / y.totalSupply();
+
+        if (hasRewards) assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesBefore - sharesToLiquidator, "Liquidated account rewards");
+        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser + emissionsForUserAfter, 0.0010e18, "Liquidated account emissions");
     }
 }
