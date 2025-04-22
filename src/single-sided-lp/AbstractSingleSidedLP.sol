@@ -5,6 +5,13 @@ import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
+import {
+    IWithdrawRequestManager,
+    WithdrawRequest,
+    SplitWithdrawRequest,
+    CannotInitiateWithdraw,
+    ExistingWithdrawRequest
+} from "../withdraws/IWithdrawRequestManager.sol";
 
 struct TradeParams {
     uint256 tradeAmount;
@@ -30,6 +37,12 @@ struct RedeemParams {
     TradeParams[] redemptionTrades;
 }
 
+struct WithdrawParams {
+    uint256[] minAmounts;
+    bool isSingleSided;
+    bytes[] withdrawData;
+}
+
 /**
  * @notice Base contract for the SingleSidedLP strategy. This strategy deposits into an LP
  * pool given a single borrowed currency. Allows for users to trade via external exchanges
@@ -42,6 +55,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     // TODO: this is storage....
     uint256 public maxPoolShare;
+    IWithdrawRequestManager[] public withdrawRequestManagers;
 
     uint256 internal constant POOL_SHARE_BASIS = 1e18;
     uint256 internal constant MAX_TOKENS = 5;
@@ -116,14 +130,25 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
      * properly collateralized.                                             *
      ************************************************************************/
 
+    function requestIdsForAccount(address account) public view returns (WithdrawRequest[] memory requests, bool hasPendingRequest) {
+        requests = new WithdrawRequest[](withdrawRequestManagers.length);
+
+        for (uint256 i; i < withdrawRequestManagers.length; i++) {
+            (requests[i], /* */) = withdrawRequestManagers[i].getWithdrawRequest(address(this), account);
+            hasPendingRequest = hasPendingRequest || requests[i].requestId != 0;
+        }
+    }
+
     function _mintYieldTokens(
         uint256 assets,
-        address /* receiver */,
+        address receiver,
         bytes memory depositData
     ) internal override virtual {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
         amounts[PRIMARY_INDEX()] = assets;
+        (/* */, bool hasPendingRequest) = requestIdsForAccount(receiver);
+        if (hasPendingRequest) revert("Existing Withdraw Request");
 
         // If depositTrades are specified, then parts of the initial deposit are traded
         // for corresponding amounts of the other pool tokens via external exchanges. If
@@ -146,15 +171,25 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     function _redeemShares(
         uint256 sharesToRedeem,
-        address /* sharesOwner */,
+        address sharesOwner,
         bytes memory redeemData
     ) internal override virtual returns (uint256 yieldTokensBurned, bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
-        yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+        (WithdrawRequest[] memory requests, bool hasPendingRequest) = requestIdsForAccount(sharesOwner);
 
-        bool isSingleSided = params.redemptionTrades.length == 0;
         // Returns the amount of each token that has been withdrawn from the pool.
-        uint256[] memory exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
+        uint256[] memory exitBalances;
+        bool isSingleSided = params.redemptionTrades.length == 0;
+        if (hasPendingRequest) {
+            // Attempt to withdraw all pending requests
+            exitBalances = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
+            wasEscrowed = true;
+        } else {
+            yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+            exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
+            wasEscrowed = false;
+        }
+
         if (!isSingleSided) {
             // If not a single sided trade, will execute trades back to the primary token on
             // external exchanges. This method will execute EXACT_IN trades to ensure that
@@ -163,9 +198,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // requires explicit permission for every token that can be sold by an address.
             _executeRedemptionTrades(exitBalances, params.redemptionTrades);
         }
-
-        // TODO: fix this
-        wasEscrowed = false;
     }
 
     /// @dev Trades the amount of primary token into other secondary tokens prior to entering a pool.
@@ -241,7 +273,44 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
-    // TODO: add initiate withdraw....
+    function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal returns (uint256[] memory requestIds) {
+        uint256 sharesHeld = balanceOfShares(account);
+        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        _escrowShares(sharesHeld, yieldTokenAmount);
+        WithdrawParams memory params = abi.decode(data, (WithdrawParams));
+
+        uint256[] memory exitBalances = _unstakeAndExitPool(yieldTokenAmount, params.minAmounts, params.isSingleSided);
+        requestIds = new uint256[](exitBalances.length);
+        for (uint256 i; i < exitBalances.length; i++) {
+            if (exitBalances[i] == 0) continue;
+
+            requestIds[i] = withdrawRequestManagers[i].initiateWithdraw({
+                account: account,
+                yieldTokenAmount: exitBalances[i],
+                sharesAmount: sharesHeld,
+                isForced: isForced,
+                data: params.withdrawData[i]
+            });
+        }
+    }
+
+    function _withdrawPendingRequests(
+        WithdrawRequest[] memory requests,
+        address sharesOwner,
+        uint256 sharesToRedeem
+    ) internal returns (uint256[] memory exitBalances) {
+        uint256 totalShares = balanceOfShares(sharesOwner);
+        exitBalances = new uint256[](requests.length);
+
+        for (uint256 i; i < requests.length; i++) {
+            uint256 yieldTokensBurned = uint256(requests[i].yieldTokenAmount) * sharesToRedeem / totalShares;
+            bool finalized;
+            (exitBalances[i], finalized) = withdrawRequestManagers[i].finalizeAndRedeemWithdrawRequest({
+                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
+            });
+            require(finalized, "Withdraw request not finalized");
+        }
+    }
 
     /************************************************************************
      * EMERGENCY EXIT                                                       *

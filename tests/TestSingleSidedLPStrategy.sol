@@ -87,5 +87,13 @@ contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
     }
+
+    // TODO: test claim rewards
+    // TODO: test without convex pool
+    // TODO: test trading on other venues
+    // TODO: test staking before deposit
+    // TODO: test withdraw request before redeem
+    // TODO: test trading on redeem
+    // TODO: test emergency exit
     
 }

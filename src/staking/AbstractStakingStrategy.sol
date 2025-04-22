@@ -88,18 +88,12 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         return super.convertToAssets(shares);
     }
 
-    function _preLiquidation(address liquidateAccount, address /* liquidator */) internal view override returns (uint256 maxLiquidateShares) {
-        return _accountCollateralBalance(liquidateAccount);
-    }
-
     /// @notice Allows an account to initiate a withdraw of their vault shares
     function initiateWithdraw(bytes calldata data) external returns (uint256 requestId) {
         requestId = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
 
         // Can only initiate a withdraw if health factor remains positive
         (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender);
-        console2.log("borrowed", borrowed);
-        console2.log("maxBorrow", maxBorrow);
         if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
     }
 
