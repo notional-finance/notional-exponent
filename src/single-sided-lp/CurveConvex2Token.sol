@@ -7,6 +7,7 @@ import {TokenUtils, IERC20} from "../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Constants.sol";
 import "../interfaces/Curve/ICurve.sol";
 import "../interfaces/Curve/IConvex.sol";
+import "../rewards/IRewardManager.sol";
 
 struct DeploymentParams {
     address pool;
@@ -222,15 +223,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
             CURVE_POOL_TOKEN.checkApprove(address(CURVE_GAUGE), type(uint256).max);
         }
     }
-
-    // function _rewardPoolStorage() internal view override returns (RewardPoolStorage memory r) {
-    //     r.rewardPool = address(CONVEX_REWARD_POOL);
-    //     if (block.chainid == CHAIN_ID_MAINNET) {
-    //         r.poolType = RewardPoolType.CONVEX_MAINNET;
-    //     } else {
-    //         revert();
-    //     }
-    // }
 
     function _stakeLpTokens(uint256 lpTokens) internal {
         if (CONVEX_BOOSTER != address(0)) {

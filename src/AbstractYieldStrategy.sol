@@ -74,13 +74,17 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         address __irm,
         uint256 __lltv
     ) ERC20(
-        string(abi.encodePacked("Notional: ", ERC20(_yieldToken).name(), " [", ERC20(_asset).symbol(), "]")),
-        string(abi.encodePacked("N-", ERC20(_yieldToken).symbol(), ":", ERC20(_asset).symbol()))
+        // TODO: these are not available on all tokens
+        // string(abi.encodePacked("Notional: ", ERC20(_yieldToken).name(), " [", ERC20(_asset).symbol(), "]")),
+        // string(abi.encodePacked("N-", ERC20(_yieldToken).symbol(), ":", ERC20(_asset).symbol()))
+        string(abi.encodePacked("Notional:  [", ERC20(_asset).symbol(), "]")),
+        string(abi.encodePacked("N-:", ERC20(_asset).symbol()))
     ) {
         feeRate = _feeRate;
         asset = address(_asset);
         yieldToken = address(_yieldToken);
-        _yieldTokenDecimals = TokenUtils.getDecimals(_yieldToken);
+        // TODO: these are not available on all tokens
+        _yieldTokenDecimals = 18; // TokenUtils.getDecimals(_yieldToken);
         _assetDecimals = TokenUtils.getDecimals(_asset);
 
         // If multiple markets exist for the same strategy with different LTVs then we can
