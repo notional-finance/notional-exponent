@@ -98,8 +98,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         if (block.chainid == CHAIN_ID_MAINNET && CONVEX_REWARD_POOL != address(0)) {
             convexBooster = IConvexRewardPool(CONVEX_REWARD_POOL).operator();
             poolId = IConvexRewardPool(CONVEX_REWARD_POOL).pid();
-        } else {
-            revert();
         }
 
         CONVEX_POOL_ID = poolId;

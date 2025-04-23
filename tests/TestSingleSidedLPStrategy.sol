@@ -18,6 +18,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     AggregatorV2V3Interface baseToUSDOracle;
     bool invertBase;
     uint256 dyAmount;
+    address curveGauge;
 
     function getDepositData(
         address /* user */,
@@ -52,7 +53,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             maxPoolShare,
             owner,
             address(asset),
-            address(rewardPool),
+            address(w),
             0.0010e18, // 0.1%
             IRM,
             0.915e18,
@@ -60,14 +61,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             DeploymentParams({
                 pool: address(lpToken),
                 poolToken: address(lpToken),
-                // TODO: can we get rid of this?
-                gauge: address(0),
+                gauge: curveGauge,
                 curveInterface: curveInterface,
                 convexRewardPool: address(rewardPool)
             })
         );
 
-        w = ERC20(rewardPool);
         feeToken = lpToken;
 
         (baseToUSDOracle, /* */) = TRADING_MODULE.priceOracles(address(asset));
@@ -86,15 +85,17 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         o = new MockOracle(oracle.latestAnswer());
 
         rm = IRewardManager(address(y));
-        vm.startPrank(owner);
-        rm.migrateRewardPool(address(lpToken), RewardPoolStorage({
-            rewardPool: rewardPool,
-            forceClaimAfter: 0,
-            lastClaimTimestamp: 0
-        }));
-        // List CRV reward token
-        rm.updateRewardToken(0, address(0xD533a949740bb3306d119CC777fa900bA034cd52), 0, 0);
-        vm.stopPrank();
+        if (address(rewardPool) != address(0)) {
+            vm.startPrank(owner);
+            rm.migrateRewardPool(address(lpToken), RewardPoolStorage({
+                rewardPool: rewardPool,
+                forceClaimAfter: 0,
+                lastClaimTimestamp: 0
+            }));
+            // List CRV reward token
+            rm.updateRewardToken(0, address(0xD533a949740bb3306d119CC777fa900bA034cd52), 0, 0);
+            vm.stopPrank();
+        }
     }
 
     // TODO: test claim rewards

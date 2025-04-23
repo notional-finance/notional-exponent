@@ -9,6 +9,7 @@ contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
         lpToken = ERC20(0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85);
         rewardPool = 0x83644fa70538e5251D125205186B14A76cA63606;
         asset = USDC;
+        w = ERC20(rewardPool);
         curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
         maxPoolShare = 100e18;
@@ -29,6 +30,7 @@ contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
         primaryIndex = 0;
         maxPoolShare = 100e18;
         dyAmount = 1e9;
+        w = ERC20(rewardPool);
 
         defaultDeposit = 10e18;
         defaultBorrow = 90e18;
@@ -54,9 +56,28 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         primaryIndex = 0;
         maxPoolShare = 100e18;
         dyAmount = 1e9;
+        w = ERC20(rewardPool);
 
         defaultDeposit = 10e18;
         defaultBorrow = 90e18;
+
+        maxExitValuationSlippage = 0.005e18;
+    }
+}
+
+contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72);
+        curveGauge = 0x04E80Db3f84873e4132B221831af1045D27f140F;
+        w = ERC20(curveGauge);
+        asset = ERC20(address(USDC));
+        curveInterface = CurveInterface.StableSwapNG;
+        primaryIndex = 1;
+        maxPoolShare = 100e18;
+        dyAmount = 1e6;
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
 
         maxExitValuationSlippage = 0.005e18;
     }
