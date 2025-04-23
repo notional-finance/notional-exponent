@@ -8,10 +8,13 @@ import "../src/single-sided-lp/CurveConvex2Token.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 
-contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
+abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     ERC20 lpToken;
     address rewardPool;
     IRewardManager rm;
+    CurveInterface curveInterface;
+    uint8 primaryIndex;
+    uint256 maxPoolShare;
 
     function getDepositData(
         address /* user */,
@@ -34,17 +37,17 @@ contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         });
         return abi.encode(params);
     }
-    
+
+    function setMarketVariables() internal virtual;
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
-        lpToken = ERC20(0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85);
-        rewardPool = 0x83644fa70538e5251D125205186B14A76cA63606;
+        setMarketVariables();
 
         y = new CurveConvex2Token(
-            100e18,
+            maxPoolShare,
             owner,
-            address(USDC),
+            address(asset),
             address(rewardPool),
             0.0010e18, // 0.1%
             IRM,
@@ -55,18 +58,19 @@ contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 poolToken: address(lpToken),
                 // TODO: can we get rid of this?
                 gauge: address(0),
-                curveInterface: CurveInterface.StableSwapNG,
+                curveInterface: curveInterface,
                 convexRewardPool: address(rewardPool)
             })
         );
 
         w = ERC20(rewardPool);
+        feeToken = lpToken;
 
         Curve2TokenOracle oracle = new Curve2TokenOracle(
             0.95e18,
             1.05e18,
             address(lpToken),
-            0,
+            primaryIndex,
             "Curve 2 Token Oracle",
             address(0)
         );
@@ -83,9 +87,6 @@ contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         // List CRV reward token
         rm.updateRewardToken(0, address(0xD533a949740bb3306d119CC777fa900bA034cd52), 0, 0);
         vm.stopPrank();
-
-        defaultDeposit = 10_000e6;
-        defaultBorrow = 90_000e6;
     }
 
     // TODO: test claim rewards

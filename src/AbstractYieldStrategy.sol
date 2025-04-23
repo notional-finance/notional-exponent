@@ -177,11 +177,16 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     /// @inheritdoc IYieldStrategy
     function collectFees() external onlyOwner override {
         _accrueFees();
-        // TODO: convex tokens cannot be transferred....
-        ERC20(yieldToken).safeTransfer(owner, s_accruedFeesInYieldToken);
+        _transferYieldTokenToOwner(s_accruedFeesInYieldToken);
         s_trackedYieldTokenBalance -= s_accruedFeesInYieldToken;
 
         delete s_accruedFeesInYieldToken;
+    }
+
+    /// @dev Some yield tokens (such as Convex staked tokens) cannot be transferred, so we may need
+    /// to override this function.
+    function _transferYieldTokenToOwner(uint256 yieldTokens) internal virtual {
+        ERC20(yieldToken).safeTransfer(owner, yieldTokens);
     }
 
     /*** Authorization Methods ***/

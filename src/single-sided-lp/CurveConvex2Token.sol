@@ -5,6 +5,7 @@ import {AbstractSingleSidedLP} from "./AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils, IERC20} from "../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Constants.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/Curve/ICurve.sol";
 import "../interfaces/Curve/IConvex.sol";
 import "../rewards/IRewardManager.sol";
@@ -19,6 +20,7 @@ struct DeploymentParams {
 
 contract CurveConvex2Token is AbstractSingleSidedLP {
     using TokenUtils for IERC20;
+    using SafeERC20 for IERC20;
 
     uint256 internal constant _NUM_TOKENS = 2;
     uint256 internal constant CURVE_PRECISION = 1e18;
@@ -244,4 +246,10 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
             ICurveGauge(CURVE_GAUGE).withdraw(poolClaim);
         }
     }
+
+    function _transferYieldTokenToOwner(uint256 yieldTokens) internal override {
+        _unstakeLpTokens(yieldTokens);
+        CURVE_POOL_TOKEN.safeTransfer(owner, yieldTokens);
+    }
+
 }

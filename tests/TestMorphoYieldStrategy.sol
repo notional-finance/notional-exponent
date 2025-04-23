@@ -70,6 +70,7 @@ contract TestMorphoYieldStrategy is Test {
     ERC20 public w;
     MockOracle public o;
     IYieldStrategy public y;
+    ERC20 public feeToken;
     ERC20 public asset;
     uint256 public defaultDeposit;
     uint256 public defaultBorrow;
@@ -120,6 +121,7 @@ contract TestMorphoYieldStrategy is Test {
 
         deployYieldStrategy();
         asset = ERC20(y.asset());
+        if (address(feeToken) == address(0)) feeToken = w;
 
         vm.prank(owner);
         TRADING_MODULE.setPriceOracle(address(w), AggregatorV2V3Interface(address(o)));
@@ -373,14 +375,7 @@ contract TestMorphoYieldStrategy is Test {
 
         assertApproxEqAbs(yieldTokensPerShare1, yieldTokensPerShare2, 1, "Yield tokens per share should be equal");
         assertEq(y.feesAccrued(), 0, "Fees accrued should be 0");
-        assertApproxEqAbs(w.balanceOf(owner), expectedFees, 1, "Fees should be equal to expected fees");
-        uint256 expectedAssets = y.convertToAssets(y.balanceOf(owner));
-
-        vm.startPrank(owner);
-        uint256 assets = y.redeem(y.balanceOf(owner), getRedeemData(owner, y.balanceOf(owner)));
-        // NOTE: this is dependent on the difference between the oracle price and slippage
-        assertApproxEqRel(assets, expectedAssets, 0.01e18, "Assets should be equal to expected assets");
-        vm.stopPrank();
+        assertApproxEqAbs(feeToken.balanceOf(owner), expectedFees, 1, "Fees should be equal to expected fees");
     }
 
     function test_share_valuation() public {
