@@ -24,6 +24,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     DepositParams depositParams;
     RedeemParams redeemParams;
+    TradeParams tradeBeforeDepositParams;
 
     function getDepositData(
         address /* user */,
@@ -40,6 +41,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function setMarketVariables() internal virtual;
+
+    function postDeployHook() internal virtual {}
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
@@ -104,6 +107,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             vm.prank(owner);
             managers[i].setApprovedVault(address(y), true);
         }
+
+        postDeployHook();
     }
 
     function test_claimRewards() public {
@@ -159,11 +164,37 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         delete depositParams;
     }
 
-    // TODO: test trade before deposit
+    function test_enterPosition_tradeBeforeDeposit() public {
+        vm.skip(tradeBeforeDepositParams.dexId == 0);
 
+        depositParams.depositTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        depositParams.depositTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+
+        depositParams.depositTrades[stakeTokenIndex] = tradeBeforeDepositParams;
+        depositParams.depositTrades[stakeTokenIndex].tradeAmount = (defaultDeposit + defaultBorrow) / 2;
+
+        test_enterPosition();
+        // TODO: how do we know that this was done via trading?
+
+        delete depositParams;
+    }
+        
     // TODO: test withdraw request before redeem
     // TODO: test trading on redeem
     // TODO: test emergency exit
+
     // TODO: test max pool share
     // TODO: test re-entrancy context
 }

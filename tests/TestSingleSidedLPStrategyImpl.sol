@@ -5,6 +5,8 @@ import "./TestSingleSidedLPStrategy.sol";
 import "../src/utils/Constants.sol";
 import "../src/withdraws/GenericERC20.sol";
 import "../src/withdraws/EtherFi.sol";
+import "../src/withdraws/Ethena.sol";
+import "../src/interfaces/ITradingModule.sol";
 
 contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
@@ -87,5 +89,25 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
         defaultBorrow = 90_000e6;
 
         maxExitValuationSlippage = 0.005e18;
+
+        tradeBeforeDepositParams = TradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.UNISWAP_V3),
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(UniV3SingleData({
+                fee: 100
+            }))
+        });
+    }
+
+    function postDeployHook() internal override {
+        vm.prank(owner);
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(asset),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
     }
 }

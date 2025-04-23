@@ -134,6 +134,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         requests = new WithdrawRequest[](withdrawRequestManagers.length);
 
         for (uint256 i; i < withdrawRequestManagers.length; i++) {
+            if (address(withdrawRequestManagers[i]) == address(0)) continue;
             (requests[i], /* */) = withdrawRequestManagers[i].getWithdrawRequest(address(this), account);
             hasPendingRequest = hasPendingRequest || requests[i].requestId != 0;
         }
