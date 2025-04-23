@@ -25,6 +25,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     DepositParams depositParams;
     RedeemParams redeemParams;
     TradeParams tradeBeforeDepositParams;
+    TradeParams tradeBeforeRedeemParams;
 
     function getDepositData(
         address /* user */,
@@ -37,7 +38,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         address /* user */,
         uint256 /* shares */
     ) internal view virtual override returns (bytes memory redeemData) {
-        return abi.encode(redeemParams);
+        RedeemParams memory r = redeemParams;
+        if (r.minAmounts.length == 0) {
+            r.minAmounts = new uint256[](2);
+        }
+
+        return abi.encode(r);
     }
 
     function setMarketVariables() internal virtual;
@@ -190,9 +196,35 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         delete depositParams;
     }
-        
+
+    function test_exitPosition_tradeBeforeRedeem() public {
+        vm.skip(tradeBeforeRedeemParams.dexId == 0);
+
+        redeemParams.redemptionTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+
+        redeemParams.redemptionTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        redeemParams.minAmounts = new uint256[](2);
+        redeemParams.redemptionTrades[stakeTokenIndex] = tradeBeforeRedeemParams;
+
+        test_exitPosition_fullExit();
+        // TODO: how do we know that this was done via trading?
+
+        delete redeemParams;
+    }
+
     // TODO: test withdraw request before redeem
-    // TODO: test trading on redeem
     // TODO: test emergency exit
 
     // TODO: test max pool share
