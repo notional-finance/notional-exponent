@@ -80,7 +80,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         // is used by the vault internally to represent ETH.
         TOKEN_1 = _rewriteAltETH(ICurvePool(CURVE_POOL).coins(0));
         TOKEN_2 = _rewriteAltETH(ICurvePool(CURVE_POOL).coins(1));
-        _PRIMARY_INDEX = TOKEN_1 == _asset ? 0 : 1;
+        _PRIMARY_INDEX = TOKEN_1 == _asset ||
+            // Assets may be WETH, so we need to unwrap it in this case.
+            (TOKEN_1 == ETH_ADDRESS && _asset == address(WETH)) ? 0 : 1;
         SECONDARY_INDEX = 1 - _PRIMARY_INDEX;
         
         DECIMALS_1 = TokenUtils.getDecimals(TOKEN_1);
@@ -144,6 +146,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         } else if (address(tokens[1]) == ETH_ADDRESS) {
             msgValue = amounts[1];
         }
+        if (msgValue > 0) WETH.withdraw(msgValue);
 
         // Slightly different method signatures in v1 and v2
         uint256 lpTokens;
@@ -213,6 +216,14 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
                 exitBalances = ICurveStableSwapNG(CURVE_POOL).remove_liquidity(poolClaim, _minAmounts);
             } else {
                 revert();
+            }
+        }
+
+        if (asset == address(WETH)) {
+            if (TOKEN_1 == ETH_ADDRESS) {
+                WETH.deposit{value: exitBalances[0]}();
+            } else if (TOKEN_2 == ETH_ADDRESS) {
+                WETH.deposit{value: exitBalances[1]}();
             }
         }
     }

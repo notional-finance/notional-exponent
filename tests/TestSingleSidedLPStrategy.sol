@@ -15,6 +15,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     CurveInterface curveInterface;
     uint8 primaryIndex;
     uint256 maxPoolShare;
+    AggregatorV2V3Interface baseToUSDOracle;
+    bool invertBase;
+    uint256 dyAmount;
 
     function getDepositData(
         address /* user */,
@@ -42,6 +45,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
+        invertBase = false;
         setMarketVariables();
 
         y = new CurveConvex2Token(
@@ -66,13 +70,17 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         w = ERC20(rewardPool);
         feeToken = lpToken;
 
+        (baseToUSDOracle, /* */) = TRADING_MODULE.priceOracles(address(asset));
         Curve2TokenOracle oracle = new Curve2TokenOracle(
             0.95e18,
             1.05e18,
             address(lpToken),
             primaryIndex,
             "Curve 2 Token Oracle",
-            address(0)
+            address(0),
+            baseToUSDOracle,
+            invertBase,
+            dyAmount
         );
 
         o = new MockOracle(oracle.latestAnswer());

@@ -2,6 +2,7 @@
 pragma solidity >=0.8.28;
 
 import "./TestSingleSidedLPStrategy.sol";
+import "../src/utils/Constants.sol";
 
 contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
@@ -11,6 +12,7 @@ contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
         curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
         maxPoolShare = 100e18;
+        dyAmount = 1e6;
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
@@ -18,5 +20,29 @@ contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
     
 }
 
-        // OETH/ETH: 0x94B17476A93b3262d87B9a326965D1E91f9c13E7, 0x24b65DC1cf053A8D96872c323d29e86ec43eB33A
+contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x94B17476A93b3262d87B9a326965D1E91f9c13E7);
+        rewardPool = 0x24b65DC1cf053A8D96872c323d29e86ec43eB33A;
+        asset = ERC20(address(WETH));
+        curveInterface = CurveInterface.V1;
+        primaryIndex = 0;
+        maxPoolShare = 100e18;
+        dyAmount = 1e9;
+
+        defaultDeposit = 10e18;
+        defaultBorrow = 90e18;
+
+        (AggregatorV2V3Interface ethOracle, /* */) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        MockOracle oETHOracle = new MockOracle(ethOracle.latestAnswer() * 1e18 / 1e8);
+        // TODO: there is no oETH oracle on mainnet
+        vm.prank(owner);
+        TRADING_MODULE.setPriceOracle(
+            address(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3),
+            AggregatorV2V3Interface(address(oETHOracle))
+        );
+        maxExitValuationSlippage = 0.005e18;
+    }
+}
+
         // weETH/WETH: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5, 0x5411CC583f0b51104fA523eEF9FC77A29DF80F58
