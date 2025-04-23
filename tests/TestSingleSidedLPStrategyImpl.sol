@@ -45,4 +45,19 @@ contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
     }
 }
 
-        // weETH/WETH: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5, 0x5411CC583f0b51104fA523eEF9FC77A29DF80F58
+contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5);
+        rewardPool = 0x5411CC583f0b51104fA523eEF9FC77A29DF80F58;
+        asset = ERC20(address(WETH));
+        curveInterface = CurveInterface.StableSwapNG;
+        primaryIndex = 0;
+        maxPoolShare = 100e18;
+        dyAmount = 1e9;
+
+        defaultDeposit = 10e18;
+        defaultBorrow = 90e18;
+
+        maxExitValuationSlippage = 0.005e18;
+    }
+}
