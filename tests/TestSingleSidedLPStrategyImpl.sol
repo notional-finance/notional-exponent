@@ -3,6 +3,8 @@ pragma solidity >=0.8.28;
 
 import "./TestSingleSidedLPStrategy.sol";
 import "../src/utils/Constants.sol";
+import "../src/withdraws/GenericERC20.sol";
+import "../src/withdraws/EtherFi.sol";
 
 contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
@@ -52,6 +54,11 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         lpToken = ERC20(0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5);
         rewardPool = 0x5411CC583f0b51104fA523eEF9FC77A29DF80F58;
         asset = ERC20(address(WETH));
+        stakeTokenIndex = 1;
+
+        managers[0] = new GenericERC20WithdrawRequestManager(owner, address(asset));
+        managers[1] = new EtherFiWithdrawRequestManager(owner);
+
         curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
         maxPoolShare = 100e18;

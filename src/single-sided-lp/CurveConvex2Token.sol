@@ -9,6 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import "../interfaces/Curve/ICurve.sol";
 import "../interfaces/Curve/IConvex.sol";
 import "../rewards/IRewardManager.sol";
+import "../withdraws/IWithdrawRequestManager.sol";
 
 struct DeploymentParams {
     address pool;
@@ -67,7 +68,8 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         address _irm,
         uint256 _lltv,
         address _rewardManager,
-        DeploymentParams memory params
+        DeploymentParams memory params,
+        IWithdrawRequestManager[] memory managers
     ) AbstractSingleSidedLP(_maxPoolShare, _owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager) {
         CURVE_POOL = params.pool;
         CURVE_GAUGE = params.gauge;
@@ -104,6 +106,11 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         CONVEX_BOOSTER = convexBooster;
 
         _initialApproveTokens();
+
+        require(managers.length == _NUM_TOKENS);
+        for (uint256 i = 0; i < _NUM_TOKENS; i++) {
+            withdrawRequestManagers.push(managers[i]);
+        }
     }
 
     function _rewriteAltETH(address token) private pure returns (address) {

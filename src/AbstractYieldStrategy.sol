@@ -503,6 +503,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
             (address withdrawRequestManager, bytes memory stakeData) = abi.decode(trade.exchangeData, (address, bytes));
+            ERC20(trade.sellToken).forceApprove(address(withdrawRequestManager), trade.amount);
             amountBought = IWithdrawRequestManager(withdrawRequestManager).stakeTokens(trade.sellToken, trade.amount, stakeData);
             return (trade.amount, amountBought);
         }

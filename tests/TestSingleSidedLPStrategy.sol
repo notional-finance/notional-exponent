@@ -19,27 +19,24 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     bool invertBase;
     uint256 dyAmount;
     address curveGauge;
+    uint8 stakeTokenIndex;
+    IWithdrawRequestManager[] managers;
+
+    DepositParams depositParams;
+    RedeemParams redeemParams;
 
     function getDepositData(
         address /* user */,
         uint256 /* depositAmount */
     ) internal view virtual override returns (bytes memory depositData) {
-        DepositParams memory params = DepositParams({
-            minPoolClaim: 0,
-            depositTrades: new TradeParams[](0)
-        });
-        return abi.encode(params);
+        return abi.encode(depositParams);
     }
 
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
     ) internal view virtual override returns (bytes memory redeemData) {
-        RedeemParams memory params = RedeemParams({
-            minAmounts: new uint256[](2),
-            redemptionTrades: new TradeParams[](0)
-        });
-        return abi.encode(params);
+        return abi.encode(redeemParams);
     }
 
     function setMarketVariables() internal virtual;
@@ -47,6 +44,10 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
         invertBase = false;
+        // Set the managers to zero by default
+        managers.push(IWithdrawRequestManager(address(0)));
+        managers.push(IWithdrawRequestManager(address(0)));
+
         setMarketVariables();
 
         y = new CurveConvex2Token(
@@ -64,7 +65,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 gauge: curveGauge,
                 curveInterface: curveInterface,
                 convexRewardPool: address(rewardPool)
-            })
+            }),
+            managers
         );
 
         feeToken = lpToken;
@@ -96,14 +98,72 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             rm.updateRewardToken(0, address(0xD533a949740bb3306d119CC777fa900bA034cd52), 0, 0);
             vm.stopPrank();
         }
+
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            vm.prank(owner);
+            managers[i].setApprovedVault(address(y), true);
+        }
     }
 
-    // TODO: test claim rewards
-    // TODO: test without convex pool
-    // TODO: test trading on other venues
-    // TODO: test staking before deposit
+    function test_claimRewards() public {
+        // TODO: test claims on the curve gauge directly
+        vm.skip(rewardPool == address(0));
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.warp(block.timestamp + 1 days);
+
+        rm.claimAccountRewards(msg.sender);
+        (VaultRewardState[] memory rewardStates, /* */) = rm.getRewardSettings();
+        uint256[] memory rewardsBefore = new uint256[](rewardStates.length);
+        for (uint256 i = 0; i < rewardStates.length; i++) {
+            rewardsBefore[i] = ERC20(rewardStates[i].rewardToken).balanceOf(msg.sender);
+            assertGt(rewardsBefore[i], 0);
+        }
+
+        rm.claimAccountRewards(msg.sender);
+        for (uint256 i = 0; i < rewardStates.length; i++) {
+            assertEq(ERC20(rewardStates[i].rewardToken).balanceOf(msg.sender), rewardsBefore[i]);
+        }
+    }
+
+    function test_enterPosition_stakeBeforeDeposit() public {
+        vm.skip(address(managers[stakeTokenIndex]) == address(0));
+
+        depositParams.depositTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        depositParams.depositTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+
+        depositParams.depositTrades[stakeTokenIndex] = TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: (defaultDeposit + defaultBorrow) / 2,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(address(managers[stakeTokenIndex]), bytes(""))
+        });
+
+        test_enterPosition();
+        // TODO: how do we know that this was done via staking?
+
+        delete depositParams;
+    }
+
+    // TODO: test trade before deposit
+
     // TODO: test withdraw request before redeem
     // TODO: test trading on redeem
     // TODO: test emergency exit
-    
+    // TODO: test max pool share
+    // TODO: test re-entrancy context
 }
