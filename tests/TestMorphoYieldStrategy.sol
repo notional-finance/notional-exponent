@@ -138,7 +138,7 @@ contract TestMorphoYieldStrategy is Test {
         WETH.transfer(msg.sender, 250_000e18);
 
         vm.startPrank(owner);
-        asset.approve(address(MORPHO), 1_000_000 * 10 ** asset.decimals());
+        asset.approve(address(MORPHO), type(uint256).max);
         MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");
         vm.stopPrank();
     }

@@ -303,8 +303,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function test_cannotEnterAboveMaxPoolShare() public {
+        vm.startPrank(owner);
+        MORPHO.withdraw(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, owner);
+        vm.stopPrank();
+
         y = new CurveConvex2Token(
-            0.01e18, // 1% max pool share
+            0.001e18, // 0.1% max pool share
             owner,
             address(asset),
             address(w),
@@ -323,20 +327,20 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         );
 
         vm.startPrank(owner);
-        asset.approve(address(MORPHO), 1000 * 10 ** asset.decimals());
-        MORPHO.supply(y.marketParams(), 1000 * 10 ** asset.decimals(), 0, owner, "");
+        MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");
         vm.stopPrank();
 
         vm.startPrank(msg.sender);
         if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
         asset.approve(address(y), defaultDeposit);
         bytes memory depositData = getDepositData(msg.sender, defaultDeposit);
-        vm.expectRevert("Pool share too high");
+        vm.expectPartialRevert(AbstractSingleSidedLP.PoolShareTooHigh.selector);
         y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
     }
 
 
+    // TODO: test withdraw valuation
     // TODO: test emergency exit
     // TODO: test re-entrancy context
 }

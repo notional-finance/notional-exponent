@@ -58,6 +58,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     // TODO: this is storage....
     uint256 public maxPoolShare;
     IWithdrawRequestManager[] public withdrawRequestManagers;
+    address immutable lpToken;
 
     uint256 internal constant POOL_SHARE_BASIS = 1e18;
     uint256 internal constant MAX_TOKENS = 5;
@@ -102,7 +103,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     /// ComposableStablePools use a "virtual supply" and a different method must be called
     /// to get the actual total supply.
     function _totalPoolSupply() internal view virtual returns (uint256) {
-        return IERC20(yieldToken).totalSupply();
+        return IERC20(lpToken).totalSupply();
     }
 
     /************************************************************************
@@ -119,9 +120,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 _feeRate,
         address _irm,
         uint256 _lltv,
-        address _rewardManager
+        address _rewardManager,
+        address _lpToken
     ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager) {
         maxPoolShare = _maxPoolShare;
+        lpToken = _lpToken;
     }
 
     /************************************************************************
@@ -168,7 +171,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.
         uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / POOL_SHARE_BASIS;
-        uint256 poolClaim = _getYieldTokenBalance();
+        // TODO: this is incumbent on a 1-1 ration between the lpToken and the yieldToken
+        uint256 poolClaim = IERC20(yieldToken).balanceOf(address(this));
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
     }
 
