@@ -75,12 +75,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
                 return totalValue * shares / w.sharesAmount;
             }
 
-            console2.log("t_CurrentAccount", t_CurrentAccount);
             uint256 rate = _withdrawRequestYieldTokenRate();
-            console2.log("w.sharesAmount", w.sharesAmount);
-            console2.log("w.yieldTokenAmount", w.yieldTokenAmount);
             rate = rate * (w.yieldTokenAmount * (SHARE_PRECISION)) / (w.sharesAmount * (10 ** _yieldTokenDecimals));
-            console2.log("rate", rate);
 
             return rate * (10 ** _assetDecimals) * shares / (SHARE_PRECISION * 1e18);
         }

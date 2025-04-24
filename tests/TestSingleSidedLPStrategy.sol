@@ -7,6 +7,7 @@ import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 import "../src/single-sided-lp/CurveConvex2Token.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
+import "./TestWithdrawRequest.sol";
 
 abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     ERC20 lpToken;
@@ -24,8 +25,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     DepositParams depositParams;
     RedeemParams redeemParams;
+    WithdrawParams withdrawParams;
+
     TradeParams tradeBeforeDepositParams;
     TradeParams tradeBeforeRedeemParams;
+
+    TestWithdrawRequest[] withdrawRequests;
 
     function getDepositData(
         address /* user */,
@@ -46,6 +51,15 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         return abi.encode(r);
     }
 
+    function finalizeWithdrawRequest(address user) internal {
+        for (uint256 i; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            (WithdrawRequest memory w, /* */) = managers[i].getWithdrawRequest(address(y), user);
+            if (address(withdrawRequests[i]) == address(0)) continue;
+            withdrawRequests[i].finalizeWithdrawRequest(w.requestId);
+        }
+    }
+
     function setMarketVariables() internal virtual;
 
     function postDeployHook() internal virtual {}
@@ -56,6 +70,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         // Set the managers to zero by default
         managers.push(IWithdrawRequestManager(address(0)));
         managers.push(IWithdrawRequestManager(address(0)));
+        withdrawRequests.push(TestWithdrawRequest(address(0)));
+        withdrawRequests.push(TestWithdrawRequest(address(0)));
 
         setMarketVariables();
 
@@ -197,7 +213,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         delete depositParams;
     }
 
-    function test_exitPosition_tradeBeforeRedeem() public {
+    function test_exitPosition_tradeBeforeRedeem(bool isFullExit) public {
         vm.skip(tradeBeforeRedeemParams.dexId == 0);
 
         redeemParams.redemptionTrades.push(TradeParams({
@@ -218,15 +234,109 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         redeemParams.minAmounts = new uint256[](2);
         redeemParams.redemptionTrades[stakeTokenIndex] = tradeBeforeRedeemParams;
 
-        test_exitPosition_fullExit();
+        if (isFullExit) {
+            test_exitPosition_fullExit();
+        } else {
+            test_exitPosition_partialExit();
+        }
         // TODO: how do we know that this was done via trading?
 
         delete redeemParams;
     }
 
-    // TODO: test withdraw request before redeem
-    // TODO: test emergency exit
+    function test_exitPosition_withdrawBeforeRedeem() public {
+        vm.skip(address(managers[stakeTokenIndex]) == address(0));
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
-    // TODO: test max pool share
+        withdrawParams.minAmounts = new uint256[](2);
+        withdrawParams.withdrawData = new bytes[](2);
+
+        vm.startPrank(msg.sender);
+        uint256[] memory requestIds = AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(abi.encode(withdrawParams));
+        assertEq(requestIds.length, 2);
+
+        vm.warp(block.timestamp + 6 minutes);
+        uint256 shares = y.balanceOfShares(msg.sender);
+
+        redeemParams.redemptionTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+
+        redeemParams.redemptionTrades.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        redeemParams.minAmounts = new uint256[](2);
+        redeemParams.redemptionTrades[stakeTokenIndex] = tradeBeforeRedeemParams;
+        bytes memory redeemData = abi.encode(redeemParams);
+
+        vm.expectRevert("Withdraw request not finalized");
+        y.exitPosition(
+            msg.sender,
+            msg.sender,
+            shares,
+            type(uint256).max,
+            redeemData
+        );
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(msg.sender);
+
+        vm.startPrank(msg.sender);
+        y.exitPosition(
+            msg.sender,
+            msg.sender,
+            shares,
+            type(uint256).max,
+            redeemData
+        );
+        vm.stopPrank();
+
+        delete redeemParams;
+    }
+
+    function test_cannotEnterAboveMaxPoolShare() public {
+        y = new CurveConvex2Token(
+            0.01e18, // 1% max pool share
+            owner,
+            address(asset),
+            address(w),
+            0.0010e18, // 0.1%
+            IRM,
+            0.915e18,
+            address(new ConvexRewardManager()),
+            DeploymentParams({
+                pool: address(lpToken),
+                poolToken: address(lpToken),
+                gauge: curveGauge,
+                curveInterface: curveInterface,
+                convexRewardPool: address(rewardPool)
+            }),
+            managers
+        );
+
+        vm.startPrank(owner);
+        asset.approve(address(MORPHO), 1000 * 10 ** asset.decimals());
+        MORPHO.supply(y.marketParams(), 1000 * 10 ** asset.decimals(), 0, owner, "");
+        vm.stopPrank();
+
+        vm.startPrank(msg.sender);
+        if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
+        asset.approve(address(y), defaultDeposit);
+        bytes memory depositData = getDepositData(msg.sender, defaultDeposit);
+        vm.expectRevert("Pool share too high");
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
+        vm.stopPrank();
+    }
+
+
+    // TODO: test emergency exit
     // TODO: test re-entrancy context
 }

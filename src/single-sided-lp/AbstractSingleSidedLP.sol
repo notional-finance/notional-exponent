@@ -12,6 +12,7 @@ import {
     CannotInitiateWithdraw,
     ExistingWithdrawRequest
 } from "../withdraws/IWithdrawRequestManager.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
 
 struct TradeParams {
     uint256 tradeAmount;
@@ -39,7 +40,6 @@ struct RedeemParams {
 
 struct WithdrawParams {
     uint256[] minAmounts;
-    bool isSingleSided;
     bytes[] withdrawData;
 }
 
@@ -51,6 +51,8 @@ struct WithdrawParams {
  * the external DEX pool.
  */
 abstract contract AbstractSingleSidedLP is RewardManagerMixin {
+    using TokenUtils for IERC20;
+
     error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
     // TODO: this is storage....
@@ -180,14 +182,19 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         // Returns the amount of each token that has been withdrawn from the pool.
         uint256[] memory exitBalances;
-        bool isSingleSided = params.redemptionTrades.length == 0;
+        bool isSingleSided;
+        IERC20[] memory tokens;
         if (hasPendingRequest) {
             // Attempt to withdraw all pending requests
-            exitBalances = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
+            (exitBalances, tokens) = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
+            // If there are pending requests, then we are not single sided by definition
+            isSingleSided = false;
             wasEscrowed = true;
         } else {
             yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
+            isSingleSided = params.redemptionTrades.length == 0;
+            (tokens, /* */) = TOKENS();
             wasEscrowed = false;
         }
 
@@ -197,7 +204,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // all of the balance in the other tokens is sold for primary.
             // Redemption trades are not automatically enabled on vaults since the trading module
             // requires explicit permission for every token that can be sold by an address.
-            _executeRedemptionTrades(exitBalances, params.redemptionTrades);
+            _executeRedemptionTrades(tokens, exitBalances, params.redemptionTrades);
         }
     }
 
@@ -236,14 +243,14 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @dev Trades the amount of secondary tokens into the primary token after exiting a pool.
     function _executeRedemptionTrades(
+        IERC20[] memory tokens,
         uint256[] memory exitBalances,
         TradeParams[] memory redemptionTrades
     ) internal returns (uint256 finalPrimaryBalance) {
-        (IERC20[] memory tokens, /* */) = TOKENS();
         address primaryToken = address(tokens[PRIMARY_INDEX()]);
 
         for (uint256 i; i < exitBalances.length; i++) {
-            if (i == PRIMARY_INDEX()) {
+            if (address(tokens[i]) == primaryToken) {
                 finalPrimaryBalance += exitBalances[i];
                 continue;
             }
@@ -274,16 +281,36 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
+    function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
+        requestIds = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
+
+        // Can only initiate a withdraw if health factor remains positive
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender);
+        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
+    }
+
+    function forceWithdraw(address account, bytes calldata data) external onlyOwner returns (uint256[] memory requestIds) {
+        requestIds = _initiateWithdraw({account: account, isForced: true, data: data});
+    }
+
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal returns (uint256[] memory requestIds) {
         uint256 sharesHeld = balanceOfShares(account);
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld, yieldTokenAmount);
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
-        uint256[] memory exitBalances = _unstakeAndExitPool(yieldTokenAmount, params.minAmounts, params.isSingleSided);
+        uint256[] memory exitBalances = _unstakeAndExitPool({
+            poolClaim: yieldTokenAmount,
+            minAmounts: params.minAmounts,
+            // When initiating a withdraw, we always exit proportionally
+            isSingleSided: false
+        });
         requestIds = new uint256[](exitBalances.length);
+        (IERC20[] memory tokens, /* */) = TOKENS();
         for (uint256 i; i < exitBalances.length; i++) {
             if (exitBalances[i] == 0) continue;
+
+            tokens[i].checkApprove(address(withdrawRequestManagers[i]), exitBalances[i]);
 
             requestIds[i] = withdrawRequestManagers[i].initiateWithdraw({
                 account: account,
@@ -299,9 +326,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         WithdrawRequest[] memory requests,
         address sharesOwner,
         uint256 sharesToRedeem
-    ) internal returns (uint256[] memory exitBalances) {
+    ) internal returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
         uint256 totalShares = balanceOfShares(sharesOwner);
         exitBalances = new uint256[](requests.length);
+        tokens = new IERC20[](requests.length);
 
         for (uint256 i; i < requests.length; i++) {
             uint256 yieldTokensBurned = uint256(requests[i].yieldTokenAmount) * sharesToRedeem / totalShares;
@@ -310,6 +338,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
             require(finalized, "Withdraw request not finalized");
+            tokens[i] = IERC20(withdrawRequestManagers[i].withdrawToken());
         }
     }
 

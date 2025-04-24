@@ -7,6 +7,7 @@ import "../src/withdraws/GenericERC20.sol";
 import "../src/withdraws/EtherFi.sol";
 import "../src/withdraws/Ethena.sol";
 import "../src/interfaces/ITradingModule.sol";
+import "./TestWithdrawRequestImpl.sol";
 
 contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
@@ -60,6 +61,7 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
 
         managers[0] = new GenericERC20WithdrawRequestManager(owner, address(asset));
         managers[1] = new EtherFiWithdrawRequestManager(owner);
+        withdrawRequests[1] = new TestEtherFiWithdrawRequest();
 
         curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
@@ -71,6 +73,27 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         defaultBorrow = 90e18;
 
         maxExitValuationSlippage = 0.005e18;
+
+        tradeBeforeRedeemParams = TradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.UNISWAP_V3),
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(UniV3SingleData({
+                fee: 100
+            }))
+        });
+    }
+
+    function postDeployHook() internal override {
+        vm.startPrank(owner);
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(weETH),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
+        vm.stopPrank();
     }
 }
 
