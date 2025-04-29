@@ -5,6 +5,9 @@ import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 import "../src/single-sided-lp/curve/CurveConvex2Token.sol";
+import "../src/single-sided-lp/curve/CurveConvexStableSwapNG.sol";
+import "../src/single-sided-lp/curve/CurveConvexV1.sol";
+import "../src/single-sided-lp/curve/CurveConvexV2.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 import "./TestWithdrawRequest.sol";
@@ -75,27 +78,63 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         setMarketVariables();
 
-        y = new CurveConvex2Token(
-            maxPoolShare,
-            owner,
-            address(asset),
-            address(w),
-            0.0010e18, // 0.1%
-            IRM,
-            0.915e18,
-            address(rmImpl),
-            DeploymentParams({
-                pool: address(lpToken),
-                poolToken: address(lpToken),
-                gauge: curveGauge,
-                curveInterface: curveInterface,
-                convexRewardPool: address(rewardPool)
-            }),
-            managers
-        );
+        if (curveInterface == CurveInterface.StableSwapNG) {
+            y = new CurveConvexStableSwapNG(
+                maxPoolShare,
+                owner,
+                address(asset),
+                address(w),
+                0.0010e18, // 0.1%
+                IRM,
+                0.915e18,
+                address(rmImpl),
+                DeploymentParams({
+                    pool: address(lpToken),
+                    poolToken: address(lpToken),
+                    gauge: curveGauge,
+                    convexRewardPool: address(rewardPool)
+                }),
+                managers
+            );
+        } else if (curveInterface == CurveInterface.V2) {
+            y = new CurveConvexV2(
+                maxPoolShare,
+                owner,
+                address(asset),
+                address(w),
+                0.0010e18, // 0.1%
+                IRM,
+                0.915e18,
+                address(rmImpl),
+                DeploymentParams({
+                    pool: address(lpToken),
+                    poolToken: address(lpToken),
+                    gauge: curveGauge,
+                    convexRewardPool: address(rewardPool)
+                }),
+                managers
+            );
+        } else if (curveInterface == CurveInterface.V1) {
+            y = new CurveConvexV1(
+                maxPoolShare,
+                owner,
+                address(asset),
+                address(w),
+                0.0010e18, // 0.1%
+                IRM,
+                0.915e18,
+                address(rmImpl),
+                DeploymentParams({
+                    pool: address(lpToken),
+                    poolToken: address(lpToken),
+                    gauge: curveGauge,
+                    convexRewardPool: address(rewardPool)
+                }),
+                managers
+            );
+        }
 
         feeToken = lpToken;
-
         (baseToUSDOracle, /* */) = TRADING_MODULE.priceOracles(address(asset));
         Curve2TokenOracle oracle = new Curve2TokenOracle(
             0.95e18,
@@ -307,24 +346,61 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         MORPHO.withdraw(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, owner);
         vm.stopPrank();
 
-        y = new CurveConvex2Token(
-            0.001e18, // 0.1% max pool share
-            owner,
-            address(asset),
-            address(w),
-            0.0010e18, // 0.1%
-            IRM,
-            0.915e18,
-            address(new ConvexRewardManager()),
-            DeploymentParams({
-                pool: address(lpToken),
-                poolToken: address(lpToken),
-                gauge: curveGauge,
-                curveInterface: curveInterface,
-                convexRewardPool: address(rewardPool)
-            }),
-            managers
-        );
+        if (curveInterface == CurveInterface.StableSwapNG) {
+            y = new CurveConvexStableSwapNG(
+                0.001e18, // 0.1% max pool share
+                owner,
+                address(asset),
+                address(w),
+                0.0010e18, // 0.1%
+                IRM,
+                0.915e18,
+                address(new ConvexRewardManager()),
+                DeploymentParams({
+                    pool: address(lpToken),
+                    poolToken: address(lpToken),
+                    gauge: curveGauge,
+                    convexRewardPool: address(rewardPool)
+                }),
+                managers
+            );
+        } else if (curveInterface == CurveInterface.V2) {
+            y = new CurveConvexV2(
+                0.001e18, // 0.1% max pool share
+                owner,
+                address(asset),
+                address(w),
+                0.0010e18, // 0.1%
+                IRM,
+                0.915e18,
+                address(new ConvexRewardManager()),
+                DeploymentParams({
+                    pool: address(lpToken),
+                    poolToken: address(lpToken),
+                    gauge: curveGauge,
+                    convexRewardPool: address(rewardPool)
+                }),
+                managers
+            );
+        } else if (curveInterface == CurveInterface.V1) {
+            y = new CurveConvexV1(
+                0.001e18, // 0.1% max pool share
+                owner,
+                address(asset),
+                address(w),
+                0.0010e18, // 0.1%
+                IRM,
+                0.915e18,
+                address(new ConvexRewardManager()),
+                DeploymentParams({
+                    pool: address(lpToken),
+                    poolToken: address(lpToken),
+                    gauge: curveGauge,
+                    convexRewardPool: address(rewardPool)
+                }),
+                managers
+            );
+        }
 
         vm.startPrank(owner);
         MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");

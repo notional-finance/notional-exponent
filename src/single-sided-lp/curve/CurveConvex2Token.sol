@@ -15,11 +15,10 @@ struct DeploymentParams {
     address pool;
     address poolToken;
     address gauge;
-    CurveInterface curveInterface;
     address convexRewardPool;
 }
 
-contract CurveConvex2Token is AbstractSingleSidedLP {
+abstract contract CurveConvex2Token is AbstractSingleSidedLP {
     using TokenUtils for IERC20;
     using SafeERC20 for IERC20;
 
@@ -28,7 +27,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     address internal immutable CURVE_POOL;
     IERC20 internal immutable CURVE_POOL_TOKEN;
-    CurveInterface internal immutable CURVE_INTERFACE;
 
     /// @dev Curve gauge contract used when there is no convex reward pool
     address internal immutable CURVE_GAUGE;
@@ -73,7 +71,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     ) AbstractSingleSidedLP(_maxPoolShare, _owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, params.poolToken) {
         CURVE_POOL = params.pool;
         CURVE_GAUGE = params.gauge;
-        CURVE_INTERFACE = params.curveInterface;
         CURVE_POOL_TOKEN = IERC20(params.poolToken);
 
         // We interact with curve pools directly so we never pass the token addresses back
@@ -117,122 +114,6 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         return token == address(ALT_ETH_ADDRESS) ? ETH_ADDRESS : address(token);
     }
 
-    function _checkReentrancyContext() internal override {
-        uint256[2] memory minAmounts;
-        if (CURVE_INTERFACE == CurveInterface.V1) {
-            ICurve2TokenPoolV1(CURVE_POOL).remove_liquidity(0, minAmounts);
-        } else if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
-            // Total supply on stable swap has a non-reentrant lock
-            ICurveStableSwapNG(CURVE_POOL).totalSupply();
-        } else if (CURVE_INTERFACE == CurveInterface.V2) {
-            // Curve V2 does a `-1` on the liquidity amount so set the amount removed to 1 to
-            // avoid an underflow.
-            ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(1, minAmounts, true, address(this));
-        } else {
-            revert();
-        }
-    }
-
-    function _joinPoolAndStake(
-        uint256[] memory _amounts, uint256 minPoolClaim
-    ) internal override {
-        // Only two tokens are ever allowed in this strategy, remaps the array
-        // into a fixed length array here.
-        uint256[2] memory amounts;
-        amounts[0] = _amounts[0];
-        amounts[1] = _amounts[1];
-
-        // Although Curve uses ALT_ETH to represent native ETH, it is rewritten in the Curve2TokenPoolMixin
-        // to the Deployments.ETH_ADDRESS which we use internally.
-        (IERC20[] memory tokens, /* */) = TOKENS();
-        uint256 msgValue;
-        if (address(tokens[0]) == ETH_ADDRESS) {
-            msgValue = amounts[0];
-        } else if (address(tokens[1]) == ETH_ADDRESS) {
-            msgValue = amounts[1];
-        }
-        if (msgValue > 0) WETH.withdraw(msgValue);
-
-        // Slightly different method signatures in v1 and v2
-        uint256 lpTokens;
-        if (CURVE_INTERFACE == CurveInterface.V1) {
-            lpTokens = ICurve2TokenPoolV1(CURVE_POOL).add_liquidity{value: msgValue}(
-                amounts, minPoolClaim
-            );
-        } else if (CURVE_INTERFACE == CurveInterface.V2) {
-            lpTokens = ICurve2TokenPoolV2(CURVE_POOL).add_liquidity{value: msgValue}(
-                amounts, minPoolClaim, 0 < msgValue // use_eth = true if msgValue > 0
-            );
-        } else if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
-            // StableSwapNG uses dynamic arrays
-            lpTokens = ICurveStableSwapNG(CURVE_POOL).add_liquidity{value: msgValue}(
-                _amounts, minPoolClaim
-            );
-        } else {
-            revert();
-        }
-
-        _stakeLpTokens(lpTokens);
-    }
-
-    function _unstakeAndExitPool(
-        uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided
-    ) internal override returns (uint256[] memory exitBalances) {
-        _unstakeLpTokens(poolClaim);
-
-        exitBalances = new uint256[](2);
-        if (isSingleSided) {
-            // Redeem single-sided
-            if (CURVE_INTERFACE == CurveInterface.V1 || CURVE_INTERFACE == CurveInterface.StableSwapNG) {
-                // Method signature is the same for v1 and stable swap ng
-                exitBalances[_PRIMARY_INDEX] = ICurve2TokenPoolV1(CURVE_POOL).remove_liquidity_one_coin(
-                    poolClaim, int8(_PRIMARY_INDEX), _minAmounts[_PRIMARY_INDEX]
-                );
-            } else if (CURVE_INTERFACE == CurveInterface.V2) {
-                exitBalances[_PRIMARY_INDEX] = ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity_one_coin(
-                    // Last two parameters are useEth = true and receiver = this contract
-                    poolClaim, _PRIMARY_INDEX, _minAmounts[_PRIMARY_INDEX], true, address(this)
-                );
-            } else {
-                revert();
-            }
-        } else {
-            // Redeem proportionally, min amounts are rewritten to a fixed length array
-            uint256[2] memory minAmounts;
-            minAmounts[0] = _minAmounts[0];
-            minAmounts[1] = _minAmounts[1];
-
-            if (CURVE_INTERFACE == CurveInterface.V1) {
-                uint256[2] memory _exitBalances = ICurve2TokenPoolV1(CURVE_POOL).remove_liquidity(poolClaim, minAmounts);
-                exitBalances[0] = _exitBalances[0];
-                exitBalances[1] = _exitBalances[1];
-            } else if (CURVE_INTERFACE == CurveInterface.V2) {
-                exitBalances[0] = TokenUtils.tokenBalance(TOKEN_1);
-                exitBalances[1] = TokenUtils.tokenBalance(TOKEN_2);
-                // Remove liquidity on CurveV2 does not return the exit amounts so we have to measure
-                // them before and after.
-                ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(
-                    // Last two parameters are useEth = true and receiver = this contract
-                    poolClaim, minAmounts, true, address(this)
-                );
-                exitBalances[0] = TokenUtils.tokenBalance(TOKEN_1) - exitBalances[0];
-                exitBalances[1] = TokenUtils.tokenBalance(TOKEN_2) - exitBalances[1];
-            } else if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
-                exitBalances = ICurveStableSwapNG(CURVE_POOL).remove_liquidity(poolClaim, _minAmounts);
-            } else {
-                revert();
-            }
-        }
-
-        if (asset == address(WETH)) {
-            if (TOKEN_1 == ETH_ADDRESS) {
-                WETH.deposit{value: exitBalances[0]}();
-            } else if (TOKEN_2 == ETH_ADDRESS) {
-                WETH.deposit{value: exitBalances[1]}();
-            }
-        }
-    }
-
     function _initialApproveTokens() internal override virtual {
         // If either token is ETH_ADDRESS the check approve will short circuit
         IERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);
@@ -243,6 +124,44 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
             CURVE_POOL_TOKEN.checkApprove(address(CURVE_GAUGE), type(uint256).max);
         }
     }
+
+    function _joinPoolAndStake(
+        uint256[] memory _amounts, uint256 minPoolClaim
+    ) internal override {
+        // Although Curve uses ALT_ETH to represent native ETH, it is rewritten in the Curve2TokenPoolMixin
+        // to the Deployments.ETH_ADDRESS which we use internally.
+        (IERC20[] memory tokens, /* */) = TOKENS();
+        uint256 msgValue;
+        if (address(tokens[0]) == ETH_ADDRESS) {
+            msgValue = _amounts[0];
+        } else if (address(tokens[1]) == ETH_ADDRESS) {
+            msgValue = _amounts[1];
+        }
+        if (msgValue > 0) WETH.withdraw(msgValue);
+
+        uint256 lpTokens = _enterPool(_amounts, minPoolClaim, msgValue);
+
+        _stakeLpTokens(lpTokens);
+    }
+
+    function _unstakeAndExitPool(
+        uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided
+    ) internal override returns (uint256[] memory exitBalances) {
+        _unstakeLpTokens(poolClaim);
+
+        exitBalances = _exitPool(poolClaim, _minAmounts, isSingleSided);
+
+        if (asset == address(WETH)) {
+            if (TOKEN_1 == ETH_ADDRESS) {
+                WETH.deposit{value: exitBalances[0]}();
+            } else if (TOKEN_2 == ETH_ADDRESS) {
+                WETH.deposit{value: exitBalances[1]}();
+            }
+        }
+    }
+
+    function _enterPool(uint256[] memory _amounts, uint256 minPoolClaim, uint256 msgValue) internal virtual returns (uint256 lpTokens);
+    function _exitPool(uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided) internal virtual returns (uint256[] memory exitBalances);
 
     function _stakeLpTokens(uint256 lpTokens) internal {
         if (CONVEX_BOOSTER != address(0)) {
