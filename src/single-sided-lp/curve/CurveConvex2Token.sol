@@ -23,7 +23,6 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
     using SafeERC20 for IERC20;
 
     uint256 internal constant _NUM_TOKENS = 2;
-    uint256 internal constant CURVE_PRECISION = 1e18;
 
     address internal immutable CURVE_POOL;
     IERC20 internal immutable CURVE_POOL_TOKEN;
@@ -40,21 +39,14 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
     uint8 internal immutable SECONDARY_INDEX;
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
-    uint8 internal immutable DECIMALS_1;
-    uint8 internal immutable DECIMALS_2;
-    uint8 internal immutable PRIMARY_DECIMALS;
-    uint8 internal immutable SECONDARY_DECIMALS;
 
     function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
     function PRIMARY_INDEX() internal view override returns (uint256) { return _PRIMARY_INDEX; }
-    function TOKENS() public view override returns (IERC20[] memory, uint8[] memory) {
+    function TOKENS() public view override returns (IERC20[] memory) {
         IERC20[] memory tokens = new IERC20[](_NUM_TOKENS);
-        uint8[] memory decimals = new uint8[](_NUM_TOKENS);
-
-        (tokens[0], decimals[0]) = (IERC20(TOKEN_1), DECIMALS_1);
-        (tokens[1], decimals[1]) = (IERC20(TOKEN_2), DECIMALS_2);
-
-        return (tokens, decimals);
+        tokens[0] = IERC20(TOKEN_1);
+        tokens[1] = IERC20(TOKEN_2);
+        return tokens;
     }
 
     constructor(
@@ -83,11 +75,6 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
             // Assets may be WETH, so we need to unwrap it in this case.
             (TOKEN_1 == ETH_ADDRESS && _asset == address(WETH)) ? 0 : 1;
         SECONDARY_INDEX = 1 - _PRIMARY_INDEX;
-        
-        DECIMALS_1 = TokenUtils.getDecimals(TOKEN_1);
-        DECIMALS_2 = TokenUtils.getDecimals(TOKEN_2);
-        PRIMARY_DECIMALS = _PRIMARY_INDEX == 0 ? DECIMALS_1 : DECIMALS_2;
-        SECONDARY_DECIMALS = _PRIMARY_INDEX == 0 ? DECIMALS_2 : DECIMALS_1;
 
         // If the convex reward pool is set then get the booster and pool id, if not then
         // we will stake on the curve gauge directly.
@@ -130,11 +117,10 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
     ) internal override {
         // Although Curve uses ALT_ETH to represent native ETH, it is rewritten in the Curve2TokenPoolMixin
         // to the Deployments.ETH_ADDRESS which we use internally.
-        (IERC20[] memory tokens, /* */) = TOKENS();
         uint256 msgValue;
-        if (address(tokens[0]) == ETH_ADDRESS) {
+        if (TOKEN_1 == ETH_ADDRESS) {
             msgValue = _amounts[0];
-        } else if (address(tokens[1]) == ETH_ADDRESS) {
+        } else if (TOKEN_2 == ETH_ADDRESS) {
             msgValue = _amounts[1];
         }
         if (msgValue > 0) WETH.withdraw(msgValue);

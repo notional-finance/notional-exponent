@@ -75,7 +75,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @notice Addresses of tokens held and decimal places of each token. ETH will always be
     /// recorded in this array as Deployments.ETH_Address
-    function TOKENS() public view virtual returns (IERC20[] memory, uint8[] memory decimals);
+    function TOKENS() public view virtual returns (IERC20[] memory);
 
     /// @notice Index of the TOKENS() array that refers to the primary borrowed currency by the
     /// leveraged vault. All valuations are done in terms of this currency.
@@ -200,7 +200,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             isSingleSided = params.redemptionTrades.length == 0;
             yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
-            (tokens, /* */) = TOKENS();
+            tokens = TOKENS();
             wasEscrowed = false;
         }
 
@@ -220,7 +220,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256[] memory amounts,
         TradeParams[] memory depositTrades
     ) internal {
-        (IERC20[] memory tokens, /* */) = TOKENS();
+        IERC20[] memory tokens = TOKENS();
         Trade memory trade;
         uint256 assetRemaining = assets;
 
@@ -315,7 +315,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             isSingleSided: false
         });
         requestIds = new uint256[](exitBalances.length);
-        (IERC20[] memory tokens, /* */) = TOKENS();
+        IERC20[] memory tokens = TOKENS();
         for (uint256 i; i < exitBalances.length; i++) {
             if (exitBalances[i] == 0) continue;
 
