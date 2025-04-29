@@ -78,7 +78,7 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     address internal immutable HOLDER_IMPLEMENTATION;
     uint256 internal constant USDE_PRECISION = 1e18;
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(USDe), address(sUSDe)) {
+    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(USDe), address(sUSDe), address(USDe)) {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 
@@ -109,11 +109,9 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     // }
 
     function _stakeTokens(
-        address depositToken,
         uint256 usdeAmount,
-        bytes calldata /* data */
+        bytes memory /* stakeData */
     ) internal override {
-        require(depositToken == address(USDe), "Invalid deposit token");
         USDe.approve(address(sUSDe), usdeAmount);
         sUSDe.deposit(usdeAmount, address(this));
     }

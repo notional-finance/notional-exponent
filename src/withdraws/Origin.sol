@@ -42,7 +42,7 @@ IERC20 constant oETH = IERC20(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3);
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(oETH)) { }
+    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(oETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -54,12 +54,11 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
         (requestId, ) = OriginVault.requestWithdrawal(oETHToWithdraw);
     }
 
-    function _stakeTokens(address depositToken, uint256 amount, bytes calldata data) internal override {
-        require(depositToken == address(WETH), "Invalid deposit token");
+    function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {
         uint256 minAmountOut;
-        if (data.length > 0) (minAmountOut) = abi.decode(data, (uint256));
+        if (stakeData.length > 0) (minAmountOut) = abi.decode(stakeData, (uint256));
         WETH.approve(address(OriginVault), amount);
-        OriginVault.mint(depositToken, amount, minAmountOut);
+        OriginVault.mint(address(WETH), amount, minAmountOut);
     }
 
     function _finalizeWithdrawImpl(

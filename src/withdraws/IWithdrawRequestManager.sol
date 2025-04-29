@@ -41,6 +41,10 @@ interface IWithdrawRequestManager {
     /// @return withdrawToken the withdraw token of the withdraw request manager
     function withdrawToken() external view returns (address);
 
+    /// @notice Returns the token that will be used to stake
+    /// @return stakingToken the staking token of the withdraw request manager
+    function stakingToken() external view returns (address);
+
     /// @notice Returns the owner of the withdraw request manager, allowed to set approved vaults
     /// @return owner the owner of the withdraw request manager
     function owner() external view returns (address);

@@ -7,6 +7,16 @@ import "../utils/Errors.sol";
 import "../utils/TypeConvert.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
+
+struct StakingTradeParams {
+    TradeType tradeType;
+    uint256 amount;
+    uint256 minPurchaseAmount;
+    bytes exchangeData;
+    uint16 dexId;
+    bytes stakeData;
+}
 
 /**
  * Library to handle potentially illiquid withdraw requests of staking tokens where there
@@ -22,8 +32,10 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     using SafeERC20 for IERC20;
     using TypeConvert for uint256;
 
+    // TODO: capitalize these
     address public override immutable yieldToken;
     address public override immutable withdrawToken;
+    address public override immutable stakingToken;
 
     address public override owner;
     mapping(address => bool) public override isApprovedVault;
@@ -31,10 +43,11 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     mapping(address => mapping(address => WithdrawRequest)) internal s_accountWithdrawRequest;
     mapping(uint256 => SplitWithdrawRequest) internal s_splitWithdrawRequest;
 
-    constructor(address _owner, address _withdrawToken, address _yieldToken) {
+    constructor(address _owner, address _withdrawToken, address _yieldToken, address _stakingToken) {
         owner = _owner;
         withdrawToken = _withdrawToken;
         yieldToken = _yieldToken;
+        stakingToken = _stakingToken;
     }
 
     modifier onlyOwner() {
@@ -63,8 +76,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
         uint256 initialYieldTokenBalance = IERC20(yieldToken).balanceOf(address(this));
         IERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
-
-        _stakeTokens(depositToken, amount, data);
+        (uint256 stakeTokenAmount, bytes memory stakeData) = _preStakingTrade(depositToken, amount, data);
+        _stakeTokens(stakeTokenAmount, stakeData);
 
         yieldTokensMinted = IERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
         IERC20(yieldToken).safeTransfer(msg.sender, yieldTokensMinted);
@@ -259,7 +272,38 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function _finalizeWithdrawImpl(address account, uint256 requestId) internal virtual returns (uint256 tokensWithdrawn, bool finalized);
 
     /// @notice Required implementation to stake the deposit token to the yield token
-    function _stakeTokens(address depositToken, uint256 amount, bytes calldata data) internal virtual;
+    function _stakeTokens(uint256 amount, bytes memory stakeData) internal virtual;
+
+    function _preStakingTrade(address depositToken, uint256 depositAmount, bytes calldata data) internal returns (uint256 amountBought, bytes memory stakeData) {
+        if (depositToken == stakingToken) {
+            amountBought = depositAmount;
+            stakeData = data;
+        } else {
+            StakingTradeParams memory params = abi.decode(data, (StakingTradeParams));
+            stakeData = params.stakeData;
+
+            (/* */, amountBought) = _executeTrade(Trade({
+                tradeType: params.tradeType,
+                sellToken: depositToken,
+                buyToken: stakingToken,
+                amount: depositAmount,
+                exchangeData: params.exchangeData,
+                limit: params.minPurchaseAmount,
+                deadline: block.timestamp
+            }), params.dexId);
+        }
+    }
+
+    /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
+    function _executeTrade(
+        Trade memory trade,
+        uint16 dexId
+    ) internal returns (uint256 amountSold, uint256 amountBought) {
+        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
+            .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
+        if (!success) revert TradeFailed();
+        (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
+    }
 
     // function _getValueOfWithdrawRequest(
     //     uint256 requestId, uint256 totalVaultShares, uint256 stakeAssetPrice

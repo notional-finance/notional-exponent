@@ -12,7 +12,7 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     mapping(uint256 => uint256) private s_withdrawRequestShares;
 
     constructor(address _owner, address _erc4626)
-        AbstractWithdrawRequestManager(_owner, IERC4626(_erc4626).asset(), _erc4626) { }
+        AbstractWithdrawRequestManager(_owner, IERC4626(_erc4626).asset(), _erc4626, IERC4626(_erc4626).asset()) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -24,9 +24,8 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
         s_withdrawRequestShares[requestId] = sharesToWithdraw;
     }
 
-    function _stakeTokens(address depositToken, uint256 amount, bytes calldata /* data */) internal override {
-        require(depositToken == address(withdrawToken), "Invalid deposit token");
-        IERC20(depositToken).approve(address(yieldToken), amount);
+    function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
+        IERC20(stakingToken).approve(address(yieldToken), amount);
         IERC4626(yieldToken).deposit(amount, address(this));
     }
 

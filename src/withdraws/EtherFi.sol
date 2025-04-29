@@ -11,7 +11,7 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
     /// @dev Required to withdraw WETH
     receive() external payable {}
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(weETH)) { }
+    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(weETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -28,9 +28,7 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
         return LiquidityPool.requestWithdraw(address(this), eETHReceived);
     }
 
-    function _stakeTokens(address depositToken, uint256 amount, bytes calldata /* data */) internal override {
-        require(depositToken == address(WETH), "Invalid deposit token");
-
+    function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
         WETH.withdraw(amount);
         uint256 eEthBalBefore = eETH.balanceOf(address(this));
         LiquidityPool.deposit{value: amount}();

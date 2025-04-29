@@ -55,7 +55,9 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
 
     receive() external payable {}
 
-    constructor(address _owner, address pxETHorApxETH) AbstractWithdrawRequestManager(_owner, address(WETH), address(pxETHorApxETH)) { }
+    constructor(address _owner, address pxETHorApxETH) AbstractWithdrawRequestManager(
+        _owner, address(WETH), address(pxETHorApxETH), address(WETH)
+    ) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -82,8 +84,7 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         return nonce << 240 | initialBatchId << 120 | finalBatchId;
     }
 
-    function _stakeTokens(address depositToken, uint256 amount, bytes calldata /* data */) internal override {
-        require(depositToken == address(WETH), "Invalid deposit token");
+    function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
         WETH.withdraw(amount);
         PirexETH.deposit{value: amount}(address(this), yieldToken == address(apxETH));
     }
