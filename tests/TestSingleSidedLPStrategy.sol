@@ -4,7 +4,7 @@ pragma solidity >=0.8.28;
 import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
-import "../src/single-sided-lp/CurveConvex2Token.sol";
+import "../src/single-sided-lp/curve/CurveConvex2Token.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 import "./TestWithdrawRequest.sol";
