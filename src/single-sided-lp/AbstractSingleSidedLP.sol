@@ -152,7 +152,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     ) internal override virtual {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
-        amounts[PRIMARY_INDEX()] = assets;
         (/* */, bool hasPendingRequest) = requestIdsForAccount(receiver);
         if (hasPendingRequest) revert("Existing Withdraw Request");
 
@@ -163,7 +162,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         // requires explicit permission for every token that can be sold by an address.
         if (params.depositTrades.length > 0) {
             // NOTE: amounts is modified in place
-            _executeDepositTrades(amounts, params.depositTrades);
+            _executeDepositTrades(assets, amounts, params.depositTrades);
+        } else {
+            // This is a single sided entry, will revert if index is out of bounds
+            amounts[PRIMARY_INDEX()] = assets;
         }
 
         _joinPoolAndStake(amounts, params.minPoolClaim);
@@ -195,9 +197,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             isSingleSided = false;
             wasEscrowed = true;
         } else {
+            isSingleSided = params.redemptionTrades.length == 0;
             yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
-            isSingleSided = params.redemptionTrades.length == 0;
             (tokens, /* */) = TOKENS();
             wasEscrowed = false;
         }
@@ -214,12 +216,13 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @dev Trades the amount of primary token into other secondary tokens prior to entering a pool.
     function _executeDepositTrades(
+        uint256 assets,
         uint256[] memory amounts,
         TradeParams[] memory depositTrades
     ) internal {
         (IERC20[] memory tokens, /* */) = TOKENS();
-        address primaryToken = address(tokens[PRIMARY_INDEX()]);
         Trade memory trade;
+        uint256 assetRemaining = assets;
 
         for (uint256 i; i < amounts.length; i++) {
             if (i == PRIMARY_INDEX()) continue;
@@ -228,7 +231,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             if (t.tradeAmount > 0) {
                 trade = Trade({
                     tradeType: t.tradeType,
-                    sellToken: primaryToken,
+                    sellToken: address(asset),
                     buyToken: address(tokens[i]),
                     amount: t.tradeAmount,
                     limit: t.minPurchaseAmount,
@@ -240,8 +243,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
                 amounts[i] = amountBought;
                 // Will revert on underflow if over-selling the primary borrowed
-                amounts[PRIMARY_INDEX()] -= amountSold;
+                assetRemaining -= amountSold;
             }
+        }
+
+        if (PRIMARY_INDEX() < amounts.length) {
+            amounts[PRIMARY_INDEX()] = assetRemaining;
         }
     }
 
@@ -251,10 +258,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256[] memory exitBalances,
         TradeParams[] memory redemptionTrades
     ) internal returns (uint256 finalPrimaryBalance) {
-        address primaryToken = address(tokens[PRIMARY_INDEX()]);
-
         for (uint256 i; i < exitBalances.length; i++) {
-            if (address(tokens[i]) == primaryToken) {
+            if (address(tokens[i]) == address(asset)) {
                 finalPrimaryBalance += exitBalances[i];
                 continue;
             }
@@ -265,7 +270,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
                 Trade memory trade = Trade({
                     tradeType: t.tradeType,
                     sellToken: address(tokens[i]),
-                    buyToken: primaryToken,
+                    buyToken: address(asset),
                     amount: exitBalances[i],
                     limit: t.minPurchaseAmount,
                     deadline: block.timestamp,
