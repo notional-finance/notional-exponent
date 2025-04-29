@@ -84,14 +84,14 @@ contract TestMorphoYieldStrategy is Test {
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
-    ) internal view virtual returns (bytes memory redeemData) {
+    ) internal virtual returns (bytes memory redeemData) {
         return "";
     }
 
     function getDepositData(
         address /* user */,
         uint256 /* depositAmount */
-    ) internal view virtual returns (bytes memory depositData) {
+    ) internal virtual returns (bytes memory depositData) {
         return "";
     }
 
@@ -147,7 +147,7 @@ contract TestMorphoYieldStrategy is Test {
         vm.startPrank(user);
         if (!MORPHO.isAuthorized(user, address(y))) MORPHO.setAuthorization(address(y), true);
         asset.approve(address(y), depositAmount);
-        y.enterPosition(user, depositAmount, borrowAmount, getDepositData(user, depositAmount));
+        y.enterPosition(user, depositAmount, borrowAmount, getDepositData(user, depositAmount + borrowAmount));
         vm.stopPrank();
     }
 
@@ -334,7 +334,7 @@ contract TestMorphoYieldStrategy is Test {
 
         vm.startPrank(operator);
         asset.approve(address(y), defaultDeposit);
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
         vm.stopPrank();
 
         // Revoke approval

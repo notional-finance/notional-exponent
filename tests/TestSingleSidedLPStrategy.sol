@@ -40,14 +40,14 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     function getDepositData(
         address /* user */,
         uint256 /* depositAmount */
-    ) internal view virtual override returns (bytes memory depositData) {
+    ) internal virtual override returns (bytes memory depositData) {
         return abi.encode(depositParams);
     }
 
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
-    ) internal view virtual override returns (bytes memory redeemData) {
+    ) internal virtual override returns (bytes memory redeemData) {
         RedeemParams memory r = redeemParams;
         if (r.minAmounts.length == 0) {
             r.minAmounts = new uint256[](2);

@@ -147,7 +147,11 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         Position memory position = MORPHO.position(id, borrower);
         Market memory market = MORPHO.market(id);
 
-        borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
+        if (position.borrowShares > 0) {
+            borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
+        } else {
+            borrowed = 0;
+        }
         collateralValue = (uint256(position.collateral) * price()) / 1e36;
         maxBorrow = collateralValue * _lltv / 1e18;
 

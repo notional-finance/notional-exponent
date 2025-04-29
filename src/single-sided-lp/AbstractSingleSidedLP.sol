@@ -249,6 +249,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         if (PRIMARY_INDEX() < amounts.length) {
             amounts[PRIMARY_INDEX()] = assetRemaining;
+        } else {
+            require(assetRemaining == 0, "Asset remaining");
         }
     }
 

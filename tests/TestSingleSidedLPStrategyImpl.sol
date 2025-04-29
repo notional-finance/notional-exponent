@@ -203,6 +203,11 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         }));
     }
 
+    function getRedeemData(address user, uint256 redeemAmount) internal override returns (bytes memory) {
+        // There is no way to trade out of this position
+        vm.skip(true);
+    }
+
     function setMarketVariables() internal override {
         lpToken = ERC20(0x167478921b907422F8E88B43C4Af2B8BEa278d3A);
         curveGauge = 0x330Cfd12e0E97B0aDF46158D2A81E8Bd2985c6cB;
@@ -221,31 +226,14 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
 
         managers[0] = new GenericERC4626WithdrawRequestManager(owner, address(sDAI));
         managers[1] = new EthenaWithdrawRequestManager(owner);
+        withdrawRequests[0] = new TestGenericERC4626WithdrawRequest();
+        withdrawRequests[1] = new TestEthenaWithdrawRequest();
 
         vm.startPrank(owner);
         MockOracle sDAIOracle = new MockOracle(1156574190016110658);
         TRADING_MODULE.setPriceOracle(address(sDAI), AggregatorV2V3Interface(address(sDAIOracle)));
         vm.stopPrank();
 
-        // tradeBeforeDepositParams = TradeParams({
-        //     tradeType: TradeType.EXACT_IN_SINGLE,
-        //     dexId: uint8(DexId.UNISWAP_V3),
-        //     tradeAmount: 0,
-        //     minPurchaseAmount: 0,
-        //     exchangeData: abi.encode(UniV3SingleData({
-        //         fee: 100
-        //     }))
-        // });
-
-        // tradeBeforeRedeemParams = TradeParams({
-        //     tradeType: TradeType.EXACT_IN_SINGLE,
-        //     dexId: uint8(DexId.UNISWAP_V3),
-        //     tradeAmount: 0,
-        //     minPurchaseAmount: 0,
-        //     exchangeData: abi.encode(UniV3SingleData({
-        //         fee: 100
-        //     }))
-        // });
     }
 
     function postDeployHook() internal override {
@@ -285,6 +273,13 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(managers[1]),
             address(USDC),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
+        ));
+        // Allow Ethena manager to sell DAI
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(DAI),
             ITradingModule.TokenPermissions(
             { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
