@@ -7,6 +7,7 @@ import "../src/withdraws/GenericERC20.sol";
 import "../src/withdraws/EtherFi.sol";
 import "../src/withdraws/Ethena.sol";
 import "../src/interfaces/ITradingModule.sol";
+import "../src/withdraws/AbstractWithdrawRequestManager.sol";
 import "./TestWithdrawRequestImpl.sol";
 
 contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
@@ -147,6 +148,145 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
             address(USDe),
             ITradingModule.TokenPermissions(
             { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
+        vm.stopPrank();
+    }
+}
+
+contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
+
+    function getDepositData(address user, uint256 depositAmount) internal view override returns (bytes memory) {
+        TradeParams[] memory depositTrades = new TradeParams[](2);
+        uint256 sDAIAmount = depositAmount / 2;
+        uint256 sUSDeAmount = depositAmount - sDAIAmount;
+        bytes memory sDAI_StakeData = abi.encode(StakingTradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.CURVE_V2),
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(CurveV2SingleData({
+                pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
+                fromIndex: 1,
+                toIndex: 0
+            })),
+            stakeData: bytes("")
+        }));
+        bytes memory sUSDe_StakeData = abi.encode(StakingTradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.CURVE_V2),
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(CurveV2SingleData({
+                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+                fromIndex: 1,
+                toIndex: 0
+            })),
+            stakeData: bytes("")
+        }));
+
+        depositTrades[0] = TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: sDAIAmount,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(managers[0], sDAI_StakeData)
+        });
+        depositTrades[1] = TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: sUSDeAmount,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(managers[1], sUSDe_StakeData)
+        });
+
+        return abi.encode(DepositParams({
+            minPoolClaim: 0,
+            depositTrades: depositTrades
+        }));
+    }
+
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x167478921b907422F8E88B43C4Af2B8BEa278d3A);
+        curveGauge = 0x330Cfd12e0E97B0aDF46158D2A81E8Bd2985c6cB;
+        w = ERC20(curveGauge);
+        asset = ERC20(address(USDC));
+        curveInterface = CurveInterface.StableSwapNG;
+        primaryIndex = 1;
+        usdOracleToken = address(sUSDe);
+        maxPoolShare = 100e18;
+        dyAmount = 1e6;
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+
+        maxExitValuationSlippage = 0.005e18;
+
+        managers[0] = new GenericERC4626WithdrawRequestManager(owner, address(sDAI));
+        managers[1] = new EthenaWithdrawRequestManager(owner);
+
+        vm.startPrank(owner);
+        MockOracle sDAIOracle = new MockOracle(1156574190016110658);
+        TRADING_MODULE.setPriceOracle(address(sDAI), AggregatorV2V3Interface(address(sDAIOracle)));
+        vm.stopPrank();
+
+        // tradeBeforeDepositParams = TradeParams({
+        //     tradeType: TradeType.EXACT_IN_SINGLE,
+        //     dexId: uint8(DexId.UNISWAP_V3),
+        //     tradeAmount: 0,
+        //     minPurchaseAmount: 0,
+        //     exchangeData: abi.encode(UniV3SingleData({
+        //         fee: 100
+        //     }))
+        // });
+
+        // tradeBeforeRedeemParams = TradeParams({
+        //     tradeType: TradeType.EXACT_IN_SINGLE,
+        //     dexId: uint8(DexId.UNISWAP_V3),
+        //     tradeAmount: 0,
+        //     minPurchaseAmount: 0,
+        //     exchangeData: abi.encode(UniV3SingleData({
+        //         fee: 100
+        //     }))
+        // });
+    }
+
+    function postDeployHook() internal override {
+        vm.startPrank(owner);
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(asset),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(sUSDe),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(USDe),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(DAI),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+        ));
+
+        // Allow withdraw managers to sell USDC
+        TRADING_MODULE.setTokenPermissions(
+            address(managers[0]),
+            address(USDC),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
+        ));
+        TRADING_MODULE.setTokenPermissions(
+            address(managers[1]),
+            address(USDC),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
         vm.stopPrank();
     }

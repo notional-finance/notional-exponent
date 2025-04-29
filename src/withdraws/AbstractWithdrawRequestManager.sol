@@ -11,7 +11,6 @@ import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfac
 
 struct StakingTradeParams {
     TradeType tradeType;
-    uint256 amount;
     uint256 minPurchaseAmount;
     bytes exchangeData;
     uint16 dexId;

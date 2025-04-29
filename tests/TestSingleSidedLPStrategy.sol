@@ -24,6 +24,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     uint256 dyAmount;
     address curveGauge;
     uint8 stakeTokenIndex;
+    // Used to set the price oracle to USD for the primary token
+    address usdOracleToken;
     IWithdrawRequestManager[] managers;
 
     DepositParams depositParams;
@@ -77,6 +79,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         withdrawRequests.push(TestWithdrawRequest(address(0)));
 
         setMarketVariables();
+        if (usdOracleToken == address(0)) usdOracleToken = address(asset);
 
         if (curveInterface == CurveInterface.StableSwapNG) {
             y = new CurveConvexStableSwapNG(
@@ -135,7 +138,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         }
 
         feeToken = lpToken;
-        (baseToUSDOracle, /* */) = TRADING_MODULE.priceOracles(address(asset));
+        (baseToUSDOracle, /* */) = TRADING_MODULE.priceOracles(usdOracleToken);
         Curve2TokenOracle oracle = new Curve2TokenOracle(
             0.95e18,
             1.05e18,

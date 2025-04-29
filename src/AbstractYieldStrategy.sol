@@ -501,6 +501,7 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
+            // TODO: withdraw request manager should be a trusted contract
             (address withdrawRequestManager, bytes memory stakeData) = abi.decode(trade.exchangeData, (address, bytes));
             ERC20(trade.sellToken).forceApprove(address(withdrawRequestManager), trade.amount);
             amountBought = IWithdrawRequestManager(withdrawRequestManager).stakeTokens(trade.sellToken, trade.amount, stakeData);
