@@ -36,7 +36,6 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
     uint256 internal immutable CONVEX_POOL_ID;
 
     uint8 internal immutable _PRIMARY_INDEX;
-    uint8 internal immutable SECONDARY_INDEX;
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
 
@@ -71,10 +70,14 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
         // is used by the vault internally to represent ETH.
         TOKEN_1 = _rewriteAltETH(ICurvePool(CURVE_POOL).coins(0));
         TOKEN_2 = _rewriteAltETH(ICurvePool(CURVE_POOL).coins(1));
-        _PRIMARY_INDEX = TOKEN_1 == _asset ||
-            // Assets may be WETH, so we need to unwrap it in this case.
-            (TOKEN_1 == ETH_ADDRESS && _asset == address(WETH)) ? 0 : 1;
-        SECONDARY_INDEX = 1 - _PRIMARY_INDEX;
+
+        // Assets may be WETH, so we need to unwrap it in this case.
+        _PRIMARY_INDEX =
+            (TOKEN_1 == _asset || (TOKEN_1 == ETH_ADDRESS && _asset == address(WETH))) ? 0 :
+            (TOKEN_2 == _asset || (TOKEN_2 == ETH_ADDRESS && _asset == address(WETH))) ? 1 :
+            // Otherwise the primary index is not set and we will not be able to enter or exit
+            // single sided.
+            type(uint8).max;
 
         // If the convex reward pool is set then get the booster and pool id, if not then
         // we will stake on the curve gauge directly.
