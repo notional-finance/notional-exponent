@@ -2,6 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
@@ -36,9 +37,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     // Used for Morpho market params
     address internal immutable _irm;
     uint256 internal immutable _lltv;
-    Id internal immutable id;
 
     /********* Storage Variables *********/
+    string private s_name;
+    string private s_symbol;
+
     address public override owner;
     bool public override isPaused;
     uint32 private s_lastFeeAccrualTime;
@@ -50,8 +53,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
 
-    mapping(address user => mapping(address operator => bool approved)) private _isApproved;
-    mapping(address user => uint256 lastEntryTime) private _lastEntryTime;
+    mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
+    mapping(address user => uint256 lastEntryTime) private s_lastEntryTime;
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
@@ -64,24 +67,20 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     receive() external payable {}
 
     constructor(
-        address _owner,
+        address /* _owner */,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
         address __irm,
-        uint256 __lltv
-    ) ERC20(
-        // TODO: these are not available on all tokens
-        // string(abi.encodePacked("Notional: ", ERC20(_yieldToken).name(), " [", ERC20(_asset).symbol(), "]")),
-        // string(abi.encodePacked("N-", ERC20(_yieldToken).symbol(), ":", ERC20(_asset).symbol()))
-        string(abi.encodePacked("Notional:  [", ERC20(_asset).symbol(), "]")),
-        string(abi.encodePacked("N-:", ERC20(_asset).symbol()))
-    ) {
+        uint256 __lltv,
+        uint8 __yieldTokenDecimals
+    ) ERC20("", "") {
         feeRate = _feeRate;
         asset = address(_asset);
         yieldToken = address(_yieldToken);
-        // TODO: these are not available on all tokens
-        _yieldTokenDecimals = 18; // TokenUtils.getDecimals(_yieldToken);
+        // Not all yield tokens have a decimals() function (i.e. Convex staked tokens), so we
+        // do have to pass in the decimals as a parameter.
+        _yieldTokenDecimals = __yieldTokenDecimals;
         _assetDecimals = TokenUtils.getDecimals(_asset);
 
         // If multiple markets exist for the same strategy with different LTVs then we can
@@ -89,14 +88,32 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // what users need to pass in to the enterPosition function.
         _irm = __irm;
         _lltv = __lltv;
+    }
 
+    function _initialize(bytes calldata data) internal override {
+        (string memory _name, string memory _symbol, address _owner) = abi.decode(data, (string, string, address));
+        s_name = _name;
+        s_symbol = _symbol;
+
+        // This is called inside initialize() because we need to use address(this) inside
+        // marketParams()
         MORPHO.createMarket(marketParams());
-        id = Id.wrap(keccak256(abi.encode(marketParams())));
 
-        // TODO: If upgradeable then this needs to be called in initialize()
         s_lastFeeAccrualTime = uint32(block.timestamp);
         owner = _owner;
         isPaused = false;
+    }
+
+    function name() public view override(ERC20, IERC20Metadata) returns (string memory) {
+        return s_name;
+    }
+
+    function symbol() public view override(ERC20, IERC20Metadata) returns (string memory) {
+        return s_symbol;
+    }
+
+    function morphoId() public view returns (Id) {
+        return Id.wrap(keccak256(abi.encode(marketParams())));
     }
 
     /*** Valuation and Conversion Functions ***/
@@ -142,8 +159,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address _currentAccount = t_CurrentAccount;
         t_CurrentAccount = borrower;
 
-        Position memory position = MORPHO.position(id, borrower);
-        Market memory market = MORPHO.market(id);
+        Position memory position = MORPHO.position(morphoId(), borrower);
+        Market memory market = MORPHO.market(morphoId());
 
         if (position.borrowShares > 0) {
             borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
@@ -224,12 +241,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     function setApproval(address operator, bool approved) external override {
         if (operator == msg.sender) revert NotAuthorized(msg.sender, operator);
-        _isApproved[msg.sender][operator] = approved;
+        s_isApproved[msg.sender][operator] = approved;
     }
 
     /// @inheritdoc IYieldStrategy
     function isApproved(address user, address operator) public view override returns (bool) {
-        return _isApproved[user][operator];
+        return s_isApproved[user][operator];
     }
 
 
@@ -269,7 +286,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
             _mintSharesAndSupplyCollateral(depositAssetAmount, depositData, onBehalf);
         }
 
-        _lastEntryTime[onBehalf] = block.timestamp;
+        s_lastEntryTime[onBehalf] = block.timestamp;
 
         _checkInvariants();
     }
@@ -307,7 +324,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 assetToRepay,
         bytes calldata redeemData
     ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 profitsWithdrawn) {
-        if (block.timestamp - _lastEntryTime[onBehalf] < 5 minutes) {
+        if (block.timestamp - s_lastEntryTime[onBehalf] < 5 minutes) {
             revert CannotExitPositionWithinCooldownPeriod();
         }
 
@@ -325,7 +342,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
             if (assetToRepay == type(uint256).max) {
                 // If assetToRepay is uint256.max then get the morpho borrow shares amount to
                 // get a full exit.
-                uint256 sharesToRepay = MORPHO.position(id, onBehalf).borrowShares;
+                uint256 sharesToRepay = MORPHO.position(morphoId(), onBehalf).borrowShares;
                 (assetToRepay, ) = MORPHO.repay(marketParams(), 0, sharesToRepay, onBehalf, "");
             } else {
                 MORPHO.repay(marketParams(), assetToRepay, 0, onBehalf, "");
@@ -491,7 +508,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /*** Internal Helper Functions ***/
 
     function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
-        collateralBalance = MORPHO.position(id, account).collateral;
+        collateralBalance = MORPHO.position(morphoId(), account).collateral;
     }
 
     /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade

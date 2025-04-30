@@ -5,6 +5,8 @@ import "forge-std/src/Test.sol";
 import "../src/AbstractYieldStrategy.sol";
 import "../src/oracles/AbstractCustomOracle.sol";
 import "../src/utils/Constants.sol";
+import "../src/proxy/TimelockUpgradeableProxy.sol";
+import "../src/proxy/Initializable.sol";
 
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
@@ -48,11 +50,11 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         uint256 _feeRate,
         address _irm,
         uint256 _lltv
-    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
-        ERC20(_asset).approve(address(_yieldToken), type(uint256).max);
+    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) {
     }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
+        ERC20(asset).approve(address(yieldToken), type(uint256).max);
         MockWrapperERC20(yieldToken).deposit(assets);
     }
 
@@ -120,6 +122,12 @@ contract TestMorphoYieldStrategy is Test {
         setMaxOracleFreshness();
 
         deployYieldStrategy();
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
+            owner, address(y), abi.encodeWithSelector(Initializable.initialize.selector,
+            abi.encode("name", "symbol", owner))
+        );
+        y = IYieldStrategy(address(proxy));
+
         asset = ERC20(y.asset());
         if (address(feeToken) == address(0)) feeToken = w;
 

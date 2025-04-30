@@ -122,8 +122,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address _irm,
         uint256 _lltv,
         address _rewardManager,
-        address _lpToken
-    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager) {
+        address _lpToken,
+        uint8 _yieldTokenDecimals
+    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, _yieldTokenDecimals) {
         maxPoolShare = _maxPoolShare;
         lpToken = _lpToken;
     }

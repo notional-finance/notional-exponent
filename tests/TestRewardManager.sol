@@ -66,7 +66,7 @@ contract MockRewardVault is RewardManagerMixin {
         address _irm,
         uint256 _lltv,
         address _rewardManager
-    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager) {
+    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, ERC20(_yieldToken).decimals()) {
         ERC20(_asset).approve(address(_yieldToken), type(uint256).max);
     }
 

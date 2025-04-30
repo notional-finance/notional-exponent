@@ -48,7 +48,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         address _irm,
         uint256 _lltv,
         IWithdrawRequestManager _withdrawRequestManager
-    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv) {
+    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) {
         withdrawRequestManager = _withdrawRequestManager;
         withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.withdrawToken() : address(0);
     }
