@@ -13,6 +13,9 @@ struct PendleDepositParams {
     bytes exchangeData;
     uint256 minPtOut;
     IPRouter.ApproxParams approxParams;
+    // XXX: 750 bytes for decoding just one
+    // XXX: 1600 bytes for decoding all three
+    // XXX: 3300 bytes for limit order data
     IPRouter.LimitOrderData limitOrderData;
 }
 

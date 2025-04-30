@@ -12,11 +12,12 @@ import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
+import {Initializable} from "./proxy/Initializable.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
 /// minting, burning and the valuation of tokens.
-abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYieldStrategy {
+abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuardTransient, IYieldStrategy {
     using SafeERC20 for ERC20;
 
     uint256 internal constant SHARE_PRECISION = 1e18;
@@ -42,6 +43,7 @@ abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYie
     bool public override isPaused;
     uint32 private s_lastFeeAccrualTime;
 
+    // XXX: switch to balanceOf and prevent inflation attacks using virtual balances....
     /// @dev To prevent inflation attacks we track the yield token balance internally. This
     /// is less gas efficient but it is also required for some yield strategies.
     uint256 private s_trackedYieldTokenBalance;
@@ -436,6 +438,7 @@ abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYie
 
         // First accrue fees on the yield token
         _accrueFees();
+        /// XXX: 300 bytes to measure the token balance
         uint256 initialYieldTokenBalance = ERC20(yieldToken).balanceOf(address(this));
         _mintYieldTokens(assets, receiver, depositData);
         uint256 yieldTokensMinted = ERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
@@ -477,6 +480,7 @@ abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYie
     }
 
     function _checkInvariants() internal view virtual {
+        // XXX: 350 bytes inside here
         // Sanity check to ensure that the yield token balance is not being manipulated, although this
         // will pass if there is a donation of yield tokens to the contract.
         if (ERC20(yieldToken).balanceOf(address(this)) < s_trackedYieldTokenBalance) {
@@ -485,10 +489,6 @@ abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYie
     }
 
     /*** Internal Helper Functions ***/
-
-    function _getYieldTokenBalance() internal view returns (uint256) {
-        return s_trackedYieldTokenBalance;
-    }
 
     function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
         collateralBalance = MORPHO.position(id, account).collateral;
@@ -500,6 +500,7 @@ abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYie
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
+            // XXX: 300 bytes if we move into the TradingModule
             // TODO: withdraw request manager should be a trusted contract
             (address withdrawRequestManager, bytes memory stakeData) = abi.decode(trade.exchangeData, (address, bytes));
             ERC20(trade.sellToken).forceApprove(address(withdrawRequestManager), trade.amount);
@@ -515,6 +516,7 @@ abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYie
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToAsset() public view returns (uint256) {
+        // TODO: do we need to get the precision here?
         (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
         require(rate > 0);
         return uint256(rate);

@@ -295,6 +295,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
+    // XXX: 2800 for all initiate withdraw methods below (and requestIdsForAccount)
     function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
         requestIds = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
 
