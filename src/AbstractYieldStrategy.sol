@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity >=0.8.28;
+pragma solidity >=0.8.29;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,20 +12,17 @@ import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
+import {TimelockUpgradeable} from "./proxy/TimelockUpgradeable.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
 /// minting, burning and the valuation of tokens.
-abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, ReentrancyGuardTransient, IYieldStrategy {
+abstract contract AbstractYieldStrategy is TimelockUpgradeable, ERC20, ReentrancyGuardTransient, IYieldStrategy {
     using SafeERC20 for ERC20;
 
     uint256 internal constant SHARE_PRECISION = 1e18;
     uint256 internal constant RATE_DECIMALS = 18;
     uint256 internal constant YEAR = 365 days;
-
-    // TODO: if we want to use immutables, then we need to have new deployments for
-    // each yield strategy.
-
 
     /// @inheritdoc IYieldStrategy
     address public immutable override asset;
@@ -300,7 +297,6 @@ abstract contract AbstractYieldStrategy /* layout at 0xAAAA */ is ERC20, Reentra
         _approve(address(this), address(MORPHO), sharesMinted);
         MORPHO.supplyCollateral(marketParams(), sharesMinted, receiver, "");
     }
-
 
     /// @inheritdoc IYieldStrategy
     function exitPosition(

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity >=0.8.28;
+pragma solidity >=0.8.29;
 
 /// Each withdraw request manager contract is responsible for managing withdraws of a token
 /// from a specific token (i.e. wstETH, weETH, sUSDe, etc). Each yield strategy can call the

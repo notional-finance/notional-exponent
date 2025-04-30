@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity >=0.8.28;
+pragma solidity >=0.8.29;
 
 import {AbstractRewardManager, RewardPoolStorage} from "./AbstractRewardManager.sol";
 import {IConvexRewardPool, IConvexBooster} from "../interfaces/Curve/IConvex.sol";
