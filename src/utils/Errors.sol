@@ -10,3 +10,5 @@ error CannotLiquidate(uint256 maxLiquidateShares, uint256 seizedAssets);
 error Paused();
 error CannotExitPositionWithinCooldownPeriod();
 error CannotReceiveSplitWithdrawRequest();
+
+error InvalidUpgrade();
