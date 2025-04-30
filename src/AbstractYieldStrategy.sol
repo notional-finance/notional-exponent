@@ -12,12 +12,11 @@ import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
-import {TimelockUpgradeable} from "./proxy/TimelockUpgradeable.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
 /// minting, burning and the valuation of tokens.
-abstract contract AbstractYieldStrategy is TimelockUpgradeable, ERC20, ReentrancyGuardTransient, IYieldStrategy {
+abstract contract AbstractYieldStrategy is ERC20, ReentrancyGuardTransient, IYieldStrategy {
     using SafeERC20 for ERC20;
 
     uint256 internal constant SHARE_PRECISION = 1e18;

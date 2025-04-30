@@ -12,3 +12,4 @@ error CannotExitPositionWithinCooldownPeriod();
 error CannotReceiveSplitWithdrawRequest();
 
 error InvalidUpgrade();
+error InvalidInitialization();

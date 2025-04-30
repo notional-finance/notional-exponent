@@ -2,73 +2,63 @@
 pragma solidity >=0.8.29;
 
 import "forge-std/src/Test.sol";
-import "../src/proxy/TimelockUpgradeable.sol";
-import "../src/proxy/nProxy.sol";
+import "../src/proxy/TimelockUpgradeableProxy.sol";
+import "../src/proxy/Initializable.sol";
 
 contract TestTimelockProxy is Test {
-    TimelockUpgradeable public impl;
-    TimelockUpgradeable public proxy;
+    Initializable public impl;
+    TimelockUpgradeableProxy public proxy;
+    address public upgradeOwner;
 
     function setUp() public {
-        impl = new TimelockUpgradeable();
-        proxy = TimelockUpgradeable(address(new nProxy(address(impl), "")));
+        upgradeOwner = makeAddr("upgradeOwner");
+        impl = new Initializable();
+        proxy = new TimelockUpgradeableProxy(upgradeOwner, address(impl), "");
     }
 
     function test_cannotReinitializeImplementation() public {
         // Cannot re-initialize the implementation
-        vm.expectRevert(abi.encodeWithSelector(Initializable.InvalidInitialization.selector));
-        impl.initialize(address(this), bytes(""));
+        vm.expectRevert(abi.encodeWithSelector(InvalidInitialization.selector));
+        impl.initialize(bytes(""));
     }
 
     function test_initializeProxy() public {
         // Initialize the proxy
-        proxy.initialize(address(this), bytes(""));
+        Initializable(address(proxy)).initialize(bytes(""));
 
         // Cannot re-initialize the proxy
-        vm.expectRevert(abi.encodeWithSelector(Initializable.InvalidInitialization.selector));
-        proxy.initialize(msg.sender, bytes(""));
+        vm.expectRevert(abi.encodeWithSelector(InvalidInitialization.selector));
+        Initializable(address(proxy)).initialize(bytes(""));
 
         // Check that the proxy is initialized
-        assertEq(proxy.upgradeOwner(), address(this));
+        assertEq(proxy.upgradeOwner(), upgradeOwner);
     }
 
     function test_initiateUpgrade() public {
-        address upgradeOwner = makeAddr("upgradeOwner");
-        proxy.initialize(upgradeOwner, bytes(""));
-
-        TimelockUpgradeable timelock2 = new TimelockUpgradeable();
+        Initializable timelock2 = new Initializable();
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         proxy.initiateUpgrade(address(timelock2));
 
         vm.expectEmit(true, true, true, true);
-        emit TimelockUpgradeable.UpgradeInitiated(address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
+        emit TimelockUpgradeableProxy.UpgradeInitiated(address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
         vm.prank(upgradeOwner);
         proxy.initiateUpgrade(address(timelock2));
 
         assertEq(proxy.newImplementation(), address(timelock2));
         assertEq(proxy.upgradeValidAt(), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
 
+        // Cannot upgrade before the delay
         vm.expectRevert(abi.encodeWithSelector(InvalidUpgrade.selector));
-        proxy.upgradeToAndCall(address(timelock2), bytes(""));
+        proxy.executeUpgrade();
 
         vm.warp(block.timestamp + proxy.UPGRADE_DELAY() + 1);
-        proxy.upgradeToAndCall(address(timelock2), bytes(""));
+        proxy.executeUpgrade();
 
         assertEq(proxy.newImplementation(), address(timelock2));
     }
 
-    function test_invalidUpgrade() public {
-        address upgradeOwner = makeAddr("upgradeOwner");
-        proxy.initialize(upgradeOwner, bytes(""));
-
-        vm.expectRevert(abi.encodeWithSelector(InvalidUpgrade.selector));
-        proxy.upgradeToAndCall(address(0), bytes(""));
-    }
-
     function test_cancelUpgrade() public {
-        address upgradeOwner = makeAddr("upgradeOwner");
-        proxy.initialize(upgradeOwner, bytes(""));
-        TimelockUpgradeable timelock2 = new TimelockUpgradeable();
+        Initializable timelock2 = new Initializable();
 
         vm.prank(upgradeOwner);
         proxy.initiateUpgrade(address(timelock2));
@@ -82,6 +72,23 @@ contract TestTimelockProxy is Test {
         assertEq(proxy.upgradeValidAt(), uint32(0));
 
         vm.expectRevert(abi.encodeWithSelector(InvalidUpgrade.selector));
-        proxy.upgradeToAndCall(address(0), bytes(""));
+        proxy.executeUpgrade();
+    }
+
+    function test_transferUpgradeOwnership() public {
+        address newUpgradeOwner = makeAddr("newUpgradeOwner");
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        proxy.transferUpgradeOwnership(newUpgradeOwner);
+
+        vm.prank(upgradeOwner);
+        proxy.transferUpgradeOwnership(newUpgradeOwner);
+
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        proxy.acceptUpgradeOwnership();
+
+        vm.prank(newUpgradeOwner);
+        proxy.acceptUpgradeOwnership();
+
+        assertEq(proxy.upgradeOwner(), newUpgradeOwner);
     }
 }
