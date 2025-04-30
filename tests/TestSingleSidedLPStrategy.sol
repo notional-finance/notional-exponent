@@ -32,8 +32,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     RedeemParams redeemParams;
     WithdrawParams withdrawParams;
 
-    TradeParams tradeBeforeDepositParams;
-    TradeParams tradeBeforeRedeemParams;
+    TradeParams[] tradeBeforeDepositParams;
+    TradeParams[] tradeBeforeRedeemParams;
 
     TestWithdrawRequest[] withdrawRequests;
 
@@ -72,11 +72,39 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
         invertBase = false;
-        // Set the managers to zero by default
+        // Set default parameters
         managers.push(IWithdrawRequestManager(address(0)));
         managers.push(IWithdrawRequestManager(address(0)));
         withdrawRequests.push(TestWithdrawRequest(address(0)));
         withdrawRequests.push(TestWithdrawRequest(address(0)));
+        tradeBeforeDepositParams.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        tradeBeforeDepositParams.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        tradeBeforeRedeemParams.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
+        tradeBeforeRedeemParams.push(TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        }));
 
         setMarketVariables();
         if (usdOracleToken == address(0)) usdOracleToken = address(asset);
@@ -229,24 +257,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function test_enterPosition_tradeBeforeDeposit() public {
-        vm.skip(tradeBeforeDepositParams.dexId == 0);
+        vm.skip(tradeBeforeDepositParams[stakeTokenIndex].dexId == 0);
 
-        depositParams.depositTrades.push(TradeParams({
-            tradeType: TradeType.STAKE_TOKEN,
-            dexId: 0,
-            tradeAmount: 0,
-            minPurchaseAmount: 0,
-            exchangeData: bytes("")
-        }));
-        depositParams.depositTrades.push(TradeParams({
-            tradeType: TradeType.STAKE_TOKEN,
-            dexId: 0,
-            tradeAmount: 0,
-            minPurchaseAmount: 0,
-            exchangeData: bytes("")
-        }));
-
-        depositParams.depositTrades[stakeTokenIndex] = tradeBeforeDepositParams;
+        depositParams.depositTrades = tradeBeforeDepositParams;
         depositParams.depositTrades[stakeTokenIndex].tradeAmount = (defaultDeposit + defaultBorrow) / 2;
 
         test_enterPosition();
@@ -256,25 +269,10 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function test_exitPosition_tradeBeforeRedeem(bool isFullExit) public {
-        vm.skip(tradeBeforeRedeemParams.dexId == 0);
+        vm.skip(tradeBeforeRedeemParams[stakeTokenIndex].dexId == 0);
 
-        redeemParams.redemptionTrades.push(TradeParams({
-            tradeType: TradeType.STAKE_TOKEN,
-            dexId: 0,
-            tradeAmount: 0,
-            minPurchaseAmount: 0,
-            exchangeData: bytes("")
-        }));
-
-        redeemParams.redemptionTrades.push(TradeParams({
-            tradeType: TradeType.STAKE_TOKEN,
-            dexId: 0,
-            tradeAmount: 0,
-            minPurchaseAmount: 0,
-            exchangeData: bytes("")
-        }));
         redeemParams.minAmounts = new uint256[](2);
-        redeemParams.redemptionTrades[stakeTokenIndex] = tradeBeforeRedeemParams;
+        redeemParams.redemptionTrades = tradeBeforeRedeemParams;
 
         if (isFullExit) {
             test_exitPosition_fullExit();
@@ -300,23 +298,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.warp(block.timestamp + 6 minutes);
         uint256 shares = y.balanceOfShares(msg.sender);
 
-        redeemParams.redemptionTrades.push(TradeParams({
-            tradeType: TradeType.STAKE_TOKEN,
-            dexId: 0,
-            tradeAmount: 0,
-            minPurchaseAmount: 0,
-            exchangeData: bytes("")
-        }));
-
-        redeemParams.redemptionTrades.push(TradeParams({
-            tradeType: TradeType.STAKE_TOKEN,
-            dexId: 0,
-            tradeAmount: 0,
-            minPurchaseAmount: 0,
-            exchangeData: bytes("")
-        }));
         redeemParams.minAmounts = new uint256[](2);
-        redeemParams.redemptionTrades[stakeTokenIndex] = tradeBeforeRedeemParams;
+        redeemParams.redemptionTrades = tradeBeforeRedeemParams;
         bytes memory redeemData = abi.encode(redeemParams);
 
         vm.expectRevert("Withdraw request not finalized");
@@ -405,6 +388,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             );
         }
 
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            vm.prank(owner);
+            managers[i].setApprovedVault(address(y), true);
+        }
+
         vm.startPrank(owner);
         MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");
         vm.stopPrank();
@@ -412,7 +401,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.startPrank(msg.sender);
         if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
         asset.approve(address(y), defaultDeposit);
-        bytes memory depositData = getDepositData(msg.sender, defaultDeposit);
+        bytes memory depositData = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
         vm.expectPartialRevert(AbstractSingleSidedLP.PoolShareTooHigh.selector);
         y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();

@@ -75,7 +75,7 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
 
         maxExitValuationSlippage = 0.005e18;
 
-        tradeBeforeRedeemParams = TradeParams({
+        tradeBeforeRedeemParams[0] = TradeParams({
             tradeType: TradeType.EXACT_IN_SINGLE,
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
@@ -114,7 +114,7 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
 
         maxExitValuationSlippage = 0.005e18;
 
-        tradeBeforeDepositParams = TradeParams({
+        tradeBeforeDepositParams[0] = TradeParams({
             tradeType: TradeType.EXACT_IN_SINGLE,
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
@@ -124,7 +124,7 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
             }))
         });
 
-        tradeBeforeRedeemParams = TradeParams({
+        tradeBeforeRedeemParams[0] = TradeParams({
             tradeType: TradeType.EXACT_IN_SINGLE,
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
@@ -204,7 +204,7 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
     }
 
     function getRedeemData(address user, uint256 redeemAmount) internal override returns (bytes memory) {
-        // There is no way to trade out of this position
+        // TODO: There is no way to trade out of this position, therefore we cannot flash liquidate
         vm.skip(true);
     }
 
@@ -229,6 +229,30 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         withdrawRequests[0] = new TestGenericERC4626WithdrawRequest();
         withdrawRequests[1] = new TestEthenaWithdrawRequest();
 
+        tradeBeforeRedeemParams[0] = TradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.CURVE_V2),
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(CurveV2SingleData({
+                pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
+                fromIndex: 0,
+                toIndex: 1
+            }))
+        });
+
+        tradeBeforeRedeemParams[1] = TradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.CURVE_V2),
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(CurveV2SingleData({
+                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+                fromIndex: 0,
+                toIndex: 1
+            }))
+        });
+
         vm.startPrank(owner);
         MockOracle sDAIOracle = new MockOracle(1156574190016110658);
         TRADING_MODULE.setPriceOracle(address(sDAI), AggregatorV2V3Interface(address(sDAIOracle)));
@@ -242,25 +266,25 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             address(y),
             address(asset),
             ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(sUSDe),
             ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(USDe),
             ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(DAI),
             ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
         ));
 
         // Allow withdraw managers to sell USDC

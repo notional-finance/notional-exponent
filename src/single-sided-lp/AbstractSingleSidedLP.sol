@@ -58,8 +58,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     // TODO: this is storage....
     uint256 public maxPoolShare;
     IWithdrawRequestManager[] public withdrawRequestManagers;
-    address immutable lpToken;
+    mapping(address => uint256) public withdrawnLPTokenAmounts;
 
+    address immutable lpToken;
     uint256 internal constant POOL_SHARE_BASIS = 1e18;
     uint256 internal constant MAX_TOKENS = 5;
     uint8 internal constant NOT_FOUND = type(uint8).max;
@@ -193,6 +194,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         if (hasPendingRequest) {
             // Attempt to withdraw all pending requests
             (exitBalances, tokens) = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
+            yieldTokensBurned = withdrawnLPTokenAmounts[sharesOwner] * sharesToRedeem / balanceOfShares(sharesOwner);
+            withdrawnLPTokenAmounts[sharesOwner] -= yieldTokensBurned;
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
             wasEscrowed = true;
@@ -310,6 +313,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         _escrowShares(sharesHeld, yieldTokenAmount);
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
+        require(withdrawnLPTokenAmounts[account] == 0, "Existing withdraw request");
+        withdrawnLPTokenAmounts[account] += yieldTokenAmount;
+
         uint256[] memory exitBalances = _unstakeAndExitPool({
             poolClaim: yieldTokenAmount,
             minAmounts: params.minAmounts,
@@ -322,7 +328,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             if (exitBalances[i] == 0) continue;
 
             tokens[i].checkApprove(address(withdrawRequestManagers[i]), exitBalances[i]);
-
             requestIds[i] = withdrawRequestManagers[i].initiateWithdraw({
                 account: account,
                 yieldTokenAmount: exitBalances[i],
