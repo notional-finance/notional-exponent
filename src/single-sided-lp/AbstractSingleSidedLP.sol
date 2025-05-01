@@ -56,10 +56,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
     // TODO: this is storage....
-    uint256 public maxPoolShare;
     IWithdrawRequestManager[] public withdrawRequestManagers;
     mapping(address => uint256) public withdrawnLPTokenAmounts;
 
+    uint256 immutable maxPoolShare;
     address immutable lpToken;
     uint256 internal constant POOL_SHARE_BASIS = 1e18;
     uint256 internal constant MAX_TOKENS = 5;
@@ -127,6 +127,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, _yieldTokenDecimals) {
         maxPoolShare = _maxPoolShare;
         lpToken = _lpToken;
+    }
+
+    function _initialize(bytes calldata data) internal override {
+        super._initialize(data);
+        _initialApproveTokens();
     }
 
     /************************************************************************

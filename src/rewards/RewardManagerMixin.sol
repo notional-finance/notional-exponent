@@ -23,7 +23,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         REWARD_MANAGER = IRewardManager(_rewardManager);
     }
 
-    function _initialize(bytes calldata data) internal override {
+    function _initialize(bytes calldata data) internal override virtual {
         super._initialize(data);
         LibStorage._rewardManagerSlot()[0] = owner;
     }

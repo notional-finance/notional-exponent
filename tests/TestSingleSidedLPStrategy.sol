@@ -67,8 +67,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     function setMarketVariables() internal virtual;
 
-    function postDeployHook() internal virtual {}
-
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
         invertBase = false;
@@ -180,7 +178,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         );
 
         o = new MockOracle(oracle.latestAnswer());
+    }
 
+    function postDeploySetup() internal override virtual {
         rm = IRewardManager(address(y));
         if (address(rewardPool) != address(0)) {
             vm.startPrank(owner);
@@ -199,8 +199,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             vm.prank(owner);
             managers[i].setApprovedVault(address(y), true);
         }
-
-        postDeployHook();
     }
 
     function test_claimRewards() public {
@@ -387,6 +385,11 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 managers
             );
         }
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
+            owner, address(y), abi.encodeWithSelector(Initializable.initialize.selector,
+            abi.encode("name", "symbol", owner))
+        );
+        y = IYieldStrategy(address(proxy));
 
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;

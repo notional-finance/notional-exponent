@@ -86,7 +86,9 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         });
     }
 
-    function postDeployHook() internal override {
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+
         vm.startPrank(owner);
         TRADING_MODULE.setTokenPermissions(
             address(y),
@@ -135,7 +137,9 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
         });
     }
 
-    function postDeployHook() internal override {
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+
         vm.startPrank(owner);
         TRADING_MODULE.setTokenPermissions(
             address(y),
@@ -260,7 +264,9 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
 
     }
 
-    function postDeployHook() internal override {
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+
         vm.startPrank(owner);
         TRADING_MODULE.setTokenPermissions(
             address(y),

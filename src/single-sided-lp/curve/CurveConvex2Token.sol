@@ -92,8 +92,6 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
         CONVEX_POOL_ID = poolId;
         CONVEX_BOOSTER = convexBooster;
 
-        _initialApproveTokens();
-
         require(managers.length == _NUM_TOKENS);
         for (uint256 i = 0; i < _NUM_TOKENS; i++) {
             withdrawRequestManagers.push(managers[i]);

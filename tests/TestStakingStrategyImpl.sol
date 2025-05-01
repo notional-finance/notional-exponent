@@ -46,7 +46,9 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         defaultBorrow = 90e18;
         maxEntryValuationSlippage = 0.0050e18;
         maxExitValuationSlippage = 0.0050e18;
+    }
 
+    function postDeploySetup() internal override {
         vm.startPrank(owner);
         manager.setApprovedVault(address(y), true);
 
@@ -146,21 +148,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 0.915e18,
                 manager
             );
-            vm.startPrank(owner);
-            TRADING_MODULE.setTokenPermissions(
-                address(y),
-                address(DAI),
-                ITradingModule.TokenPermissions(
-                { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
-            ));
-            // Allow trading of USDe
-            TRADING_MODULE.setTokenPermissions(
-                address(y),
-                address(tokenIn),
-                ITradingModule.TokenPermissions(
-                { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
-            ));
-            vm.stopPrank();
         } else {
             y = new PendlePT(
                 market,
@@ -190,7 +177,9 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         );
 
         o = new MockOracle(pendleOracle.latestAnswer());
+    }
 
+    function postDeploySetup() internal override {
         vm.startPrank(owner);
         if (address(manager) != address(0)) manager.setApprovedVault(address(y), true);
         TRADING_MODULE.setTokenPermissions(
@@ -205,6 +194,22 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             ITradingModule.TokenPermissions(
             { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
         ));
+
+        if (tokenOut == address(sUSDe)) {
+            TRADING_MODULE.setTokenPermissions(
+                address(y),
+                address(DAI),
+                ITradingModule.TokenPermissions(
+                { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
+            ));
+            // Allow trading of USDe
+            TRADING_MODULE.setTokenPermissions(
+                address(y),
+                address(tokenIn),
+                ITradingModule.TokenPermissions(
+                { allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5 }
+            ));
+        }
         vm.stopPrank();
 
         maxEntryValuationSlippage = 0.01e18;
