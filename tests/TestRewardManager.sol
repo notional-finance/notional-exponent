@@ -73,8 +73,8 @@ contract MockRewardVault is RewardManagerMixin {
         MockRewardPool(yieldToken).deposit(0, assets, true);
     }
 
-    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (uint256 yieldTokensBurned, bool wasEscrowed) {
-        yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
+        uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
         MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
         wasEscrowed = false;
     }

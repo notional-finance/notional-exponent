@@ -135,7 +135,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 sharesToRedeem,
         address sharesOwner,
         bytes memory redeemData
-    ) internal override returns (uint256 yieldTokensBurned, bool wasEscrowed) {
+    ) internal override returns (bool wasEscrowed) {
         WithdrawRequest memory accountWithdraw;
 
         if (address(withdrawRequestManager) != address(0)) {
@@ -143,7 +143,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         }
 
         if (accountWithdraw.requestId == 0) {
-            yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+            uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             _executeInstantRedemption(yieldTokensBurned, redeemData);
             wasEscrowed = false;
         } else {
@@ -152,7 +152,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             // active position.
             uint256 balanceOfShares = balanceOfShares(sharesOwner);
             require(sharesToRedeem <= balanceOfShares);
-            yieldTokensBurned = uint256(accountWithdraw.yieldTokenAmount) * sharesToRedeem / balanceOfShares;
+            uint256 yieldTokensBurned = uint256(accountWithdraw.yieldTokenAmount) * sharesToRedeem / balanceOfShares;
             wasEscrowed = true;
 
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({

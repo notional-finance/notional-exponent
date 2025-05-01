@@ -474,10 +474,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
-        // TODO: remove this from upstream calls
-        (/* yieldTokensBurned */, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
-        // TODO: this may happen too soon on exitPosition because the shares to burn come back but
-        // the yield tokens are already burned.
+        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, redeemData);
         if (wasEscrowed) s_escrowedShares -= sharesToBurn;
 
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
@@ -550,7 +547,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;
 
     /// @dev Redeems shares
-    function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory redeemData) internal virtual returns (uint256 yieldTokensBurned, bool wasEscrowed);
+    function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory redeemData) internal virtual returns (bool wasEscrowed);
 
 }
 

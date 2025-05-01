@@ -189,7 +189,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 sharesToRedeem,
         address sharesOwner,
         bytes memory redeemData
-    ) internal override virtual returns (uint256 yieldTokensBurned, bool wasEscrowed) {
+    ) internal override virtual returns (bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         (WithdrawRequest[] memory requests, bool hasPendingRequest) = requestIdsForAccount(sharesOwner);
 
@@ -200,14 +200,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         if (hasPendingRequest) {
             // Attempt to withdraw all pending requests
             (exitBalances, tokens) = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
-            yieldTokensBurned = withdrawnLPTokenAmounts[sharesOwner] * sharesToRedeem / balanceOfShares(sharesOwner);
-            withdrawnLPTokenAmounts[sharesOwner] -= yieldTokensBurned;
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
             wasEscrowed = true;
         } else {
             isSingleSided = params.redemptionTrades.length == 0;
-            yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+            uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
             tokens = TOKENS();
             wasEscrowed = false;
