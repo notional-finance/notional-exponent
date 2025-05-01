@@ -16,8 +16,8 @@ contract MockERC20 is ERC20 {
 
 contract MockRewardPool is ERC20 {
     uint256 public rewardAmount;
-    ERC20 public depositToken;
-    ERC20 public rewardToken;
+    ERC20 public immutable depositToken;
+    ERC20 public immutable rewardToken;
 
     constructor(address _depositToken) ERC20("MockRewardPool", "MRP") {
         depositToken = ERC20(_depositToken);
@@ -66,11 +66,10 @@ contract MockRewardVault is RewardManagerMixin {
         address _irm,
         uint256 _lltv,
         address _rewardManager
-    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, ERC20(_yieldToken).decimals()) {
-        ERC20(_asset).approve(address(_yieldToken), type(uint256).max);
-    }
+    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, ERC20(_yieldToken).decimals()) { }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
+        ERC20(asset).approve(address(yieldToken), type(uint256).max);
         MockRewardPool(yieldToken).deposit(0, assets, true);
     }
 
@@ -99,6 +98,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             0.915e18, // 91.5% LTV
             address(rmImpl)
         );
+    }
+
+    function postDeploySetup() internal override {
         // We use the delegate call here.
         rm = IRewardManager(address(y));
 

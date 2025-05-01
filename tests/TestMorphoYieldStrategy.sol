@@ -117,6 +117,8 @@ contract TestMorphoYieldStrategy is Test {
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
+    function postDeploySetup() internal virtual { }
+
     function setUp() public virtual {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         setMaxOracleFreshness();
@@ -133,6 +135,8 @@ contract TestMorphoYieldStrategy is Test {
 
         vm.prank(owner);
         TRADING_MODULE.setPriceOracle(address(w), AggregatorV2V3Interface(address(o)));
+
+        postDeploySetup();
 
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);

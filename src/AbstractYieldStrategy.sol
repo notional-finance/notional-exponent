@@ -90,7 +90,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _lltv = __lltv;
     }
 
-    function _initialize(bytes calldata data) internal override {
+    function _initialize(bytes calldata data) internal override virtual {
         (string memory _name, string memory _symbol, address _owner) = abi.decode(data, (string, string, address));
         s_name = _name;
         s_symbol = _symbol;

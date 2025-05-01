@@ -21,7 +21,11 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint8 _yieldTokenDecimals
     ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _yieldTokenDecimals) {
         REWARD_MANAGER = IRewardManager(_rewardManager);
-        LibStorage._rewardManagerSlot()[0] = _owner;
+    }
+
+    function _initialize(bytes calldata data) internal override {
+        super._initialize(data);
+        LibStorage._rewardManagerSlot()[0] = owner;
     }
 
     function _preLiquidation(address liquidateAccount, address liquidator) internal override virtual returns (uint256 maxLiquidateShares) {
