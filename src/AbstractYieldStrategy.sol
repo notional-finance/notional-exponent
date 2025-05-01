@@ -46,10 +46,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     bool public override isPaused;
     uint32 private s_lastFeeAccrualTime;
 
-    // XXX: switch to balanceOf and prevent inflation attacks using virtual balances....
-    /// @dev To prevent inflation attacks we track the yield token balance internally. This
-    /// is less gas efficient but it is also required for some yield strategies.
-    uint256 private s_trackedYieldTokenBalance;
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
 
@@ -127,7 +123,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         if (effectiveSupply == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
 
         // NOTE: rounds down on division
-        return (shares * (s_trackedYieldTokenBalance - feesAccrued())) / effectiveSupply;
+        return (shares * (yieldTokenBalance() - feesAccrued())) / effectiveSupply;
     }
 
     /// @inheritdoc IYieldStrategy
@@ -137,7 +133,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // NOTE: rounds down on division
         return (yieldTokens * SHARE_PRECISION * effectiveSupply) / (
-            (s_trackedYieldTokenBalance - feesAccrued()) * (10 ** _yieldTokenDecimals)
+            (yieldTokenBalance() - feesAccrued()) * (10 ** _yieldTokenDecimals)
         );
     }
 
@@ -196,7 +192,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function collectFees() external onlyOwner override {
         _accrueFees();
         _transferYieldTokenToOwner(s_accruedFeesInYieldToken);
-        s_trackedYieldTokenBalance -= s_accruedFeesInYieldToken;
 
         delete s_accruedFeesInYieldToken;
     }
@@ -427,12 +422,16 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /*** Private Functions ***/
+    function yieldTokenBalance() internal view returns (uint256) {
+        return ERC20(yieldToken).balanceOf(address(this));
+    }
 
     function _calculateAdditionalFeesInYieldToken() private view returns (uint256 additionalFeesInYieldToken) {
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
         uint256 divisor = YEAR * SHARE_PRECISION;
+
         additionalFeesInYieldToken =
-            ((s_trackedYieldTokenBalance * timeSinceLastFeeAccrual * feeRate) + (divisor - 1)) / divisor;
+            ((yieldTokenBalance() * timeSinceLastFeeAccrual * feeRate) + (divisor - 1)) / divisor;
     }
 
     function _accrueFees() private {
@@ -445,9 +444,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @dev Removes some shares from the "pool" that is used to pay fees.
     function _escrowShares(uint256 shares, uint256 yieldTokens) internal virtual {
         _accrueFees();
-
         s_escrowedShares += shares;
-        s_trackedYieldTokenBalance -= yieldTokens;
     }
 
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal virtual returns (uint256 sharesMinted) {
@@ -455,14 +452,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
-        /// XXX: 300 bytes to measure the token balance
-        uint256 initialYieldTokenBalance = ERC20(yieldToken).balanceOf(address(this));
+        uint256 initialYieldTokenBalance = yieldTokenBalance();
         _mintYieldTokens(assets, receiver, depositData);
-        uint256 yieldTokensMinted = ERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
+        uint256 yieldTokensMinted = yieldTokenBalance() - initialYieldTokenBalance;
 
         sharesMinted = convertYieldTokenToShares(yieldTokensMinted);
-        // Update the tracked yield token balance after calculating the shares to mint
-        s_trackedYieldTokenBalance += yieldTokensMinted;
         _mint(receiver, sharesMinted);
     }
 
@@ -473,14 +467,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
-        (uint256 yieldTokensBurned, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
+        // TODO: remove this from upstream calls
+        (/* yieldTokensBurned */, bool wasEscrowed) = _redeemShares(sharesToBurn, sharesOwner, redeemData);
         // TODO: this may happen too soon on exitPosition because the shares to burn come back but
         // the yield tokens are already burned.
-        if (wasEscrowed) {
-            s_escrowedShares -= sharesToBurn;
-        } else {
-            s_trackedYieldTokenBalance -= yieldTokensBurned;
-        }
+        if (wasEscrowed) s_escrowedShares -= sharesToBurn;
 
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
@@ -497,12 +488,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     function _checkInvariants() internal view virtual {
-        // XXX: 350 bytes inside here
         // Sanity check to ensure that the yield token balance is not being manipulated, although this
         // will pass if there is a donation of yield tokens to the contract.
-        if (ERC20(yieldToken).balanceOf(address(this)) < s_trackedYieldTokenBalance) {
-            revert InsufficientYieldTokenBalance();
-        }
+        // if (ERC20(yieldToken).balanceOf(address(this)) < s_trackedYieldTokenBalance) {
+        //     revert InsufficientYieldTokenBalance();
+        // }
     }
 
     /*** Internal Helper Functions ***/

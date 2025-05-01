@@ -11,6 +11,10 @@ import "../src/proxy/Initializable.sol";
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
 
+    function decimals() public pure override returns (uint8) {
+        return 18;
+    }
+
     constructor(ERC20 _token) ERC20("MockWrapperERC20", "MWE") {
         token = _token;
         _mint(msg.sender, 1000000 * 10e18);
@@ -18,12 +22,14 @@ contract MockWrapperERC20 is ERC20 {
 
     function deposit(uint256 amount) public {
         token.transferFrom(msg.sender, address(this), amount);
-        _mint(msg.sender, amount * 1e18 / 1e6);
+        // _mint(msg.sender, amount * 1e18 / 1e6);
+        _mint(msg.sender, amount);
     }
 
     function withdraw(uint256 amount) public {
         _burn(msg.sender, amount);
-        token.transfer(msg.sender, amount * 1e6 / 1e18);
+        // token.transfer(msg.sender, amount * 1e6 / 1e18);
+        token.transfer(msg.sender, amount);
     }
 }
 
@@ -98,18 +104,18 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function deployYieldStrategy() internal virtual {
-        w = new MockWrapperERC20(USDC);
+        w = new MockWrapperERC20(ERC20(address(WETH)));
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             owner,
-            address(USDC),
+            address(WETH),
             address(w),
             0.0010e18, // 0.1% fee rate
             IRM,
             0.915e18 // 91.5% LTV
         );
-        defaultDeposit = 10_000e6;
-        defaultBorrow = 90_000e6;
+        defaultDeposit = 10e18;
+        defaultBorrow = 90e18;
     }
 
     function setMaxOracleFreshness() internal {
@@ -185,6 +191,26 @@ contract TestMorphoYieldStrategy is Test {
         }
 
         assertEq(computedTotalSupply, totalSupply, "Total supply is correct");
+    }
+
+    function test_dilution_attack() public {
+        address attacker = makeAddr("attacker");
+        vm.prank(owner);
+        asset.transfer(attacker, defaultDeposit + defaultBorrow + 1);
+
+        _enterPosition(attacker, 1, 0);
+
+        vm.startPrank(attacker);
+        // Mint and donate wrapped tokens
+        asset.approve(address(w), defaultDeposit + defaultBorrow);
+        MockWrapperERC20(address(w)).deposit(defaultDeposit + defaultBorrow);
+        MockWrapperERC20(address(w)).transfer(address(y), w.balanceOf(attacker));
+        vm.stopPrank();
+
+        // NOTE: this reverts on supplyCollateral
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        assertEq(y.balanceOfShares(attacker), 1, "attacker has 1 share");
+        assertEq(y.balanceOfShares(msg.sender), 0, "msg.sender has no shares");
     }
 
     function test_enterPosition() public {
