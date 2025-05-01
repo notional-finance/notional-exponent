@@ -449,7 +449,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Removes some shares from the "pool" that is used to pay fees.
-    function _escrowShares(uint256 shares, uint256 yieldTokens) internal virtual {
+    function _escrowShares(uint256 shares) internal virtual {
         _accrueFees();
         s_escrowedShares += shares;
     }

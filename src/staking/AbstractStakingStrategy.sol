@@ -103,7 +103,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         // TODO: this may initiate withdraws across both native balance and collateral balance
         uint256 sharesHeld = balanceOfShares(account);
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        _escrowShares(sharesHeld, yieldTokenAmount);
+        _escrowShares(sharesHeld);
         
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({

@@ -315,7 +315,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal returns (uint256[] memory requestIds) {
         uint256 sharesHeld = balanceOfShares(account);
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        _escrowShares(sharesHeld, yieldTokenAmount);
+        _escrowShares(sharesHeld);
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
         require(withdrawnLPTokenAmounts[account] == 0, "Existing withdraw request");
