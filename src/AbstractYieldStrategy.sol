@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import "forge-std/src/console.sol";
+
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -21,9 +23,11 @@ import {Initializable} from "./proxy/Initializable.sol";
 abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuardTransient, IYieldStrategy {
     using SafeERC20 for ERC20;
 
-    uint256 internal constant SHARE_PRECISION = 1e18;
     uint256 internal constant RATE_DECIMALS = 18;
     uint256 internal constant YEAR = 365 days;
+    uint256 internal constant VIRTUAL_SHARES = 1e6;
+    uint256 internal constant VIRTUAL_YIELD_TOKENS = 1;
+    uint256 internal constant SHARE_PRECISION = 1e18 * VIRTUAL_SHARES;
 
     /// @inheritdoc IYieldStrategy
     address public immutable override asset;
@@ -119,22 +123,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
-        uint256 effectiveSupply = totalSupply() - s_escrowedShares;
-        if (effectiveSupply == 0) return shares * (10 ** _yieldTokenDecimals) / SHARE_PRECISION;
-
         // NOTE: rounds down on division
-        return (shares * (yieldTokenBalance() - feesAccrued())) / effectiveSupply;
+        return (shares * (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (_effectiveSupply());
     }
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
-        uint256 effectiveSupply = totalSupply() - s_escrowedShares;
-        if (effectiveSupply == 0) return yieldTokens * SHARE_PRECISION / (10 ** _yieldTokenDecimals);
-
         // NOTE: rounds down on division
-        return (yieldTokens * SHARE_PRECISION * effectiveSupply) / (
-            (yieldTokenBalance() - feesAccrued()) * (10 ** _yieldTokenDecimals)
-        );
+        return (yieldTokens * _effectiveSupply()) / (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -146,7 +142,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
-        return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 18));
+        return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
     }
 
     function healthFactor(address borrower) public override returns (
@@ -319,6 +315,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 assetToRepay,
         bytes calldata redeemData
     ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 profitsWithdrawn) {
+        // TODO: add t_CurrentAccount
         if (block.timestamp - s_lastEntryTime[onBehalf] < 5 minutes) {
             revert CannotExitPositionWithinCooldownPeriod();
         }
@@ -422,16 +419,26 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /*** Private Functions ***/
+    function _effectiveSupply() private view returns (uint256) {
+        return (
+            totalSupply() - s_escrowedShares + VIRTUAL_SHARES - 
+            // TODO: clean this up a bit
+            (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
+        );
+    }
+
     function yieldTokenBalance() internal view returns (uint256) {
         return ERC20(yieldToken).balanceOf(address(this));
     }
 
     function _calculateAdditionalFeesInYieldToken() private view returns (uint256 additionalFeesInYieldToken) {
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
-        uint256 divisor = YEAR * SHARE_PRECISION;
+        // TODO: rate decimals is 18 to match the feeRate decimals
+        uint256 divisor = YEAR * (10 ** RATE_DECIMALS);
 
-        additionalFeesInYieldToken =
-            ((yieldTokenBalance() * timeSinceLastFeeAccrual * feeRate) + (divisor - 1)) / divisor;
+        additionalFeesInYieldToken = (
+            (yieldTokenBalance() - s_accruedFeesInYieldToken) * timeSinceLastFeeAccrual * feeRate + (divisor - 1)
+        ) / divisor;
     }
 
     function _accrueFees() private {
@@ -456,7 +463,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _mintYieldTokens(assets, receiver, depositData);
         uint256 yieldTokensMinted = yieldTokenBalance() - initialYieldTokenBalance;
 
-        sharesMinted = convertYieldTokenToShares(yieldTokensMinted);
+        sharesMinted = (yieldTokensMinted * _effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
         _mint(receiver, sharesMinted);
     }
 
@@ -496,7 +503,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /*** Internal Helper Functions ***/
-
     function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
         collateralBalance = MORPHO.position(morphoId(), account).collateral;
     }

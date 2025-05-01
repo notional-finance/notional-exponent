@@ -10,26 +10,22 @@ import "../src/proxy/Initializable.sol";
 
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
-
-    function decimals() public pure override returns (uint8) {
-        return 18;
-    }
+    uint256 public tokenPrecision;
 
     constructor(ERC20 _token) ERC20("MockWrapperERC20", "MWE") {
         token = _token;
+        tokenPrecision = 10 ** token.decimals();
         _mint(msg.sender, 1000000 * 10e18);
     }
 
     function deposit(uint256 amount) public {
         token.transferFrom(msg.sender, address(this), amount);
-        // _mint(msg.sender, amount * 1e18 / 1e6);
-        _mint(msg.sender, amount);
+        _mint(msg.sender, amount * 1e18 / tokenPrecision);
     }
 
     function withdraw(uint256 amount) public {
         _burn(msg.sender, amount);
-        // token.transfer(msg.sender, amount * 1e6 / 1e18);
-        token.transfer(msg.sender, amount);
+        token.transfer(msg.sender, amount * tokenPrecision / 1e18);
     }
 }
 
@@ -104,18 +100,18 @@ contract TestMorphoYieldStrategy is Test {
     }
 
     function deployYieldStrategy() internal virtual {
-        w = new MockWrapperERC20(ERC20(address(WETH)));
+        w = new MockWrapperERC20(ERC20(address(USDC)));
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             owner,
-            address(WETH),
+            address(USDC),
             address(w),
             0.0010e18, // 0.1% fee rate
             IRM,
             0.915e18 // 91.5% LTV
         );
-        defaultDeposit = 10e18;
-        defaultBorrow = 90e18;
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
     }
 
     function setMaxOracleFreshness() internal {
@@ -199,6 +195,7 @@ contract TestMorphoYieldStrategy is Test {
         asset.transfer(attacker, defaultDeposit + defaultBorrow + 1);
 
         _enterPosition(attacker, 1, 0);
+        vm.warp(block.timestamp + 6 minutes);
 
         vm.startPrank(attacker);
         // Mint and donate wrapped tokens
@@ -207,10 +204,19 @@ contract TestMorphoYieldStrategy is Test {
         MockWrapperERC20(address(w)).transfer(address(y), w.balanceOf(attacker));
         vm.stopPrank();
 
-        // NOTE: this reverts on supplyCollateral
-        _enterPosition(msg.sender, defaultDeposit, 0);
-        assertEq(y.balanceOfShares(attacker), 1, "attacker has 1 share");
-        assertEq(y.balanceOfShares(msg.sender), 0, "msg.sender has no shares");
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        vm.startPrank(attacker);
+        uint256 profitsWithdrawn = y.exitPosition(
+            attacker,
+            attacker,
+            y.balanceOfShares(attacker),
+            0,
+            getRedeemData(attacker, y.balanceOfShares(attacker))
+        );
+        vm.stopPrank();
+        // NOTE: the attacker will lose money on the donation since some of it will be allocated to the
+        // virtual shares and some will accrue to fees
+        assertLe(profitsWithdrawn, defaultDeposit + defaultBorrow);
     }
 
     function test_enterPosition() public {
@@ -218,11 +224,11 @@ contract TestMorphoYieldStrategy is Test {
 
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0);
-        assertEq(w.balanceOf(address(y)), y.totalSupply());
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
         assertEq(y.balanceOf(msg.sender), 0);
         assertGt(y.balanceOfShares(msg.sender), 0);
-        assertEq(y.balanceOfShares(msg.sender), w.balanceOf(address(y)));
+        assertEq(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()));
+        assertEq(y.convertSharesToYieldToken(y.balanceOfShares(msg.sender)), w.balanceOf(address(y)));
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
         assertApproxEqRel(defaultDeposit + defaultBorrow, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
@@ -232,11 +238,11 @@ contract TestMorphoYieldStrategy is Test {
 
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0);
-        assertEq(w.balanceOf(address(y)), y.totalSupply());
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
         assertEq(y.balanceOf(msg.sender), 0);
         assertGt(y.balanceOfShares(msg.sender), 0);
-        assertEq(y.balanceOfShares(msg.sender), w.balanceOf(address(y)));
+        assertEq(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()));
+        assertEq(y.convertSharesToYieldToken(y.balanceOfShares(msg.sender)), w.balanceOf(address(y)));
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
         assertApproxEqRel(defaultDeposit, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
@@ -258,7 +264,7 @@ contract TestMorphoYieldStrategy is Test {
 
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
-        assertEq(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), "Yield token is 1-1 with collateral shares");
+        assertApproxEqRel(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
         assertEq(y.balanceOfShares(msg.sender), initialBalance - sharesToExit, "Account has collateral shares");
@@ -400,11 +406,11 @@ contract TestMorphoYieldStrategy is Test {
         setMaxOracleFreshness();
 
         uint256 yieldTokensPerShare0 = y.convertSharesToYieldToken(1e18);
+        uint256 expectedFees = y.convertSharesToYieldToken(totalSupply) * 0.0010e18 / 1e18;
         vm.warp(block.timestamp + 365 days);
         uint256 yieldTokensPerShare1 = y.convertSharesToYieldToken(1e18);
         assertLt(yieldTokensPerShare1, yieldTokensPerShare0);
 
-        uint256 expectedFees = totalSupply * 0.0010e18 / 1e18;
         assertApproxEqAbs(y.feesAccrued(), expectedFees, 1, "Fees accrued should be equal to expected fees");
 
         vm.prank(owner);
