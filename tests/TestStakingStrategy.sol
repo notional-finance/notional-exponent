@@ -143,7 +143,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         feesAccruedAfter = y.feesAccrued();
         assertApproxEqRel(
             feesAccruedAfter - feesAccruedBefore,
-            y.balanceOfShares(staker2) * 0.00025e18 / 1e18,
+            y.convertSharesToYieldToken(y.balanceOfShares(staker2)) * 0.00025e18 / 1e18,
             0.03e18,
         "Fees should have accrued");
     }

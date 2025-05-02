@@ -163,7 +163,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
 
-        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
         if (hasEmissions) vm.warp(block.timestamp + 1 days);
         rm.claimRewardTokens();
 
@@ -172,16 +172,17 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
 
         uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
         assertEq(rewards.length, hasEmissions ? 2 : 1, "Rewards length is incorrect");
-        assertEq(rewards[0], hasRewards ? sharesBefore : 0, "Rewards are incorrect");
+        assertApproxEqRel(rewards[0], expectedRewards, 0.0001e18, "Rewards are incorrect");
         if (hasEmissions) assertEq(rewards[1], 1e18, "Emissions tokens are incorrect");
 
         rm.claimAccountRewards(msg.sender);
 
         if (hasRewards) {
-            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Rewards are claimed");
-            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore, "Reward debt is updated");
+            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Rewards are claimed");
+            assertApproxEqRel(rm.getRewardDebt(address(rewardToken), msg.sender), expectedRewards, 0.0001e18, "Reward debt is updated");
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
             assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
@@ -199,8 +200,8 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         rm.claimAccountRewards(msg.sender);
 
         if (hasRewards) {
-            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore);
-            assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), sharesBefore);
+            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Rewards are claimed");
+            assertApproxEqRel(rm.getRewardDebt(address(rewardToken), msg.sender), expectedRewards, 0.0001e18, "Reward debt is updated");
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0);
             assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
@@ -213,11 +214,11 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         _enterPosition(msg.sender, defaultDeposit, 0);
         uint256 sharesAfter = y.balanceOfShares(msg.sender);
-
-        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        uint256 expectedRewardsAfter = hasRewards ? y.convertSharesToYieldToken(sharesAfter) : 0;
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
         rm.claimAccountRewards(msg.sender);
         if (hasRewards) {
-            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter, "Rewards are claimed");
+            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewardsAfter, 0.0001e18, "Rewards are claimed");
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         }
@@ -237,9 +238,10 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         vm.warp(block.timestamp + 7 days);
 
         // Rewards are 1-1 with yield tokens
-        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
         uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         uint256 emissionsForUser = 7e18 * sharesBefore / y.totalSupply();
         vm.startPrank(msg.sender);
         if (isFullExit) {
@@ -263,7 +265,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         vm.stopPrank();
 
         if (hasRewards) {
-            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Rewards are claimed");
+            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Rewards are claimed");
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         }
@@ -277,18 +279,20 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is updated");
         }
 
-        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
         uint256 sharesAfter = y.balanceOfShares(msg.sender);
+        uint256 expectedRewardsAfter = hasRewards ? y.convertSharesToYieldToken(sharesAfter) : 0;
+
         rm.claimRewardTokens();
         uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
         assertEq(rewards.length, hasEmissions ? 2 : 1);
-        assertEq(rewards[0], hasRewards ? sharesAfter : 0);
+        assertApproxEqRel(rewards[0], expectedRewardsAfter, 0.0001e18, "Rewards are correct");
         if (hasEmissions) assertEq(rewards[1], 0, "Emissions tokens are claimed");
 
         rm.claimAccountRewards(msg.sender);
 
         if (hasRewards) {
-            assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesAfter, "Rewards are claimed");
+            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewardsAfter, 0.0001e18, "Rewards are claimed");
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         }
@@ -305,8 +309,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Since there were two claims before, the owner should receive 2x the rewards
         // as the balance of shares.
         rm.claimAccountRewards(owner);
+        uint256 expectedRewardsForOwner = hasRewards ? y.convertSharesToYieldToken(y.balanceOfShares(owner)) * 2 : 0;
         if (hasRewards) {
-            assertEq(rewardToken.balanceOf(owner), y.balanceOfShares(owner) * 2, "Rewards are claimed");
+            assertApproxEqRel(rewardToken.balanceOf(owner), expectedRewardsForOwner, 0.0001e18, "Rewards are claimed");
         } else {
             assertEq(rewardToken.balanceOf(owner), 0, "Rewards are empty");
         }
@@ -335,17 +340,18 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         o.setPrice(originalPrice * 0.90e18 / 1e18);
 
-        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
         vm.startPrank(liquidator);
         uint256 sharesBefore = y.balanceOfShares(msg.sender);
         uint256 emissionsForUser = 1e18 * sharesBefore / y.totalSupply();
+        uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         asset.approve(address(y), type(uint256).max);
         // This should trigger a claim on rewards
         uint256 sharesToLiquidator = y.liquidate(msg.sender, sharesBefore, 0, bytes(""));
         vm.stopPrank();
 
-        if (hasRewards) assertEq(rewardToken.balanceOf(msg.sender), sharesBefore, "Liquidated account shares");
+        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account shares");
         if (hasEmissions) {
             assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Liquidated account emissions");
         }
@@ -353,19 +359,20 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
         assertEq(emissionsToken.balanceOf(liquidator), 0, "Liquidator account emissions");
 
-        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.totalSupply());
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
         if (hasEmissions) vm.warp(block.timestamp + 1 days);
         uint256 emissionsForLiquidator = 1e18 * sharesToLiquidator / y.totalSupply();
 
         rm.claimAccountRewards(liquidator);
 
-        if (hasRewards) assertEq(rewardToken.balanceOf(liquidator), sharesToLiquidator, "Liquidator account rewards");
+        uint256 expectedRewardsForLiquidator = hasRewards ? y.convertSharesToYieldToken(sharesToLiquidator) : 0;
+        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(liquidator), expectedRewardsForLiquidator, 0.0001e18, "Liquidator account rewards");
         if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.0010e18, "Liquidator account emissions");
 
         rm.claimAccountRewards(msg.sender);
         uint256 emissionsForUserAfter = 1e18 * y.balanceOfShares(msg.sender) / y.totalSupply();
 
-        if (hasRewards) assertEq(rewardToken.balanceOf(msg.sender), sharesBefore + sharesBefore - sharesToLiquidator, "Liquidated account rewards");
+        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewards - expectedRewardsForLiquidator, 0.0001e18, "Liquidated account rewards");
         if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser + emissionsForUserAfter, 0.0010e18, "Liquidated account emissions");
     }
 }

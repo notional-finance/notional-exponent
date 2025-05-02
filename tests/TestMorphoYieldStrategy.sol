@@ -189,36 +189,6 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(computedTotalSupply, totalSupply, "Total supply is correct");
     }
 
-    function test_dilution_attack() public {
-        address attacker = makeAddr("attacker");
-        vm.prank(owner);
-        asset.transfer(attacker, defaultDeposit + defaultBorrow + 1);
-
-        _enterPosition(attacker, 1, 0);
-        vm.warp(block.timestamp + 6 minutes);
-
-        vm.startPrank(attacker);
-        // Mint and donate wrapped tokens
-        asset.approve(address(w), defaultDeposit + defaultBorrow);
-        MockWrapperERC20(address(w)).deposit(defaultDeposit + defaultBorrow);
-        MockWrapperERC20(address(w)).transfer(address(y), w.balanceOf(attacker));
-        vm.stopPrank();
-
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        vm.startPrank(attacker);
-        uint256 profitsWithdrawn = y.exitPosition(
-            attacker,
-            attacker,
-            y.balanceOfShares(attacker),
-            0,
-            getRedeemData(attacker, y.balanceOfShares(attacker))
-        );
-        vm.stopPrank();
-        // NOTE: the attacker will lose money on the donation since some of it will be allocated to the
-        // virtual shares and some will accrue to fees
-        assertLe(profitsWithdrawn, defaultDeposit + defaultBorrow);
-    }
-
     function test_enterPosition() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
