@@ -57,13 +57,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     // TODO: this is storage....
     IWithdrawRequestManager[] public withdrawRequestManagers;
-    mapping(address => uint256) public withdrawnLPTokenAmounts;
 
     uint256 immutable maxPoolShare;
     address immutable lpToken;
-    uint256 internal constant POOL_SHARE_BASIS = 1e18;
-    uint256 internal constant MAX_TOKENS = 5;
-    uint8 internal constant NOT_FOUND = type(uint8).max;
 
     /************************************************************************
      * VIRTUAL FUNCTIONS                                                    *
@@ -85,9 +81,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     /// @notice Called once during initialization to set the initial token approvals.
     function _initialApproveTokens() internal virtual;
 
-    // /// @notice Called to claim reward tokens
-    // function _rewardPoolStorage() internal view virtual returns (RewardPoolStorage memory);
-
     /// @notice Implementation specific wrapper for joining a pool with the given amounts. Will also
     /// stake on the relevant booster protocol.
     function _joinPoolAndStake(
@@ -106,6 +99,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function _totalPoolSupply() internal view virtual returns (uint256) {
         return IERC20(lpToken).totalSupply();
     }
+
+    function _checkReentrancyContext() internal virtual;
 
     /************************************************************************
      * CLASS FUNCTIONS                                                      *
@@ -156,7 +151,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 assets,
         address receiver,
         bytes memory depositData
-    ) internal override virtual {
+    ) internal override {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
         (/* */, bool hasPendingRequest) = requestIdsForAccount(receiver);
@@ -179,7 +174,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.
-        uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / POOL_SHARE_BASIS;
+        uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / (10 ** RATE_DECIMALS);
         // TODO: this is incumbent on a 1-1 ration between the lpToken and the yieldToken
         uint256 poolClaim = IERC20(yieldToken).balanceOf(address(this));
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
@@ -189,7 +184,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 sharesToRedeem,
         address sharesOwner,
         bytes memory redeemData
-    ) internal override virtual returns (bool wasEscrowed) {
+    ) internal override returns (bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         (WithdrawRequest[] memory requests, bool hasPendingRequest) = requestIdsForAccount(sharesOwner);
 
@@ -292,8 +287,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         }
     }
 
-    function _checkReentrancyContext() internal virtual;
-
     function _preLiquidation(address liquidateAccount, address liquidator) internal override returns (uint256 maxLiquidateShares) {
         _checkReentrancyContext();
         return super._preLiquidation(liquidateAccount, liquidator);
@@ -317,9 +310,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld);
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
-
-        require(withdrawnLPTokenAmounts[account] == 0, "Existing withdraw request");
-        withdrawnLPTokenAmounts[account] += yieldTokenAmount;
+        // TODO: test that you cannot re-initiate a withdraw
 
         uint256[] memory exitBalances = _unstakeAndExitPool({
             poolClaim: yieldTokenAmount,
@@ -363,71 +354,4 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         }
     }
 
-    /************************************************************************
-     * EMERGENCY EXIT                                                       *
-     * In case of an emergency, will allow a whitelisted guardian to exit   *
-     * funds on the vault and locks the vault from further usage. The owner *
-     * can restore funds to the LP pool and reinstate vault usage. If the   *
-     * vault cannot be fully restored after an exit, the vault will need to *
-     * be upgraded and unwound manually to ensure that debts are repaid and *
-     * users can withdraw their funds.                                      *
-     ************************************************************************/
-
-    // /// @notice Allows the emergency exit role to trigger an emergency exit on the vault.
-    // /// In this situation, the `claimToExit` is withdrawn proportionally to the underlying
-    // /// tokens and held on the vault. The vault is locked so that no entries, exits or
-    // /// valuations of vaultShares can be performed.
-    // /// @param claimToExit if this is set to zero, the entire pool claim is withdrawn
-    // function emergencyExit(
-    //     uint256 claimToExit, bytes calldata /* data */
-    // ) external override onlyRole(EMERGENCY_EXIT_ROLE) {
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-    //     if (claimToExit == 0 || claimToExit > state.totalPoolClaim) claimToExit = state.totalPoolClaim;
-
-    //     // By setting min amounts to zero, we will accept whatever tokens come from the pool
-    //     // in a proportional exit. Front running will not have an effect since no trading will
-    //     // occur during a proportional exit.
-    //     uint256[] memory exitBalances = _unstakeAndExitPool(claimToExit, new uint256[](NUM_TOKENS()), false);
-
-    //     state.totalPoolClaim = state.totalPoolClaim - claimToExit;
-    //     state.setStrategyVaultState();
-
-    //     emit EmergencyExit(claimToExit, exitBalances);
-    //     _lockVault();
-    // }
-
-    // /// @notice Restores withdrawn tokens from emergencyExit back into the vault proportionally.
-    // /// Unlocks the vault after restoration so that normal functionality is restored.
-    // /// @param minPoolClaim slippage limit to prevent front running
-    // /// @param data the owner will pass in an array of amounts for the pool to re-enter the vault.
-    // /// This prevents any front running or manipulation of the vault balances.
-    // function restoreVault(
-    //     uint256 minPoolClaim, bytes calldata data
-    // ) external override whenLocked onlyNotionalOwner {
-    //     StrategyVaultState memory state = VaultStorage.getStrategyVaultState();
-
-    //     uint256[] memory amounts = abi.decode(data, (uint256[]));
-
-    //     // No trades are specified so this joins proportionally using the
-    //     // amounts specified.
-    //     uint256 poolTokens = _joinPoolAndStake(amounts, minPoolClaim);
-
-    //     state.totalPoolClaim = state.totalPoolClaim + poolTokens;
-    //     state.setStrategyVaultState();
-
-    //     _unlockVault();
-    // }
-
-    // /// @notice This is a trusted method that can only be executed while the vault is locked. The owner
-    // /// may trade tokens prior to restoring the vault if the tokens withdrawn are imbalanced. In this
-    // /// method, one of the tokens held is sold for other tokens that go into the pool. If multiple tokens
-    // /// need to be sold then this method will be called multiple times prior to restoreVault.
-    // function tradeTokensBeforeRestore(
-    //     SingleSidedRewardTradeParams[] calldata trades
-    // ) external override whenLocked onlyNotionalOwner {
-    //     // The sell token on all trades must be the same (checked inside executeRewardTrades). In this
-    //     // method we do not validate the sell token so we can sell any of the tokens held on the vault
-    //     // in exchange for any other token that goes into the pool.
-    //     _executeRewardTrades(trades, trades[0].sellToken);
-    // }
 }

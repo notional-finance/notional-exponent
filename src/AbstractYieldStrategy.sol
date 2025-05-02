@@ -90,20 +90,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _lltv = __lltv;
     }
 
-    function _initialize(bytes calldata data) internal override virtual {
-        (string memory _name, string memory _symbol, address _owner) = abi.decode(data, (string, string, address));
-        s_name = _name;
-        s_symbol = _symbol;
-
-        // This is called inside initialize() because we need to use address(this) inside
-        // marketParams()
-        MORPHO.createMarket(marketParams());
-
-        s_lastFeeAccrualTime = uint32(block.timestamp);
-        owner = _owner;
-        isPaused = false;
-    }
-
     function name() public view override(ERC20, IERC20Metadata) returns (string memory) {
         return s_name;
     }
@@ -166,21 +152,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
-        uint256 yieldTokens = convertSharesToYieldToken(shares);
-        // NOTE: rounds down on division
-        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function totalAssets() public view virtual override returns (uint256) {
+    function totalAssets() public view override returns (uint256) {
         return convertToAssets(totalSupply());
     }
 
     /*** Fee Methods ***/
 
     /// @inheritdoc IYieldStrategy
-    function feesAccrued() public view virtual override returns (uint256 feesAccruedInYieldToken) {
+    function feesAccrued() public view override returns (uint256 feesAccruedInYieldToken) {
         return s_accruedFeesInYieldToken + _calculateAdditionalFeesInYieldToken();
     }
 
@@ -190,12 +169,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _transferYieldTokenToOwner(s_accruedFeesInYieldToken);
 
         delete s_accruedFeesInYieldToken;
-    }
-
-    /// @dev Some yield tokens (such as Convex staked tokens) cannot be transferred, so we may need
-    /// to override this function.
-    function _transferYieldTokenToOwner(uint256 yieldTokens) internal virtual {
-        ERC20(yieldToken).safeTransfer(owner, yieldTokens);
     }
 
     /*** Authorization Methods ***/
@@ -292,6 +265,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _mintSharesAndSupplyCollateral(assets + depositAssetAmount, depositData, receiver);
 
         // Borrow the assets in order to repay the flash loan
+        // XXX: this is a Morpho market specific function
         MORPHO.borrow(marketParams(), assets, 0, receiver, address(this));
 
         // Allow for flash loan to be repaid
@@ -303,6 +277,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Allow Morpho to transferFrom the receiver the minted shares.
         _transfer(receiver, address(this), sharesMinted);
+
+        // XXX: this is a Morpho market specific function
         _approve(address(this), address(MORPHO), sharesMinted);
         MORPHO.supplyCollateral(marketParams(), sharesMinted, receiver, "");
     }
@@ -315,7 +291,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 assetToRepay,
         bytes calldata redeemData
     ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 profitsWithdrawn) {
-        // TODO: add t_CurrentAccount
         if (block.timestamp - s_lastEntryTime[onBehalf] < 5 minutes) {
             revert CannotExitPositionWithinCooldownPeriod();
         }
@@ -435,7 +410,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
         // TODO: rate decimals is 18 to match the feeRate decimals
         uint256 divisor = YEAR * (10 ** RATE_DECIMALS);
-
+        // TODO: change this to do continuous compounding
         additionalFeesInYieldToken = (
             (yieldTokenBalance() - s_accruedFeesInYieldToken) * timeSinceLastFeeAccrual * feeRate + (divisor - 1)
         ) / divisor;
@@ -449,36 +424,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Removes some shares from the "pool" that is used to pay fees.
-    function _escrowShares(uint256 shares) internal virtual {
+    function _escrowShares(uint256 shares) internal {
         _accrueFees();
         s_escrowedShares += shares;
-    }
-
-    function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal virtual returns (uint256 sharesMinted) {
-        if (assets == 0) return 0;
-
-        // First accrue fees on the yield token
-        _accrueFees();
-        uint256 initialYieldTokenBalance = yieldTokenBalance();
-        _mintYieldTokens(assets, receiver, depositData);
-        uint256 yieldTokensMinted = yieldTokenBalance() - initialYieldTokenBalance;
-
-        sharesMinted = (yieldTokensMinted * _effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
-        _mint(receiver, sharesMinted);
-    }
-
-    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
-        if (sharesToBurn == 0) return 0;
-
-        uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
-
-        // First accrue fees on the yield token
-        _accrueFees();
-        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, redeemData);
-        if (wasEscrowed) s_escrowedShares -= sharesToBurn;
-
-        uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
-        assetsWithdrawn = finalAssetBalance - initialAssetBalance;
     }
 
     function _update(address from, address to, uint256 value) internal override {
@@ -491,13 +439,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         super._update(from, to, value);
     }
 
-    function _checkInvariants() internal view virtual {
-        // Sanity check to ensure that the yield token balance is not being manipulated, although this
-        // will pass if there is a donation of yield tokens to the contract.
-        // if (ERC20(yieldToken).balanceOf(address(this)) < s_trackedYieldTokenBalance) {
-        //     revert InsufficientYieldTokenBalance();
-        // }
-    }
+    function _checkInvariants() internal view { }
 
     /*** Internal Helper Functions ***/
     function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
@@ -534,6 +476,55 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /*** Virtual Functions ***/
 
+    function _initialize(bytes calldata data) internal override virtual {
+        (string memory _name, string memory _symbol, address _owner) = abi.decode(data, (string, string, address));
+        s_name = _name;
+        s_symbol = _symbol;
+
+        // This is called inside initialize() because we need to use address(this) inside
+        // marketParams()
+        MORPHO.createMarket(marketParams());
+
+        s_lastFeeAccrualTime = uint32(block.timestamp);
+        owner = _owner;
+        isPaused = false;
+    }
+
+    /// @dev Marked as virtual to allow for RewardManagerMixin to override
+    function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal virtual returns (uint256 sharesMinted) {
+        if (assets == 0) return 0;
+
+        // First accrue fees on the yield token
+        _accrueFees();
+        uint256 initialYieldTokenBalance = yieldTokenBalance();
+        _mintYieldTokens(assets, receiver, depositData);
+        uint256 yieldTokensMinted = yieldTokenBalance() - initialYieldTokenBalance;
+
+        sharesMinted = (yieldTokensMinted * _effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+        _mint(receiver, sharesMinted);
+    }
+
+    /// @dev Marked as virtual to allow for RewardManagerMixin to override
+    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
+        if (sharesToBurn == 0) return 0;
+
+        uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
+
+        // First accrue fees on the yield token
+        _accrueFees();
+        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, redeemData);
+        if (wasEscrowed) s_escrowedShares -= sharesToBurn;
+
+        uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
+        assetsWithdrawn = finalAssetBalance - initialAssetBalance;
+    }
+
+    /// @dev Some yield tokens (such as Convex staked tokens) cannot be transferred, so we may need
+    /// to override this function.
+    function _transferYieldTokenToOwner(uint256 yieldTokens) internal virtual {
+        ERC20(yieldToken).safeTransfer(owner, yieldTokens);
+    }
+
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
     function _preLiquidation(address liquidateAccount, address /* liquidator */) internal virtual returns (uint256 maxLiquidateShares) {
@@ -548,6 +539,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @dev Redeems shares
     function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory redeemData) internal virtual returns (bool wasEscrowed);
+
+    /// @inheritdoc IYieldStrategy
+    function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
+        uint256 yieldTokens = convertSharesToYieldToken(shares);
+        // NOTE: rounds down on division
+        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
+    }
 
 }
 
