@@ -59,14 +59,13 @@ contract MockRewardPool is ERC20 {
 
 contract MockRewardVault is RewardManagerMixin {
     constructor(
-        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
         address _irm,
         uint256 _lltv,
         address _rewardManager
-    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, ERC20(_yieldToken).decimals()) { }
+    ) RewardManagerMixin(_asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, ERC20(_yieldToken).decimals()) { }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
         ERC20(asset).approve(address(yieldToken), type(uint256).max);
@@ -90,7 +89,6 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         w = new MockRewardPool(address(USDC));
         o = new MockOracle(1e18);
         y = new MockRewardVault(
-            owner,
             address(USDC),
             address(w),
             0.0010e18, // 0.1% fee rate

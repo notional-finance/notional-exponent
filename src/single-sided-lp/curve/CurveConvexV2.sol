@@ -11,7 +11,6 @@ contract CurveConvexV2 is CurveConvex2Token {
 
    constructor(
         uint256 _maxPoolShare,
-        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
@@ -20,7 +19,7 @@ contract CurveConvexV2 is CurveConvex2Token {
         address _rewardManager,
         DeploymentParams memory params,
         IWithdrawRequestManager[] memory managers
-    ) CurveConvex2Token(_maxPoolShare, _owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, params, managers) { }
+    ) CurveConvex2Token(_maxPoolShare, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, params, managers) { }
 
     function _checkReentrancyContext() internal override {
         uint256[2] memory minAmounts;

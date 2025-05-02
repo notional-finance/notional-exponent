@@ -50,7 +50,6 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
 
     constructor(
         uint256 _maxPoolShare,
-        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
@@ -59,7 +58,7 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
         address _rewardManager,
         DeploymentParams memory params,
         IWithdrawRequestManager[] memory managers
-    ) AbstractSingleSidedLP(_maxPoolShare, _owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, params.poolToken, 18) {
+    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, params.poolToken, 18) {
         CURVE_POOL = params.pool;
         CURVE_GAUGE = params.gauge;
         CURVE_POOL_TOKEN = IERC20(params.poolToken);
@@ -169,7 +168,7 @@ abstract contract CurveConvex2Token is AbstractSingleSidedLP {
         }
     }
 
-    function _transferYieldTokenToOwner(uint256 yieldTokens) internal override {
+    function _transferYieldTokenToOwner(address owner, uint256 yieldTokens) internal override {
         _unstakeLpTokens(yieldTokens);
         CURVE_POOL_TOKEN.safeTransfer(owner, yieldTokens);
     }

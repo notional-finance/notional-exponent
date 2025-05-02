@@ -32,7 +32,6 @@ contract TestDilutionAttack is Test {
         }
 
         y = new MockYieldStrategy(
-            owner,
             address(asset),
             address(w),
             0.0010e18, // 0.1% fee rate
@@ -43,8 +42,9 @@ contract TestDilutionAttack is Test {
         defaultBorrow = asset == USDC ? 90_000e6 : 90e18;
 
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            owner, address(y), abi.encodeWithSelector(Initializable.initialize.selector,
-            abi.encode("name", "symbol", owner))
+            address(y), abi.encodeWithSelector(Initializable.initialize.selector,
+            abi.encode("name", "symbol")),
+            address(0)
         );
         y = IYieldStrategy(address(proxy));
 

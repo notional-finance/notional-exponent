@@ -46,10 +46,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     string private s_name;
     string private s_symbol;
 
-    address public override owner;
-    bool public override isPaused;
     uint32 private s_lastFeeAccrualTime;
-
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
 
@@ -67,7 +64,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     receive() external payable {}
 
     constructor(
-        address /* _owner */,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
@@ -164,9 +160,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function collectFees() external onlyOwner override {
+    function collectFees() external override {
         _accrueFees();
-        _transferYieldTokenToOwner(s_accruedFeesInYieldToken);
+        // TODO: fix this...
+        _transferYieldTokenToOwner(address(0), s_accruedFeesInYieldToken);
 
         delete s_accruedFeesInYieldToken;
     }
@@ -181,26 +178,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         t_CurrentAccount = onBehalf;
         _;
         delete t_CurrentAccount;
-    }
-
-    modifier isNotPaused() {
-        if (isPaused) revert Paused();
-        _;
-    }
-
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NotAuthorized(msg.sender, owner);
-        _;
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function pause() external override onlyOwner {
-        isPaused = true;
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function unpause() external override onlyOwner {
-        isPaused = false;
     }
 
     function setApproval(address operator, bool approved) external override {
@@ -234,7 +211,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) external override isAuthorized(onBehalf) isNotPaused nonReentrant {
+    ) external override isAuthorized(onBehalf) nonReentrant {
         // First collect the margin deposit
         if (depositAssetAmount > 0) {
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
@@ -290,7 +267,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf) isNotPaused nonReentrant returns (uint256 profitsWithdrawn) {
+    ) external override isAuthorized(onBehalf) nonReentrant returns (uint256 profitsWithdrawn) {
         if (block.timestamp - s_lastEntryTime[onBehalf] < 5 minutes) {
             revert CannotExitPositionWithinCooldownPeriod();
         }
@@ -351,7 +328,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 seizedAssets,
         uint256 repaidShares,
         bytes calldata redeemData
-    ) external override isNotPaused nonReentrant returns (uint256 sharesToLiquidator) {
+    ) external override nonReentrant returns (uint256 sharesToLiquidator) {
         t_CurrentAccount = liquidateAccount;
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
@@ -387,7 +364,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public isNotPaused nonReentrant returns (uint256 assetsWithdrawn) {
+    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public nonReentrant returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
         _burn(msg.sender, sharesToRedeem);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
@@ -477,7 +454,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /*** Virtual Functions ***/
 
     function _initialize(bytes calldata data) internal override virtual {
-        (string memory _name, string memory _symbol, address _owner) = abi.decode(data, (string, string, address));
+        (string memory _name, string memory _symbol) = abi.decode(data, (string, string));
         s_name = _name;
         s_symbol = _symbol;
 
@@ -486,8 +463,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         MORPHO.createMarket(marketParams());
 
         s_lastFeeAccrualTime = uint32(block.timestamp);
-        owner = _owner;
-        isPaused = false;
     }
 
     /// @dev Marked as virtual to allow for RewardManagerMixin to override
@@ -521,7 +496,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @dev Some yield tokens (such as Convex staked tokens) cannot be transferred, so we may need
     /// to override this function.
-    function _transferYieldTokenToOwner(uint256 yieldTokens) internal virtual {
+    function _transferYieldTokenToOwner(address owner, uint256 yieldTokens) internal virtual {
         ERC20(yieldToken).safeTransfer(owner, yieldTokens);
     }
 

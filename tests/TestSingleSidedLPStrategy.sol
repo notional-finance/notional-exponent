@@ -110,7 +110,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         if (curveInterface == CurveInterface.StableSwapNG) {
             y = new CurveConvexStableSwapNG(
                 maxPoolShare,
-                owner,
                 address(asset),
                 address(w),
                 0.0010e18, // 0.1%
@@ -128,7 +127,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         } else if (curveInterface == CurveInterface.V2) {
             y = new CurveConvexV2(
                 maxPoolShare,
-                owner,
                 address(asset),
                 address(w),
                 0.0010e18, // 0.1%
@@ -146,7 +144,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         } else if (curveInterface == CurveInterface.V1) {
             y = new CurveConvexV1(
                 maxPoolShare,
-                owner,
                 address(asset),
                 address(w),
                 0.0010e18, // 0.1%
@@ -333,7 +330,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         if (curveInterface == CurveInterface.StableSwapNG) {
             y = new CurveConvexStableSwapNG(
                 0.001e18, // 0.1% max pool share
-                owner,
                 address(asset),
                 address(w),
                 0.0010e18, // 0.1%
@@ -351,7 +347,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         } else if (curveInterface == CurveInterface.V2) {
             y = new CurveConvexV2(
                 0.001e18, // 0.1% max pool share
-                owner,
                 address(asset),
                 address(w),
                 0.0010e18, // 0.1%
@@ -369,7 +364,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         } else if (curveInterface == CurveInterface.V1) {
             y = new CurveConvexV1(
                 0.001e18, // 0.1% max pool share
-                owner,
                 address(asset),
                 address(w),
                 0.0010e18, // 0.1%
@@ -386,8 +380,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             );
         }
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            owner, address(y), abi.encodeWithSelector(Initializable.initialize.selector,
-            abi.encode("name", "symbol", owner))
+            address(y), abi.encodeWithSelector(Initializable.initialize.selector,
+            abi.encode("name", "symbol")),
+            address(0)
         );
         y = IYieldStrategy(address(proxy));
 

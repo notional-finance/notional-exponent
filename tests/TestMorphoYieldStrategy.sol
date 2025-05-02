@@ -46,14 +46,12 @@ contract MockOracle is AbstractCustomOracle {
 
 contract MockYieldStrategy is AbstractYieldStrategy {
     constructor(
-        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
         address _irm,
         uint256 _lltv
-    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) {
-    }
+    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) { }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
         ERC20(asset).approve(address(yieldToken), type(uint256).max);
@@ -84,6 +82,7 @@ contract TestMorphoYieldStrategy is Test {
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address constant IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
+    address public addressRegistry = address(0x0000000000000000000000000000000000000000);
 
     function getRedeemData(
         address /* user */,
@@ -103,7 +102,6 @@ contract TestMorphoYieldStrategy is Test {
         w = new MockWrapperERC20(ERC20(address(USDC)));
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
-            owner,
             address(USDC),
             address(w),
             0.0010e18, // 0.1% fee rate
@@ -127,8 +125,9 @@ contract TestMorphoYieldStrategy is Test {
 
         deployYieldStrategy();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            owner, address(y), abi.encodeWithSelector(Initializable.initialize.selector,
-            abi.encode("name", "symbol", owner))
+            address(y),
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol")),
+            addressRegistry
         );
         y = IYieldStrategy(address(proxy));
 
@@ -171,7 +170,7 @@ contract TestMorphoYieldStrategy is Test {
         y.collectFees();
 
         uint256 totalSupply = y.totalSupply();
-        uint256 computedTotalSupply = y.balanceOf(y.owner());
+        uint256 computedTotalSupply = y.balanceOf(owner);
 
         for (uint256 i = 0; i < users.length; i++) {
             address user = users[i];
@@ -179,7 +178,7 @@ contract TestMorphoYieldStrategy is Test {
             assertGe(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()),
                 "Yield token balance matches total supply"
             );
-            assertEq(y.balanceOf(address(MORPHO)), y.totalSupply() - y.balanceOf(y.owner()),
+            assertEq(y.balanceOf(address(MORPHO)), y.totalSupply() - y.balanceOf(owner),
                 "Morpho has all collateral shares"
             );
             assertEq(y.balanceOf(user), 0, "User has no collateral shares");
@@ -288,36 +287,36 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
-    function test_pause_unpause() public {
-        // Initially not paused
-        assertEq(y.isPaused(), false);
+    // function test_pause_unpause() public {
+    //     // Initially not paused
+    //     assertEq(y.isPaused(), false);
 
-        // Only owner can pause
-        vm.prank(msg.sender);
-        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
-        y.pause();
+    //     // Only owner can pause
+    //     vm.prank(msg.sender);
+    //     vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
+    //     y.pause();
 
-        vm.prank(owner);
-        y.pause();
-        assertEq(y.isPaused(), true);
+    //     vm.prank(owner);
+    //     y.pause();
+    //     assertEq(y.isPaused(), true);
 
-        // Cannot perform operations while paused
-        vm.prank(msg.sender);
-        vm.expectRevert(abi.encodeWithSelector(Paused.selector));
-        y.enterPosition(msg.sender, 100_000e6, 100_000e6, getDepositData(msg.sender, 100_000e6));
+    //     // Cannot perform operations while paused
+    //     vm.prank(msg.sender);
+    //     vm.expectRevert(abi.encodeWithSelector(Paused.selector));
+    //     y.enterPosition(msg.sender, 100_000e6, 100_000e6, getDepositData(msg.sender, 100_000e6));
 
-        // Only owner can unpause
-        vm.prank(msg.sender);
-        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
-        y.unpause();
+    //     // Only owner can unpause
+    //     vm.prank(msg.sender);
+    //     vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
+    //     y.unpause();
 
-        vm.prank(owner);
-        y.unpause();
-        assertEq(y.isPaused(), false);
+    //     vm.prank(owner);
+    //     y.unpause();
+    //     assertEq(y.isPaused(), false);
 
-        // Can perform operations after unpause
-        _enterPosition(msg.sender, 100_000e6, 100_000e6);
-    }
+    //     // Can perform operations after unpause
+    //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
+    // }
 
     function test_setApproval() public {
         address operator = address(0x123);

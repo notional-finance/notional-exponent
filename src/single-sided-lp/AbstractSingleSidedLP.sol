@@ -110,7 +110,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     constructor(
         uint256 _maxPoolShare,
-        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
@@ -119,7 +118,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address _rewardManager,
         address _lpToken,
         uint8 _yieldTokenDecimals
-    ) RewardManagerMixin(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, _yieldTokenDecimals) {
+    ) RewardManagerMixin( _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, _yieldTokenDecimals) {
         maxPoolShare = _maxPoolShare;
         lpToken = _lpToken;
     }
@@ -301,7 +300,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
     }
 
-    function forceWithdraw(address account, bytes calldata data) external onlyOwner returns (uint256[] memory requestIds) {
+    function forceWithdraw(address account, bytes calldata data) external returns (uint256[] memory requestIds) {
+        // TODO: who can do this?
         requestIds = _initiateWithdraw({account: account, isForced: true, data: data});
     }
 

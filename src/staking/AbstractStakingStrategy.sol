@@ -41,14 +41,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     address public immutable withdrawToken;
 
     constructor(
-        address _owner,
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
         address _irm,
         uint256 _lltv,
         IWithdrawRequestManager _withdrawRequestManager
-    ) AbstractYieldStrategy(_owner, _asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) {
+    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) {
         withdrawRequestManager = _withdrawRequestManager;
         withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.withdrawToken() : address(0);
     }
@@ -95,7 +94,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
-    function forceWithdraw(address account, bytes calldata data) external onlyOwner returns (uint256 requestId) {
+    function forceWithdraw(address account, bytes calldata data) external returns (uint256 requestId) {
+        // TODO: who can do this?
         requestId = _initiateWithdraw({account: account, isForced: true, data: data});
     }
 

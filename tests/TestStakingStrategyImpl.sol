@@ -31,7 +31,6 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
     function deployYieldStrategy() internal override {
         manager = new EtherFiWithdrawRequestManager(owner);
         y = new EtherFiStaking(
-            owner,
             0.0010e18, // 0.1% fee rate
             IRM,
             0.915e18, // 91.5% LTV
@@ -142,7 +141,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 tokenOut,
                 address(USDC),
                 ptToken,
-                owner,
                 0.0010e18,
                 IRM,
                 0.915e18,
@@ -155,7 +153,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 tokenOut,
                 address(USDC),
                 ptToken,
-                owner,
                 0.0010e18,
                 IRM,
                 0.915e18,
