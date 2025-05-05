@@ -11,7 +11,7 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
     /// @dev Required to withdraw WETH
     receive() external payable {}
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(weETH), address(WETH)) { }
+    constructor() AbstractWithdrawRequestManager(address(WETH), address(weETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(
         address /* account */,

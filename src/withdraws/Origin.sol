@@ -42,7 +42,7 @@ IERC20 constant oETH = IERC20(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3);
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(WETH), address(oETH), address(WETH)) { }
+    constructor() AbstractWithdrawRequestManager(address(WETH), address(oETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -50,7 +50,7 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
         bool /* isForced */,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
-        IERC20(yieldToken).approve(address(OriginVault), oETHToWithdraw);
+        IERC20(YIELD_TOKEN).approve(address(OriginVault), oETHToWithdraw);
         (requestId, ) = OriginVault.requestWithdrawal(oETHToWithdraw);
     }
 

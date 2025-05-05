@@ -6,6 +6,7 @@ import "../src/utils/Errors.sol";
 import "../src/utils/Constants.sol";
 import "../src/withdraws/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./TestMorphoYieldStrategy.sol";
 
 abstract contract TestWithdrawRequest is Test {
     string RPC_URL = vm.envString("RPC_URL");
@@ -15,12 +16,19 @@ abstract contract TestWithdrawRequest is Test {
     ERC20[] public allowedDepositTokens;
     bytes public depositCallData;
     bytes public withdrawCallData;
-    address public owner;
+    address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
+
+    function deployAddressRegistry() public {
+        address deployer = makeAddr("deployer");
+        vm.prank(deployer);
+        address addressRegistry = address(new AddressRegistry(owner, owner, owner));
+    }
 
     function setUp() public virtual {
         owner = makeAddr("owner");
 
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
+        deployAddressRegistry();
     }
 
     modifier approveVault() {
@@ -78,12 +86,12 @@ abstract contract TestWithdrawRequest is Test {
 
             assertGt(depositToken.balanceOf(address(this)), 0, "Deposit token balance is 0");
 
-            uint256 initialYieldTokenBalance = ERC20(manager.yieldToken()).balanceOf(address(this));
+            uint256 initialYieldTokenBalance = ERC20(manager.YIELD_TOKEN()).balanceOf(address(this));
             uint256 yieldTokensMinted = manager.stakeTokens(address(depositToken), depositToken.balanceOf(address(this)), depositCallData);
-            uint256 finalYieldTokenBalance = ERC20(manager.yieldToken()).balanceOf(address(this));
+            uint256 finalYieldTokenBalance = ERC20(manager.YIELD_TOKEN()).balanceOf(address(this));
 
             assertGt(yieldTokensMinted, 0, "Yield tokens minted is 0");
-            if (address(depositToken) != address(manager.yieldToken())) {
+            if (address(depositToken) != address(manager.YIELD_TOKEN())) {
                 assertEq(
                     yieldTokensMinted, finalYieldTokenBalance - initialYieldTokenBalance,
                     "Yield tokens minted is not equal to the balance of the yield token"
@@ -93,7 +101,7 @@ abstract contract TestWithdrawRequest is Test {
     }
 
     function test_initiateWithdraw() public approveVaultAndStakeTokens {
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
         uint256 sharesAmount = initialYieldTokenBalance / 2;
@@ -138,7 +146,7 @@ abstract contract TestWithdrawRequest is Test {
         (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(
             address(this), initialYieldTokenBalance, sharesAmount
         );
-        assertEq(tokensWithdrawn, ERC20(manager.withdrawToken()).balanceOf(address(this)));
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
         assertEq(finalized, true);
 
         // The requests should now be empty
@@ -153,7 +161,7 @@ abstract contract TestWithdrawRequest is Test {
     }
 
     function test_initiateWithdraw_RevertIf_ExistingWithdrawRequest() public approveVaultAndStakeTokens {
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
         uint256 sharesAmount = initialYieldTokenBalance / 2;
@@ -165,7 +173,7 @@ abstract contract TestWithdrawRequest is Test {
     }
 
     function test_initiateWithdraw_finalizeManual() public approveVaultAndStakeTokens {
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
         uint256 sharesAmount = initialYieldTokenBalance / 2;
@@ -205,8 +213,8 @@ abstract contract TestWithdrawRequest is Test {
         (tokensWithdrawn, finalized) = manager.finalizeRequestManual(address(this), address(this));
         assertEq(finalized, true);
         // No tokens should be withdrawn, they should be held on the manager
-        assertEq(0, ERC20(manager.withdrawToken()).balanceOf(address(this)));
-        assertEq(tokensWithdrawn, ERC20(manager.withdrawToken()).balanceOf(address(manager)));
+        assertEq(0, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(manager)));
 
         // The split request should now be finalized
         (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
@@ -222,8 +230,8 @@ abstract contract TestWithdrawRequest is Test {
         (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(
             address(this), initialYieldTokenBalance, sharesAmount
         );
-        assertEq(tokensWithdrawn, ERC20(manager.withdrawToken()).balanceOf(address(this)));
-        assertEq(0, ERC20(manager.withdrawToken()).balanceOf(address(manager)));
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertEq(0, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(manager)));
         assertEq(finalized, true);
 
         (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
@@ -238,7 +246,7 @@ abstract contract TestWithdrawRequest is Test {
 
     function test_initiateWithdraw_AfterFinalize() public approveVaultAndStakeTokens {
         // Test that we can initiate a withdraw after a request has been finalized
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), type(uint256).max);
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
         uint256 sharesAmount = initialYieldTokenBalance / 2;
@@ -263,7 +271,7 @@ abstract contract TestWithdrawRequest is Test {
 
     function test_splitWithdrawRequest(bool useManualFinalize) public approveVaultAndStakeTokens {
         address to = makeAddr("to");
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), type(uint256).max);
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
         uint256 sharesAmount = initialYieldTokenBalance / 2;
@@ -346,7 +354,7 @@ abstract contract TestWithdrawRequest is Test {
 
     function test_splitWithdrawRequest_fullAmount(bool useManualFinalize) public approveVaultAndStakeTokens {
         address to = makeAddr("to");
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), type(uint256).max);
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
 
@@ -406,7 +414,7 @@ abstract contract TestWithdrawRequest is Test {
         }
         (tokensClaimed, finalized) = manager.finalizeAndRedeemWithdrawRequest(to, initialYieldTokenBalance, initialYieldTokenBalance);
         assertEq(finalized, true);
-        assertEq(tokensClaimed, ERC20(manager.withdrawToken()).balanceOf(address(this)));
+        assertEq(tokensClaimed, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
 
         (request, splitRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, 0);
@@ -419,7 +427,7 @@ abstract contract TestWithdrawRequest is Test {
     }
 
     function test_splitWithdrawRequest_RevertIf_FromAndToAreSame() public approveVaultAndStakeTokens {
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), type(uint256).max);
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
 
@@ -433,7 +441,7 @@ abstract contract TestWithdrawRequest is Test {
 
     function test_splitWithdrawRequest_SplitSameRequestTwice() public approveVaultAndStakeTokens {
         address addr1 = makeAddr("addr1");
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), type(uint256).max);
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
 
@@ -488,7 +496,7 @@ abstract contract TestWithdrawRequest is Test {
         address staker2 = makeAddr("staker2");
         address splitStaker = makeAddr("splitStaker");
 
-        ERC20 yieldToken = ERC20(manager.yieldToken());
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), type(uint256).max);
         uint256 withdrawAmount = yieldToken.balanceOf(address(this)) / 4;
 

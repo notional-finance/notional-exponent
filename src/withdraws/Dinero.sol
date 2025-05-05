@@ -55,8 +55,8 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
 
     receive() external payable {}
 
-    constructor(address _owner, address pxETHorApxETH) AbstractWithdrawRequestManager(
-        _owner, address(WETH), address(pxETHorApxETH), address(WETH)
+    constructor(address pxETHorApxETH) AbstractWithdrawRequestManager(
+        address(WETH), address(pxETHorApxETH), address(WETH)
     ) { }
 
     function _initiateWithdrawImpl(
@@ -65,7 +65,7 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         bool /* isForced */,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
-        if (yieldToken == address(apxETH)) {
+        if (YIELD_TOKEN == address(apxETH)) {
             // First redeem the apxETH to pxETH before we initiate the redemption
             amountToWithdraw = apxETH.redeem(amountToWithdraw, address(this), address(this));
         }
@@ -86,7 +86,7 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
 
     function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
         WETH.withdraw(amount);
-        PirexETH.deposit{value: amount}(address(this), yieldToken == address(apxETH));
+        PirexETH.deposit{value: amount}(address(this), YIELD_TOKEN == address(apxETH));
     }
 
     function _finalizeWithdrawImpl(

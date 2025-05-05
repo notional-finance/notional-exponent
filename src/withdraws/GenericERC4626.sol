@@ -11,8 +11,8 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     uint256 private currentRequestId;
     mapping(uint256 => uint256) private s_withdrawRequestShares;
 
-    constructor(address _owner, address _erc4626)
-        AbstractWithdrawRequestManager(_owner, IERC4626(_erc4626).asset(), _erc4626, IERC4626(_erc4626).asset()) { }
+    constructor(address _erc4626)
+        AbstractWithdrawRequestManager(IERC4626(_erc4626).asset(), _erc4626, IERC4626(_erc4626).asset()) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -25,8 +25,8 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     }
 
     function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
-        IERC20(stakingToken).approve(address(yieldToken), amount);
-        IERC4626(yieldToken).deposit(amount, address(this));
+        IERC20(STAKING_TOKEN).approve(address(YIELD_TOKEN), amount);
+        IERC4626(YIELD_TOKEN).deposit(amount, address(this));
     }
 
     function _finalizeWithdrawImpl(
@@ -35,7 +35,7 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     ) internal override returns (uint256 tokensClaimed, bool finalized) {
         uint256 sharesToRedeem = s_withdrawRequestShares[requestId];
         delete s_withdrawRequestShares[requestId];
-        tokensClaimed = IERC4626(yieldToken).redeem(sharesToRedeem, address(this), address(this));
+        tokensClaimed = IERC4626(YIELD_TOKEN).redeem(sharesToRedeem, address(this), address(this));
         finalized = true;
     }
 

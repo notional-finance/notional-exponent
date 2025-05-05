@@ -29,7 +29,7 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
     }
 
     function deployYieldStrategy() internal override {
-        manager = new EtherFiWithdrawRequestManager(owner);
+        manager = new EtherFiWithdrawRequestManager();
         y = new EtherFiStaking(
             0.0010e18, // 0.1% fee rate
             IRM,
@@ -313,7 +313,7 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         tokenOut = address(sUSDe);
         withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         ptToken = 0xb7de5dFCb74d25c2f21841fbd6230355C50d9308;
-        manager = new EthenaWithdrawRequestManager(owner);
+        manager = new EthenaWithdrawRequestManager();
         withdrawRequest = new TestEthenaWithdrawRequest();
         defaultDexId = uint8(DexId.CURVE_V2);
         defaultDepositExchangeData = abi.encode(CurveV2SingleData({

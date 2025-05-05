@@ -60,8 +60,8 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         asset = ERC20(address(WETH));
         stakeTokenIndex = 1;
 
-        managers[0] = new GenericERC20WithdrawRequestManager(owner, address(asset));
-        managers[1] = new EtherFiWithdrawRequestManager(owner);
+        managers[0] = new GenericERC20WithdrawRequestManager(address(asset));
+        managers[1] = new EtherFiWithdrawRequestManager();
         withdrawRequests[1] = new TestEtherFiWithdrawRequest();
 
         curveInterface = CurveInterface.StableSwapNG;
@@ -228,8 +228,8 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
 
         maxExitValuationSlippage = 0.005e18;
 
-        managers[0] = new GenericERC4626WithdrawRequestManager(owner, address(sDAI));
-        managers[1] = new EthenaWithdrawRequestManager(owner);
+        managers[0] = new GenericERC4626WithdrawRequestManager(address(sDAI));
+        managers[1] = new EthenaWithdrawRequestManager();
         withdrawRequests[0] = new TestGenericERC4626WithdrawRequest();
         withdrawRequests[1] = new TestEthenaWithdrawRequest();
 

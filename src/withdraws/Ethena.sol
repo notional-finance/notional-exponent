@@ -78,7 +78,7 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     address internal immutable HOLDER_IMPLEMENTATION;
     uint256 internal constant USDE_PRECISION = 1e18;
 
-    constructor(address _owner) AbstractWithdrawRequestManager(_owner, address(USDe), address(sUSDe), address(USDe)) {
+    constructor() AbstractWithdrawRequestManager(address(USDe), address(sUSDe), address(USDe)) {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 

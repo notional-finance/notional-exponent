@@ -5,6 +5,7 @@ import "./IWithdrawRequestManager.sol";
 import "./ClonedCoolDownHolder.sol";
 import "../utils/Errors.sol";
 import "../utils/TypeConvert.sol";
+import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
@@ -31,26 +32,23 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     using SafeERC20 for IERC20;
     using TypeConvert for uint256;
 
-    // TODO: capitalize these
-    address public override immutable yieldToken;
-    address public override immutable withdrawToken;
-    address public override immutable stakingToken;
+    address public override immutable YIELD_TOKEN;
+    address public override immutable WITHDRAW_TOKEN;
+    address public override immutable STAKING_TOKEN;
 
-    address public override owner;
     mapping(address => bool) public override isApprovedVault;
     // vault => account => withdraw request
     mapping(address => mapping(address => WithdrawRequest)) internal s_accountWithdrawRequest;
     mapping(uint256 => SplitWithdrawRequest) internal s_splitWithdrawRequest;
 
-    constructor(address _owner, address _withdrawToken, address _yieldToken, address _stakingToken) {
-        owner = _owner;
-        withdrawToken = _withdrawToken;
-        yieldToken = _yieldToken;
-        stakingToken = _stakingToken;
+    constructor(address _withdrawToken, address _yieldToken, address _stakingToken) {
+        WITHDRAW_TOKEN = _withdrawToken;
+        YIELD_TOKEN = _yieldToken;
+        STAKING_TOKEN = _stakingToken;
     }
 
     modifier onlyOwner() {
-        if (msg.sender != owner) revert Unauthorized(msg.sender);
+        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         _;
     }
 
@@ -73,13 +71,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
     /// @inheritdoc IWithdrawRequestManager
     function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
-        uint256 initialYieldTokenBalance = IERC20(yieldToken).balanceOf(address(this));
+        uint256 initialYieldTokenBalance = IERC20(YIELD_TOKEN).balanceOf(address(this));
         IERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         (uint256 stakeTokenAmount, bytes memory stakeData) = _preStakingTrade(depositToken, amount, data);
         _stakeTokens(stakeTokenAmount, stakeData);
 
-        yieldTokensMinted = IERC20(yieldToken).balanceOf(address(this)) - initialYieldTokenBalance;
-        IERC20(yieldToken).safeTransfer(msg.sender, yieldTokensMinted);
+        yieldTokensMinted = IERC20(YIELD_TOKEN).balanceOf(address(this)) - initialYieldTokenBalance;
+        IERC20(YIELD_TOKEN).safeTransfer(msg.sender, yieldTokensMinted);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -94,7 +92,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (accountWithdraw.requestId != 0) revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
 
         // Receive the requested amount of yield tokens from the approved vault.
-        IERC20(yieldToken).transferFrom(msg.sender, address(this), yieldTokenAmount);
+        IERC20(YIELD_TOKEN).transferFrom(msg.sender, address(this), yieldTokenAmount);
 
         requestId = _initiateWithdrawImpl(account, yieldTokenAmount, isForced, data);
         accountWithdraw.requestId = requestId;
@@ -128,7 +126,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
                 delete s_accountWithdrawRequest[msg.sender][account];
             }
 
-            IERC20(withdrawToken).safeTransfer(msg.sender, tokensWithdrawn);
+            IERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
         }
     }
 
@@ -274,7 +272,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal virtual;
 
     function _preStakingTrade(address depositToken, uint256 depositAmount, bytes calldata data) internal returns (uint256 amountBought, bytes memory stakeData) {
-        if (depositToken == stakingToken) {
+        if (depositToken == STAKING_TOKEN) {
             amountBought = depositAmount;
             stakeData = data;
         } else {
@@ -284,7 +282,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
             (/* */, amountBought) = _executeTrade(Trade({
                 tradeType: params.tradeType,
                 sellToken: depositToken,
-                buyToken: stakingToken,
+                buyToken: STAKING_TOKEN,
                 amount: depositAmount,
                 exchangeData: params.exchangeData,
                 limit: params.minPurchaseAmount,

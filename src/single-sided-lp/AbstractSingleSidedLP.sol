@@ -350,7 +350,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
             require(finalized, "Withdraw request not finalized");
-            tokens[i] = IERC20(withdrawRequestManagers[i].withdrawToken());
+            tokens[i] = IERC20(withdrawRequestManagers[i].WITHDRAW_TOKEN());
         }
     }
 

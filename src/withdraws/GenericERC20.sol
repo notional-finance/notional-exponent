@@ -9,7 +9,7 @@ contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
     uint256 private currentRequestId;
     mapping(uint256 => uint256) private s_withdrawRequestTokens;
 
-    constructor(address _owner, address _erc20) AbstractWithdrawRequestManager(_owner, _erc20, _erc20, _erc20) { }
+    constructor(address _erc20) AbstractWithdrawRequestManager(_erc20, _erc20, _erc20) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
