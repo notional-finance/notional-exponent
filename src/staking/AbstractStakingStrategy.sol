@@ -59,26 +59,10 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
-            // XXX: 1300 bytes inside here
-            (WithdrawRequest memory w, SplitWithdrawRequest memory s) = withdrawRequestManager.getWithdrawRequest(address(this), t_CurrentAccount);
-            if (w.requestId == 0) return super.convertToAssets(shares);
-            if (s.finalized) {
-                // If finalized the withdraw request is locked to the tokens withdrawn
-                (int256 withdrawTokenRate, /* */) = TRADING_MODULE.getOraclePrice(withdrawToken, asset);
-                require(withdrawTokenRate > 0);
-                uint256 withdrawTokenDecimals = ERC20(withdrawToken).decimals();
-                uint256 withdrawTokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
-
-                uint256 totalValue = (uint256(withdrawTokenRate) * withdrawTokenAmount * (10 ** _assetDecimals)) /
-                    (10 ** (withdrawTokenDecimals + 18));
-                // NOTE: returns the normalized value given the shares input
-                return totalValue * shares / w.sharesAmount;
-            }
-
-            uint256 rate = _withdrawRequestYieldTokenRate();
-            rate = rate * (w.yieldTokenAmount * (SHARE_PRECISION)) / (w.sharesAmount * (10 ** _yieldTokenDecimals));
-
-            return rate * (10 ** _assetDecimals) * shares / (SHARE_PRECISION * 1e18);
+            (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(address(this), t_CurrentAccount, asset, shares);
+            // If the account does not have a withdraw request then this will fall through
+            // to the super implementation.
+            if (hasRequest) return value;
         }
 
         return super.convertToAssets(shares);

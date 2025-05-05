@@ -6,7 +6,7 @@ import "./ClonedCoolDownHolder.sol";
 import "../utils/Errors.sol";
 import "../utils/TypeConvert.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
 
@@ -29,7 +29,7 @@ struct StakingTradeParams {
  * request can be liquidated.
  */
 abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for ERC20;
     using TypeConvert for uint256;
 
     address public override immutable YIELD_TOKEN;
@@ -71,13 +71,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
     /// @inheritdoc IWithdrawRequestManager
     function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
-        uint256 initialYieldTokenBalance = IERC20(YIELD_TOKEN).balanceOf(address(this));
-        IERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 initialYieldTokenBalance = ERC20(YIELD_TOKEN).balanceOf(address(this));
+        ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         (uint256 stakeTokenAmount, bytes memory stakeData) = _preStakingTrade(depositToken, amount, data);
         _stakeTokens(stakeTokenAmount, stakeData);
 
-        yieldTokensMinted = IERC20(YIELD_TOKEN).balanceOf(address(this)) - initialYieldTokenBalance;
-        IERC20(YIELD_TOKEN).safeTransfer(msg.sender, yieldTokensMinted);
+        yieldTokensMinted = ERC20(YIELD_TOKEN).balanceOf(address(this)) - initialYieldTokenBalance;
+        ERC20(YIELD_TOKEN).safeTransfer(msg.sender, yieldTokensMinted);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -126,7 +126,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
                 delete s_accountWithdrawRequest[msg.sender][account];
             }
 
-            IERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
+            ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
         }
     }
 
@@ -302,56 +302,41 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
-    // function _getValueOfWithdrawRequest(
-    //     uint256 requestId, uint256 totalVaultShares, uint256 stakeAssetPrice
-    // ) internal virtual view returns (uint256);
+    function getWithdrawRequestValue(
+        address vault,
+        address account,
+        address asset,
+        uint256 shares
+    ) external view override returns (bool hasRequest, uint256 valueInAsset) {
+        WithdrawRequest memory w = s_accountWithdrawRequest[vault][account];
+        if (w.requestId == 0) return (false, 0);
 
-    // function _getValueOfSplitFinalizedWithdrawRequest(
-    //     WithdrawRequest memory w,
-    //     SplitWithdrawRequest memory s,
-    //     address borrowToken,
-    //     address redeemToken
-    // ) internal virtual view returns (uint256) {
-    //     // If the borrow token and the withdraw token match, then there is no need to apply
-    //     // an exchange rate at this point.
-    //     if (borrowToken == redeemToken) {
-    //         return (s.totalWithdraw * w.vaultShares) / s.totalVaultShares;
-    //     } else {
-    //         // Otherwise, apply the proper exchange rate
-    //         (int256 rate, /* */) = Deployments.TRADING_MODULE.getOraclePrice(redeemToken, borrowToken);
+        SplitWithdrawRequest memory s = s_splitWithdrawRequest[w.requestId];
 
-    //         uint256 borrowPrecision = 10 ** TokenUtils.getDecimals(borrowToken);
-    //         uint256 redeemPrecision = 10 ** TokenUtils.getDecimals(redeemToken);
+        int256 tokenRate;
+        int256 ratePrecision;
+        uint256 tokenAmount;
+        uint256 tokenDecimals;
+        uint256 assetDecimals = ERC20(asset).decimals();
+        if (s.finalized) {
+            // If finalized the withdraw request is locked to the tokens withdrawn
+            (tokenRate, ratePrecision) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
+            tokenDecimals = ERC20(WITHDRAW_TOKEN).decimals();
+            tokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
+        } else {
+            // Otherwise we use the yield token rate
+            (tokenRate, ratePrecision) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
+            tokenDecimals = ERC20(YIELD_TOKEN).decimals();
+            tokenAmount = w.yieldTokenAmount;
+        }
 
-    //         return (s.totalWithdraw * rate.toUint() * w.vaultShares * borrowPrecision) /
-    //             (s.totalVaultShares * Constants.EXCHANGE_RATE_PRECISION * redeemPrecision);
-    //     }
-    // }
+        require(tokenRate > 0);
+        require(ratePrecision > 0);
 
-    // /// @notice Returns the value of a withdraw request in terms of the borrowed token. Used
-    // /// to determine the collateral position of the vault.
-    // function _calculateValueOfWithdrawRequest(
-    //     WithdrawRequest memory w,
-    //     uint256 stakeAssetPrice,
-    //     address borrowToken,
-    //     address redeemToken
-    // ) internal view returns (uint256 borrowTokenValue) {
-    //     if (w.requestId == 0) return 0;
-
-    //     // If a withdraw request has split and is finalized, we know the fully realized value of
-    //     // the withdraw request as a share of the total realized value.
-    //     if (w.hasSplit) {
-    //         SplitWithdrawRequest memory s = VaultStorage.getSplitWithdrawRequest()[w.requestId];
-    //         if (s.finalized) {
-    //             return _getValueOfSplitFinalizedWithdrawRequest(w, s, borrowToken, redeemToken);
-    //         } else {
-    //             uint256 totalValue = _getValueOfWithdrawRequest(w.requestId, s.totalVaultShares, stakeAssetPrice);
-    //             // Scale the total value of the withdraw request to the account's share of the request
-    //             return totalValue * w.vaultShares / s.totalVaultShares;
-    //         }
-    //     }
-
-    //     return _getValueOfWithdrawRequest(w.requestId, w.vaultShares, stakeAssetPrice);
-    // }
+        uint256 totalValue = (uint256(tokenRate) * tokenAmount * (10 ** assetDecimals)) /
+            ((10 ** tokenDecimals) * uint256(ratePrecision));
+        // NOTE: returns the normalized value given the shares input
+        return (true, totalValue * shares / w.sharesAmount);
+    }
 
 }

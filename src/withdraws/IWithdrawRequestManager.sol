@@ -133,4 +133,13 @@ interface IWithdrawRequestManager {
     /// @return w the withdraw request
     /// @return s the split withdraw request
     function getWithdrawRequest(address vault, address account) external view returns (WithdrawRequest memory w, SplitWithdrawRequest memory s);
+
+    /// @notice Returns the value of a withdraw request in terms of the asset
+    /// @param vault the vault to get the withdraw request for
+    /// @param account the account to get the withdraw request for
+    /// @param asset the asset to get the value for
+    /// @param shares the amount of shares to get the value for
+    /// @return hasRequest whether the account has a withdraw request
+    /// @return value the value of the withdraw request in terms of the asset
+    function getWithdrawRequestValue(address vault, address account, address asset, uint256 shares) external view returns (bool hasRequest, uint256 value);
 }

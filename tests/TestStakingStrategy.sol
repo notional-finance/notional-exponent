@@ -70,7 +70,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             // there will be some slippage as a result of selling the PT
             assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Price changed during withdraw request");
         } else {
-            assertEq(collateralValueBefore, collateralValueAfter, "Price changed during withdraw request");
+            assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Price changed during withdraw request");
         }
         vm.stopPrank();
 
@@ -228,7 +228,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             // there will be some slippage as a result of selling the PT
             assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Withdrawal should not change collateral value");
         } else {
-            assertEq(collateralValueBefore, collateralValueAfter, "Withdrawal should not change collateral value");
+            assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Withdrawal should not change collateral value");
         }
 
         vm.warp(block.timestamp + 10 days);

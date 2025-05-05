@@ -11,5 +11,6 @@ error Paused();
 error CannotExitPositionWithinCooldownPeriod();
 error CannotReceiveSplitWithdrawRequest();
 
+error CannotEnterPosition();
 error InvalidUpgrade();
 error InvalidInitialization();

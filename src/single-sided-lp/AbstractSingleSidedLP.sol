@@ -13,6 +13,7 @@ import {
     ExistingWithdrawRequest
 } from "../withdraws/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
+import "../utils/Errors.sol";
 
 struct TradeParams {
     uint256 tradeAmount;
@@ -154,7 +155,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
         (/* */, bool hasPendingRequest) = requestIdsForAccount(receiver);
-        if (hasPendingRequest) revert("Existing Withdraw Request");
+        if (hasPendingRequest) revert CannotEnterPosition();
 
         // If depositTrades are specified, then parts of the initial deposit are traded
         // for corresponding amounts of the other pool tokens via external exchanges. If
@@ -175,7 +176,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         // single sided exits may have a detrimental effect on the liquidity.
         uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / (10 ** RATE_DECIMALS);
         // TODO: this is incumbent on a 1-1 ration between the lpToken and the yieldToken
-        uint256 poolClaim = IERC20(yieldToken).balanceOf(address(this));
+        uint256 poolClaim = yieldTokenBalance();
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
     }
 
