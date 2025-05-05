@@ -21,12 +21,4 @@ library LibStorage {
     function getAccountRewardDebtSlot() internal pure returns (mapping(address => mapping(address => uint256)) storage store) {
         assembly { store.slot := ACCOUNT_REWARD_DEBT_SLOT }
     }
-
-    function _rewardManagerSlot() internal pure returns (mapping(uint256 => address) storage store) {
-        assembly { store.slot := REWARD_MANAGER_SLOT }
-    }
-
-    function getRewardManagerSlot() internal view returns (address store) {
-        return _rewardManagerSlot()[0];
-    }
 }

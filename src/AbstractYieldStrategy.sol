@@ -16,6 +16,7 @@ import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
 import {Initializable} from "./proxy/Initializable.sol";
+import {ADDRESS_REGISTRY} from "./utils/Constants.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -162,8 +163,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function collectFees() external override {
         _accrueFees();
-        // TODO: fix this...
-        _transferYieldTokenToOwner(address(0), s_accruedFeesInYieldToken);
+        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), s_accruedFeesInYieldToken);
 
         delete s_accruedFeesInYieldToken;
     }

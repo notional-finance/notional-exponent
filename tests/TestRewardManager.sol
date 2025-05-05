@@ -140,7 +140,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     }
 
     function test_callUpdateRewardToken_RevertIf_NotRewardManager() public {
-        vm.expectRevert("Only the reward manager can call this function");
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         rm.updateRewardToken(0, address(rewardToken), 0, 0);
     }
 

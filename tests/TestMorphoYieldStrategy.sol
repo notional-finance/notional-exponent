@@ -82,7 +82,7 @@ contract TestMorphoYieldStrategy is Test {
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address constant IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
-    address public addressRegistry = address(0x0000000000000000000000000000000000000000);
+    address public addressRegistry;
 
     function getRedeemData(
         address /* user */,
@@ -119,8 +119,16 @@ contract TestMorphoYieldStrategy is Test {
 
     function postDeploySetup() internal virtual { }
 
+    function deployAddressRegistry() public virtual {
+        address deployer = makeAddr("deployer");
+        vm.prank(deployer);
+        addressRegistry = address(new AddressRegistry(owner, owner, owner));
+        console.log("addressRegistry", addressRegistry);
+    }
+
     function setUp() public virtual {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
+        deployAddressRegistry();
         setMaxOracleFreshness();
 
         deployYieldStrategy();

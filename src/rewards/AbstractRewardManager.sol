@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "./IRewardManager.sol";
 import "../utils/Constants.sol";
 import "../utils/TypeConvert.sol";
+import "../utils/Errors.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,7 +18,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     using TokenUtils for IERC20;
 
     modifier onlyRewardManager() {
-        require(msg.sender == LibStorage.getRewardManagerSlot(), "Only the reward manager can call this function");
+        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         _;
     }
 

@@ -13,7 +13,7 @@ contract TestTimelockProxy is Test {
 
     function setUp() public {
         upgradeOwner = makeAddr("upgradeOwner");
-        registry = new AddressRegistry(upgradeOwner, upgradeOwner);
+        registry = new AddressRegistry(upgradeOwner, upgradeOwner, upgradeOwner);
         impl = new Initializable();
         proxy = new TimelockUpgradeableProxy(
             address(impl),

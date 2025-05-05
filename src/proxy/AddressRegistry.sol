@@ -10,14 +10,18 @@ contract AddressRegistry {
     address public pauseAdmin;
     address public pendingPauseAdmin;
 
+    address public feeReceiver;
+
     event PendingUpgradeAdminSet(address indexed newPendingUpgradeAdmin);
     event UpgradeAdminTransferred(address indexed newUpgradeAdmin);
     event PendingPauseAdminSet(address indexed newPendingPauseAdmin);
     event PauseAdminTransferred(address indexed newPauseAdmin);
+    event FeeReceiverTransferred(address indexed newFeeReceiver);
 
-    constructor(address _upgradeAdmin, address _pauseAdmin) {
+    constructor(address _upgradeAdmin, address _pauseAdmin, address _feeReceiver) {
         upgradeAdmin = _upgradeAdmin;
         pauseAdmin = _pauseAdmin;
+        feeReceiver = _feeReceiver;
     }
 
     function transferUpgradeAdmin(address _newUpgradeAdmin) external {
@@ -45,4 +49,11 @@ contract AddressRegistry {
         delete pendingPauseAdmin;
         emit PauseAdminTransferred(pauseAdmin);
     }
+
+    function transferFeeReceiver(address _newFeeReceiver) external {
+        if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
+        feeReceiver = _newFeeReceiver;
+        emit FeeReceiverTransferred(_newFeeReceiver);
+    }
+
 }
