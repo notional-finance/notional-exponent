@@ -71,8 +71,7 @@ contract TimelockUpgradeableProxy layout at 100_000_000 is ERC1967Proxy {
     }
 
     function _fallback() internal override {
-        // TODO: this causes all methods to revert if the proxy is paused,
-        // maybe we should allow some signatures to be whitelisted?
+        // Allows some whitelisted selectors to be called even if the proxy is paused
         if (isPaused && whitelistedSelectors[msg.sig] == false) revert Paused();
         super._fallback();
     }

@@ -5,16 +5,32 @@ import "forge-std/src/Test.sol";
 import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
 
+contract MockInitializable is Initializable {
+    bool public didInitialize;
+
+    function doSomething() external returns (bool) {
+        return true;
+    }
+
+    function _initialize(bytes calldata /* data */) internal override {
+        didInitialize = true;
+    }
+}
+
 contract TestTimelockProxy is Test {
     Initializable public impl;
     TimelockUpgradeableProxy public proxy;
     address public upgradeOwner;
+    address public pauseOwner;
+    address public feeReceiver;
     AddressRegistry public registry;
 
     function setUp() public {
         upgradeOwner = makeAddr("upgradeOwner");
-        registry = new AddressRegistry(upgradeOwner, upgradeOwner, upgradeOwner);
-        impl = new Initializable();
+        pauseOwner = makeAddr("pauseOwner");
+        feeReceiver = makeAddr("feeReceiver");
+        registry = new AddressRegistry(upgradeOwner, pauseOwner, feeReceiver);
+        impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(
             address(impl),
             abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol")),
@@ -29,16 +45,12 @@ contract TestTimelockProxy is Test {
     }
 
     function test_initializeProxy() public {
-        // Initialize the proxy
-        Initializable(address(proxy)).initialize(bytes(""));
-
         // Cannot re-initialize the proxy
         vm.expectRevert(abi.encodeWithSelector(InvalidInitialization.selector));
         Initializable(address(proxy)).initialize(bytes(""));
 
         // Check that the proxy is initialized
-        // TODO: fix this
-        // assertEq(proxy.upgradeOwner(), upgradeOwner);
+        assertEq(MockInitializable(address(proxy)).didInitialize(), true);
     }
 
     function test_initiateUpgrade() public {
@@ -82,21 +94,89 @@ contract TestTimelockProxy is Test {
         proxy.executeUpgrade();
     }
 
-    // TODO: fix this
-    // function test_transferUpgradeOwnership() public {
-    //     address newUpgradeOwner = makeAddr("newUpgradeOwner");
-    //     vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
-    //     proxy.transferUpgradeOwnership(newUpgradeOwner);
+    function test_pause() public {
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        proxy.pause();
 
-    //     vm.prank(upgradeOwner);
-    //     proxy.transferUpgradeOwnership(newUpgradeOwner);
+        vm.prank(pauseOwner);
+        proxy.pause();
 
-    //     vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
-    //     proxy.acceptUpgradeOwnership();
+        vm.expectRevert(abi.encodeWithSelector(Paused.selector));
+        MockInitializable(address(proxy)).doSomething();
 
-    //     vm.prank(newUpgradeOwner);
-    //     proxy.acceptUpgradeOwnership();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        proxy.unpause();
 
-    //     assertEq(proxy.upgradeOwner(), newUpgradeOwner);
-    // }
+        // Whitelist the doSomething function
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = MockInitializable.doSomething.selector;
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        proxy.whitelistSelectors(selectors, true);
+
+        vm.prank(pauseOwner);
+        proxy.whitelistSelectors(selectors, true);
+
+        assertEq(MockInitializable(address(proxy)).doSomething(), true);
+
+        vm.prank(pauseOwner);
+        proxy.unpause();
+
+        assertEq(MockInitializable(address(proxy)).doSomething(), true);
+    }
+
+    function test_transferUpgradeOwnership() public {
+        address newUpgradeOwner = makeAddr("newUpgradeOwner");
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        registry.transferUpgradeAdmin(newUpgradeOwner);
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressRegistry.PendingUpgradeAdminSet(newUpgradeOwner);
+        vm.prank(upgradeOwner);
+        registry.transferUpgradeAdmin(newUpgradeOwner);
+
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        registry.acceptUpgradeOwnership();
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressRegistry.UpgradeAdminTransferred(newUpgradeOwner);
+        vm.prank(newUpgradeOwner);
+        registry.acceptUpgradeOwnership();
+
+        assertEq(registry.upgradeAdmin(), newUpgradeOwner);
+    }
+
+    function test_transferPauseAdmin() public {
+        address newPauseAdmin = makeAddr("newPauseAdmin");
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        registry.transferPauseAdmin(newPauseAdmin);
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressRegistry.PendingPauseAdminSet(newPauseAdmin);
+        vm.prank(upgradeOwner);
+        registry.transferPauseAdmin(newPauseAdmin);
+
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        registry.acceptPauseAdmin();
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressRegistry.PauseAdminTransferred(newPauseAdmin);
+        vm.prank(newPauseAdmin);
+        registry.acceptPauseAdmin();
+
+        assertEq(registry.pauseAdmin(), newPauseAdmin);
+    }
+
+    function test_transferFeeReceiver() public {
+        address newFeeReceiver = makeAddr("newFeeReceiver");
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        registry.transferFeeReceiver(newFeeReceiver);
+
+        vm.expectEmit(true, true, true, true);
+        emit AddressRegistry.FeeReceiverTransferred(newFeeReceiver);
+        vm.prank(upgradeOwner);
+        registry.transferFeeReceiver(newFeeReceiver);
+
+        assertEq(registry.feeReceiver(), newFeeReceiver);
+    }
+    
 }
