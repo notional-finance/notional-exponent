@@ -5,9 +5,9 @@ import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 import "../src/single-sided-lp/curve/CurveConvex2Token.sol";
-import "../src/single-sided-lp/curve/CurveConvexStableSwapNG.sol";
-import "../src/single-sided-lp/curve/CurveConvexV1.sol";
-import "../src/single-sided-lp/curve/CurveConvexV2.sol";
+// import "../src/single-sided-lp/curve/CurveConvexStableSwapNG.sol";
+// import "../src/single-sided-lp/curve/CurveConvexV1.sol";
+// import "../src/single-sided-lp/curve/CurveConvexV2.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 import "./TestWithdrawRequest.sol";
@@ -107,58 +107,22 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         setMarketVariables();
         if (usdOracleToken == address(0)) usdOracleToken = address(asset);
 
-        if (curveInterface == CurveInterface.StableSwapNG) {
-            y = new CurveConvexStableSwapNG(
-                maxPoolShare,
-                address(asset),
-                address(w),
-                0.0010e18, // 0.1%
-                IRM,
-                0.915e18,
-                address(rmImpl),
-                DeploymentParams({
-                    pool: address(lpToken),
-                    poolToken: address(lpToken),
-                    gauge: curveGauge,
-                    convexRewardPool: address(rewardPool)
-                }),
-                managers
-            );
-        } else if (curveInterface == CurveInterface.V2) {
-            y = new CurveConvexV2(
-                maxPoolShare,
-                address(asset),
-                address(w),
-                0.0010e18, // 0.1%
-                IRM,
-                0.915e18,
-                address(rmImpl),
-                DeploymentParams({
-                    pool: address(lpToken),
-                    poolToken: address(lpToken),
-                    gauge: curveGauge,
-                    convexRewardPool: address(rewardPool)
-                }),
-                managers
-            );
-        } else if (curveInterface == CurveInterface.V1) {
-            y = new CurveConvexV1(
-                maxPoolShare,
-                address(asset),
-                address(w),
-                0.0010e18, // 0.1%
-                IRM,
-                0.915e18,
-                address(rmImpl),
-                DeploymentParams({
-                    pool: address(lpToken),
-                    poolToken: address(lpToken),
-                    gauge: curveGauge,
-                    convexRewardPool: address(rewardPool)
-                }),
-                managers
-            );
-        }
+        y = new CurveConvex2Token(
+            maxPoolShare,
+            address(asset),
+            address(w),
+            0.0010e18, // 0.1%
+            IRM,
+            0.915e18,
+            address(rmImpl),
+            DeploymentParams({
+                pool: address(lpToken),
+                poolToken: address(lpToken),
+                gauge: curveGauge,
+                convexRewardPool: address(rewardPool),
+                curveInterface: curveInterface
+            })
+        );
 
         feeToken = lpToken;
         (baseToUSDOracle, /* */) = TRADING_MODULE.priceOracles(usdOracleToken);
@@ -327,58 +291,22 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         MORPHO.withdraw(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, owner);
         vm.stopPrank();
 
-        if (curveInterface == CurveInterface.StableSwapNG) {
-            y = new CurveConvexStableSwapNG(
-                0.001e18, // 0.1% max pool share
-                address(asset),
-                address(w),
-                0.0010e18, // 0.1%
-                IRM,
-                0.915e18,
-                address(new ConvexRewardManager()),
-                DeploymentParams({
-                    pool: address(lpToken),
-                    poolToken: address(lpToken),
-                    gauge: curveGauge,
-                    convexRewardPool: address(rewardPool)
-                }),
-                managers
-            );
-        } else if (curveInterface == CurveInterface.V2) {
-            y = new CurveConvexV2(
-                0.001e18, // 0.1% max pool share
-                address(asset),
-                address(w),
-                0.0010e18, // 0.1%
-                IRM,
-                0.915e18,
-                address(new ConvexRewardManager()),
-                DeploymentParams({
-                    pool: address(lpToken),
-                    poolToken: address(lpToken),
-                    gauge: curveGauge,
-                    convexRewardPool: address(rewardPool)
-                }),
-                managers
-            );
-        } else if (curveInterface == CurveInterface.V1) {
-            y = new CurveConvexV1(
-                0.001e18, // 0.1% max pool share
-                address(asset),
-                address(w),
-                0.0010e18, // 0.1%
-                IRM,
-                0.915e18,
-                address(new ConvexRewardManager()),
-                DeploymentParams({
-                    pool: address(lpToken),
-                    poolToken: address(lpToken),
-                    gauge: curveGauge,
-                    convexRewardPool: address(rewardPool)
-                }),
-                managers
-            );
-        }
+        y = new CurveConvex2Token(
+            0.001e18, // 0.1% max pool share
+            address(asset),
+            address(w),
+            0.0010e18, // 0.1%
+            IRM,
+            0.915e18,
+            address(new ConvexRewardManager()),
+            DeploymentParams({
+                pool: address(lpToken),
+                poolToken: address(lpToken),
+                gauge: curveGauge,
+                convexRewardPool: address(rewardPool),
+                curveInterface: curveInterface
+            })
+        );
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
             address(y), abi.encodeWithSelector(Initializable.initialize.selector,
             abi.encode("name", "symbol")),
