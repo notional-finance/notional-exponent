@@ -50,19 +50,19 @@ interface ILPLib {
     function joinPoolAndStake(uint256[] memory amounts, uint256 minPoolClaim) external;
     function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
 
+    function getWithdrawRequestValue(address account, address asset, uint256 shares) external view returns (uint256 totalValue);
+
     function finalizeAndRedeemWithdrawRequest(
-        IERC20[] calldata _tokens,
         address sharesOwner,
         uint256 sharesToRedeem,
         uint256 totalShares
-    ) external returns (uint256[] memory exitBalances, IERC20[] memory tokens);
+    ) external returns (uint256[] memory exitBalances, IERC20[] memory withdrawTokens);
 
     function initiateWithdraw(
         address account,
         bool isForced,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
-        IERC20[] calldata tokens,
         bytes[] calldata withdrawData
     ) external returns (uint256[] memory requestIds);
 }
@@ -342,7 +342,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         });
 
         (bool success, bytes memory result) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.initiateWithdraw.selector, account, isForced, sharesHeld, exitBalances, TOKENS(), params.withdrawData)
+            abi.encodeWithSelector(ILPLib.initiateWithdraw.selector, account, isForced, sharesHeld, exitBalances, params.withdrawData)
         );
         require(success);
         requestIds = abi.decode(result, (uint256[]));
@@ -356,22 +356,45 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 totalShares = balanceOfShares(sharesOwner);
 
         (bool success, bytes memory result) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.finalizeAndRedeemWithdrawRequest.selector, TOKENS(), sharesOwner, sharesToRedeem, totalShares)
+            abi.encodeWithSelector(ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem, totalShares)
         );
         require(success);
         (exitBalances, tokens) = abi.decode(result, (uint256[], IERC20[]));
+    }
+
+    /// @notice Returns the total value in terms of the borrowed token of the account's position
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
+        if (t_CurrentAccount != address(0) && hasPendingWithdraw[t_CurrentAccount]) {
+            return ILPLib(LP_LIB).getWithdrawRequestValue(t_CurrentAccount, asset, shares);
+        }
+
+        return super.convertToAssets(shares);
     }
 }
 
 abstract contract BaseLPLib is ILPLib {
     using TokenUtils for IERC20;
 
+    // TODO: initialize this in the constructor
+    IERC20[] internal tokens;
+
+    function getWithdrawRequestValue(
+        address account,
+        address asset,
+        uint256 shares
+    ) external view returns (uint256 totalValue) {
+        for (uint256 i; i < tokens.length; i++) {
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+            (/* */, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
+            totalValue += value;
+        }
+    }
+
     function initiateWithdraw(
         address account,
         bool isForced,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
-        IERC20[] calldata tokens,
         bytes[] calldata withdrawData
     ) external override returns (uint256[] memory requestIds) {
         requestIds = new uint256[](exitBalances.length);
@@ -391,17 +414,16 @@ abstract contract BaseLPLib is ILPLib {
     }
 
     function finalizeAndRedeemWithdrawRequest(
-        IERC20[] calldata _tokens,
         address sharesOwner,
         uint256 sharesToRedeem,
         uint256 totalShares
-    ) external override returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
-        exitBalances = new uint256[](_tokens.length);
-        tokens = new IERC20[](_tokens.length);
+    ) external override returns (uint256[] memory exitBalances, IERC20[] memory withdrawTokens) {
+        exitBalances = new uint256[](tokens.length);
+        withdrawTokens = new IERC20[](tokens.length);
 
         WithdrawRequest memory request;
-        for (uint256 i; i < _tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(_tokens[i]));
+        for (uint256 i; i < tokens.length; i++) {
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             (request, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
 
             uint256 yieldTokensBurned = uint256(request.yieldTokenAmount) * sharesToRedeem / totalShares;
@@ -410,7 +432,7 @@ abstract contract BaseLPLib is ILPLib {
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
             require(finalized, "Withdraw request not finalized");
-            tokens[i] = IERC20(manager.WITHDRAW_TOKEN());
+            withdrawTokens[i] = IERC20(manager.WITHDRAW_TOKEN());
         }
     }
 }
