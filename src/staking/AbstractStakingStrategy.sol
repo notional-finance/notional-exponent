@@ -13,7 +13,6 @@ import {
 import {Trade, TradeType, TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "forge-std/src/console2.sol";
 
 struct RedeemParams {
     uint8 dexId;

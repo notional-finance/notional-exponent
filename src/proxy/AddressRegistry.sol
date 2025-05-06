@@ -2,6 +2,7 @@
 pragma solidity >=0.8.29;
 
 import "../utils/Errors.sol";
+import "../withdraws/IWithdrawRequestManager.sol";
 
 contract AddressRegistry {
     address public upgradeAdmin;
@@ -11,6 +12,11 @@ contract AddressRegistry {
     address public pendingPauseAdmin;
 
     address public feeReceiver;
+
+    // Token -> Withdraw Request Manager
+    mapping(address => address) public withdrawRequestManagers;
+    // Vault -> Token -> Withdraw Request Manager
+    mapping(address => mapping(address => address)) public withdrawRequestManagerOverrides;
 
     event PendingUpgradeAdminSet(address indexed newPendingUpgradeAdmin);
     event UpgradeAdminTransferred(address indexed newUpgradeAdmin);
@@ -54,6 +60,23 @@ contract AddressRegistry {
         if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
         feeReceiver = _newFeeReceiver;
         emit FeeReceiverTransferred(_newFeeReceiver);
+    }
+
+    function setWithdrawRequestManager(address vault, address yieldToken, address withdrawRequestManager) external {
+        if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
+        withdrawRequestManagerOverrides[vault][yieldToken] = withdrawRequestManager;
+    }
+
+    function setWithdrawRequestManagerOverride(address vault, address yieldToken, address withdrawRequestManager) external {
+        if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
+        withdrawRequestManagerOverrides[vault][yieldToken] = withdrawRequestManager;
+    }
+
+    function getWithdrawRequestManager(address vault, address yieldToken) external view returns (IWithdrawRequestManager) {
+        address manager = withdrawRequestManagerOverrides[vault][yieldToken];
+        if (manager != address(0)) return IWithdrawRequestManager(manager);
+
+        return IWithdrawRequestManager(withdrawRequestManagers[yieldToken]);
     }
 
 }

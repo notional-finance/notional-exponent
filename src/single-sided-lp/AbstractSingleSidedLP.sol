@@ -384,7 +384,7 @@ abstract contract BaseLPLib is ILPLib {
         uint256 shares
     ) external view returns (uint256 totalValue) {
         for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(msg.sender, address(tokens[i]));
             (/* */, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
             totalValue += value;
         }
@@ -400,7 +400,7 @@ abstract contract BaseLPLib is ILPLib {
         requestIds = new uint256[](exitBalances.length);
         for (uint256 i; i < exitBalances.length; i++) {
             if (exitBalances[i] == 0) continue;
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
 
             tokens[i].checkApprove(address(manager), exitBalances[i]);
             requestIds[i] = manager.initiateWithdraw({
@@ -423,7 +423,7 @@ abstract contract BaseLPLib is ILPLib {
 
         WithdrawRequest memory request;
         for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
             (request, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
 
             uint256 yieldTokensBurned = uint256(request.yieldTokenAmount) * sharesToRedeem / totalShares;
