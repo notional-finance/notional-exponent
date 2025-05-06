@@ -44,6 +44,12 @@ struct WithdrawParams {
     bytes[] withdrawData;
 }
 
+interface ILPLib {
+    function initialApproveTokens() external;
+    function joinPoolAndStake(uint256[] memory amounts, uint256 minPoolClaim) external;
+    function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
+}
+
 /**
  * @notice Base contract for the SingleSidedLP strategy. This strategy deposits into an LP
  * pool given a single borrowed currency. Allows for users to trade via external exchanges
@@ -56,11 +62,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
-    // TODO: this is storage....
-    IWithdrawRequestManager[] public withdrawRequestManagers;
-
-    uint256 immutable maxPoolShare;
-    address immutable lpToken;
+    mapping(address => bool) public hasPendingWithdraw;
+    uint256 immutable MAX_POOL_SHARE;
+    address internal immutable LP_LIB;
 
     /************************************************************************
      * VIRTUAL FUNCTIONS                                                    *
@@ -80,26 +84,38 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function PRIMARY_INDEX() internal view virtual returns (uint256);
 
     /// @notice Called once during initialization to set the initial token approvals.
-    function _initialApproveTokens() internal virtual;
+    function _initialApproveTokens() internal virtual {
+        (bool success, /* */) = LP_LIB.delegatecall(abi.encodeWithSelector(ILPLib.initialApproveTokens.selector));
+        require(success);
+    }
 
     /// @notice Implementation specific wrapper for joining a pool with the given amounts. Will also
     /// stake on the relevant booster protocol.
     function _joinPoolAndStake(
         uint256[] memory amounts, uint256 minPoolClaim
-    ) internal virtual;
+    ) internal virtual {
+        (bool success, /* */) = LP_LIB.delegatecall(
+            abi.encodeWithSelector(ILPLib.joinPoolAndStake.selector, amounts, minPoolClaim)
+        );
+        require(success);
+    }
 
     /// @notice Implementation specific wrapper for unstaking from the booster protocol and withdrawing
     /// funds from the LP pool
     function _unstakeAndExitPool(
         uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided
-    ) internal virtual returns (uint256[] memory exitBalances);
+    ) internal virtual returns (uint256[] memory exitBalances) {
+        (bool success, bytes memory result) = LP_LIB.delegatecall(
+            abi.encodeWithSelector(ILPLib.unstakeAndExitPool.selector, poolClaim, minAmounts, isSingleSided)
+        );
+        require(success);
+        exitBalances = abi.decode(result, (uint256[]));
+    }
 
     /// @notice Returns the total supply of the pool token. Is a virtual function because
     /// ComposableStablePools use a "virtual supply" and a different method must be called
     /// to get the actual total supply.
-    function _totalPoolSupply() internal view virtual returns (uint256) {
-        return IERC20(lpToken).totalSupply();
-    }
+    function _totalPoolSupply() internal view virtual returns (uint256);
 
     function _checkReentrancyContext() internal virtual;
 
@@ -117,11 +133,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address _irm,
         uint256 _lltv,
         address _rewardManager,
-        address _lpToken,
         uint8 _yieldTokenDecimals
     ) RewardManagerMixin( _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, _yieldTokenDecimals) {
-        maxPoolShare = _maxPoolShare;
-        lpToken = _lpToken;
+        MAX_POOL_SHARE = _maxPoolShare;
     }
 
     function _initialize(bytes calldata data) internal override {
@@ -137,15 +151,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
      * properly collateralized.                                             *
      ************************************************************************/
 
-    function requestIdsForAccount(address account) public view returns (WithdrawRequest[] memory requests, bool hasPendingRequest) {
-        requests = new WithdrawRequest[](withdrawRequestManagers.length);
-
-        for (uint256 i; i < withdrawRequestManagers.length; i++) {
-            if (address(withdrawRequestManagers[i]) == address(0)) continue;
-            (requests[i], /* */) = withdrawRequestManagers[i].getWithdrawRequest(address(this), account);
-            hasPendingRequest = hasPendingRequest || requests[i].requestId != 0;
-        }
-    }
 
     function _mintYieldTokens(
         uint256 assets,
@@ -154,8 +159,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     ) internal override {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
-        (/* */, bool hasPendingRequest) = requestIdsForAccount(receiver);
-        if (hasPendingRequest) revert CannotEnterPosition();
+        if (hasPendingWithdraw[receiver]) revert CannotEnterPosition();
 
         // If depositTrades are specified, then parts of the initial deposit are traded
         // for corresponding amounts of the other pool tokens via external exchanges. If
@@ -174,7 +178,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.
-        uint256 maxSupplyThreshold = (_totalPoolSupply() * maxPoolShare) / (10 ** RATE_DECIMALS);
+        uint256 maxSupplyThreshold = (_totalPoolSupply() * MAX_POOL_SHARE) / (10 ** RATE_DECIMALS);
         // TODO: this is incumbent on a 1-1 ration between the lpToken and the yieldToken
         uint256 poolClaim = yieldTokenBalance();
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
@@ -186,15 +190,14 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         bytes memory redeemData
     ) internal override returns (bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
-        (WithdrawRequest[] memory requests, bool hasPendingRequest) = requestIdsForAccount(sharesOwner);
 
         // Returns the amount of each token that has been withdrawn from the pool.
         uint256[] memory exitBalances;
         bool isSingleSided;
         IERC20[] memory tokens;
-        if (hasPendingRequest) {
+        if (hasPendingWithdraw[sharesOwner]) {
             // Attempt to withdraw all pending requests
-            (exitBalances, tokens) = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
+            // (exitBalances, tokens) = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
             wasEscrowed = true;
@@ -319,20 +322,21 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // When initiating a withdraw, we always exit proportionally
             isSingleSided: false
         });
-        requestIds = new uint256[](exitBalances.length);
         IERC20[] memory tokens = TOKENS();
-        for (uint256 i; i < exitBalances.length; i++) {
-            if (exitBalances[i] == 0) continue;
 
-            tokens[i].checkApprove(address(withdrawRequestManagers[i]), exitBalances[i]);
-            requestIds[i] = withdrawRequestManagers[i].initiateWithdraw({
-                account: account,
-                yieldTokenAmount: exitBalances[i],
-                sharesAmount: sharesHeld,
-                isForced: isForced,
-                data: params.withdrawData[i]
-            });
-        }
+        // requestIds = new uint256[](exitBalances.length);
+        // for (uint256 i; i < exitBalances.length; i++) {
+        //     if (exitBalances[i] == 0) continue;
+
+        //     tokens[i].checkApprove(address(withdrawRequestManagers[i]), exitBalances[i]);
+        //     requestIds[i] = withdrawRequestManagers[i].initiateWithdraw({
+        //         account: account,
+        //         yieldTokenAmount: exitBalances[i],
+        //         sharesAmount: sharesHeld,
+        //         isForced: isForced,
+        //         data: params.withdrawData[i]
+        //     });
+        // }
     }
 
     function _withdrawPendingRequests(
@@ -344,15 +348,25 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         exitBalances = new uint256[](requests.length);
         tokens = new IERC20[](requests.length);
 
-        for (uint256 i; i < requests.length; i++) {
-            uint256 yieldTokensBurned = uint256(requests[i].yieldTokenAmount) * sharesToRedeem / totalShares;
-            bool finalized;
-            (exitBalances[i], finalized) = withdrawRequestManagers[i].finalizeAndRedeemWithdrawRequest({
-                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
-            });
-            require(finalized, "Withdraw request not finalized");
-            tokens[i] = IERC20(withdrawRequestManagers[i].WITHDRAW_TOKEN());
-        }
+        // for (uint256 i; i < requests.length; i++) {
+        //     uint256 yieldTokensBurned = uint256(requests[i].yieldTokenAmount) * sharesToRedeem / totalShares;
+        //     bool finalized;
+        //     (exitBalances[i], finalized) = withdrawRequestManagers[i].finalizeAndRedeemWithdrawRequest({
+        //         account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
+        //     });
+        //     require(finalized, "Withdraw request not finalized");
+        //     tokens[i] = IERC20(withdrawRequestManagers[i].WITHDRAW_TOKEN());
+        // }
     }
 
 }
+
+    // function requestIdsForAccount(address account) public view returns (WithdrawRequest[] memory requests, bool hasPendingRequest) {
+    //     requests = new WithdrawRequest[](withdrawRequestManagers.length);
+
+    //     for (uint256 i; i < withdrawRequestManagers.length; i++) {
+    //         if (address(withdrawRequestManagers[i]) == address(0)) continue;
+    //         (requests[i], /* */) = withdrawRequestManagers[i].getWithdrawRequest(address(this), account);
+    //         hasPendingRequest = hasPendingRequest || requests[i].requestId != 0;
+    //     }
+    // }

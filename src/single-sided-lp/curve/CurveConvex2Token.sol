@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractSingleSidedLP} from "../AbstractSingleSidedLP.sol";
+import {AbstractSingleSidedLP, ILPLib} from "../AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils, IERC20} from "../../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../../utils/Constants.sol";
@@ -23,7 +23,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     uint256 internal constant _NUM_TOKENS = 2;
 
-    address internal immutable CURVE_CONVEX_LIB;
+    IERC20 internal immutable CURVE_POOL_TOKEN;
     uint8 internal immutable _PRIMARY_INDEX;
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
@@ -46,7 +46,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         uint256 _lltv,
         address _rewardManager,
         DeploymentParams memory params
-    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, params.poolToken, 18) {
+    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, 18) {
+        CURVE_POOL_TOKEN = IERC20(params.poolToken);
+
         // We interact with curve pools directly so we never pass the token addresses back
         // to the curve pools. The amounts are passed back based on indexes instead. Therefore
         // we can rewrite the token addresses from ALT Eth (0xeeee...) back to (0x0000...) which
@@ -62,51 +64,32 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
             // single sided.
             type(uint8).max;
 
-        CURVE_CONVEX_LIB = address(new CurveConvexLib(TOKEN_1, TOKEN_2, _asset, _PRIMARY_INDEX, params));
+        LP_LIB = address(new CurveConvexLib(TOKEN_1, TOKEN_2, _asset, _PRIMARY_INDEX, params));
     }
 
     function _rewriteAltETH(address token) private pure returns (address) {
         return token == address(ALT_ETH_ADDRESS) ? ETH_ADDRESS : address(token);
     }
 
-    function _initialApproveTokens() internal override virtual {
-        (bool success, /* */) = CURVE_CONVEX_LIB.delegatecall(abi.encodeWithSelector(CurveConvexLib.initialApproveTokens.selector));
-        require(success);
-    }
-
-    function _joinPoolAndStake(
-        uint256[] memory _amounts, uint256 minPoolClaim
-    ) internal override {
-        (bool success, /* */) = CURVE_CONVEX_LIB.delegatecall(abi.encodeWithSelector(
-            CurveConvexLib.joinPoolAndStake.selector, _amounts, minPoolClaim)
-        );
-        require(success);
-    }
-
-    function _unstakeAndExitPool(
-        uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided
-    ) internal override returns (uint256[] memory exitBalances) {
-        (bool success, bytes memory result) = CURVE_CONVEX_LIB.delegatecall(abi.encodeWithSelector(
-            CurveConvexLib.unstakeAndExitPool.selector, poolClaim, _minAmounts, isSingleSided)
-        );
-        require(success);
-        exitBalances = abi.decode(result, (uint256[]));
-    }
-
     function _transferYieldTokenToOwner(address owner, uint256 yieldTokens) internal override {
-        (bool success, /* */) = CURVE_CONVEX_LIB.delegatecall(abi.encodeWithSelector(
+        (bool success, /* */) = LP_LIB.delegatecall(abi.encodeWithSelector(
             CurveConvexLib.transferYieldTokenToOwner.selector, owner, yieldTokens)
         );
         require(success);
     }
 
+    function _totalPoolSupply() internal view override returns (uint256) {
+        return CURVE_POOL_TOKEN.totalSupply();
+    }
+
     function _checkReentrancyContext() internal view override {
+        // TODO: fill this out
         // // Total supply on stable swap has a non-reentrant lock
         // ICurveStableSwapNG(CURVE_POOL).totalSupply();
     }
 }
 
-contract CurveConvexLib {
+contract CurveConvexLib is ILPLib {
     using SafeERC20 for IERC20;
     using TokenUtils for IERC20;
 
