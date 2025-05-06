@@ -191,14 +191,14 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             dexId: 0,
             tradeAmount: sDAIAmount,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(managers[0], sDAI_StakeData)
+            exchangeData: sDAI_StakeData
         });
         depositTrades[1] = TradeParams({
             tradeType: TradeType.STAKE_TOKEN,
             dexId: 0,
             tradeAmount: sUSDeAmount,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(managers[1], sUSDe_StakeData)
+            exchangeData: sUSDe_StakeData
         });
 
         return abi.encode(DepositParams({

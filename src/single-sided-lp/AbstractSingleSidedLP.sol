@@ -375,14 +375,15 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 abstract contract BaseLPLib is ILPLib {
     using TokenUtils for IERC20;
 
-    // TODO: initialize this in the constructor
-    IERC20[] internal tokens;
+    function TOKENS() internal view virtual returns (IERC20[] memory);
 
     function getWithdrawRequestValue(
         address account,
         address asset,
         uint256 shares
     ) external view returns (uint256 totalValue) {
+        IERC20[] memory tokens = TOKENS();
+
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(msg.sender, address(tokens[i]));
             (/* */, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
@@ -397,6 +398,8 @@ abstract contract BaseLPLib is ILPLib {
         uint256[] calldata exitBalances,
         bytes[] calldata withdrawData
     ) external override returns (uint256[] memory requestIds) {
+        IERC20[] memory tokens = TOKENS();
+
         requestIds = new uint256[](exitBalances.length);
         for (uint256 i; i < exitBalances.length; i++) {
             if (exitBalances[i] == 0) continue;
@@ -418,6 +421,8 @@ abstract contract BaseLPLib is ILPLib {
         uint256 sharesToRedeem,
         uint256 totalShares
     ) external override returns (uint256[] memory exitBalances, IERC20[] memory withdrawTokens) {
+        IERC20[] memory tokens = TOKENS();
+
         exitBalances = new uint256[](tokens.length);
         withdrawTokens = new IERC20[](tokens.length);
 

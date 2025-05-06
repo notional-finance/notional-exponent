@@ -429,7 +429,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
-            IWithdrawRequestManager withdrawRequestManager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), trade.sellToken);
+            IWithdrawRequestManager withdrawRequestManager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), trade.buyToken);
             ERC20(trade.sellToken).forceApprove(address(withdrawRequestManager), trade.amount);
             amountBought = withdrawRequestManager.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
             return (trade.amount, amountBought);

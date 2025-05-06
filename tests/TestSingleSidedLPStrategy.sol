@@ -155,10 +155,13 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             vm.stopPrank();
         }
 
+        IERC20[] memory tokens = AbstractSingleSidedLP(payable(address(y))).TOKENS();
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
-            vm.prank(owner);
+            vm.startPrank(owner);
+            ADDRESS_REGISTRY.setWithdrawRequestManager(address(tokens[i]), address(managers[i]));
             managers[i].setApprovedVault(address(y), true);
+            vm.stopPrank();
         }
     }
 

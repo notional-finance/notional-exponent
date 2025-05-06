@@ -62,9 +62,9 @@ contract AddressRegistry {
         emit FeeReceiverTransferred(_newFeeReceiver);
     }
 
-    function setWithdrawRequestManager(address vault, address yieldToken, address withdrawRequestManager) external {
+    function setWithdrawRequestManager(address yieldToken, address withdrawRequestManager) external {
         if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
-        withdrawRequestManagerOverrides[vault][yieldToken] = withdrawRequestManager;
+        withdrawRequestManagers[yieldToken] = withdrawRequestManager;
     }
 
     function setWithdrawRequestManagerOverride(address vault, address yieldToken, address withdrawRequestManager) external {

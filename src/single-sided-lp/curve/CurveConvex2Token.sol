@@ -137,6 +137,13 @@ contract CurveConvexLib is BaseLPLib {
         CONVEX_BOOSTER = convexBooster;
     }
 
+    function TOKENS() internal view override returns (IERC20[] memory) {
+        IERC20[] memory tokens = new IERC20[](_NUM_TOKENS);
+        tokens[0] = IERC20(TOKEN_1);
+        tokens[1] = IERC20(TOKEN_2);
+        return tokens;
+    }
+
     function initialApproveTokens() external {
         // If either token is ETH_ADDRESS the check approve will short circuit
         IERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);
