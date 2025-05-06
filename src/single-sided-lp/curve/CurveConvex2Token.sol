@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractSingleSidedLP, ILPLib} from "../AbstractSingleSidedLP.sol";
+import {AbstractSingleSidedLP, BaseLPLib} from "../AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils, IERC20} from "../../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../../utils/Constants.sol";
@@ -89,7 +89,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     }
 }
 
-contract CurveConvexLib is ILPLib {
+contract CurveConvexLib is BaseLPLib {
     using SafeERC20 for IERC20;
     using TokenUtils for IERC20;
 

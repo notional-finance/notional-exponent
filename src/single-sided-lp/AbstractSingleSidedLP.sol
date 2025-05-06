@@ -13,6 +13,7 @@ import {
     ExistingWithdrawRequest
 } from "../withdraws/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
+import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import "../utils/Errors.sol";
 
 struct TradeParams {
@@ -48,6 +49,22 @@ interface ILPLib {
     function initialApproveTokens() external;
     function joinPoolAndStake(uint256[] memory amounts, uint256 minPoolClaim) external;
     function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
+
+    function finalizeAndRedeemWithdrawRequest(
+        IERC20[] calldata _tokens,
+        address sharesOwner,
+        uint256 sharesToRedeem,
+        uint256 totalShares
+    ) external returns (uint256[] memory exitBalances, IERC20[] memory tokens);
+
+    function initiateWithdraw(
+        address account,
+        bool isForced,
+        uint256 sharesHeld,
+        uint256[] calldata exitBalances,
+        IERC20[] calldata tokens,
+        bytes[] calldata withdrawData
+    ) external returns (uint256[] memory requestIds);
 }
 
 /**
@@ -83,6 +100,13 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     /// leveraged vault. All valuations are done in terms of this currency.
     function PRIMARY_INDEX() internal view virtual returns (uint256);
 
+    /// @notice Returns the total supply of the pool token. Is a virtual function because
+    /// ComposableStablePools use a "virtual supply" and a different method must be called
+    /// to get the actual total supply.
+    function _totalPoolSupply() internal view virtual returns (uint256);
+
+    function _checkReentrancyContext() internal virtual;
+
     /// @notice Called once during initialization to set the initial token approvals.
     function _initialApproveTokens() internal virtual {
         (bool success, /* */) = LP_LIB.delegatecall(abi.encodeWithSelector(ILPLib.initialApproveTokens.selector));
@@ -111,13 +135,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         require(success);
         exitBalances = abi.decode(result, (uint256[]));
     }
-
-    /// @notice Returns the total supply of the pool token. Is a virtual function because
-    /// ComposableStablePools use a "virtual supply" and a different method must be called
-    /// to get the actual total supply.
-    function _totalPoolSupply() internal view virtual returns (uint256);
-
-    function _checkReentrancyContext() internal virtual;
 
     /************************************************************************
      * CLASS FUNCTIONS                                                      *
@@ -150,7 +167,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
      * valuation check that is used by Notional to determine if the user is *
      * properly collateralized.                                             *
      ************************************************************************/
-
 
     function _mintYieldTokens(
         uint256 assets,
@@ -295,7 +311,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
-    // XXX: 2800 for all initiate withdraw methods below (and requestIdsForAccount)
     function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
         requestIds = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
 
@@ -314,7 +329,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld);
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
-        // TODO: test that you cannot re-initiate a withdraw
+
+        // Ensure that user cannot re-initiate a withdraw
+        if (hasPendingWithdraw[account]) revert CannotInitiateWithdraw(account);
+        hasPendingWithdraw[account] = true;
 
         uint256[] memory exitBalances = _unstakeAndExitPool({
             poolClaim: yieldTokenAmount,
@@ -322,21 +340,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // When initiating a withdraw, we always exit proportionally
             isSingleSided: false
         });
-        IERC20[] memory tokens = TOKENS();
 
-        // requestIds = new uint256[](exitBalances.length);
-        // for (uint256 i; i < exitBalances.length; i++) {
-        //     if (exitBalances[i] == 0) continue;
-
-        //     tokens[i].checkApprove(address(withdrawRequestManagers[i]), exitBalances[i]);
-        //     requestIds[i] = withdrawRequestManagers[i].initiateWithdraw({
-        //         account: account,
-        //         yieldTokenAmount: exitBalances[i],
-        //         sharesAmount: sharesHeld,
-        //         isForced: isForced,
-        //         data: params.withdrawData[i]
-        //     });
-        // }
+        (bool success, bytes memory result) = LP_LIB.delegatecall(
+            abi.encodeWithSelector(ILPLib.initiateWithdraw.selector, account, isForced, sharesHeld, exitBalances, TOKENS(), params.withdrawData)
+        );
+        require(success);
+        requestIds = abi.decode(result, (uint256[]));
     }
 
     function _withdrawPendingRequests(
@@ -345,28 +354,63 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 sharesToRedeem
     ) internal returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
         uint256 totalShares = balanceOfShares(sharesOwner);
-        exitBalances = new uint256[](requests.length);
-        tokens = new IERC20[](requests.length);
 
-        // for (uint256 i; i < requests.length; i++) {
-        //     uint256 yieldTokensBurned = uint256(requests[i].yieldTokenAmount) * sharesToRedeem / totalShares;
-        //     bool finalized;
-        //     (exitBalances[i], finalized) = withdrawRequestManagers[i].finalizeAndRedeemWithdrawRequest({
-        //         account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
-        //     });
-        //     require(finalized, "Withdraw request not finalized");
-        //     tokens[i] = IERC20(withdrawRequestManagers[i].WITHDRAW_TOKEN());
-        // }
+        (bool success, bytes memory result) = LP_LIB.delegatecall(
+            abi.encodeWithSelector(ILPLib.finalizeAndRedeemWithdrawRequest.selector, TOKENS(), sharesOwner, sharesToRedeem, totalShares)
+        );
+        require(success);
+        (exitBalances, tokens) = abi.decode(result, (uint256[], IERC20[]));
     }
-
 }
 
-    // function requestIdsForAccount(address account) public view returns (WithdrawRequest[] memory requests, bool hasPendingRequest) {
-    //     requests = new WithdrawRequest[](withdrawRequestManagers.length);
+abstract contract BaseLPLib is ILPLib {
+    using TokenUtils for IERC20;
 
-    //     for (uint256 i; i < withdrawRequestManagers.length; i++) {
-    //         if (address(withdrawRequestManagers[i]) == address(0)) continue;
-    //         (requests[i], /* */) = withdrawRequestManagers[i].getWithdrawRequest(address(this), account);
-    //         hasPendingRequest = hasPendingRequest || requests[i].requestId != 0;
-    //     }
-    // }
+    function initiateWithdraw(
+        address account,
+        bool isForced,
+        uint256 sharesHeld,
+        uint256[] calldata exitBalances,
+        IERC20[] calldata tokens,
+        bytes[] calldata withdrawData
+    ) external override returns (uint256[] memory requestIds) {
+        requestIds = new uint256[](exitBalances.length);
+        for (uint256 i; i < exitBalances.length; i++) {
+            if (exitBalances[i] == 0) continue;
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+
+            tokens[i].checkApprove(address(manager), exitBalances[i]);
+            requestIds[i] = manager.initiateWithdraw({
+                account: account,
+                yieldTokenAmount: exitBalances[i],
+                sharesAmount: sharesHeld,
+                isForced: isForced,
+                data: withdrawData[i]
+            });
+        }
+    }
+
+    function finalizeAndRedeemWithdrawRequest(
+        IERC20[] calldata _tokens,
+        address sharesOwner,
+        uint256 sharesToRedeem,
+        uint256 totalShares
+    ) external override returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
+        exitBalances = new uint256[](_tokens.length);
+        tokens = new IERC20[](_tokens.length);
+
+        WithdrawRequest memory request;
+        for (uint256 i; i < _tokens.length; i++) {
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(_tokens[i]));
+            (request, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
+
+            uint256 yieldTokensBurned = uint256(request.yieldTokenAmount) * sharesToRedeem / totalShares;
+            bool finalized;
+            (exitBalances[i], finalized) = manager.finalizeAndRedeemWithdrawRequest({
+                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
+            });
+            require(finalized, "Withdraw request not finalized");
+            tokens[i] = IERC20(manager.WITHDRAW_TOKEN());
+        }
+    }
+}

@@ -52,10 +52,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.WITHDRAW_TOKEN() : address(0);
     }
 
-    function _withdrawRequestYieldTokenRate() internal view virtual returns (uint256) {
-        return convertYieldTokenToAsset();
-    }
-
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
