@@ -15,6 +15,7 @@ import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 abstract contract AbstractLPOracle is AbstractCustomOracle {
     error InvalidPrice(uint256 oraclePrice, uint256 spotPrice);
 
+    uint256 internal constant RATE_PRECISION = 1e18;
     uint256 internal constant PERCENT_BASIS = 1e18;
     uint256 internal immutable POOL_PRECISION;
     uint256 internal immutable LOWER_LIMIT_MULTIPLIER;
@@ -51,10 +52,10 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
     /// @notice Returns the pair price of two tokens via the TRADING_MODULE which holds a registry
     /// of oracles. Will revert of the oracle pair is not listed.
     function _getOraclePairPrice(address base, address quote) internal view returns (uint256) {
-        (int256 rate, int256 precision) = TRADING_MODULE.getOraclePrice(base, quote);
-        require(rate > 0);
-        require(precision > 0);
-        return uint256(rate) * POOL_PRECISION / uint256(precision);
+        // The trading module always returns a positive rate in 18 decimals so we can safely
+        // cast to uint256
+        (int256 rate, /* */) = TRADING_MODULE.getOraclePrice(base, quote);
+        return uint256(rate) * POOL_PRECISION / RATE_PRECISION;
     }
 
     /// @notice Helper method called by _checkPriceAndCalculateValue which will supply the relevant

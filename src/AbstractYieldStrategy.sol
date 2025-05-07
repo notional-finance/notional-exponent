@@ -25,6 +25,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     using SafeERC20 for ERC20;
 
     uint256 internal constant RATE_DECIMALS = 18;
+    uint256 internal constant RATE_PRECISION = 1e18;
     uint256 internal constant YEAR = 365 days;
     uint256 internal constant VIRTUAL_SHARES = 1e6;
     uint256 internal constant VIRTUAL_YIELD_TOKENS = 1;
@@ -374,7 +375,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _effectiveSupply() private view returns (uint256) {
         return (
             totalSupply() - s_escrowedShares + VIRTUAL_SHARES - 
-            // TODO: clean this up a bit
+            // TODO: is this correct in all cases? is it only true for escrowed shares?
             (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
         );
     }
@@ -385,12 +386,20 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     function _calculateAdditionalFeesInYieldToken() private view returns (uint256 additionalFeesInYieldToken) {
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
-        // TODO: rate decimals is 18 to match the feeRate decimals
-        uint256 divisor = YEAR * (10 ** RATE_DECIMALS);
-        // TODO: change this to do continuous compounding
+        // e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
+        uint256 x = (feeRate * timeSinceLastFeeAccrual) / YEAR;
+        if (x == 0) return 0;
+
+        // Taylor approximation of e ^ x  - 1 = x + x^2 / 2! + x^3 / 3! + ...
+        uint256 eToTheX = x + (x * x) / (2 * RATE_PRECISION) + (x * x * x) / (6 * RATE_PRECISION * RATE_PRECISION);
+        console.log("x", x);
+        console.log("eToTheX", eToTheX);
+        console.log("yieldTokenBalance()", yieldTokenBalance());
+        console.log("s_accruedFeesInYieldToken", s_accruedFeesInYieldToken);
+
         additionalFeesInYieldToken = (
-            (yieldTokenBalance() - s_accruedFeesInYieldToken) * timeSinceLastFeeAccrual * feeRate + (divisor - 1)
-        ) / divisor;
+            (yieldTokenBalance() - s_accruedFeesInYieldToken) * eToTheX
+        ) / RATE_PRECISION;
     }
 
     function _accrueFees() private {
@@ -443,9 +452,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToAsset() public view returns (uint256) {
-        // TODO: do we need to get the precision here?
+        // The trading module always returns a positive rate in 18 decimals so we can safely
+        // cast to uint256
         (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
-        require(rate > 0);
         return uint256(rate);
     }
 

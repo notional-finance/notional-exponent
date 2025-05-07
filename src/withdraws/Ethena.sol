@@ -82,32 +82,6 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 
-    // function _getValueOfWithdrawRequest(
-    //     uint256 requestId,
-    //     address borrowToken,
-    //     uint256 borrowPrecision
-    // ) internal view returns (uint256) {
-    //     address holder = address(uint160(requestId));
-    //     // This valuation is the amount of USDe the account will receive at cooldown, once
-    //     // a cooldown is initiated the account is no longer receiving sUSDe yield. This balance
-    //     // of USDe is transferred to a Silo contract and guaranteed to be available once the
-    //     // cooldown has passed.
-    //     IsUSDe.UserCooldown memory userCooldown = sUSDe.cooldowns(holder);
-
-    //     int256 usdeToBorrowRate;
-    //     if (borrowToken == address(USDe)) {
-    //         usdeToBorrowRate = int256(Constants.EXCHANGE_RATE_PRECISION);
-    //     } else {
-    //         // If not borrowing USDe, convert to the borrowed token
-    //         (usdeToBorrowRate, /* */) = Deployments.TRADING_MODULE.getOraclePrice(
-    //             address(USDe), borrowToken
-    //         );
-    //     }
-
-    //     return (userCooldown.underlyingAmount * usdeToBorrowRate.toUint() * borrowPrecision) /
-    //         (Constants.EXCHANGE_RATE_PRECISION * USDE_PRECISION);
-    // }
-
     function _stakeTokens(
         uint256 usdeAmount,
         bytes memory /* stakeData */

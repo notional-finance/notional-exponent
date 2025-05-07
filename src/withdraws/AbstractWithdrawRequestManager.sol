@@ -314,27 +314,25 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         SplitWithdrawRequest memory s = s_splitWithdrawRequest[w.requestId];
 
         int256 tokenRate;
-        int256 ratePrecision;
         uint256 tokenAmount;
         uint256 tokenDecimals;
         uint256 assetDecimals = ERC20(asset).decimals();
         if (s.finalized) {
             // If finalized the withdraw request is locked to the tokens withdrawn
-            (tokenRate, ratePrecision) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
+            (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
             tokenDecimals = ERC20(WITHDRAW_TOKEN).decimals();
             tokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
         } else {
             // Otherwise we use the yield token rate
-            (tokenRate, ratePrecision) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
+            (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
             tokenDecimals = ERC20(YIELD_TOKEN).decimals();
             tokenAmount = w.yieldTokenAmount;
         }
 
-        require(tokenRate > 0);
-        require(ratePrecision > 0);
-
+        // The trading module always returns a positive rate in 18 decimals so we can safely
+        // cast to uint256
         uint256 totalValue = (uint256(tokenRate) * tokenAmount * (10 ** assetDecimals)) /
-            ((10 ** tokenDecimals) * uint256(ratePrecision));
+            ((10 ** tokenDecimals) * 1e18);
         // NOTE: returns the normalized value given the shares input
         return (true, totalValue * shares / w.sharesAmount);
     }

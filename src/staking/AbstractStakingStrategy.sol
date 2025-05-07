@@ -181,8 +181,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
-        // TODO: do we need to check health factor here?
-
         if (address(withdrawRequestManager) != address(0)) {
             // If the liquidator has a collateral balance then they cannot receive a split withdraw request
             // or the redemption calculation will be incorrect.

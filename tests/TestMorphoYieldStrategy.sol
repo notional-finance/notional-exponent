@@ -382,12 +382,12 @@ contract TestMorphoYieldStrategy is Test {
         setMaxOracleFreshness();
 
         uint256 yieldTokensPerShare0 = y.convertSharesToYieldToken(1e18);
-        uint256 expectedFees = y.convertSharesToYieldToken(totalSupply) * 0.0010e18 / 1e18;
+        uint256 expectedFees = y.convertSharesToYieldToken(totalSupply) * 0.001000500166e18 / 1e18;
         vm.warp(block.timestamp + 365 days);
         uint256 yieldTokensPerShare1 = y.convertSharesToYieldToken(1e18);
         assertLt(yieldTokensPerShare1, yieldTokensPerShare0);
 
-        assertApproxEqAbs(y.feesAccrued(), expectedFees, 1, "Fees accrued should be equal to expected fees");
+        assertApproxEqRel(y.feesAccrued(), expectedFees, 1e12, "Fees accrued should be equal to expected fees");
 
         vm.prank(owner);
         y.collectFees();
@@ -395,7 +395,7 @@ contract TestMorphoYieldStrategy is Test {
 
         assertApproxEqAbs(yieldTokensPerShare1, yieldTokensPerShare2, 1, "Yield tokens per share should be equal");
         assertEq(y.feesAccrued(), 0, "Fees accrued should be 0");
-        assertApproxEqAbs(feeToken.balanceOf(owner), expectedFees, 1, "Fees should be equal to expected fees");
+        assertApproxEqRel(feeToken.balanceOf(owner), expectedFees, 1e12, "Fees should be equal to expected fees");
     }
 
     function test_share_valuation() public {
