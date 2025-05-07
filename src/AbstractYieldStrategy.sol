@@ -108,6 +108,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
         // NOTE: rounds down on division
+        // TODO: what happens when we first burn the yield tokens on exit and then the effective supply is only burned later
+        // on exit?
         return (shares * (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (_effectiveSupply());
     }
 
@@ -374,9 +376,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /*** Private Functions ***/
     function _effectiveSupply() private view returns (uint256) {
         return (
-            totalSupply() - s_escrowedShares + VIRTUAL_SHARES - 
-            // TODO: is this correct in all cases? is it only true for escrowed shares?
-            (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
+            totalSupply() - s_escrowedShares + VIRTUAL_SHARES //  - 
+            // // TODO: is this correct in all cases? is it only true for escrowed shares?
+            // (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
         );
     }
 
@@ -392,10 +394,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Taylor approximation of e ^ x  - 1 = x + x^2 / 2! + x^3 / 3! + ...
         uint256 eToTheX = x + (x * x) / (2 * RATE_PRECISION) + (x * x * x) / (6 * RATE_PRECISION * RATE_PRECISION);
-        console.log("x", x);
-        console.log("eToTheX", eToTheX);
-        console.log("yieldTokenBalance()", yieldTokenBalance());
-        console.log("s_accruedFeesInYieldToken", s_accruedFeesInYieldToken);
 
         additionalFeesInYieldToken = (
             (yieldTokenBalance() - s_accruedFeesInYieldToken) * eToTheX

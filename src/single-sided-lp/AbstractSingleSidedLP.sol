@@ -316,6 +316,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
+    // TODO: post liquidation
+
     function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
         requestIds = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
 
@@ -364,6 +366,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         );
         require(success);
         (exitBalances, tokens) = abi.decode(result, (uint256[], IERC20[]));
+
+        // Clear this flag if the user has redeemed all their shares
+        if (sharesToRedeem == totalShares) hasPendingWithdraw[sharesOwner] = false;
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
@@ -374,6 +379,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         return super.convertToAssets(shares);
     }
+
 }
 
 abstract contract BaseLPLib is ILPLib {

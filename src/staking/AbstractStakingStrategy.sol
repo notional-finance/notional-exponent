@@ -79,7 +79,10 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
-        // TODO: this may initiate withdraws across both native balance and collateral balance
+        // The only way to get a native balanceOf shares is to liquidate an account.
+        // You cannot liquidate an account if you have an open position (see the postLiquidation function)
+        // Therefore, balanceOfShares will always be either an open position or a native balanceOf. This is
+        // the desired behavior.
         uint256 sharesHeld = balanceOfShares(account);
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld);
