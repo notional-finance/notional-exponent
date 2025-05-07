@@ -108,8 +108,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
         // NOTE: rounds down on division
-        // TODO: what happens when we first burn the yield tokens on exit and then the effective supply is only burned later
-        // on exit?
         return (shares * (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (_effectiveSupply());
     }
 
@@ -376,9 +374,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /*** Private Functions ***/
     function _effectiveSupply() private view returns (uint256) {
         return (
-            totalSupply() - s_escrowedShares + VIRTUAL_SHARES //  - 
-            // // TODO: is this correct in all cases? is it only true for escrowed shares?
-            // (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
+            totalSupply() - s_escrowedShares + VIRTUAL_SHARES  - 
+            // This is required for exits because the yield token to share
+            // calculation is incorrect when the yield tokens are burned before
+            // the shares are burned. The price is checked by the lending market
+            // when collateral is withdrawn. If the t_AllowTransfer_To is the current
+            // contract then we are in a liquidation and the yield tokens have not
+            // been burned yet so this adjustment is not required.
+            (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
         );
     }
 
@@ -523,6 +526,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
         uint256 yieldTokens = convertSharesToYieldToken(shares);
+        console.log("yieldTokens to shares", shares, yieldTokens);
         // NOTE: rounds down on division
         return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
     }
