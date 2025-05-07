@@ -94,7 +94,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @notice Addresses of tokens held and decimal places of each token. ETH will always be
     /// recorded in this array as Deployments.ETH_Address
-    function TOKENS() public view virtual returns (IERC20[] memory);
+    function TOKENS() internal view virtual returns (IERC20[] memory);
 
     /// @notice Index of the TOKENS() array that refers to the primary borrowed currency by the
     /// leveraged vault. All valuations are done in terms of this currency.
@@ -192,10 +192,15 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         _joinPoolAndStake(amounts, params.minPoolClaim);
 
+        _checkPoolShare();
+    }
+
+    function _checkPoolShare() internal view virtual {
         // Checks that the vault does not own too large of a portion of the pool. If this is the case,
         // single sided exits may have a detrimental effect on the liquidity.
-        uint256 maxSupplyThreshold = (_totalPoolSupply() * MAX_POOL_SHARE) / (10 ** RATE_DECIMALS);
-        // TODO: this is incumbent on a 1-1 ratio between the lpToken and the yieldToken
+        uint256 maxSupplyThreshold = (_totalPoolSupply() * MAX_POOL_SHARE) / RATE_PRECISION;
+        // This is incumbent on a 1-1 ratio between the lpToken and the yieldToken, if that is not the
+        // case then this function must be overridden.
         uint256 poolClaim = yieldTokenBalance();
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
     }

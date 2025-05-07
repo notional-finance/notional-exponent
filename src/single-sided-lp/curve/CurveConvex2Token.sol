@@ -30,7 +30,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
     function PRIMARY_INDEX() internal view override returns (uint256) { return _PRIMARY_INDEX; }
-    function TOKENS() public view override returns (IERC20[] memory) {
+    function TOKENS() internal view override returns (IERC20[] memory) {
         IERC20[] memory tokens = new IERC20[](_NUM_TOKENS);
         tokens[0] = IERC20(TOKEN_1);
         tokens[1] = IERC20(TOKEN_2);
@@ -82,10 +82,8 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         return CURVE_POOL_TOKEN.totalSupply();
     }
 
-    function _checkReentrancyContext() internal view override {
-        // TODO: fill this out
-        // // Total supply on stable swap has a non-reentrant lock
-        // ICurveStableSwapNG(CURVE_POOL).totalSupply();
+    function _checkReentrancyContext() internal override {
+        CurveConvexLib(LP_LIB).checkReentrancyContext();
     }
 }
 
@@ -135,6 +133,22 @@ contract CurveConvexLib is BaseLPLib {
 
         CONVEX_POOL_ID = poolId;
         CONVEX_BOOSTER = convexBooster;
+    }
+
+    function checkReentrancyContext() external {
+        uint256[2] memory minAmounts;
+        if (CURVE_INTERFACE == CurveInterface.V1) {
+            ICurve2TokenPoolV1(CURVE_POOL).remove_liquidity(0, minAmounts);
+        } else if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
+            // Total supply on stable swap has a non-reentrant lock
+            ICurveStableSwapNG(CURVE_POOL).totalSupply();
+        } else if (CURVE_INTERFACE == CurveInterface.V2) {
+            // Curve V2 does a `-1` on the liquidity amount so set the amount removed to 1 to
+            // avoid an underflow.
+            ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(1, minAmounts, true, address(this));
+        } else {
+            revert();
+        }
     }
 
     function TOKENS() internal view override returns (IERC20[] memory) {
