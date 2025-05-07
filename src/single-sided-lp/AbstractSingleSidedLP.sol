@@ -65,6 +65,8 @@ interface ILPLib {
         uint256[] calldata exitBalances,
         bytes[] calldata withdrawData
     ) external returns (uint256[] memory requestIds);
+
+    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external;
 }
 
 /**
@@ -316,7 +318,16 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
-    // TODO: post liquidation
+    function _postLiquidation(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) internal override {
+        // Updates the reward state for the liquidator and liquidateAccount
+        super._postLiquidation(liquidateAccount, liquidator, sharesToLiquidator);
+
+        // Now split the withdraw requests...
+        (bool success, bytes memory result) = LP_LIB.delegatecall(
+            abi.encodeWithSelector(ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator)
+        );
+        require(success);
+    }
 
     function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
         requestIds = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
@@ -448,6 +459,15 @@ abstract contract BaseLPLib is ILPLib {
             });
             require(finalized, "Withdraw request not finalized");
             withdrawTokens[i] = IERC20(manager.WITHDRAW_TOKEN());
+        }
+    }
+
+    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override {
+        IERC20[] memory tokens = TOKENS();
+        for (uint256 i; i < tokens.length; i++) {
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
+            // If there is no withdraw request then this will be a noop
+            manager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
 }

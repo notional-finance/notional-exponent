@@ -515,7 +515,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Called after liquidation to update the yield token balance.
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { }
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual {
+        // If the liquidator has a position then they cannot liquidate or they will have a native balance and a balance on
+        // the lending market.
+        if (_accountCollateralBalance(liquidator) > 0) revert();
+    }
 
     /// @dev Mints yield tokens given a number of assets.
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;
@@ -526,7 +530,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
         uint256 yieldTokens = convertSharesToYieldToken(shares);
-        console.log("yieldTokens to shares", shares, yieldTokens);
         // NOTE: rounds down on division
         return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
     }
