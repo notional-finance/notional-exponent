@@ -123,7 +123,6 @@ contract TestMorphoYieldStrategy is Test {
         address deployer = makeAddr("deployer");
         vm.prank(deployer);
         addressRegistry = address(new AddressRegistry(owner, owner, owner));
-        console.log("addressRegistry", addressRegistry);
     }
 
     function setUp() public virtual {

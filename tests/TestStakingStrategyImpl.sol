@@ -85,15 +85,17 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             dexId: defaultDexId,
             minPurchaseAmount: 0,
             exchangeData: defaultDepositExchangeData,
-            minPtOut: 0,
-            approxParams: IPRouter.ApproxParams({
-                guessMin: 0,
-                guessMax: type(uint256).max,
-                guessOffchain: 0,
-                maxIteration: 256,
-                eps: 1e15 // recommended setting (0.1%)
-            }),
-            limitOrderData: limitOrderData
+            pendleData: abi.encode(PendleDepositData({
+                minPtOut: 0,
+                approxParams: IPRouter.ApproxParams({
+                    guessMin: 0,
+                    guessMax: type(uint256).max,
+                    guessOffchain: 0,
+                    maxIteration: 256,
+                    eps: 1e15 // recommended setting (0.1%)
+                }),
+                limitOrderData: limitOrderData
+            }))
         });
 
         return abi.encode(d);
@@ -131,6 +133,8 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     function setMarketVariables() virtual internal;
 
     function deployYieldStrategy() internal override {
+        address pendleLib = address(deployCode("PendlePTLib.sol:PendlePTLib"));
+
         setMarketVariables();
         bool isSUSDe = tokenOut == address(sUSDe);
 
@@ -249,15 +253,17 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             dexId: defaultDexId,
             minPurchaseAmount: 0,
             exchangeData: defaultDepositExchangeData,
-            minPtOut: 0,
-            approxParams: IPRouter.ApproxParams({
-                guessMin: 0,
-                guessMax: type(uint256).max,
-                guessOffchain: 0,
-                maxIteration: 256,
-                eps: 1e15 // recommended setting (0.1%)
-            }),
-            limitOrderData: limitOrderData
+            pendleData: abi.encode(PendleDepositData({
+                minPtOut: 0,
+                approxParams: IPRouter.ApproxParams({
+                    guessMin: 0,
+                    guessMax: type(uint256).max,
+                    guessOffchain: 0,
+                    maxIteration: 256,
+                    eps: 1e15 // recommended setting (0.1%)
+                }),
+                limitOrderData: limitOrderData
+            }))
         });
 
         bytes memory depositData = abi.encode(d);

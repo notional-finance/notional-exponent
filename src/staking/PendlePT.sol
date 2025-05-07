@@ -6,30 +6,26 @@ import "../interfaces/IPendle.sol";
 import "../utils/Constants.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./PendlePTLib.sol";
 
 struct PendleDepositParams {
     uint16 dexId;
     uint256 minPurchaseAmount;
     bytes exchangeData;
-    uint256 minPtOut;
-    IPRouter.ApproxParams approxParams;
-    // XXX: 750 bytes for decoding just one
-    // XXX: 1600 bytes for decoding all three
-    // XXX: 3300 bytes for limit order data
-    IPRouter.LimitOrderData limitOrderData;
+    bytes pendleData;
 }
 
 struct PendleRedeemParams {
     uint8 dexId;
     uint256 minPurchaseAmount;
     bytes exchangeData;
-    IPRouter.LimitOrderData limitOrderData;
+    bytes limitOrderData;
 }
 
 struct PendleWithdrawParams {
     uint256 minTokenOutSy;
     bytes withdrawData;
-    IPRouter.LimitOrderData limitOrderData;
+    bytes limitOrderData;
 }
 
 /** Base implementation for Pendle PT vaults */
@@ -98,53 +94,16 @@ contract PendlePT is AbstractStakingStrategy {
             tokenInAmount = assets;
         }
 
-        IPRouter.SwapData memory EMPTY_SWAP;
-
-        ERC20(TOKEN_IN_SY).forceApprove(address(PENDLE_ROUTER), tokenInAmount);
-        uint256 msgValue = TOKEN_IN_SY == ETH_ADDRESS ? tokenInAmount : 0;
-        PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
-            address(this),
-            address(MARKET),
-            params.minPtOut,
-            params.approxParams,
-            // When tokenIn == tokenMintSy then the swap router can be set to
-            // empty data. This means that the vault must hold the underlying sy
-            // token when we begin the execution.
-            IPRouter.TokenInput({
-                tokenIn: TOKEN_IN_SY,
-                netTokenIn: tokenInAmount,
-                tokenMintSy: TOKEN_IN_SY,
-                pendleSwap: address(0),
-                swapData: EMPTY_SWAP
-            }),
-            params.limitOrderData
-        );
+        PendlePTLib.swapExactTokenForPt(TOKEN_IN_SY, address(MARKET), tokenInAmount, params.pendleData);
     }
 
     /// @notice Handles PT redemption whether it is expired or not
-    function _redeemPT(uint256 netPtIn, IPRouter.LimitOrderData memory limitOrderData) internal returns (uint256 netTokenOut) {
+    function _redeemPT(uint256 netPtIn, bytes memory limitOrderData) internal returns (uint256 netTokenOut) {
         if (PT.isExpired()) {
-            PT.transfer(address(YT), netPtIn);
-            uint256 netSyOut = YT.redeemPY(address(SY));
-            netTokenOut = SY.redeem(address(this), netSyOut, TOKEN_OUT_SY, 0, true);
+            netTokenOut = PendlePTLib.redeemExpiredPT(PT, YT, SY, TOKEN_OUT_SY, netPtIn);
         } else {
-            IPRouter.SwapData memory EMPTY_SWAP;
-            PT.approve(address(PENDLE_ROUTER), netPtIn);
-            (netTokenOut, , ) = PENDLE_ROUTER.swapExactPtForToken(
-                address(this),
-                address(MARKET),
-                netPtIn,
-                // When tokenIn == tokenMintSy then the swap router can be set to
-                // empty data. This means that the vault must hold the underlying sy
-                // token when we begin the execution.
-                IPRouter.TokenOutput({
-                    tokenOut: TOKEN_OUT_SY,
-                    minTokenOut: 0,
-                    tokenRedeemSy: TOKEN_OUT_SY,
-                    pendleSwap: address(0),
-                    swapData: EMPTY_SWAP
-                }),
-                limitOrderData
+            netTokenOut = PendlePTLib.swapExactPtForToken(
+                address(PT), address(MARKET), TOKEN_OUT_SY, netPtIn, limitOrderData
             );
         }
     }

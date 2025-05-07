@@ -213,7 +213,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         IERC20[] memory tokens;
         if (hasPendingWithdraw[sharesOwner]) {
             // Attempt to withdraw all pending requests
-            // (exitBalances, tokens) = _withdrawPendingRequests(requests, sharesOwner, sharesToRedeem);
+            (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem);
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
             wasEscrowed = true;
@@ -349,7 +349,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     }
 
     function _withdrawPendingRequests(
-        WithdrawRequest[] memory requests,
         address sharesOwner,
         uint256 sharesToRedeem
     ) internal returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
