@@ -471,6 +471,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         MORPHO.createMarket(marketParams());
 
         s_lastFeeAccrualTime = uint32(block.timestamp);
+        emit VaultCreated(address(this));
     }
 
     /// @dev Marked as virtual to allow for RewardManagerMixin to override

@@ -156,8 +156,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
             vm.startPrank(owner);
-            address token = managers[i].YIELD_TOKEN();
-            ADDRESS_REGISTRY.setWithdrawRequestManager(address(token), address(managers[i]));
+            ADDRESS_REGISTRY.setWithdrawRequestManager(address(managers[i]), false);
             managers[i].setApprovedVault(address(y), true);
             vm.stopPrank();
         }
@@ -352,9 +351,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             })
         );
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            address(y), abi.encodeWithSelector(Initializable.initialize.selector,
-            abi.encode("name", "symbol")),
-            address(0)
+            address(y),
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
         y = IYieldStrategy(address(proxy));
 

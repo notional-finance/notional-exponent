@@ -133,8 +133,7 @@ contract TestMorphoYieldStrategy is Test {
         deployYieldStrategy();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
             address(y),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol")),
-            addressRegistry
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
         y = IYieldStrategy(address(proxy));
 

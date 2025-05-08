@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
+import "../src/proxy/AddressRegistry.sol";
 
 contract MockInitializable is Initializable {
     bool public didInitialize;
@@ -23,18 +24,22 @@ contract TestTimelockProxy is Test {
     address public upgradeOwner;
     address public pauseOwner;
     address public feeReceiver;
-    AddressRegistry public registry;
+    AddressRegistry public registry = ADDRESS_REGISTRY;
 
     function setUp() public {
+        address deployer = makeAddr("deployer");
+
         upgradeOwner = makeAddr("upgradeOwner");
         pauseOwner = makeAddr("pauseOwner");
         feeReceiver = makeAddr("feeReceiver");
-        registry = new AddressRegistry(upgradeOwner, pauseOwner, feeReceiver);
+
+        vm.prank(deployer);
+        deployCodeTo("AddressRegistry.sol:AddressRegistry", abi.encode(upgradeOwner, pauseOwner, feeReceiver), address(registry));
+
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(
             address(impl),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol")),
-            address(registry)
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
     }
 

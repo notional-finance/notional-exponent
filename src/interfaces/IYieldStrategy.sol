@@ -33,6 +33,7 @@ enum Operation {
  * This contract also serves as its own oracle.
  */
 interface IYieldStrategy is IERC20, IERC20Metadata, IOracle, IMorphoLiquidateCallback, IMorphoFlashLoanCallback {
+    event VaultCreated(address indexed vault);
 
     /**
      * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.

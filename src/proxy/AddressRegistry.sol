@@ -62,13 +62,19 @@ contract AddressRegistry {
         emit FeeReceiverTransferred(_newFeeReceiver);
     }
 
-    function setWithdrawRequestManager(address yieldToken, address withdrawRequestManager) external {
+    function setWithdrawRequestManager(address withdrawRequestManager, bool overrideExisting) external {
         if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
+        address yieldToken = IWithdrawRequestManager(withdrawRequestManager).YIELD_TOKEN();
+        if (withdrawRequestManagers[yieldToken] != address(0)) {
+            require(overrideExisting, "Withdraw request manager already set");
+        }
+
         withdrawRequestManagers[yieldToken] = withdrawRequestManager;
     }
 
     function setWithdrawRequestManagerOverride(address vault, address yieldToken, address withdrawRequestManager) external {
         if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
+        // Don't get the yield token from the manager so that we can clear this if needed
         withdrawRequestManagerOverrides[vault][yieldToken] = withdrawRequestManager;
     }
 

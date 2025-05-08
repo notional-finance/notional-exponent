@@ -52,6 +52,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         _;
     }
 
+    // TODO: do we really need this?
     modifier onlyApprovedVault() {
         if (!isApprovedVault[msg.sender]) revert Unauthorized(msg.sender);
         _;

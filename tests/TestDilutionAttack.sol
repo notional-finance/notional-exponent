@@ -42,9 +42,8 @@ contract TestDilutionAttack is Test {
         defaultBorrow = asset == USDC ? 90_000e6 : 90e18;
 
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            address(y), abi.encodeWithSelector(Initializable.initialize.selector,
-            abi.encode("name", "symbol")),
-            address(0)
+            address(y),
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
         y = IYieldStrategy(address(proxy));
 
