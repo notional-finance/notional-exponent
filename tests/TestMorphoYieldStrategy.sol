@@ -195,9 +195,7 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(computedTotalSupply, totalSupply, "Total supply is correct");
     }
 
-    function test_enterPosition() public {
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-
+    function postEntryAssertions() internal {
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0);
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
@@ -206,21 +204,29 @@ contract TestMorphoYieldStrategy is Test {
         assertEq(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()));
         assertEq(y.convertSharesToYieldToken(y.balanceOfShares(msg.sender)), w.balanceOf(address(y)));
         assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
+    }
+
+    function test_enterPosition() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        postEntryAssertions();
         assertApproxEqRel(defaultDeposit + defaultBorrow, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
     }
 
     function test_enterPosition_zeroBorrow() public { 
         _enterPosition(msg.sender, defaultDeposit, 0);
-
-        // Check that the yield token balance is correct
-        assertEq(w.balanceOf(msg.sender), 0);
-        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
-        assertEq(y.balanceOf(msg.sender), 0);
-        assertGt(y.balanceOfShares(msg.sender), 0);
-        assertEq(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()));
-        assertEq(y.convertSharesToYieldToken(y.balanceOfShares(msg.sender)), w.balanceOf(address(y)));
-        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)));
+        postEntryAssertions();
         assertApproxEqRel(defaultDeposit, y.convertToAssets(y.balanceOfShares(msg.sender)), maxEntryValuationSlippage);
+    }
+
+    function postExitAssertions(uint256 initialBalance, uint256 netWorthBefore, uint256 sharesToExit, uint256 profitsWithdrawn, uint256 netWorthAfter) internal view {
+        // Check that the yield token balance is correct
+        assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
+        assertApproxEqRel(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
+        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
+        assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), initialBalance - sharesToExit, "Account has collateral shares");
+        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+        assertApproxEqRel(netWorthBefore - netWorthAfter, profitsWithdrawn, maxExitValuationSlippage);
     }
 
     function test_exitPosition_partialExit() public {
@@ -238,19 +244,12 @@ contract TestMorphoYieldStrategy is Test {
         uint256 netWorthAfter = y.convertToAssets(y.balanceOfShares(msg.sender)) - (defaultBorrow - defaultBorrow / 10);
         vm.stopPrank();
 
-        // Check that the yield token balance is correct
-        assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
-        assertApproxEqRel(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
-        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
-        assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
-        assertEq(y.balanceOfShares(msg.sender), initialBalance - sharesToExit, "Account has collateral shares");
-        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
-
-        assertApproxEqRel(netWorthBefore - netWorthAfter, profitsWithdrawn, maxExitValuationSlippage);
+        postExitAssertions(initialBalance, netWorthBefore, sharesToExit, profitsWithdrawn, netWorthAfter);
     }
 
     function test_exitPosition_fullExit() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 initialBalance = y.balanceOfShares(msg.sender);
 
         vm.warp(block.timestamp + 6 minutes);
 
@@ -265,14 +264,7 @@ contract TestMorphoYieldStrategy is Test {
         );
         vm.stopPrank();
 
-        // Check that the yield token balance is correct
-        assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
-        assertEq(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), "Yield token is 1-1 with collateral shares");
-        assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
-        assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
-        assertEq(y.balanceOfShares(msg.sender), 0, "Account has collateral shares");
-        assertEq(y.balanceOfShares(msg.sender), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
-        assertApproxEqRel(netWorthBefore, profitsWithdrawn, maxExitValuationSlippage);
+        postExitAssertions(initialBalance, netWorthBefore, initialBalance, profitsWithdrawn, 0);
     }
 
     function test_RevertsIf_MorphoWithdrawCollateral() public {
@@ -294,6 +286,7 @@ contract TestMorphoYieldStrategy is Test {
         vm.stopPrank();
     }
 
+    // TODO: add tests for various pause/unpause scenarios
     // function test_pause_unpause() public {
     //     // Initially not paused
     //     assertEq(y.isPaused(), false);

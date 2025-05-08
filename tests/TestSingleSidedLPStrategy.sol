@@ -5,12 +5,10 @@ import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 import "../src/single-sided-lp/curve/CurveConvex2Token.sol";
-// import "../src/single-sided-lp/curve/CurveConvexStableSwapNG.sol";
-// import "../src/single-sided-lp/curve/CurveConvexV1.sol";
-// import "../src/single-sided-lp/curve/CurveConvexV2.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 import "./TestWithdrawRequest.sol";
+import "../src/interfaces/ITradingModule.sol";
 
 abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     ERC20 lpToken;
@@ -212,8 +210,20 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             exchangeData: abi.encode(address(managers[stakeTokenIndex]), bytes(""))
         });
 
-        test_enterPosition();
-        // TODO: how do we know that this was done via staking?
+
+        vm.startPrank(msg.sender);
+        if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
+        asset.approve(address(y), defaultDeposit);
+
+        // Ensures that the stake tokens function is called
+        vm.expectCall(
+            address(managers[stakeTokenIndex]),
+            abi.encodeWithSelector(IWithdrawRequestManager.stakeTokens.selector),
+            1
+        );
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
+        postEntryAssertions();
+        vm.stopPrank();
 
         delete depositParams;
     }
@@ -224,24 +234,53 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         depositParams.depositTrades = tradeBeforeDepositParams;
         depositParams.depositTrades[stakeTokenIndex].tradeAmount = (defaultDeposit + defaultBorrow) / 2;
 
-        test_enterPosition();
-        // TODO: how do we know that this was done via trading?
+        vm.startPrank(msg.sender);
+        if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
+        asset.approve(address(y), defaultDeposit);
+
+        // Ensures that the trading was done
+        vm.expectEmit(true, false, false, false, address(y));
+        emit ITradingModule.TradeExecuted(
+            address(asset), address(0), (defaultDeposit + defaultBorrow) / 2, 0
+        );
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
+        postEntryAssertions();
+        vm.stopPrank();
 
         delete depositParams;
     }
 
     function test_exitPosition_tradeBeforeRedeem(bool isFullExit) public {
         vm.skip(tradeBeforeRedeemParams[stakeTokenIndex].dexId == 0);
+        if (isFullExit) {
+            _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        } else {
+            _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
+        }
+        uint256 initialBalance = y.balanceOfShares(msg.sender);
+
+        vm.warp(block.timestamp + 6 minutes);
 
         redeemParams.minAmounts = new uint256[](2);
         redeemParams.redemptionTrades = tradeBeforeRedeemParams;
 
-        if (isFullExit) {
-            test_exitPosition_fullExit();
-        } else {
-            test_exitPosition_partialExit();
-        }
-        // TODO: how do we know that this was done via trading?
+        uint256 netWorthBefore = y.convertToAssets(y.balanceOfShares(msg.sender)) - defaultBorrow;
+        vm.startPrank(msg.sender);
+        uint256 sharesToExit = isFullExit ? y.balanceOfShares(msg.sender) : y.balanceOfShares(msg.sender) / 10;
+        uint256 assetsToRepay = isFullExit ? type(uint256).max : defaultBorrow / 10;
+
+        // Ensures that the trading was done
+        vm.expectEmit(false, true, false, false, address(y));
+        emit ITradingModule.TradeExecuted(
+            address(0), address(asset), 0, 0
+        );
+        uint256 profitsWithdrawn = y.exitPosition(
+            msg.sender, msg.sender, sharesToExit, assetsToRepay, getRedeemData(msg.sender, sharesToExit)
+        );
+        uint256 netWorthAfter = isFullExit ? 0 : y.convertToAssets(y.balanceOfShares(msg.sender)) - (defaultBorrow - assetsToRepay);
+        vm.stopPrank();
+
+        postExitAssertions(initialBalance, netWorthBefore, sharesToExit, profitsWithdrawn, netWorthAfter);
 
         delete redeemParams;
     }
