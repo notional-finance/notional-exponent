@@ -100,7 +100,7 @@ abstract contract TestWithdrawRequest is Test {
         }
     }
 
-    function test_initiateWithdraw() public approveVaultAndStakeTokens {
+    function test_initiateWithdraw(bool partialWithdraw) public approveVaultAndStakeTokens {
         ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
         yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
@@ -141,23 +141,34 @@ abstract contract TestWithdrawRequest is Test {
 
         finalizeWithdrawRequest(requestId);
 
-        // TODO: need to test partial withdraws
+        uint256 yieldTokenWithdraw = partialWithdraw ? initialYieldTokenBalance / 2 : initialYieldTokenBalance;
+        uint256 sharesToBurn = partialWithdraw ? sharesAmount / 2 : sharesAmount;
         // Now we should be able to finalize the withdraw request and get the full amount back
         (tokensWithdrawn, finalized) = manager.finalizeAndRedeemWithdrawRequest(
-            address(this), initialYieldTokenBalance, sharesAmount
+            address(this), yieldTokenWithdraw, sharesToBurn
         );
         assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
         assertEq(finalized, true);
 
-        // The requests should now be empty
         (request, splitRequest) = manager.getWithdrawRequest(address(this), address(this));
-        assertEq(request.yieldTokenAmount, 0);
-        assertEq(request.sharesAmount, 0);
-        assertEq(request.hasSplit, false);
-        assertEq(request.requestId, 0);
-        assertEq(splitRequest.totalYieldTokenAmount, 0);
-        assertEq(splitRequest.totalWithdraw, 0);
-        assertEq(splitRequest.finalized, false);
+        if (partialWithdraw) {
+            assertEq(request.yieldTokenAmount, initialYieldTokenBalance - yieldTokenWithdraw);
+            assertEq(request.sharesAmount, sharesAmount - sharesToBurn);
+            assertEq(request.hasSplit, true);
+            assertEq(request.requestId, requestId);
+            assertEq(splitRequest.totalYieldTokenAmount, initialYieldTokenBalance);
+            assertApproxEqAbs(splitRequest.totalWithdraw, tokensWithdrawn * 2, 1);
+            assertEq(splitRequest.finalized, true);
+        } else {
+            // The requests should now be empty
+            assertEq(request.yieldTokenAmount, 0);
+            assertEq(request.sharesAmount, 0);
+            assertEq(request.hasSplit, false);
+            assertEq(request.requestId, 0);
+            assertEq(splitRequest.totalYieldTokenAmount, 0);
+            assertEq(splitRequest.totalWithdraw, 0);
+            assertEq(splitRequest.finalized, false);
+        }
     }
 
     function test_initiateWithdraw_RevertIf_ExistingWithdrawRequest() public approveVaultAndStakeTokens {

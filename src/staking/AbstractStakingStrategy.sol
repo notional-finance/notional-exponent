@@ -184,6 +184,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
+        super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+
         if (address(withdrawRequestManager) != address(0)) {
             // No need to accrue fees because neither the total supply or total yield token balance is changing. If there
             // is no withdraw request then this will be a noop.

@@ -405,11 +405,8 @@ contract TestMorphoYieldStrategy is Test {
         uint256 shares = y.balanceOfShares(user);
         uint256 assets = y.convertToAssets(shares);
         uint256 yieldTokens = y.convertSharesToYieldToken(shares);
-        assertEq(yieldTokens, w.balanceOf(address(y)), "yield token balance should be equal to yield tokens");
 
-        // Since this uses the USDC/USD market price there is some drift
-        // TODO: take a look at this assertion
-        // assertApproxEqRel(assets, USDC.balanceOf(address(w)), 0.0001e18, "assets should be equal to USDC balance of wrapper");
+        assertEq(yieldTokens, w.balanceOf(address(y)), "yield token balance should be equal to yield tokens");
         assertEq(shares, y.convertYieldTokenToShares(yieldTokens), "convertYieldTokenToShares should equal shares");
         assertApproxEqRel(shares, y.convertToShares(assets), 0.0001e18, "convertToShares(convertToAssets(balanceOfShares)) should be equal to balanceOfShares");
     }
@@ -518,4 +515,19 @@ contract TestMorphoYieldStrategy is Test {
             checkInvariants(users);
         }
     }
+
+    function test_liquidate_RevertsIf_LiquidatorHasCollateralBalance() public {
+        _enterPosition(owner, defaultDeposit, defaultBorrow);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+
+        vm.startPrank(owner);
+        uint256 balanceBefore = y.balanceOfShares(msg.sender);
+        asset.approve(address(y), type(uint256).max);
+        vm.expectRevert();
+        y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+        vm.stopPrank();
+    }
+
 }

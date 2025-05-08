@@ -323,7 +323,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         super._postLiquidation(liquidateAccount, liquidator, sharesToLiquidator);
 
         // Now split the withdraw requests...
-        (bool success, bytes memory result) = LP_LIB.delegatecall(
+        (bool success, /* */) = LP_LIB.delegatecall(
             abi.encodeWithSelector(ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator)
         );
         require(success);
@@ -466,6 +466,7 @@ abstract contract BaseLPLib is ILPLib {
         IERC20[] memory tokens = TOKENS();
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
+            if (address(manager) == address(0)) continue;
             // If there is no withdraw request then this will be a noop
             manager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }

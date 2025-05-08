@@ -515,7 +515,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Called after liquidation to update the yield token balance.
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual {
+    function _postLiquidation(address liquidator, address /* liquidateAccount */, uint256 /* sharesToLiquidator */) internal virtual {
         // If the liquidator has a position then they cannot liquidate or they will have a native balance and a balance on
         // the lending market.
         if (_accountCollateralBalance(liquidator) > 0) revert();

@@ -181,7 +181,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_liquidate_RevertsIf_LiquidatorHasCollateralBalance() public onlyIfWithdrawRequestManager {
+    function test_liquidate_withdrawRequest_RevertsIf_LiquidatorHasCollateralBalance() public onlyIfWithdrawRequestManager {
         _enterPosition(owner, defaultDeposit, defaultBorrow);
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
@@ -198,7 +198,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.startPrank(owner);
         uint256 balanceBefore = y.balanceOfShares(msg.sender);
         asset.approve(address(y), type(uint256).max);
-        vm.expectRevert(abi.encodeWithSelector(CannotReceiveSplitWithdrawRequest.selector));
+        vm.expectRevert();
         y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
         vm.stopPrank();
     }
