@@ -54,6 +54,16 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         return abi.encode(r);
     }
 
+    function getWithdrawRequestData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal view virtual returns (bytes memory withdrawRequestData) {
+        WithdrawParams memory w;
+        w.minAmounts = new uint256[](2);
+        w.withdrawData = new bytes[](2);
+        return abi.encode(w);
+    }
+
     function finalizeWithdrawRequest(address user) internal {
         for (uint256 i; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
@@ -375,9 +385,140 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
+    function test_withdrawRequestValuation() public {
+        vm.skip(address(managers[stakeTokenIndex]) == address(0));
+        
+        address staker = makeAddr("staker");
+        vm.prank(owner);
+        asset.transfer(staker, defaultDeposit);
 
-    // TODO: test withdraw valuation
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        // The staker exists to generate fees on the position to test the withdraw valuation
+        _enterPosition(staker, defaultDeposit, defaultBorrow);
+
+        (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
+        assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
+
+        vm.startPrank(msg.sender);
+        AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(
+            getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
+        );
+        vm.stopPrank();
+        (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
+        assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0001e18, "Withdrawal should not change collateral value");
+
+        vm.warp(block.timestamp + 10 days);
+        (/* */, uint256 collateralValueAfterWarp, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueAfterWarpStaker, /* */) = y.healthFactor(staker);
+
+        // Collateral value for the withdrawer should not change over time
+        assertEq(collateralValueAfter, collateralValueAfterWarp, "Withdrawal should not change collateral value over time");
+
+        // For the staker, the collateral value should have decreased due to fees
+        assertGt(collateralValueBeforeStaker, collateralValueAfterWarpStaker, "Staker should have lost value due to fees");
+
+        // Check price after finalize
+        finalizeWithdrawRequest(msg.sender);
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            managers[i].finalizeRequestManual(address(y), msg.sender);
+        }
+        (/* */, uint256 collateralValueAfterFinalize, /* */) = y.healthFactor(msg.sender);
+
+        assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
+        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
+    }
+
+    function test_liquidate_splitsWithdrawRequest() public {
+        vm.skip(address(managers[stakeTokenIndex]) == address(0));
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(
+            getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
+        );
+        vm.stopPrank();
+
+        // Drop the price of the two listed tokens since the LP token valuation is
+        // no longer relevant
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            address yieldToken = managers[i].YIELD_TOKEN();
+            // Don't drop the price of the asset token since it will offset the
+            // price drop of the yield token
+            if (yieldToken == address(asset)) continue;
+            (AggregatorV2V3Interface oracle, /* */) = TRADING_MODULE.priceOracles(yieldToken);
+            MockOracle o = new MockOracle(oracle.latestAnswer());
+
+            int256 oraclePrecision = int256(10 ** oracle.decimals());
+            o.setPrice(o.latestAnswer() * 0.85e18 / oraclePrecision);
+
+            vm.prank(owner);
+            TRADING_MODULE.setPriceOracle(yieldToken, AggregatorV2V3Interface(address(o)));
+        }
+
+        vm.startPrank(owner);
+        uint256 balanceBefore = y.balanceOfShares(msg.sender);
+        asset.approve(address(y), type(uint256).max);
+        uint256 assetBefore = asset.balanceOf(owner);
+        uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+        uint256 assetAfter = asset.balanceOf(owner);
+        uint256 netAsset = assetBefore - assetAfter;
+
+        assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
+        assertEq(y.balanceOf(owner), sharesToLiquidator);
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(owner);
+
+        // The owner does receive a split withdraw request
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            (WithdrawRequest memory w, SplitWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
+            assertNotEq(w.requestId, 0);
+            assertEq(w.sharesAmount, sharesToLiquidator);
+            assertGt(w.yieldTokenAmount, 0);
+            assertEq(w.hasSplit, true);
+
+            // We have not finalized the split withdraw request yet
+            assertGt(s.totalYieldTokenAmount, 0);
+            assertEq(s.finalized, false);
+            assertEq(s.totalWithdraw, 0);
+        }
+
+        vm.startPrank(owner);
+        uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
+        assertGt(assets, netAsset);
+        vm.stopPrank();
+
+        // The owner does receive a split withdraw request
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            // Assert that the withdraw request is cleared
+            (WithdrawRequest memory w, SplitWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
+            assertEq(w.sharesAmount, 0);
+            assertEq(w.yieldTokenAmount, 0);
+            assertEq(w.hasSplit, false);
+
+            // The original withdraw request is still active on the liquidated account
+            if (balanceBefore > sharesToLiquidator) {
+                (w, s) = managers[i].getWithdrawRequest(address(y), msg.sender);
+                assertNotEq(w.requestId, 0);
+                assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
+                assertGt(w.yieldTokenAmount, 0);
+                assertEq(w.hasSplit, true);
+
+                assertGt(s.totalYieldTokenAmount, 0);
+                assertGt(s.totalWithdraw, 0);
+                assertEq(s.finalized, true);
+            }
+        }
+    }
+
+    // TODO: test that you can re-enter after clearing a withdraw request
+
+
     // TODO: test force withdraws
     // TODO: test re-entrancy context
-    // TODO: test split withdraw
 }

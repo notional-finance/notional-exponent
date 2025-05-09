@@ -49,6 +49,7 @@ interface ILPLib {
     function initialApproveTokens() external;
     function joinPoolAndStake(uint256[] memory amounts, uint256 minPoolClaim) external;
     function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
+    function hasPendingWithdraw(address account) external view returns (bool);
 
     function getWithdrawRequestValue(address account, address asset, uint256 shares) external view returns (uint256 totalValue);
 
@@ -81,7 +82,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
-    mapping(address => bool) public hasPendingWithdraw;
     uint256 immutable MAX_POOL_SHARE;
     address internal immutable LP_LIB;
 
@@ -177,7 +177,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     ) internal override {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
-        if (hasPendingWithdraw[receiver]) revert CannotEnterPosition();
+        if (_hasPendingWithdraw(receiver)) revert CannotEnterPosition();
 
         // If depositTrades are specified, then parts of the initial deposit are traded
         // for corresponding amounts of the other pool tokens via external exchanges. If
@@ -218,7 +218,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256[] memory exitBalances;
         bool isSingleSided;
         IERC20[] memory tokens;
-        if (hasPendingWithdraw[sharesOwner]) {
+        if (_hasPendingWithdraw(sharesOwner)) {
             // Attempt to withdraw all pending requests
             (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem);
             // If there are pending requests, then we are not single sided by definition
@@ -318,11 +318,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator);
     }
 
-    function _postLiquidation(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) internal override {
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
         // Updates the reward state for the liquidator and liquidateAccount
-        super._postLiquidation(liquidateAccount, liquidator, sharesToLiquidator);
+        super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
-        // Now split the withdraw requests...
         (bool success, /* */) = LP_LIB.delegatecall(
             abi.encodeWithSelector(ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator)
         );
@@ -347,10 +346,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld);
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
-
-        // Ensure that user cannot re-initiate a withdraw
-        if (hasPendingWithdraw[account]) revert CannotInitiateWithdraw(account);
-        hasPendingWithdraw[account] = true;
 
         uint256[] memory exitBalances = _unstakeAndExitPool({
             poolClaim: yieldTokenAmount,
@@ -377,18 +372,19 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         );
         require(success);
         (exitBalances, tokens) = abi.decode(result, (uint256[], IERC20[]));
-
-        // Clear this flag if the user has redeemed all their shares
-        if (sharesToRedeem == totalShares) hasPendingWithdraw[sharesOwner] = false;
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
-        if (t_CurrentAccount != address(0) && hasPendingWithdraw[t_CurrentAccount]) {
+        if (t_CurrentAccount != address(0) && _hasPendingWithdraw(t_CurrentAccount)) {
             return ILPLib(LP_LIB).getWithdrawRequestValue(t_CurrentAccount, asset, shares);
         }
 
         return super.convertToAssets(shares);
+    }
+
+    function _hasPendingWithdraw(address account) internal view returns (bool) {
+        return ILPLib(LP_LIB).hasPendingWithdraw(account);
     }
 
 }
@@ -397,6 +393,20 @@ abstract contract BaseLPLib is ILPLib {
     using TokenUtils for IERC20;
 
     function TOKENS() internal view virtual returns (IERC20[] memory);
+
+    function hasPendingWithdraw(address account) external view returns (bool) {
+        IERC20[] memory tokens = TOKENS();
+        WithdrawRequest memory request;
+
+        for (uint256 i; i < tokens.length; i++) {
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(msg.sender, address(tokens[i]));
+            if (address(manager) == address(0)) continue;
+            (request, /* */) = manager.getWithdrawRequest(msg.sender, account);
+            if (request.requestId != 0) return true;
+        }
+
+        return false;
+    }
 
     function getWithdrawRequestValue(
         address account,
@@ -427,6 +437,7 @@ abstract contract BaseLPLib is ILPLib {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
 
             tokens[i].checkApprove(address(manager), exitBalances[i]);
+            // Will revert if there is already a pending withdraw
             requestIds[i] = manager.initiateWithdraw({
                 account: account,
                 yieldTokenAmount: exitBalances[i],

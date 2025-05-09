@@ -155,6 +155,8 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
         vm.stopPrank();
 
+        // If you change the price here you need to change the amount of shares
+        // to liquidate or it will revert
         if (address(withdrawTokenOracle) != address(0)) {
             withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
         } else {
@@ -175,10 +177,41 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         finalizeWithdrawRequest(owner);
 
+        // The owner does receive a split withdraw request
+        (WithdrawRequest memory w, SplitWithdrawRequest memory s) = manager.getWithdrawRequest(address(y), owner);
+        assertNotEq(w.requestId, 0);
+        assertEq(w.sharesAmount, sharesToLiquidator);
+        assertGt(w.yieldTokenAmount, 0);
+        assertEq(w.hasSplit, true);
+
+        // We have not finalized the split withdraw request yet
+        assertGt(s.totalYieldTokenAmount, 0);
+        assertEq(s.finalized, false);
+        assertEq(s.totalWithdraw, 0);
+
         vm.startPrank(owner);
         uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
         assertGt(assets, netAsset);
         vm.stopPrank();
+
+        // Assert that the withdraw request is cleared
+        (w, s) = manager.getWithdrawRequest(address(y), owner);
+        assertEq(w.sharesAmount, 0);
+        assertEq(w.yieldTokenAmount, 0);
+        assertEq(w.hasSplit, false);
+
+        // The original withdraw request is still active on the liquidated account
+        if (balanceBefore > sharesToLiquidator) {
+            (w, s) = manager.getWithdrawRequest(address(y), msg.sender);
+            assertNotEq(w.requestId, 0);
+            assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
+            assertGt(w.yieldTokenAmount, 0);
+            assertEq(w.hasSplit, true);
+
+            assertGt(s.totalYieldTokenAmount, 0);
+            assertGt(s.totalWithdraw, 0);
+            assertEq(s.finalized, true);
+        }
     }
 
     function test_liquidate_withdrawRequest_RevertsIf_LiquidatorHasCollateralBalance() public onlyIfWithdrawRequestManager {
@@ -211,7 +244,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         // The staker exists to generate fees on the position to test the withdraw valuation
         _enterPosition(staker, defaultDeposit, defaultBorrow);
-        setMaxOracleFreshness();
 
         (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
         (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
