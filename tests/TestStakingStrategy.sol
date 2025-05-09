@@ -33,11 +33,11 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        uint256 requestId = AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
 
         asset.approve(address(y), defaultDeposit);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(ExistingWithdrawRequest.selector, address(y), msg.sender, requestId));
         y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
         vm.stopPrank();
     }

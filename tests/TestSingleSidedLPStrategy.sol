@@ -259,6 +259,21 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         delete depositParams;
     }
 
+    function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public {
+        vm.skip(address(managers[stakeTokenIndex]) == address(0));
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+
+        asset.approve(address(y), defaultDeposit);
+
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
+        vm.stopPrank();
+    }
+
     function test_exitPosition_tradeBeforeRedeem(bool isFullExit) public {
         vm.skip(tradeBeforeRedeemParams[stakeTokenIndex].dexId == 0);
         if (isFullExit) {
@@ -314,7 +329,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         // The call reverts properly inside the library but we don't propagate the revert
         // so we need to expect a revert here
-        vm.expectRevert();
+        vm.expectRevert("Withdraw request not finalized");
         y.exitPosition(
             msg.sender,
             msg.sender,

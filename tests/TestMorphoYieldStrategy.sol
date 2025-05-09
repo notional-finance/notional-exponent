@@ -441,6 +441,7 @@ contract TestMorphoYieldStrategy is Test {
 
         vm.startPrank(liquidator);
         asset.approve(address(y), type(uint256).max);
+        // This reverts on an ERC20 transfer balance error which depends on the token implementation
         vm.expectRevert();
         y.liquidate(msg.sender, 0, defaultBorrow, bytes(""));
         vm.stopPrank();
