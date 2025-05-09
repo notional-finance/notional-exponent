@@ -88,24 +88,25 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 totalVaultSharesBefore,
         bool isMint
     ) internal {
-        (bool success, /* */) = address(REWARD_MANAGER).delegatecall(abi.encodeWithSelector(
+        _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
             IRewardManager.updateAccountRewards.selector,
             account, accountVaultSharesBefore, vaultShares, totalVaultSharesBefore, isMint
         ));
-        require(success);
     }
 
     fallback() external {
         address target = address(REWARD_MANAGER);
         // Cannot call updateAccountRewards unless it's through the internal methods
         require(msg.sig != IRewardManager.updateAccountRewards.selector);
+        bytes memory result = _delegateCall(target, msg.data);
+
         assembly {
-            calldatacopy(0, 0, calldatasize())
-            let result := delegatecall(gas(), target, 0, calldatasize(), 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+            // Copy the result to memory
+            let resultSize := mload(result)
+            // Copy the result data (skipping the length prefix)
+            let resultData := add(result, 0x20)
+            // Copy to the return data area
+            return(resultData, resultSize)
         }
     }
 }

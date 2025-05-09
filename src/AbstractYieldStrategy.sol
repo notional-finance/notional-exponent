@@ -443,12 +443,26 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
             ERC20(trade.sellToken).forceApprove(address(withdrawRequestManager), trade.amount);
             amountBought = withdrawRequestManager.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
             return (trade.amount, amountBought);
+        } else {
+            address implementation = nProxy(payable(address(TRADING_MODULE))).getImplementation();
+            bytes memory result = _delegateCall(
+                implementation, abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade)
+            );
+            (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
         }
+    }
 
-        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
-            .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
-        if (!success) revert TradeFailed();
-        (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
+    function _delegateCall(address target, bytes memory data) internal returns (bytes memory result) {
+        bool success;
+        (success, result) = target.delegatecall(data);
+        if (!success) {
+            assembly {
+                // Copy the return data to memory
+                returndatacopy(0, 0, returndatasize())
+                // Revert with the return data
+                revert(0, returndatasize())
+            }
+        }
     }
 
     /// @inheritdoc IYieldStrategy

@@ -111,8 +111,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @notice Called once during initialization to set the initial token approvals.
     function _initialApproveTokens() internal virtual {
-        (bool success, /* */) = LP_LIB.delegatecall(abi.encodeWithSelector(ILPLib.initialApproveTokens.selector));
-        require(success);
+        _delegateCall(LP_LIB, abi.encodeWithSelector(ILPLib.initialApproveTokens.selector));
     }
 
     /// @notice Implementation specific wrapper for joining a pool with the given amounts. Will also
@@ -120,10 +119,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function _joinPoolAndStake(
         uint256[] memory amounts, uint256 minPoolClaim
     ) internal virtual {
-        (bool success, /* */) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.joinPoolAndStake.selector, amounts, minPoolClaim)
-        );
-        require(success);
+        _delegateCall(LP_LIB, abi.encodeWithSelector(ILPLib.joinPoolAndStake.selector, amounts, minPoolClaim));
     }
 
     /// @notice Implementation specific wrapper for unstaking from the booster protocol and withdrawing
@@ -131,10 +127,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function _unstakeAndExitPool(
         uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided
     ) internal virtual returns (uint256[] memory exitBalances) {
-        (bool success, bytes memory result) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.unstakeAndExitPool.selector, poolClaim, minAmounts, isSingleSided)
-        );
-        require(success);
+        bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
+            ILPLib.unstakeAndExitPool.selector, poolClaim, minAmounts, isSingleSided
+        ));
         exitBalances = abi.decode(result, (uint256[]));
     }
 
@@ -322,10 +317,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         // Updates the reward state for the liquidator and liquidateAccount
         super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
-        (bool success, /* */) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator)
-        );
-        require(success);
+        _delegateCall(LP_LIB, abi.encodeWithSelector(
+            ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator
+        ));
     }
 
     function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
@@ -354,10 +348,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             isSingleSided: false
         });
 
-        (bool success, bytes memory result) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.initiateWithdraw.selector, account, isForced, sharesHeld, exitBalances, params.withdrawData)
-        );
-        require(success);
+        bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
+            ILPLib.initiateWithdraw.selector, account, isForced, sharesHeld, exitBalances, params.withdrawData
+        ));
         requestIds = abi.decode(result, (uint256[]));
     }
 
@@ -367,10 +360,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     ) internal returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
         uint256 totalShares = balanceOfShares(sharesOwner);
 
-        (bool success, bytes memory result) = LP_LIB.delegatecall(
-            abi.encodeWithSelector(ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem, totalShares)
+        bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
+            ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem, totalShares)
         );
-        require(success);
         (exitBalances, tokens) = abi.decode(result, (uint256[], IERC20[]));
     }
 

@@ -72,10 +72,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     }
 
     function _transferYieldTokenToOwner(address owner, uint256 yieldTokens) internal override {
-        (bool success, /* */) = LP_LIB.delegatecall(abi.encodeWithSelector(
+        _delegateCall(LP_LIB, abi.encodeWithSelector(
             CurveConvexLib.transferYieldTokenToOwner.selector, owner, yieldTokens)
         );
-        require(success);
     }
 
     function _totalPoolSupply() internal view override returns (uint256) {
