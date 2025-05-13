@@ -110,19 +110,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
     }
 
-    function healthFactor(address borrower) public override returns (
-        uint256 borrowed, uint256 collateralValue, uint256 maxBorrow
-    ) {
-        address _currentAccount = t_CurrentAccount;
-        t_CurrentAccount = borrower;
-
-        (borrowed, collateralValue, maxBorrow) = ILendingRouter(t_CurrentLendingRouter).healthFactor(
-            borrower, address(this)
-        );
-
-        t_CurrentAccount = _currentAccount;
-    }
-
     /// @inheritdoc IYieldStrategy
     function totalAssets() public view override returns (uint256) {
         return convertToAssets(totalSupply());

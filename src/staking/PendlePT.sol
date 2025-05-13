@@ -140,6 +140,10 @@ contract PendlePT is AbstractStakingStrategy {
         // stored in PT terms, we pass tokenOutSy terms (i.e. weETH or sUSDe) to the withdraw
         // implementation.
         uint256 tokenOutSy = _redeemPT(ptAmount, bytes(""));
-        return super._initiateWithdraw(account, tokenOutSy, sharesHeld, data);
+
+        ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
+        return withdrawRequestManager.initiateWithdraw({
+            account: account, yieldTokenAmount: tokenOutSy, sharesAmount: sharesHeld, data: data
+        });
     }
 }

@@ -49,5 +49,8 @@ interface ILendingRouter {
 
     function balanceOfCollateral(address account, address vault) external view returns (uint256 collateralBalance);
 
+    function initiateWithdraw(address vault, bytes calldata data) external returns (uint256 requestId);
+
+    function forceWithdraw(address vault, address account, bytes calldata data) external returns (uint256 requestId);
 }
 

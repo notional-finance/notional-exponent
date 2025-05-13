@@ -6,7 +6,6 @@ import "../src/utils/Errors.sol";
 import "../src/utils/Constants.sol";
 import "../src/withdraws/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "./TestMorphoYieldStrategy.sol";
 
 abstract contract TestWithdrawRequest is Test {
     string RPC_URL = vm.envString("RPC_URL");

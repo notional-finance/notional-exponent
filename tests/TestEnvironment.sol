@@ -9,6 +9,7 @@ import "../src/utils/Constants.sol";
 import "../src/AbstractYieldStrategy.sol";
 import "../src/oracles/AbstractCustomOracle.sol";
 import "../src/proxy/TimelockUpgradeableProxy.sol";
+import "./TestWithdrawRequest.sol";
 
 abstract contract TestEnvironment is Test {
     string RPC_URL = vm.envString("RPC_URL");
@@ -29,6 +30,15 @@ abstract contract TestEnvironment is Test {
     address constant IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
     address public addressRegistry;
     ILendingRouter public lendingRouter;
+
+    IWithdrawRequestManager public manager;
+    TestWithdrawRequest public withdrawRequest;
+    MockOracle internal withdrawTokenOracle;
+
+    modifier onlyIfWithdrawRequestManager() {
+        vm.skip(address(manager) == address(0));
+        _;
+    }
 
     function deployAddressRegistry() public {
         address deployer = makeAddr("deployer");
@@ -78,6 +88,12 @@ abstract contract TestEnvironment is Test {
     }
 
     /*** Virtual Test Functions ***/
+
+    function finalizeWithdrawRequest(address user) internal virtual {
+        (WithdrawRequest memory wr, /* */) = manager.getWithdrawRequest(address(y), user);
+        withdrawRequest.finalizeWithdrawRequest(wr.requestId);
+    }
+
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
@@ -90,6 +106,13 @@ abstract contract TestEnvironment is Test {
         uint256 /* depositAmount */
     ) internal virtual returns (bytes memory depositData) {
         return "";
+    }
+
+    function getWithdrawRequestData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal virtual returns (bytes memory withdrawRequestData) {
+        return bytes("");
     }
 
     function deployYieldStrategy() internal virtual;

@@ -32,8 +32,6 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         manager = new EtherFiWithdrawRequestManager();
         y = new EtherFiStaking(
             0.0010e18, // 0.1% fee rate
-            IRM,
-            0.915e18, // 91.5% LTV
             manager
         );
         // weETH
@@ -122,18 +120,10 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         return abi.encode(r);
     }
 
-    function getWithdrawRequestData(
-        address /* user */,
-        uint256 /* shares */
-    ) internal pure override returns (bytes memory withdrawRequestData) {
-        PendleWithdrawParams memory w;
-        return abi.encode(w);
-    }
-
     function setMarketVariables() virtual internal;
 
     function deployYieldStrategy() internal override {
-        address pendleLib = address(deployCode("PendlePTLib.sol:PendlePTLib"));
+        address(deployCode("PendlePTLib.sol:PendlePTLib"));
 
         setMarketVariables();
         bool isSUSDe = tokenOut == address(sUSDe);
@@ -146,8 +136,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 address(USDC),
                 ptToken,
                 0.0010e18,
-                IRM,
-                0.915e18,
                 manager
             );
         } else {
@@ -158,8 +146,6 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 address(USDC),
                 ptToken,
                 0.0010e18,
-                IRM,
-                0.915e18,
                 manager
             );
         }
@@ -282,7 +268,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             msg.sender
         );
 
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
     }
 }
@@ -348,6 +334,15 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         vm.startPrank(owner);
         TRADING_MODULE.setPriceOracle(address(tokenOut), AggregatorV2V3Interface(address(withdrawTokenOracle)));
         vm.stopPrank();
+    }
+
+    function getWithdrawRequestData(
+        address /* user */,
+        uint256 /* shares */
+    ) internal override returns (bytes memory withdrawRequestData) {
+        // Warp to expiry
+        vm.warp(1748476800 + 1);
+        return bytes("");
     }
 }
 

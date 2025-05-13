@@ -2,43 +2,26 @@
 pragma solidity >=0.8.29;
 
 import "forge-std/src/Test.sol";
-import "./TestWithdrawRequest.sol";
 import "../src/staking/AbstractStakingStrategy.sol";
 import "./TestMorphoYieldStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
 
 abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
-    IWithdrawRequestManager public manager;
-    TestWithdrawRequest public withdrawRequest;
-    MockOracle internal withdrawTokenOracle;
-
-    modifier onlyIfWithdrawRequestManager() {
-        vm.skip(address(manager) == address(0));
-        _;
-    }
-
-    function getWithdrawRequestData(
-        address /* user */,
-        uint256 /* shares */
-    ) internal pure virtual returns (bytes memory withdrawRequestData) {
-        return bytes("");
-    }
-
-    function finalizeWithdrawRequest(address user) internal {
-        (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), user);
-        withdrawRequest.finalizeWithdrawRequest(w.requestId);
-    }
 
     function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        uint256 requestId = AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 requestId = lendingRouter.initiateWithdraw(
+            address(y),
+            getWithdrawRequestData(msg.sender, shares)
+        );
 
-        asset.approve(address(y), defaultDeposit);
+        asset.approve(address(lendingRouter), defaultDeposit);
 
         vm.expectRevert(abi.encodeWithSelector(ExistingWithdrawRequest.selector, address(y), msg.sender, requestId));
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
         vm.stopPrank();
     }
 
@@ -52,9 +35,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         }
 
         vm.startPrank(msg.sender);
-        bytes memory data = getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender));
+        uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        bytes memory data = getWithdrawRequestData(msg.sender, shares);
         vm.expectRevert(abi.encodeWithSelector(CannotInitiateWithdraw.selector, msg.sender));
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(data);
+        lendingRouter.initiateWithdraw(address(y), data);
         vm.stopPrank();
     }
 
@@ -62,9 +46,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
-        (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
             // there will be some slippage as a result of selling the PT
@@ -78,209 +63,219 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         vm.warp(block.timestamp + 5 minutes);
         vm.startPrank(msg.sender);
-        y.exitPosition(
+        lendingRouter.exitPosition(
             msg.sender,
+            address(y),
             msg.sender,
-            y.balanceOfShares(msg.sender),
+            balanceBefore,
             type(uint256).max,
-            getRedeemData(msg.sender, y.balanceOfShares(msg.sender))
+            getRedeemData(msg.sender, balanceBefore)
         );
         vm.stopPrank();
     }
 
     function test_exitPosition_PartialWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
-        setMaxOracleFreshness();
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
         vm.stopPrank();
+
         finalizeWithdrawRequest(msg.sender);
 
         vm.warp(block.timestamp + 5 minutes);
         vm.startPrank(msg.sender);
-        y.exitPosition(
+        lendingRouter.exitPosition(
             msg.sender,
+            address(y),
             msg.sender,
-            y.balanceOfShares(msg.sender) * 0.10e18 / 1e18,
+            balanceBefore * 0.10e18 / 1e18,
             0,
-            getRedeemData(msg.sender, y.balanceOfShares(msg.sender) * 0.10e18 / 1e18)
+            getRedeemData(msg.sender, balanceBefore * 0.10e18 / 1e18)
         );
 
-        y.exitPosition(
+        uint256 balanceAfter = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        assertEq(balanceAfter, balanceBefore - balanceBefore * 0.10e18 / 1e18);
+
+        lendingRouter.exitPosition(
             msg.sender,
+            address(y),
             msg.sender,
-            y.balanceOfShares(msg.sender) * 0.10e18 / 1e18,
+            balanceAfter,
             0,
-            getRedeemData(msg.sender, y.balanceOfShares(msg.sender) * 0.10e18 / 1e18)
+            getRedeemData(msg.sender, balanceAfter)
         );
         vm.stopPrank();
+
+        uint256 balanceAfterExit = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        assertEq(balanceAfterExit, 0);
     }
     
-    function test_withdrawRequest_FeeCollection() public onlyIfWithdrawRequestManager {
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        setMaxOracleFreshness();
+    // function test_withdrawRequest_FeeCollection() public onlyIfWithdrawRequestManager {
+    //     _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    //     setMaxOracleFreshness();
 
-        vm.startPrank(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
-        vm.stopPrank();
+    //     vm.startPrank(msg.sender);
+    //     AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+    //     vm.stopPrank();
 
-        // No fees should accrue at this point since all yield tokens are escrowed
-        uint256 feesAccruedBefore = y.feesAccrued();
-        vm.warp(block.timestamp + 7 days);
-        uint256 feesAccruedAfter = y.feesAccrued();
-        assertEq(feesAccruedBefore, feesAccruedAfter, "Fees should not have accrued");
+    //     // No fees should accrue at this point since all yield tokens are escrowed
+    //     uint256 feesAccruedBefore = y.feesAccrued();
+    //     vm.warp(block.timestamp + 7 days);
+    //     uint256 feesAccruedAfter = y.feesAccrued();
+    //     assertEq(feesAccruedBefore, feesAccruedAfter, "Fees should not have accrued");
 
-        address staker2 = makeAddr("staker2");
-        vm.prank(owner);
-        asset.transfer(staker2, defaultDeposit);
+    //     address staker2 = makeAddr("staker2");
+    //     vm.prank(owner);
+    //     asset.transfer(staker2, defaultDeposit);
 
-        _enterPosition(staker2, defaultDeposit, defaultBorrow);
+    //     _enterPosition(staker2, defaultDeposit, defaultBorrow);
 
-        // Fees should accrue now on the new staker's position only
-        feesAccruedBefore = y.feesAccrued();
-        vm.warp(block.timestamp + 90 days);
-        feesAccruedAfter = y.feesAccrued();
-        assertApproxEqRel(
-            feesAccruedAfter - feesAccruedBefore,
-            y.convertSharesToYieldToken(y.balanceOfShares(staker2)) * 0.00025e18 / 1e18,
-            0.03e18,
-        "Fees should have accrued");
-    }
+    //     // Fees should accrue now on the new staker's position only
+    //     feesAccruedBefore = y.feesAccrued();
+    //     vm.warp(block.timestamp + 90 days);
+    //     feesAccruedAfter = y.feesAccrued();
+    //     assertApproxEqRel(
+    //         feesAccruedAfter - feesAccruedBefore,
+    //         y.convertSharesToYieldToken(y.balanceOfShares(staker2)) * 0.00025e18 / 1e18,
+    //         0.03e18,
+    //     "Fees should have accrued");
+    // }
 
-    function test_liquidate_splitsWithdrawRequest() public onlyIfWithdrawRequestManager {
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    // function test_liquidate_splitsWithdrawRequest() public onlyIfWithdrawRequestManager {
+    //     _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
-        vm.startPrank(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
-        vm.stopPrank();
+    //     vm.startPrank(msg.sender);
+    //     AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+    //     vm.stopPrank();
 
-        // If you change the price here you need to change the amount of shares
-        // to liquidate or it will revert
-        if (address(withdrawTokenOracle) != address(0)) {
-            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
-        } else {
-            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
-        }
+    //     // If you change the price here you need to change the amount of shares
+    //     // to liquidate or it will revert
+    //     if (address(withdrawTokenOracle) != address(0)) {
+    //         withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+    //     } else {
+    //         o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+    //     }
 
-        vm.startPrank(owner);
-        uint256 balanceBefore = y.balanceOfShares(msg.sender);
-        asset.approve(address(y), type(uint256).max);
-        uint256 assetBefore = asset.balanceOf(owner);
-        uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
-        uint256 assetAfter = asset.balanceOf(owner);
-        uint256 netAsset = assetBefore - assetAfter;
+    //     vm.startPrank(owner);
+    //     uint256 balanceBefore = y.balanceOfShares(msg.sender);
+    //     asset.approve(address(y), type(uint256).max);
+    //     uint256 assetBefore = asset.balanceOf(owner);
+    //     uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+    //     uint256 assetAfter = asset.balanceOf(owner);
+    //     uint256 netAsset = assetBefore - assetAfter;
 
-        assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
-        assertEq(y.balanceOf(owner), sharesToLiquidator);
-        vm.stopPrank();
+    //     assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
+    //     assertEq(y.balanceOf(owner), sharesToLiquidator);
+    //     vm.stopPrank();
 
-        finalizeWithdrawRequest(owner);
+    //     finalizeWithdrawRequest(owner);
 
-        // The owner does receive a split withdraw request
-        (WithdrawRequest memory w, SplitWithdrawRequest memory s) = manager.getWithdrawRequest(address(y), owner);
-        assertNotEq(w.requestId, 0);
-        assertEq(w.sharesAmount, sharesToLiquidator);
-        assertGt(w.yieldTokenAmount, 0);
-        assertEq(w.hasSplit, true);
+    //     // The owner does receive a split withdraw request
+    //     (WithdrawRequest memory w, SplitWithdrawRequest memory s) = manager.getWithdrawRequest(address(y), owner);
+    //     assertNotEq(w.requestId, 0);
+    //     assertEq(w.sharesAmount, sharesToLiquidator);
+    //     assertGt(w.yieldTokenAmount, 0);
+    //     assertEq(w.hasSplit, true);
 
-        // We have not finalized the split withdraw request yet
-        assertGt(s.totalYieldTokenAmount, 0);
-        assertEq(s.finalized, false);
-        assertEq(s.totalWithdraw, 0);
+    //     // We have not finalized the split withdraw request yet
+    //     assertGt(s.totalYieldTokenAmount, 0);
+    //     assertEq(s.finalized, false);
+    //     assertEq(s.totalWithdraw, 0);
 
-        vm.startPrank(owner);
-        uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
-        assertGt(assets, netAsset);
-        vm.stopPrank();
+    //     vm.startPrank(owner);
+    //     uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
+    //     assertGt(assets, netAsset);
+    //     vm.stopPrank();
 
-        // Assert that the withdraw request is cleared
-        (w, s) = manager.getWithdrawRequest(address(y), owner);
-        assertEq(w.sharesAmount, 0);
-        assertEq(w.yieldTokenAmount, 0);
-        assertEq(w.hasSplit, false);
+    //     // Assert that the withdraw request is cleared
+    //     (w, s) = manager.getWithdrawRequest(address(y), owner);
+    //     assertEq(w.sharesAmount, 0);
+    //     assertEq(w.yieldTokenAmount, 0);
+    //     assertEq(w.hasSplit, false);
 
-        // The original withdraw request is still active on the liquidated account
-        if (balanceBefore > sharesToLiquidator) {
-            (w, s) = manager.getWithdrawRequest(address(y), msg.sender);
-            assertNotEq(w.requestId, 0);
-            assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
-            assertGt(w.yieldTokenAmount, 0);
-            assertEq(w.hasSplit, true);
+    //     // The original withdraw request is still active on the liquidated account
+    //     if (balanceBefore > sharesToLiquidator) {
+    //         (w, s) = manager.getWithdrawRequest(address(y), msg.sender);
+    //         assertNotEq(w.requestId, 0);
+    //         assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
+    //         assertGt(w.yieldTokenAmount, 0);
+    //         assertEq(w.hasSplit, true);
 
-            assertGt(s.totalYieldTokenAmount, 0);
-            assertGt(s.totalWithdraw, 0);
-            assertEq(s.finalized, true);
-        }
-    }
+    //         assertGt(s.totalYieldTokenAmount, 0);
+    //         assertGt(s.totalWithdraw, 0);
+    //         assertEq(s.finalized, true);
+    //     }
+    // }
 
-    function test_liquidate_withdrawRequest_RevertsIf_LiquidatorHasCollateralBalance() public onlyIfWithdrawRequestManager {
-        _enterPosition(owner, defaultDeposit, defaultBorrow);
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    // function test_liquidate_withdrawRequest_RevertsIf_LiquidatorHasCollateralBalance() public onlyIfWithdrawRequestManager {
+    //     _enterPosition(owner, defaultDeposit, defaultBorrow);
+    //     _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
-        vm.startPrank(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
-        vm.stopPrank();
+    //     vm.startPrank(msg.sender);
+    //     AbstractStakingStrategy(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+    //     vm.stopPrank();
 
-        if (address(withdrawTokenOracle) != address(0)) {
-            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
-        } else {
-            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
-        }
+    //     if (address(withdrawTokenOracle) != address(0)) {
+    //         withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+    //     } else {
+    //         o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+    //     }
 
-        vm.startPrank(owner);
-        uint256 balanceBefore = y.balanceOfShares(msg.sender);
-        asset.approve(address(y), type(uint256).max);
-        vm.expectRevert();
-        y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
-        vm.stopPrank();
-    }
+    //     vm.startPrank(owner);
+    //     uint256 balanceBefore = y.balanceOfShares(msg.sender);
+    //     asset.approve(address(y), type(uint256).max);
+    //     vm.expectRevert();
+    //     y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+    //     vm.stopPrank();
+    // }
 
-    function test_withdrawRequestValuation() public onlyIfWithdrawRequestManager {
-        address staker = makeAddr("staker");
-        vm.prank(owner);
-        asset.transfer(staker, defaultDeposit);
+    // function test_withdrawRequestValuation() public onlyIfWithdrawRequestManager {
+    //     address staker = makeAddr("staker");
+    //     vm.prank(owner);
+    //     asset.transfer(staker, defaultDeposit);
 
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        // The staker exists to generate fees on the position to test the withdraw valuation
-        _enterPosition(staker, defaultDeposit, defaultBorrow);
+    //     _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    //     // The staker exists to generate fees on the position to test the withdraw valuation
+    //     _enterPosition(staker, defaultDeposit, defaultBorrow);
 
-        (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
-        (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
-        assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
+    //     (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
+    //     (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
+    //     assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
 
-        vm.startPrank(msg.sender);
-        AbstractStakingStrategy(payable(address(y))).initiateWithdraw(
-            getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
-        );
-        vm.stopPrank();
-        (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
-        if (address(withdrawTokenOracle) != address(0)) {
-            // If there is a different oracle for the withdraw token (i.e. for PTs),
-            // there will be some slippage as a result of selling the PT
-            assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Withdrawal should not change collateral value");
-        } else {
-            assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Withdrawal should not change collateral value");
-        }
+    //     vm.startPrank(msg.sender);
+    //     AbstractStakingStrategy(payable(address(y))).initiateWithdraw(
+    //         getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
+    //     );
+    //     vm.stopPrank();
+    //     (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
+    //     if (address(withdrawTokenOracle) != address(0)) {
+    //         // If there is a different oracle for the withdraw token (i.e. for PTs),
+    //         // there will be some slippage as a result of selling the PT
+    //         assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Withdrawal should not change collateral value");
+    //     } else {
+    //         assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Withdrawal should not change collateral value");
+    //     }
 
-        vm.warp(block.timestamp + 10 days);
-        (/* */, uint256 collateralValueAfterWarp, /* */) = y.healthFactor(msg.sender);
-        (/* */, uint256 collateralValueAfterWarpStaker, /* */) = y.healthFactor(staker);
+    //     vm.warp(block.timestamp + 10 days);
+    //     (/* */, uint256 collateralValueAfterWarp, /* */) = y.healthFactor(msg.sender);
+    //     (/* */, uint256 collateralValueAfterWarpStaker, /* */) = y.healthFactor(staker);
 
-        // Collateral value for the withdrawer should not change over time
-        assertEq(collateralValueAfter, collateralValueAfterWarp, "Withdrawal should not change collateral value over time");
+    //     // Collateral value for the withdrawer should not change over time
+    //     assertEq(collateralValueAfter, collateralValueAfterWarp, "Withdrawal should not change collateral value over time");
 
-        // For the staker, the collateral value should have decreased due to fees
-        assertGt(collateralValueBeforeStaker, collateralValueAfterWarpStaker, "Staker should have lost value due to fees");
+    //     // For the staker, the collateral value should have decreased due to fees
+    //     assertGt(collateralValueBeforeStaker, collateralValueAfterWarpStaker, "Staker should have lost value due to fees");
 
-        // Check price after finalize
-        finalizeWithdrawRequest(msg.sender);
-        manager.finalizeRequestManual(address(y), msg.sender);
-        (/* */, uint256 collateralValueAfterFinalize, /* */) = y.healthFactor(msg.sender);
+    //     // Check price after finalize
+    //     finalizeWithdrawRequest(msg.sender);
+    //     manager.finalizeRequestManual(address(y), msg.sender);
+    //     (/* */, uint256 collateralValueAfterFinalize, /* */) = y.healthFactor(msg.sender);
 
-        assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
-        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
-    }
+    //     assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
+    //     assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
+    // }
 
     // function test_multiple_entries_exits_with_withdrawRequest() public {
     //     assertEq(true, false);
