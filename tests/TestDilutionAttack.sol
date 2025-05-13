@@ -1,28 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.29;
 
-import "./TestMorphoYieldStrategy.sol";
+import "./TestEnvironment.sol";
+import "../src/routers/MorphoLendingRouter.sol";
 
-contract TestDilutionAttack is Test {
-    string RPC_URL = vm.envString("RPC_URL");
-    uint256 FORK_BLOCK = vm.envUint("FORK_BLOCK");
+abstract contract TestDilutionAttack is TestEnvironment {
 
-    ERC20 public w;
-    MockOracle public o;
-    IYieldStrategy public y;
-    ERC20 public asset;
-    uint256 public defaultDeposit;
-    uint256 public defaultBorrow;
+    function setAsset() internal virtual;
 
-    address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
-    ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    address constant IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
-
-    function setUp() public virtual {
-        vm.createSelectFork(RPC_URL, FORK_BLOCK);
-    }
-
-    function setupYieldStrategy() public {
+    function deployYieldStrategy() internal override {
+        setAsset();
         w = new MockWrapperERC20(ERC20(asset));
         if (asset == USDC) {
             o = new MockOracle(1e18);
@@ -40,48 +27,35 @@ contract TestDilutionAttack is Test {
         );
         defaultDeposit = asset == USDC ? 10_000e6 : 10e18;
         defaultBorrow = asset == USDC ? 90_000e6 : 90e18;
+    }
 
-        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            address(y),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
-        );
-        y = IYieldStrategy(address(proxy));
-
-        asset = ERC20(y.asset());
-
-        vm.prank(owner);
-        TRADING_MODULE.setPriceOracle(address(w), AggregatorV2V3Interface(address(o)));
-
-        // USDC whale
-        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
-        USDC.transfer(msg.sender, 100_000e6);
-        USDC.transfer(owner, 15_000_000e6);
-        vm.stopPrank();
-
-        // Deal WETH
-        deal(address(WETH), owner, 1_500_000e18);
-        vm.prank(owner);
-        WETH.transfer(msg.sender, 250_000e18);
+    function setupLendingRouter() internal override {
+        lendingRouter = new MorphoLendingRouter();
 
         vm.startPrank(owner);
+        ADDRESS_REGISTRY.setLendingRouter(address(lendingRouter));
+        MorphoLendingRouter(address(lendingRouter)).initializeMarket(address(y), IRM, 0.915e18);
+
         asset.approve(address(MORPHO), type(uint256).max);
-        MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");
+        MORPHO.supply(
+            MorphoLendingRouter(address(lendingRouter)).marketParams(address(y)),
+            1_000_000 * 10 ** asset.decimals(), 0, owner, ""
+        );
         vm.stopPrank();
     }
 
     function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {
         vm.startPrank(user);
-        if (!MORPHO.isAuthorized(user, address(y))) MORPHO.setAuthorization(address(y), true);
-        asset.approve(address(y), depositAmount);
-        y.enterPosition(user, depositAmount, borrowAmount, bytes(""));
+        if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        asset.approve(address(lendingRouter), depositAmount);
+        lendingRouter.enterPosition(
+            user, address(y), depositAmount, borrowAmount,
+            getDepositData(user, depositAmount + borrowAmount)
+        );
         vm.stopPrank();
     }
 
-    function test_dilution_attack(bool isUSDC) public {
-        asset = isUSDC ? USDC : ERC20(address(WETH));
-
-        setupYieldStrategy();
-
+    function test_dilution_attack() public {
         address attacker = makeAddr("attacker");
         vm.prank(owner);
         asset.transfer(attacker, defaultDeposit + defaultBorrow + 1);
@@ -96,20 +70,32 @@ contract TestDilutionAttack is Test {
         MockWrapperERC20(address(w)).transfer(address(y), w.balanceOf(attacker));
         vm.stopPrank();
 
+        console.log("Entering second position");
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         vm.startPrank(attacker);
-        uint256 profitsWithdrawn = y.exitPosition(
+        uint256 assetsBefore = asset.balanceOf(attacker);
+        uint256 shares = lendingRouter.accountCollateralBalance(attacker, address(y));
+        lendingRouter.exitPosition(
             attacker,
+            address(y),
             attacker,
-            y.balanceOfShares(attacker),
+            shares,
             0,
-            bytes("")
+            getRedeemData(attacker, shares)
         );
+        uint256 assetsAfter = asset.balanceOf(attacker);
         vm.stopPrank();
+        uint256 profitsWithdrawn = assetsAfter - assetsBefore;
         // NOTE: the attacker will lose money on the donation since some of it will be allocated to the
         // virtual shares and some will accrue to fees
         assertLe(profitsWithdrawn, defaultDeposit + defaultBorrow);
     }
+}
 
+contract TestDilutionAttack_USDC is TestDilutionAttack {
+    function setAsset() internal override { asset = USDC; }
+}
 
+contract TestDilutionAttack_WETH is TestDilutionAttack {
+    function setAsset() internal override { asset = ERC20(address(WETH)); }
 }

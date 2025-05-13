@@ -84,6 +84,11 @@ contract AddressRegistry {
         return IWithdrawRequestManager(withdrawRequestManagers[yieldToken]);
     }
 
+    function setLendingRouter(address lendingRouter) external {
+        if (msg.sender != upgradeAdmin) revert Unauthorized(msg.sender);
+        lendingRouters[lendingRouter] = true;
+    }
+
     function isLendingRouter(address lendingRouter) external view returns (bool) {
         return lendingRouters[lendingRouter];
     }

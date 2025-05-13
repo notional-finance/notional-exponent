@@ -28,6 +28,7 @@ abstract contract TestEnvironment is Test {
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address constant IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
     address public addressRegistry;
+    ILendingRouter public lendingRouter;
 
     function deployAddressRegistry() public {
         address deployer = makeAddr("deployer");
@@ -41,7 +42,7 @@ abstract contract TestEnvironment is Test {
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         deployAddressRegistry();
         setMaxOracleFreshness();

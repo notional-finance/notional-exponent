@@ -169,10 +169,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address receiver,
         bytes calldata depositData
     ) external override onlyLendingRouter setCurrentAccount(receiver) nonReentrant returns (uint256 sharesMinted) {
+        ERC20(asset).safeTransferFrom(t_CurrentLendingRouter, address(this), assetAmount);
         sharesMinted = _mintSharesGivenAssets(assetAmount, depositData, receiver);
 
         // Transfer the shares to the lending router so it can supply collateral
-        _transfer(receiver, msg.sender, sharesMinted);
+        _transfer(receiver, t_CurrentLendingRouter, sharesMinted);
     }
 
     function burnShares(
@@ -183,7 +184,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         assetsWithdrawn = _burnShares(sharesToBurn, redeemData, sharesOwner);
 
         // Send all the assets back to the lending router
-        ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
+        ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_AllowTransfer_To;
@@ -226,7 +227,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         delete t_CurrentAccount;
 
         // Transfer the shares to the liquidator from the lending router
-        _transfer(msg.sender, liquidator, sharesToLiquidator);
+        _transfer(t_CurrentLendingRouter, liquidator, sharesToLiquidator);
 
         _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
     }

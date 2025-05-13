@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import "../utils/Errors.sol";
+
 import {ILendingRouter} from "./ILendingRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -8,8 +10,6 @@ import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams, Id, Position, Market} from "../interfaces/Morpho/IMorpho.sol";
 import {IMorphoLiquidateCallback, IMorphoFlashLoanCallback, IMorphoRepayCallback} from "../interfaces/Morpho/IMorphoCallbacks.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
-
-import "../utils/Errors.sol";
 
 struct MorphoParams {
     address irm;
@@ -111,7 +111,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             address receiver
         ) = abi.decode(data, (MarketParams, uint256, bytes, address));
 
-        _mintSharesAndSupplyCollateral(m, depositAssetAmount, depositData, receiver);
+        _mintSharesAndSupplyCollateral(m, depositAssetAmount + assets, depositData, receiver);
 
         // Borrow the assets in order to repay the flash loan
         MORPHO.borrow(m, assets, 0, receiver, address(this));
