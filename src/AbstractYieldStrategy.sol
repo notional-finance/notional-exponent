@@ -267,17 +267,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /*** Private Functions ***/
     function _effectiveSupply() private view returns (uint256) {
-        return (
-            totalSupply() - s_escrowedShares + VIRTUAL_SHARES  - 
-            // TODO: we can remove this with the lending router
-            // This is required for exits because the yield token to share
-            // calculation is incorrect when the yield tokens are burned before
-            // the shares are burned. The price is checked by the lending market
-            // when collateral is withdrawn. If the t_AllowTransfer_To is the current
-            // contract then we are in a liquidation and the yield tokens have not
-            // been burned yet so this adjustment is not required.
-            (t_AllowTransfer_To != address(this) ? t_AllowTransfer_Amount : 0)
-        );
+        return (totalSupply() - s_escrowedShares + VIRTUAL_SHARES);
     }
 
     function yieldTokenBalance() internal view returns (uint256) {

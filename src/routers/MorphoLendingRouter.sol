@@ -155,6 +155,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
                 // If assetToRepay is uint256.max then get the morpho borrow shares amount to
                 // get a full exit.
                 sharesToRepay = MORPHO.position(morphoId(vault), onBehalf).borrowShares;
+                assetToRepay = 0;
             }
 
             bytes memory repayData = abi.encode(onBehalf, m, receiver, sharesToRedeem, redeemData);
@@ -174,6 +175,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             uint256 sharesToRedeem,
             bytes memory redeemData
         ) = abi.decode(data, (address, MarketParams, address, uint256, bytes));
+        uint256 balanceBefore = balanceOfCollateral(sharesOwner, m.collateralToken);
 
         // Allows the transfer from the lending market to the sharesOwner
         IYieldStrategy(m.collateralToken).allowTransfer(sharesOwner, sharesToRedeem);
@@ -181,7 +183,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, sharesOwner);
 
         uint256 assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
-            sharesOwner, sharesToRedeem, balanceOfCollateral(sharesOwner, m.collateralToken), redeemData
+            sharesOwner, sharesToRedeem, balanceBefore, redeemData
         );
 
         // Allow morpho to repay the debt
