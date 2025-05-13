@@ -70,11 +70,10 @@ abstract contract TestDilutionAttack is TestEnvironment {
         MockWrapperERC20(address(w)).transfer(address(y), w.balanceOf(attacker));
         vm.stopPrank();
 
-        console.log("Entering second position");
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         vm.startPrank(attacker);
         uint256 assetsBefore = asset.balanceOf(attacker);
-        uint256 shares = lendingRouter.accountCollateralBalance(attacker, address(y));
+        uint256 shares = lendingRouter.balanceOfCollateral(attacker, address(y));
         lendingRouter.exitPosition(
             attacker,
             address(y),

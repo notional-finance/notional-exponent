@@ -18,16 +18,10 @@ struct SplitWithdrawRequest {
     bool finalized;
 }
 
-error ExistingWithdrawRequest(address vault, address account, uint256 requestId);
-error NoWithdrawRequest(address vault, address account);
-error InvalidWithdrawRequestSplit();
-error CannotInitiateWithdraw(address account);
-
 interface IWithdrawRequestManager {
     event ApprovedVault(address indexed vault, bool indexed isApproved);
     event InitiateWithdrawRequest(
         address indexed account,
-        bool indexed isForced,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
         uint256 requestId
@@ -69,14 +63,12 @@ interface IWithdrawRequestManager {
     /// @param yieldTokenAmount the amount of yield tokens to withdraw
     /// @param sharesAmount the amount of shares to withdraw, used to mark the shares to
     /// yield token ratio at the time of the withdraw request
-    /// @param isForced whether the withdraw request is forced
     /// @param data additional data for the withdraw request
     /// @return requestId the request id of the withdraw request
     function initiateWithdraw(
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
-        bool isForced,
         bytes calldata data
     ) external returns (uint256 requestId);
 

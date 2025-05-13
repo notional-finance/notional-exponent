@@ -86,7 +86,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
-        bool isForced,
         bytes calldata data
     ) external override onlyApprovedVault returns (uint256 requestId) {
         WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
@@ -95,13 +94,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         // Receive the requested amount of yield tokens from the approved vault.
         IERC20(YIELD_TOKEN).transferFrom(msg.sender, address(this), yieldTokenAmount);
 
-        requestId = _initiateWithdrawImpl(account, yieldTokenAmount, isForced, data);
+        requestId = _initiateWithdrawImpl(account, yieldTokenAmount, data);
         accountWithdraw.requestId = requestId;
         accountWithdraw.hasSplit = false;
         accountWithdraw.yieldTokenAmount = yieldTokenAmount.toUint120();
         accountWithdraw.sharesAmount = sharesAmount.toUint120();
 
-        emit InitiateWithdrawRequest(account, isForced, yieldTokenAmount, sharesAmount, requestId);
+        emit InitiateWithdrawRequest(account, yieldTokenAmount, sharesAmount, requestId);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -258,7 +257,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function _initiateWithdrawImpl(
         address account,
         uint256 yieldTokenAmount,
-        bool isForced,
         bytes calldata data
     ) internal virtual returns (uint256 requestId);
 

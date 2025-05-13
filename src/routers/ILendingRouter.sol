@@ -47,7 +47,7 @@ interface ILendingRouter {
 
     function healthFactor(address borrower, address vault) external view returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
 
-    function accountCollateralBalance(address account, address vault) external view returns (uint256 collateralBalance);
+    function balanceOfCollateral(address account, address vault) external view returns (uint256 collateralBalance);
 
 }
 

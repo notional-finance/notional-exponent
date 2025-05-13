@@ -47,7 +47,6 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 oETHToWithdraw,
-        bool /* isForced */,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
         IERC20(YIELD_TOKEN).approve(address(OriginVault), oETHToWithdraw);

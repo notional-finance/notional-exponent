@@ -181,7 +181,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, sharesOwner);
 
         uint256 assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
-            sharesOwner, sharesToRedeem, redeemData
+            sharesOwner, sharesToRedeem, balanceOfCollateral(sharesOwner, m.collateralToken), redeemData
         );
 
         // Allow morpho to repay the debt
@@ -207,8 +207,14 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         uint256 repaidShares
     ) external override returns (uint256 sharesToLiquidator) {
         address liquidator = msg.sender;
+        // If the liquidator has a position then they cannot liquidate or they will have
+        // a native balance and a balance on the lending market.
+        require(balanceOfCollateral(liquidator, vault) == 0);
+
         MarketParams memory m = marketParams(vault);
-        IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, seizedAssets);
+        IYieldStrategy(vault).preLiquidation(
+            liquidator, liquidateAccount, seizedAssets, balanceOfCollateral(liquidateAccount, vault)
+        );
 
         (sharesToLiquidator, /* */) = MORPHO.liquidate(
             m, liquidateAccount, seizedAssets, repaidShares,
@@ -216,6 +222,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         );
 
         IYieldStrategy(vault).postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+
         // The liquidator will receive shares in their native balance and then they can call redeem
         // on the yield strategy to get the assets.
     }
@@ -228,7 +235,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         ERC20(asset).forceApprove(address(MORPHO), repaidAssets);
     }
 
-    function accountCollateralBalance(address account, address vault) public view returns (uint256 collateralBalance) {
+    function balanceOfCollateral(address account, address vault) public view returns (uint256 collateralBalance) {
         collateralBalance = MORPHO.position(morphoId(vault), account).collateral;
     }
 
@@ -246,5 +253,35 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         // TODO: the current account must be set when we call this
         collateralValue = (uint256(position.collateral) * IYieldStrategy(vault).price()) / 1e36;
         maxBorrow = collateralValue * m.lltv / 1e18;
+    }
+
+    function initiateWithdraw(address vault, bytes calldata data) external returns (uint256 requestId) {
+        requestId = _initiateWithdraw(vault, msg.sender, data);
+
+        // Can only initiate a withdraw if health factor remains positive
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender, vault);
+        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
+
+        // TODO: emit event
+    }
+
+    function forceWithdraw(address vault, address account, bytes calldata data) external returns (uint256 requestId) {
+        // Can only force a withdraw if health factor is negative, this allows a liquidator to
+        // force a withdraw and liquidate a position at a later time.
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
+        if (borrowed <= maxBorrow) revert CannotForceWithdraw(account);
+
+        requestId = _initiateWithdraw(vault, account, data);
+
+        // TODO: emit event
+    }
+
+    function _initiateWithdraw(
+        address vault,
+        address account,
+        bytes calldata data
+    ) internal returns (uint256 requestId) {
+        uint256 sharesHeld = balanceOfCollateral(account, vault);
+        return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data);
     }
 }

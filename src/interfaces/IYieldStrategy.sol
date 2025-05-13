@@ -44,12 +44,6 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function asset() external view returns (address assetTokenAddress);
 
     /**
-     * @dev Returns the balance of shares for an account including shares held on lending
-     * markets as collateral.
-     */
-    function balanceOfShares(address account) external view returns (uint256);
-
-    /**
      * @dev Returns the address of the yield token held by the vault. Does not equal the share token,
      * which represents each user's share of the yield tokens held by the vault.
      *
@@ -143,10 +137,17 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     /** 
      * @notice Burns shares for a given number of shares.
      *
+     * @param sharesOwner The address of the account to burn the shares for.
      * @param sharesToBurn The amount of shares to burn.
+     * @param sharesHeld The number of shares the account holds on the given lending market.
      * @param redeemData calldata used to redeem the yield token.
      */
-    function burnShares(address sharesOwner, uint256 sharesToBurn, bytes memory redeemData) external returns (uint256 assetsWithdrawn);
+    function burnShares(
+        address sharesOwner,
+        uint256 sharesToBurn,
+        uint256 sharesHeld,
+        bytes memory redeemData
+    ) external returns (uint256 assetsWithdrawn);
 
     /**
      * @notice Allows the lending market to transfer shares on exit position
@@ -162,9 +163,15 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      *
      * @param liquidator The address of the liquidator.
      * @param liquidateAccount The address of the account to liquidate.
+     * @param liquidateAccountShares The amount of shares to liquidate.
      * @param seizedAssets The amount of assets to seize.
      */
-    function preLiquidation(address liquidator, address liquidateAccount, uint256 seizedAssets) external;
+    function preLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 liquidateAccountShares,
+        uint256 seizedAssets
+    ) external;
 
     /**
      * @notice Post-liquidation function.
@@ -173,14 +180,37 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * @param liquidateAccount The address of the account to liquidate.
      * @param sharesToLiquidator The amount of shares to liquidate.
      */
-    function postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) external;
+    function postLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 sharesToLiquidator
+    ) external;
 
     /**
-     * @notice Redeems shares for assets. Allows liquidators to redeem shares for assets outside
-     * of a single transaction. This may be required in times of illiquidity.
+     * @notice Redeems shares for assets for a native token.
      *
      * @param sharesToRedeem The amount of shares to redeem.
      * @param redeemData calldata used to redeem the yield token.
      */
-    function redeem(uint256 sharesToRedeem, bytes memory redeemData) external returns (uint256 assetsWithdrawn);
+    function redeemNative(uint256 sharesToRedeem, bytes memory redeemData) external returns (uint256 assetsWithdrawn);
+
+    /**
+     * @notice Initiates a withdraw for a given number of shares.
+     *
+     * @param account The address of the account to initiate the withdraw for.
+     * @param sharesHeld The number of shares the account holds.
+     * @param data calldata used to initiate the withdraw.
+     */
+    function initiateWithdraw(
+        address account,
+        uint256 sharesHeld,
+        bytes calldata data
+    ) external returns (uint256 requestId);
+
+    /**
+     * @notice Initiates a withdraw for the native balance of the account.
+     *
+     * @param data calldata used to initiate the withdraw.
+     */
+    function initiateWithdrawNativeBalance(bytes calldata data) external returns (uint256 requestId);
 }

@@ -5,13 +5,7 @@ import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
-import {
-    IWithdrawRequestManager,
-    WithdrawRequest,
-    SplitWithdrawRequest,
-    CannotInitiateWithdraw,
-    ExistingWithdrawRequest
-} from "../withdraws/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import "../utils/Errors.sol";
@@ -61,7 +55,6 @@ interface ILPLib {
 
     function initiateWithdraw(
         address account,
-        bool isForced,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
         bytes[] calldata withdrawData
@@ -205,6 +198,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
+        uint256 sharesHeld,
         bytes memory redeemData
     ) internal override returns (bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
@@ -215,7 +209,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         IERC20[] memory tokens;
         if (_hasPendingWithdraw(sharesOwner)) {
             // Attempt to withdraw all pending requests
-            (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem);
+            (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem, sharesHeld);
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
             wasEscrowed = true;
@@ -308,9 +302,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         }
     }
 
-    function _preLiquidation(address liquidateAccount, address liquidator) internal override returns (uint256 maxLiquidateShares) {
+    function _preLiquidation(address liquidateAccount, address liquidator, uint256 liquidateAccountShares) internal override returns (uint256 maxLiquidateShares) {
         _checkReentrancyContext();
-        return super._preLiquidation(liquidateAccount, liquidator);
+        return super._preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
     }
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
@@ -322,23 +316,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         ));
     }
 
-    function initiateWithdraw(bytes calldata data) external returns (uint256[] memory requestIds) {
-        requestIds = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
-
-        // Can only initiate a withdraw if health factor remains positive
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender);
-        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
-    }
-
-    function forceWithdraw(address account, bytes calldata data) external returns (uint256[] memory requestIds) {
-        // TODO: who can do this?
-        requestIds = _initiateWithdraw({account: account, isForced: true, data: data});
-    }
-
-    function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal returns (uint256[] memory requestIds) {
-        uint256 sharesHeld = balanceOfShares(account);
-        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        _escrowShares(sharesHeld);
+    function _initiateWithdraw(
+        address account,
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal override returns (uint256 requestId) {
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
         uint256[] memory exitBalances = _unstakeAndExitPool({
@@ -349,20 +332,21 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         });
 
         bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
-            ILPLib.initiateWithdraw.selector, account, isForced, sharesHeld, exitBalances, params.withdrawData
+            ILPLib.initiateWithdraw.selector, account, sharesHeld, exitBalances, params.withdrawData
         ));
-        requestIds = abi.decode(result, (uint256[]));
+        uint256[] memory requestIds = abi.decode(result, (uint256[]));
+        // TODO: fix this?
+        requestId = requestIds[0];
     }
 
     function _withdrawPendingRequests(
         address sharesOwner,
-        uint256 sharesToRedeem
+        uint256 sharesToRedeem,
+        uint256 sharesHeld
     ) internal returns (uint256[] memory exitBalances, IERC20[] memory tokens) {
-        uint256 totalShares = balanceOfShares(sharesOwner);
-
         bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
-            ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem, totalShares)
-        );
+            ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem, sharesHeld
+        ));
         (exitBalances, tokens) = abi.decode(result, (uint256[], IERC20[]));
     }
 
@@ -416,7 +400,6 @@ abstract contract BaseLPLib is ILPLib {
 
     function initiateWithdraw(
         address account,
-        bool isForced,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
         bytes[] calldata withdrawData
@@ -434,7 +417,6 @@ abstract contract BaseLPLib is ILPLib {
                 account: account,
                 yieldTokenAmount: exitBalances[i],
                 sharesAmount: sharesHeld,
-                isForced: isForced,
                 data: withdrawData[i]
             });
         }

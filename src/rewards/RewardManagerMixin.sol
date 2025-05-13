@@ -26,10 +26,14 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         super._initialize(data);
     }
 
-    function _preLiquidation(address liquidateAccount, address liquidator) internal override virtual returns (uint256 maxLiquidateShares) {
-        t_Liquidator_SharesBefore = balanceOfShares(liquidator);
-        t_LiquidateAccount_SharesBefore = balanceOfShares(liquidateAccount);
-        return super._preLiquidation(liquidateAccount, liquidator);
+    function _preLiquidation(
+        address liquidateAccount,
+        address liquidator,
+        uint256 liquidateAccountShares
+    ) internal override virtual returns (uint256 maxLiquidateShares) {
+        t_Liquidator_SharesBefore = balanceOf(liquidator);
+        t_LiquidateAccount_SharesBefore = liquidateAccountShares;
+        return super._preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
     }
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override virtual {
@@ -57,7 +61,9 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal override returns (uint256 sharesMinted) {
         uint256 totalSupplyBefore = totalSupply();
-        uint256 initialVaultShares = balanceOfShares(receiver);
+        // TODO: fix this
+        // uint256 initialVaultShares = balanceOfShares(receiver);
+        uint256 initialVaultShares = 0;
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
         _updateAccountRewards({
             account: receiver,
@@ -68,13 +74,12 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         });
     }
 
-    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal override returns (uint256 assetsWithdrawn) {
+    function _burnShares(uint256 sharesToBurn, uint256 sharesHeld, bytes memory redeemData, address sharesOwner) internal override returns (uint256 assetsWithdrawn) {
         uint256 totalSupplyBefore = totalSupply();
-        uint256 initialVaultShares = balanceOfShares(sharesOwner);
-        assetsWithdrawn = super._burnShares(sharesToBurn, redeemData, sharesOwner);
+        assetsWithdrawn = super._burnShares(sharesToBurn, sharesHeld, redeemData, sharesOwner);
         _updateAccountRewards({
             account: sharesOwner,
-            accountVaultSharesBefore: initialVaultShares,
+            accountVaultSharesBefore: sharesHeld,
             vaultShares: sharesToBurn,
             totalVaultSharesBefore: totalSupplyBefore,
             isMint: false

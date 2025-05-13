@@ -75,7 +75,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         rewards = new uint256[](rewardStates.length);
 
         uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        uint256 vaultSharesBefore = IYieldStrategy(address(this)).balanceOfShares(account);
+        // TODO: fix this
+        // uint256 vaultSharesBefore = IYieldStrategy(address(this)).balanceOfShares(account);
+        uint256 vaultSharesBefore = 0;
 
         for (uint256 i; i < rewards.length; i++) {
             uint256 rewardsPerVaultShare = _getAccumulatedRewardViaEmissionRate(
@@ -154,7 +156,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
 
     function claimAccountRewards(address account) external nonReentrant {
         uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        uint256 accountShares = IYieldStrategy(address(this)).balanceOfShares(account);
+        // TODO: fix this
+        // uint256 accountShares = IYieldStrategy(address(this)).balanceOfShares(account);
+        uint256 accountShares = 0;
         _claimAccountRewards(account, totalVaultSharesBefore, accountShares, accountShares);
     }
 

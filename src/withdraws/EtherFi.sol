@@ -16,7 +16,6 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 weETHToUnwrap,
-        bool /* isForced */,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
         uint256 balanceBefore = eETH.balanceOf(address(this));

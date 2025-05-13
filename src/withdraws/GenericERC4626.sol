@@ -17,7 +17,6 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 sharesToWithdraw,
-        bool /* isForced */,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
         requestId = ++currentRequestId;

@@ -11,9 +11,17 @@ error Paused();
 error CannotExitPositionWithinCooldownPeriod();
 error CannotReceiveSplitWithdrawRequest();
 
+error CannotInitiateWithdraw(address account);
+error CannotForceWithdraw(address account);
+error InsufficientSharesHeld();
+
 error CannotEnterPosition();
 error InvalidUpgrade();
 error InvalidInitialization();
+
+error ExistingWithdrawRequest(address vault, address account, uint256 requestId);
+error NoWithdrawRequest(address vault, address account);
+error InvalidWithdrawRequestSplit();
 
 function checkRevert(bool success, bytes memory result) pure {
     if (!success) {

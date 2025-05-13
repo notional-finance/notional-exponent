@@ -6,9 +6,7 @@ import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {
     IWithdrawRequestManager,
     WithdrawRequest,
-    SplitWithdrawRequest,
-    CannotInitiateWithdraw,
-    ExistingWithdrawRequest
+    SplitWithdrawRequest
 } from "../withdraws/IWithdrawRequestManager.sol";
 import {Trade, TradeType, TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -64,35 +62,16 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         return super.convertToAssets(shares);
     }
 
-    /// @notice Allows an account to initiate a withdraw of their vault shares
-    function initiateWithdraw(bytes calldata data) external returns (uint256 requestId) {
-        requestId = _initiateWithdraw({account: msg.sender, isForced: false, data: data});
-
-        // Can only initiate a withdraw if health factor remains positive
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender);
-        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
-    }
-
-    /// @notice Allows the emergency exit role to force an account to withdraw all their vault shares
-    function forceWithdraw(address account, bytes calldata data) external returns (uint256 requestId) {
-        // TODO: who can do this?
-        requestId = _initiateWithdraw({account: account, isForced: true, data: data});
-    }
-
-    function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal virtual returns (uint256 requestId) {
-        // The only way to get a native balanceOf shares is to liquidate an account.
-        // You cannot liquidate an account if you have an open position (see the postLiquidation function)
-        // Therefore, balanceOfShares will always be either an open position or a native balanceOf. This is
-        // the desired behavior.
-        uint256 sharesHeld = balanceOfShares(account);
-        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        _escrowShares(sharesHeld);
-        
+    function _initiateWithdraw(
+        address account,
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal override virtual returns (uint256 requestId) {
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: yieldTokenAmount, sharesAmount: sharesHeld, isForced: isForced, data: data
+            account: account, yieldTokenAmount: yieldTokenAmount, sharesAmount: sharesHeld, data: data
         });
-        _checkInvariants();
     }
 
     function _mintYieldTokens(
@@ -117,6 +96,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
+        uint256 sharesHeld,
         bytes memory redeemData
     ) internal override returns (bool wasEscrowed) {
         WithdrawRequest memory accountWithdraw;
@@ -130,12 +110,11 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             _executeInstantRedemption(yieldTokensBurned, redeemData);
             wasEscrowed = false;
         } else {
+            // TODO: review this logic
             // This assumes that the the account cannot get more shares once they initiate a withdraw. That
             // is why accounts are restricted from receiving split withdraw requests if they already have an
             // active position.
-            uint256 balanceOfShares = balanceOfShares(sharesOwner);
-            require(sharesToRedeem <= balanceOfShares);
-            uint256 yieldTokensBurned = uint256(accountWithdraw.yieldTokenAmount) * sharesToRedeem / balanceOfShares;
+            uint256 yieldTokensBurned = uint256(accountWithdraw.yieldTokenAmount) * sharesToRedeem / sharesHeld;
             wasEscrowed = true;
 
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({

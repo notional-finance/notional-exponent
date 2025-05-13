@@ -93,7 +93,6 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 balanceToTransfer,
-        bool /* isForced */,
         bytes calldata /* data */
     ) internal override returns (uint256 requestId) {
         EthenaCooldownHolder holder = EthenaCooldownHolder(Clones.clone(HOLDER_IMPLEMENTATION));

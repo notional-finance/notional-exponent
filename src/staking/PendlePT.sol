@@ -22,12 +22,6 @@ struct PendleRedeemParams {
     bytes limitOrderData;
 }
 
-struct PendleWithdrawParams {
-    uint256 minTokenOutSy;
-    bytes withdrawData;
-    bytes limitOrderData;
-}
-
 /** Base implementation for Pendle PT vaults */
 contract PendlePT is AbstractStakingStrategy {
     using SafeERC20 for ERC20;
@@ -135,22 +129,19 @@ contract PendlePT is AbstractStakingStrategy {
         }
     }
 
-    function _initiateWithdraw(address account, bool isForced, bytes calldata data) internal override returns (uint256 requestId) {
-        uint256 sharesHeld = balanceOfShares(account);
-        uint256 ptAmount = convertSharesToYieldToken(sharesHeld);
-        _escrowShares(sharesHeld);
+    function _initiateWithdraw(
+        address account,
+        uint256 ptAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal override returns (uint256 requestId) {
+        // Withdraws can only be initiated for expired PTs
+        require(PT.isExpired(), "Cannot initiate withdraw for non-expired PTs");
         // When doing a direct withdraw for PTs, we first redeem or trade out of the PT
         // and then initiate a withdraw on the TOKEN_OUT_SY. Since the vault shares are
         // stored in PT terms, we pass tokenOutSy terms (i.e. weETH or sUSDe) to the withdraw
         // implementation.
-        PendleWithdrawParams memory params = abi.decode(data, (PendleWithdrawParams));
-        uint256 tokenOutSy = _redeemPT(ptAmount, params.limitOrderData);
-        require(params.minTokenOutSy <= tokenOutSy, "Slippage");
-
-        ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
-        requestId = withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: tokenOutSy, sharesAmount: sharesHeld,
-            isForced: isForced, data: params.withdrawData
-        });
+        uint256 tokenOutSy = _redeemPT(ptAmount, bytes(""));
+        return super._initiateWithdraw(account, tokenOutSy, sharesHeld, data);
     }
 }

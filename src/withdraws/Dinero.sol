@@ -62,7 +62,6 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 amountToWithdraw,
-        bool /* isForced */,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
         if (YIELD_TOKEN == address(apxETH)) {

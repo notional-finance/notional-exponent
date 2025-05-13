@@ -88,10 +88,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /*** Valuation and Conversion Functions ***/
-    function balanceOfShares(address account) public view returns (uint256 collateralBalance) {
-        // TODO: how do we know that this is correct? and does it matter?
-        return balanceOf(account) + _accountCollateralBalance(account);
-    }
 
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
@@ -133,6 +129,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function totalAssets() public view override returns (uint256) {
         return convertToAssets(totalSupply());
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function convertYieldTokenToAsset() public view returns (uint256) {
+        // The trading module always returns a positive rate in 18 decimals so we can safely
+        // cast to uint256
+        (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
+        return uint256(rate);
     }
 
     /*** Fee Methods ***/
@@ -179,9 +183,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function burnShares(
         address sharesOwner,
         uint256 sharesToBurn,
+        uint256 sharesHeld,
         bytes calldata redeemData
     ) external override onlyLendingRouter setCurrentAccount(sharesOwner) nonReentrant returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToBurn, redeemData, sharesOwner);
+        assetsWithdrawn = _burnShares(sharesToBurn, sharesHeld, redeemData, sharesOwner);
 
         // Send all the assets back to the lending router
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
@@ -201,15 +206,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function preLiquidation(
         address liquidator,
         address liquidateAccount,
+        uint256 liquidateAccountShares,
         uint256 seizedAssets
     ) external onlyLendingRouter {
         t_CurrentAccount = liquidateAccount;
-        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator);
+        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
-
-        // If the liquidator has a position then they cannot liquidate or they will have a native balance
-        // and a balance on the lending market.
-        require(_accountCollateralBalance(liquidator) == 0);
 
         // Allow transfers to the lending router which will proxy the call to liquidate.
         t_AllowTransfer_To = msg.sender;
@@ -221,27 +223,48 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address liquidateAccount,
         uint256 sharesToLiquidator
     ) external onlyLendingRouter {
-        // Clear the transient variables to prevent re-use in a future call.
-        delete t_AllowTransfer_To;
-        delete t_AllowTransfer_Amount;
-        delete t_CurrentAccount;
-
         // Transfer the shares to the liquidator from the lending router
         _transfer(t_CurrentLendingRouter, liquidator, sharesToLiquidator);
 
         _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+
+        // Clear the transient variables to prevent re-use in a future call.
+        delete t_AllowTransfer_To;
+        delete t_AllowTransfer_Amount;
+        delete t_CurrentAccount;
+        delete t_CurrentLendingRouter;
     }
 
     /// @inheritdoc IYieldStrategy
-    function redeem(uint256 sharesToRedeem, bytes memory redeemData) external override nonReentrant returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
+    function redeemNative(uint256 sharesToRedeem, bytes memory redeemData) external override nonReentrant returns (uint256 assetsWithdrawn) {
+        assetsWithdrawn = _burnShares(sharesToRedeem, balanceOf(msg.sender), redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function initiateWithdraw(
+        address account,
+        uint256 sharesHeld,
+        bytes calldata data
+    ) external onlyLendingRouter override returns (uint256 requestId) {
+        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        _escrowShares(sharesHeld);
+        return _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function initiateWithdrawNativeBalance(bytes calldata data) external override returns (uint256 requestId) {
+        uint256 sharesHeld = balanceOf(msg.sender);
+        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        _escrowShares(sharesHeld);
+        return _initiateWithdraw(msg.sender, yieldTokenAmount, sharesHeld, data);
     }
 
     /*** Private Functions ***/
     function _effectiveSupply() private view returns (uint256) {
         return (
             totalSupply() - s_escrowedShares + VIRTUAL_SHARES  - 
+            // TODO: we can remove this with the lending router
             // This is required for exits because the yield token to share
             // calculation is incorrect when the yield tokens are burned before
             // the shares are burned. The price is checked by the lending market
@@ -284,6 +307,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     function _update(address from, address to, uint256 value) internal override {
+        // TODO: update this restriction
         if (from == address(MORPHO)) {
             // Any transfers off of the lending market must be authorized here.
             if (t_AllowTransfer_To != to) revert UnauthorizedLendingMarketTransfer(from, to, value);
@@ -293,13 +317,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         super._update(from, to, value);
     }
 
-    /// TODO: should we remove this?
-    function _checkInvariants() internal view { }
-
     /*** Internal Helper Functions ***/
-    function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
-        collateralBalance = ILendingRouter(t_CurrentLendingRouter).accountCollateralBalance(account, address(this));
-    }
 
     /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
     function _executeTrade(
@@ -333,14 +351,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         }
     }
 
-    /// @inheritdoc IYieldStrategy
-    function convertYieldTokenToAsset() public view returns (uint256) {
-        // The trading module always returns a positive rate in 18 decimals so we can safely
-        // cast to uint256
-        (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
-        return uint256(rate);
-    }
-
     /*** Virtual Functions ***/
 
     function _initialize(bytes calldata data) internal override virtual {
@@ -367,14 +377,15 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Marked as virtual to allow for RewardManagerMixin to override
-    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
+    function _burnShares(uint256 sharesToBurn, uint256 sharesHeld, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
         if (sharesToBurn == 0) return 0;
+        if (sharesHeld < sharesToBurn) revert InsufficientSharesHeld();
 
         uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
 
         // First accrue fees on the yield token
         _accrueFees();
-        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, redeemData);
+        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, sharesHeld, redeemData);
         if (wasEscrowed) s_escrowedShares -= sharesToBurn;
 
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
@@ -392,8 +403,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
-    function _preLiquidation(address liquidateAccount, address /* liquidator */) internal virtual returns (uint256 maxLiquidateShares) {
-        return _accountCollateralBalance(liquidateAccount);
+    function _preLiquidation(address /* liquidateAccount */, address /* liquidator */, uint256 liquidateAccountShares) internal virtual returns (uint256 maxLiquidateShares) {
+        return liquidateAccountShares;
     }
 
     /// @dev Called after liquidation to update the yield token balance.
@@ -403,7 +414,19 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;
 
     /// @dev Redeems shares
-    function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory redeemData) internal virtual returns (bool wasEscrowed);
+    function _redeemShares(
+        uint256 sharesToRedeem,
+        address sharesOwner,
+        uint256 sharesHeld,
+        bytes memory redeemData
+    ) internal virtual returns (bool wasEscrowed);
+
+    function _initiateWithdraw(
+        address account,
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal virtual returns (uint256 requestId);
 
     /// @inheritdoc IYieldStrategy
     function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
