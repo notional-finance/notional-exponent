@@ -45,10 +45,8 @@ contract MockYieldStrategy is AbstractYieldStrategy {
     constructor(
         address _asset,
         address _yieldToken,
-        uint256 _feeRate,
-        address _irm,
-        uint256 _lltv
-    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _irm, _lltv, ERC20(_yieldToken).decimals()) { }
+        uint256 _feeRate
+    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, ERC20(_yieldToken).decimals()) { }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
         ERC20(asset).approve(address(yieldToken), type(uint256).max);

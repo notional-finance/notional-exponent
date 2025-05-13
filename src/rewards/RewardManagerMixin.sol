@@ -14,11 +14,9 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
-        address _irm,
-        uint256 _lltv,
         address _rewardManager,
         uint8 _yieldTokenDecimals
-    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _irm, _lltv, _yieldTokenDecimals) {
+    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _yieldTokenDecimals) {
         REWARD_MANAGER = IRewardManager(_rewardManager);
     }
 

@@ -65,9 +65,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
-        // TODO: remove these
-        address /* __irm */,
-        uint256 /* __lltv */,
         uint8 __yieldTokenDecimals
     ) ERC20("", "") {
         feeRate = _feeRate;

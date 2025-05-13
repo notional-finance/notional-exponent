@@ -15,10 +15,8 @@ contract PendlePT_sUSDe is PendlePT {
         address asset,
         address yieldToken,
         uint256 feeRate,
-        address irm,
-        uint256 lltv,
         IWithdrawRequestManager withdrawRequestManager
-    ) PendlePT(market, tokenInSY, tokenOutSY, asset, yieldToken, feeRate, irm, lltv, withdrawRequestManager) {
+    ) PendlePT(market, tokenInSY, tokenOutSY, asset, yieldToken, feeRate, withdrawRequestManager) {
         require(tokenOutSY == address(sUSDe), "Invalid tokenOutSY");
     }
 

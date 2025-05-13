@@ -8,11 +8,9 @@ import {weETH, WETH, LiquidityPool, eETH} from "../withdraws/EtherFi.sol";
 contract EtherFiStaking is AbstractStakingStrategy {
     constructor(
         uint256 _feeRate,
-        address _irm,
-        uint256 _lltv,
         IWithdrawRequestManager _withdrawRequestManager
     ) AbstractStakingStrategy(
-        address(WETH), address(weETH), _feeRate, _irm, _lltv, _withdrawRequestManager
+        address(WETH), address(weETH), _feeRate, _withdrawRequestManager
     ) {
         require(block.chainid == 1);
     }

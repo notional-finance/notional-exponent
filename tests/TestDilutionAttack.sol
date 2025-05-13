@@ -21,9 +21,7 @@ abstract contract TestDilutionAttack is TestEnvironment {
         y = new MockYieldStrategy(
             address(asset),
             address(w),
-            0.0010e18, // 0.1% fee rate
-            IRM,
-            0.915e18 // 91.5% LTV
+            0.0010e18 // 0.1% fee rate
         );
         defaultDeposit = asset == USDC ? 10_000e6 : 10e18;
         defaultBorrow = asset == USDC ? 90_000e6 : 90e18;

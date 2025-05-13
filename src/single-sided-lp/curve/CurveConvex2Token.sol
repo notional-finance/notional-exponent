@@ -42,11 +42,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
-        address _irm,
-        uint256 _lltv,
         address _rewardManager,
         DeploymentParams memory params
-    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, 18) {
+    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18) {
         CURVE_POOL_TOKEN = IERC20(params.poolToken);
 
         // We interact with curve pools directly so we never pass the token addresses back

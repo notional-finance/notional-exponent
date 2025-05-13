@@ -18,9 +18,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         y = new MockYieldStrategy(
             address(USDC),
             address(w),
-            0.0010e18, // 0.1% fee rate
-            IRM,
-            0.915e18 // 91.5% LTV
+            0.0010e18 // 0.1% fee rate
         );
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
