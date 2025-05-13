@@ -236,7 +236,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function redeemNative(uint256 sharesToRedeem, bytes memory redeemData) external override nonReentrant returns (uint256 assetsWithdrawn) {
+    function redeemNative(
+        uint256 sharesToRedeem,
+        bytes memory redeemData
+    ) external override nonReentrant setCurrentAccount(msg.sender) returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, balanceOf(msg.sender), redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
@@ -246,14 +249,16 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address account,
         uint256 sharesHeld,
         bytes calldata data
-    ) external onlyLendingRouter override returns (uint256 requestId) {
+    ) external onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld);
         return _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
     }
 
     /// @inheritdoc IYieldStrategy
-    function initiateWithdrawNativeBalance(bytes calldata data) external override returns (uint256 requestId) {
+    function initiateWithdrawNativeBalance(
+        bytes memory data
+    ) external override setCurrentAccount(msg.sender) returns (uint256 requestId) {
         uint256 sharesHeld = balanceOf(msg.sender);
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         _escrowShares(sharesHeld);
