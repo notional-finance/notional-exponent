@@ -10,13 +10,14 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 
 import "./utils/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
-import {MORPHO, MarketParams, Id, Position, Market} from "./interfaces/Morpho/IMorpho.sol";
+import {MORPHO} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
 import {Initializable} from "./proxy/Initializable.sol";
 import {ADDRESS_REGISTRY} from "./utils/Constants.sol";
+import {ILendingRouter} from "./routers/ILendingRouter.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -40,9 +41,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     uint8 internal immutable _yieldTokenDecimals;
     uint8 internal immutable _assetDecimals;
-    // Used for Morpho market params
-    address internal immutable _irm;
-    uint256 internal immutable _lltv;
 
     /********* Storage Variables *********/
     string private s_name;
@@ -51,14 +49,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint32 private s_lastFeeAccrualTime;
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
-
-    mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
-    mapping(address user => uint256 lastEntryTime) private s_lastEntryTime;
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
     // Used to authorize transfers off of the lending market
     address internal transient t_CurrentAccount;
+    address internal transient t_CurrentLendingRouter;
     address internal transient t_AllowTransfer_To;
     uint256 internal transient t_AllowTransfer_Amount;
     /****** End Transient Variables ******/
@@ -69,8 +65,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address _asset,
         address _yieldToken,
         uint256 _feeRate,
-        address __irm,
-        uint256 __lltv,
+        // TODO: remove these
+        address /* __irm */,
+        uint256 /* __lltv */,
         uint8 __yieldTokenDecimals
     ) ERC20("", "") {
         feeRate = _feeRate;
@@ -80,12 +77,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // do have to pass in the decimals as a parameter.
         _yieldTokenDecimals = __yieldTokenDecimals;
         _assetDecimals = TokenUtils.getDecimals(_asset);
-
-        // If multiple markets exist for the same strategy with different LTVs then we can
-        // deploy multiple contracts for each market so that they are 1-1. This simplifies
-        // what users need to pass in to the enterPosition function.
-        _irm = __irm;
-        _lltv = __lltv;
     }
 
     function name() public view override(ERC20, IERC20Metadata) returns (string memory) {
@@ -96,12 +87,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         return s_symbol;
     }
 
-    function morphoId() public view returns (Id) {
-        return Id.wrap(keccak256(abi.encode(marketParams())));
-    }
-
     /*** Valuation and Conversion Functions ***/
     function balanceOfShares(address account) public view returns (uint256 collateralBalance) {
+        // TODO: how do we know that this is correct? and does it matter?
         return balanceOf(account) + _accountCollateralBalance(account);
     }
 
@@ -135,16 +123,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address _currentAccount = t_CurrentAccount;
         t_CurrentAccount = borrower;
 
-        Position memory position = MORPHO.position(morphoId(), borrower);
-        Market memory market = MORPHO.market(morphoId());
-
-        if (position.borrowShares > 0) {
-            borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
-        } else {
-            borrowed = 0;
-        }
-        collateralValue = (uint256(position.collateral) * price()) / 1e36;
-        maxBorrow = collateralValue * _lltv / 1e18;
+        (borrowed, collateralValue, maxBorrow) = ILendingRouter(t_CurrentLendingRouter).healthFactor(
+            borrower, address(this)
+        );
 
         t_CurrentAccount = _currentAccount;
     }
@@ -169,205 +150,90 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         delete s_accruedFeesInYieldToken;
     }
 
-    /*** Authorization Methods ***/
-    modifier isAuthorized(address onBehalf) {
-        // In this case msg.sender is the operator
-        if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
-            revert NotAuthorized(msg.sender, onBehalf);
-        }
+    /*** Core Functions ***/
+    modifier onlyLendingRouter() {
+        if (ADDRESS_REGISTRY.isLendingRouter(msg.sender) == false) revert Unauthorized(msg.sender);
+        t_CurrentLendingRouter = msg.sender;
+        _;
+        delete t_CurrentLendingRouter;
+    }
 
+    modifier setCurrentAccount(address onBehalf) {
         t_CurrentAccount = onBehalf;
         _;
         delete t_CurrentAccount;
     }
 
-    function setApproval(address operator, bool approved) external override {
-        if (operator == msg.sender) revert NotAuthorized(msg.sender, operator);
-        s_isApproved[msg.sender][operator] = approved;
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function isApproved(address user, address operator) public view override returns (bool) {
-        return s_isApproved[user][operator];
-    }
-
-
-    /*** Core Functions ***/
-
-    /// @dev returns the Morpho market params for the matching lending market
-    function marketParams() public view returns (MarketParams memory) {
-        return MarketParams({
-            loanToken: address(asset),
-            collateralToken: address(this),
-            // This contract will serve as its own oracle
-            oracle: address(this),
-            irm: _irm,
-            lltv: _lltv
-        });
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function enterPosition(
-        address onBehalf,
-        uint256 depositAssetAmount,
-        uint256 borrowAmount,
-        bytes calldata depositData
-    ) external override isAuthorized(onBehalf) nonReentrant {
-        // First collect the margin deposit
-        if (depositAssetAmount > 0) {
-            ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
-        }
-
-        if (borrowAmount > 0) {
-            // At this point we will flash borrow funds from the lending market and then
-            // receive control in a different function on a callback.
-            bytes memory flashLoanData = abi.encode(depositAssetAmount, depositData, onBehalf);
-            // XXX: below here is Morpho market specific code.
-            MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
-        } else {
-            _mintSharesAndSupplyCollateral(depositAssetAmount, depositData, onBehalf);
-        }
-
-        s_lastEntryTime[onBehalf] = block.timestamp;
-
-        _checkInvariants();
-    }
-
-    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
-        require(msg.sender == address(MORPHO));
-
-        (uint256 depositAssetAmount, bytes memory depositData, address receiver) = abi.decode(
-            data, (uint256, bytes, address)
-        );
-
-        _mintSharesAndSupplyCollateral(assets + depositAssetAmount, depositData, receiver);
-
-        // Borrow the assets in order to repay the flash loan
-        // XXX: this is a Morpho market specific function
-        MORPHO.borrow(marketParams(), assets, 0, receiver, address(this));
-
-        // Allow for flash loan to be repaid
-        ERC20(asset).forceApprove(address(MORPHO), assets);
-    }
-
-    function _mintSharesAndSupplyCollateral(uint256 assets, bytes memory depositData, address receiver) internal {
-        uint256 sharesMinted = _mintSharesGivenAssets(assets, depositData, receiver);
-
-        // Allow Morpho to transferFrom the receiver the minted shares.
-        _transfer(receiver, address(this), sharesMinted);
-
-        // XXX: this is a Morpho market specific function
-        _approve(address(this), address(MORPHO), sharesMinted);
-        MORPHO.supplyCollateral(marketParams(), sharesMinted, receiver, "");
-    }
-
-    /// @inheritdoc IYieldStrategy
-    function exitPosition(
-        address onBehalf,
+    function mintShares(
+        uint256 assetAmount,
         address receiver,
-        uint256 sharesToRedeem,
-        uint256 assetToRepay,
+        bytes calldata depositData
+    ) external override onlyLendingRouter setCurrentAccount(receiver) nonReentrant returns (uint256 sharesMinted) {
+        sharesMinted = _mintSharesGivenAssets(assetAmount, depositData, receiver);
+
+        // Transfer the shares to the lending router so it can supply collateral
+        _transfer(receiver, msg.sender, sharesMinted);
+    }
+
+    function burnShares(
+        address sharesOwner,
+        uint256 sharesToBurn,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf) nonReentrant returns (uint256 profitsWithdrawn) {
-        if (block.timestamp - s_lastEntryTime[onBehalf] < 5 minutes) {
-            revert CannotExitPositionWithinCooldownPeriod();
-        }
+    ) external override onlyLendingRouter setCurrentAccount(sharesOwner) nonReentrant returns (uint256 assetsWithdrawn) {
+        assetsWithdrawn = _burnShares(sharesToBurn, redeemData, sharesOwner);
 
-        // First optimistically redeem the required yield tokens even though we
-        // are not sure if the holder has enough shares to yet since the shares are held
-        // by the lending market. If they don't have enough shares then the withdraw
-        // will fail.
-        uint256 assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, onBehalf);
+        // Send all the assets back to the lending router
+        ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
 
-        if (0 < assetToRepay) {
-            // Allow Morpho to repay the portion of debt
-            ERC20(asset).forceApprove(address(MORPHO), assetToRepay);
-
-            // XXX: Morpho market specific code.
-            if (assetToRepay == type(uint256).max) {
-                // If assetToRepay is uint256.max then get the morpho borrow shares amount to
-                // get a full exit.
-                uint256 sharesToRepay = MORPHO.position(morphoId(), onBehalf).borrowShares;
-                (assetToRepay, ) = MORPHO.repay(marketParams(), 0, sharesToRepay, onBehalf, "");
-            } else {
-                MORPHO.repay(marketParams(), assetToRepay, 0, onBehalf, "");
-            }
-
-            // Clear the approval to prevent re-use in a future call.
-            ERC20(asset).forceApprove(address(MORPHO), 0);
-        }
-
-        // Withdraw the collateral and allow the transfer of shares from the lending market.
-        t_AllowTransfer_To = onBehalf;
-        t_AllowTransfer_Amount = sharesToRedeem;
-        // XXX: Morpho market specific code.
-        MORPHO.withdrawCollateral(marketParams(), sharesToRedeem, onBehalf, onBehalf);
         // Clear the transient variables to prevent re-use in a future call.
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
-
-        // Do this after withdraw collateral since onBehalf will now have the shares
-        _burn(onBehalf, sharesToRedeem);
-
-        // Transfer any profits to the receiver
-        if (assetsWithdrawn < assetToRepay) {
-            // We have to revert in this case because we've already redeemed the yield tokens
-            revert InsufficientAssetsForRepayment(assetToRepay, assetsWithdrawn);
-        }
-
-        unchecked {
-            profitsWithdrawn = assetsWithdrawn - assetToRepay;
-        }
-        ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
-
-        _checkInvariants();
     }
 
-    /// @inheritdoc IYieldStrategy
-    function liquidate(
+    function allowTransfer(address to, uint256 amount) external onlyLendingRouter {
+        // Sets the transient variables to allow the lending market to transfer shares on exit position
+        // or liquidation.
+        t_AllowTransfer_To = to;
+        t_AllowTransfer_Amount = amount;
+    }
+
+    function preLiquidation(
+        address liquidator,
         address liquidateAccount,
-        uint256 seizedAssets,
-        uint256 repaidShares,
-        bytes calldata redeemData
-    ) external override nonReentrant returns (uint256 sharesToLiquidator) {
+        uint256 seizedAssets
+    ) external onlyLendingRouter {
         t_CurrentAccount = liquidateAccount;
-        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, msg.sender);
+        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator);
         if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
 
-        t_AllowTransfer_To = address(this);
+        // If the liquidator has a position then they cannot liquidate or they will have a native balance
+        // and a balance on the lending market.
+        require(_accountCollateralBalance(liquidator) == 0);
+
+        // Allow transfers to the lending router which will proxy the call to liquidate.
+        t_AllowTransfer_To = msg.sender;
         t_AllowTransfer_Amount = maxLiquidateShares;
-        /// XXX: Morpho market specific code.
-        (sharesToLiquidator, /* */) = MORPHO.liquidate(
-            marketParams(), liquidateAccount, seizedAssets, repaidShares, abi.encode(msg.sender)
-        );
+    }
+
+    function postLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 sharesToLiquidator
+    ) external onlyLendingRouter {
+        // Clear the transient variables to prevent re-use in a future call.
         delete t_AllowTransfer_To;
         delete t_AllowTransfer_Amount;
         delete t_CurrentAccount;
 
-        // Transfer the shares to the liquidator
-        _transfer(address(this), msg.sender, sharesToLiquidator);
-        // Clear the approval to prevent re-use in a future call.
-        ERC20(asset).forceApprove(address(MORPHO), 0);
+        // Transfer the shares to the liquidator from the lending router
+        _transfer(msg.sender, liquidator, sharesToLiquidator);
 
-        _postLiquidation(msg.sender, liquidateAccount, sharesToLiquidator);
-        // If the liquidator specifies redeem data then we will redeem the shares and send the assets to the liquidator.
-        if (redeemData.length > 0) redeem(sharesToLiquidator, redeemData);
-
-        _checkInvariants();
-    }
-
-    function onMorphoLiquidate(uint256 repaidAssets, bytes calldata data) external {
-        require(msg.sender == address(MORPHO));
-        (address liquidator) = abi.decode(data, (address));
-
-        ERC20(asset).safeTransferFrom(liquidator, address(this), repaidAssets);
-        ERC20(asset).forceApprove(address(MORPHO), repaidAssets);
+        _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
     }
 
     /// @inheritdoc IYieldStrategy
-    function redeem(uint256 sharesToRedeem, bytes memory redeemData) public nonReentrant returns (uint256 assetsWithdrawn) {
+    function redeem(uint256 sharesToRedeem, bytes memory redeemData) external override nonReentrant returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
-        _burn(msg.sender, sharesToRedeem);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
 
@@ -426,11 +292,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         super._update(from, to, value);
     }
 
+    /// TODO: should we remove this?
     function _checkInvariants() internal view { }
 
     /*** Internal Helper Functions ***/
     function _accountCollateralBalance(address account) internal view returns (uint256 collateralBalance) {
-        collateralBalance = MORPHO.position(morphoId(), account).collateral;
+        collateralBalance = ILendingRouter(t_CurrentLendingRouter).accountCollateralBalance(account, address(this));
     }
 
     /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
@@ -480,10 +347,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         s_name = _name;
         s_symbol = _symbol;
 
-        // This is called inside initialize() because we need to use address(this) inside
-        // marketParams()
-        MORPHO.createMarket(marketParams());
-
         s_lastFeeAccrualTime = uint32(block.timestamp);
         emit VaultCreated(address(this));
     }
@@ -515,6 +378,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
+
+        // This burns the shares from the sharesOwner's balance
+        _burn(sharesOwner, sharesToBurn);
     }
 
     /// @dev Some yield tokens (such as Convex staked tokens) cannot be transferred, so we may need
@@ -530,11 +396,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Called after liquidation to update the yield token balance.
-    function _postLiquidation(address liquidator, address /* liquidateAccount */, uint256 /* sharesToLiquidator */) internal virtual {
-        // If the liquidator has a position then they cannot liquidate or they will have a native balance and a balance on
-        // the lending market.
-        require(_accountCollateralBalance(liquidator) == 0);
-    }
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual { }
 
     /// @dev Mints yield tokens given a number of assets.
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;

@@ -13,10 +13,9 @@ contract AddressRegistry {
 
     address public feeReceiver;
 
-    // Token -> Withdraw Request Manager
-    mapping(address => address) public withdrawRequestManagers;
-    // Vault -> Token -> Withdraw Request Manager
-    mapping(address => mapping(address => address)) public withdrawRequestManagerOverrides;
+    mapping(address token => address withdrawRequestManager) public withdrawRequestManagers;
+    mapping(address vault => mapping(address token => address withdrawRequestManager)) public withdrawRequestManagerOverrides;
+    mapping(address lendingRouter => bool isLendingRouter) public lendingRouters;
 
     event PendingUpgradeAdminSet(address indexed newPendingUpgradeAdmin);
     event UpgradeAdminTransferred(address indexed newUpgradeAdmin);
@@ -85,4 +84,7 @@ contract AddressRegistry {
         return IWithdrawRequestManager(withdrawRequestManagers[yieldToken]);
     }
 
+    function isLendingRouter(address lendingRouter) external view returns (bool) {
+        return lendingRouters[lendingRouter];
+    }
 }

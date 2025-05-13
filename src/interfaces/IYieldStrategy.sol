@@ -32,7 +32,7 @@ enum Operation {
  *
  * This contract also serves as its own oracle.
  */
-interface IYieldStrategy is IERC20, IERC20Metadata, IOracle, IMorphoLiquidateCallback, IMorphoFlashLoanCallback {
+interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     event VaultCreated(address indexed vault);
 
     /**
@@ -132,64 +132,48 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle, IMorphoLiquidateCal
     function collectFees() external;
 
     /**
-     * @dev Returns the market parameters for the lending market.
+     * @notice Mints shares for a given number of assets.
+     *
+     * @param assets The amount of assets to mint shares for.
+     * @param receiver The address to mint the shares to.
+     * @param depositData calldata used to deposit the assets.
      */
-    function marketParams() external view returns (MarketParams memory marketParams);
+    function mintShares(uint256 assets, address receiver, bytes memory depositData) external returns (uint256 sharesMinted);
 
-    /**
-     * @dev Enters a position by depositing assets and borrowing funds and using
-     * the total amount to enter into the yield token. This is the only way to mint
-     * shares.
+    /** 
+     * @notice Burns shares for a given number of shares.
      *
-     * @param onBehalf The address to enter the position on behalf of. Requires authorization if
-     * msg.sender != onBehalf.
-     * @param depositAssetAmount The amount of assets to deposit as margin.
-     * @param borrowAmount The amount of assets to borrow from the lending market.
-     * @param depositData calldata used to enter into the yield token.
-     */
-    function enterPosition(
-        address onBehalf,
-        uint256 depositAssetAmount,
-        uint256 borrowAmount,
-        bytes calldata depositData
-    ) external;
-
-    /**
-     * @dev Exits a position by withdrawing shares and repaying borrowed funds. This is the only
-     * way to burn shares.
-     *
-     * @param onBehalf The address to exit the position on behalf of. Requires authorization if
-     * msg.sender != onBehalf.
-     * @param receiver The address to receive any profits from the exit.
-     * @param sharesToRedeem The amount of shares to withdraw from the lending market and redeem.
-     * @param assetToRepay The amount of asset to repay to the lending market.
-     * @param redeemData calldata used to redeem the yield token.
-     *
-     * @return assetsWithdrawn The amount of assets withdrawn from the lending market.
-     */
-    function exitPosition(
-        address onBehalf,
-        address receiver,
-        uint256 sharesToRedeem,
-        uint256 assetToRepay,
-        bytes calldata redeemData
-    ) external returns (uint256 assetsWithdrawn);
-
-    /**
-     * @dev Liquidates a position by repaying borrowed funds and withdrawing assets. Used to
-     * ensure that the position can be liquidated in the case of withdraw requests.
-     *
-     * @param liquidateAccount The address to liquidate.
-     * @param sharesToLiquidate The amount of shares to liquidate.
-     * @param assetToRepay The amount of asset to repay to the lending market.
+     * @param sharesToBurn The amount of shares to burn.
      * @param redeemData calldata used to redeem the yield token.
      */
-    function liquidate(
-        address liquidateAccount,
-        uint256 sharesToLiquidate,
-        uint256 assetToRepay,
-        bytes calldata redeemData
-    ) external returns (uint256 sharesToLiquidator);
+    function burnShares(address sharesOwner, uint256 sharesToBurn, bytes memory redeemData) external returns (uint256 assetsWithdrawn);
+
+    /**
+     * @notice Allows the lending market to transfer shares on exit position
+     * or liquidation.
+     *
+     * @param to The address to allow the transfer to.
+     * @param amount The amount of shares to allow the transfer of.
+     */
+    function allowTransfer(address to, uint256 amount) external;
+
+    /**
+     * @notice Pre-liquidation function.
+     *
+     * @param liquidator The address of the liquidator.
+     * @param liquidateAccount The address of the account to liquidate.
+     * @param seizedAssets The amount of assets to seize.
+     */
+    function preLiquidation(address liquidator, address liquidateAccount, uint256 seizedAssets) external;
+
+    /**
+     * @notice Post-liquidation function.
+     *
+     * @param liquidator The address of the liquidator.
+     * @param liquidateAccount The address of the account to liquidate.
+     * @param sharesToLiquidator The amount of shares to liquidate.
+     */
+    function postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) external;
 
     /**
      * @notice Redeems shares for assets. Allows liquidators to redeem shares for assets outside
@@ -199,22 +183,4 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle, IMorphoLiquidateCal
      * @param redeemData calldata used to redeem the yield token.
      */
     function redeem(uint256 sharesToRedeem, bytes memory redeemData) external returns (uint256 assetsWithdrawn);
-
-    /**
-     * @dev Authorizes an address to manage a user's position.
-     *
-     * @param operator The address to authorize.
-     * @param approved The authorization status.
-     */
-    function setApproval(address operator, bool approved) external;
-
-    /**
-     * @dev Returns the authorization status of an address.
-     *
-     * @param user The address to check the authorization status of.
-     * @param operator The address to check the authorization status of.
-     *
-     * @return The authorization status.
-     */
-    function isApproved(address user, address operator) external view returns (bool);
 }
