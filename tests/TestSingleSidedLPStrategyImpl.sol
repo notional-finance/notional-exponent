@@ -159,7 +159,7 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
 
 contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
 
-    function getDepositData(address user, uint256 depositAmount) internal view override returns (bytes memory) {
+    function getDepositData(address /* user */, uint256 depositAmount) internal pure override returns (bytes memory) {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         uint256 sDAIAmount = depositAmount / 2;
         uint256 sUSDeAmount = depositAmount - sDAIAmount;
@@ -207,9 +207,10 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         }));
     }
 
-    function getRedeemData(address user, uint256 redeemAmount) internal override returns (bytes memory) {
+    function getRedeemData(address /* user */, uint256 /* redeemAmount */) internal override returns (bytes memory) {
         // TODO: There is no way to trade out of this position, therefore we cannot flash liquidate
         vm.skip(true);
+        return bytes("");
     }
 
     function setMarketVariables() internal override {

@@ -57,14 +57,14 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     function getWithdrawRequestData(
         address /* user */,
         uint256 /* shares */
-    ) internal view virtual returns (bytes memory withdrawRequestData) {
+    ) internal view override virtual returns (bytes memory withdrawRequestData) {
         WithdrawParams memory w;
         w.minAmounts = new uint256[](2);
         w.withdrawData = new bytes[](2);
         return abi.encode(w);
     }
 
-    function finalizeWithdrawRequest(address user) internal {
+    function finalizeWithdrawRequest(address user) internal override {
         for (uint256 i; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
             (WithdrawRequest memory w, /* */) = managers[i].getWithdrawRequest(address(y), user);
@@ -120,8 +120,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             address(asset),
             address(w),
             0.0010e18, // 0.1%
-            IRM,
-            0.915e18,
             address(rmImpl),
             DeploymentParams({
                 pool: address(lpToken),
@@ -230,7 +228,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             abi.encodeWithSelector(IWithdrawRequestManager.stakeTokens.selector),
             1
         );
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
         postEntryAssertions();
         vm.stopPrank();
 
@@ -252,7 +250,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         emit ITradingModule.TradeExecuted(
             address(asset), address(0), (defaultDeposit + defaultBorrow) / 2, 0
         );
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
         postEntryAssertions();
         vm.stopPrank();
 
@@ -263,14 +261,15 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.skip(address(managers[stakeTokenIndex]) == address(0));
 
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender)));
+        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
 
         asset.approve(address(y), defaultDeposit);
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
         vm.stopPrank();
     }
 
@@ -281,27 +280,31 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         } else {
             _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
         }
-        uint256 initialBalance = y.balanceOfShares(msg.sender);
+        uint256 initialBalance = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.warp(block.timestamp + 6 minutes);
 
         redeemParams.minAmounts = new uint256[](2);
         redeemParams.redemptionTrades = tradeBeforeRedeemParams;
 
-        uint256 netWorthBefore = y.convertToAssets(y.balanceOfShares(msg.sender)) - defaultBorrow;
+        uint256 netWorthBefore = y.convertToAssets(initialBalance) - defaultBorrow;
         vm.startPrank(msg.sender);
-        uint256 sharesToExit = isFullExit ? y.balanceOfShares(msg.sender) : y.balanceOfShares(msg.sender) / 10;
+        uint256 sharesToExit = isFullExit ? initialBalance : initialBalance / 10;
         uint256 assetsToRepay = isFullExit ? type(uint256).max : defaultBorrow / 10;
 
         // Ensures that the trading was done
+        uint256 assetsBefore = asset.balanceOf(msg.sender);
         vm.expectEmit(false, true, false, false, address(y));
         emit ITradingModule.TradeExecuted(
             address(0), address(asset), 0, 0
         );
-        uint256 profitsWithdrawn = y.exitPosition(
-            msg.sender, msg.sender, sharesToExit, assetsToRepay, getRedeemData(msg.sender, sharesToExit)
+        lendingRouter.exitPosition(
+            msg.sender, address(y), msg.sender, sharesToExit, assetsToRepay, getRedeemData(msg.sender, sharesToExit)
         );
-        uint256 netWorthAfter = isFullExit ? 0 : y.convertToAssets(y.balanceOfShares(msg.sender)) - (defaultBorrow - assetsToRepay);
+        uint256 assetsAfter = asset.balanceOf(msg.sender);
+        uint256 profitsWithdrawn = assetsAfter - assetsBefore;
+        uint256 collateralAfter = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 netWorthAfter = isFullExit ? 0 : y.convertToAssets(collateralAfter) - (defaultBorrow - assetsToRepay);
         vm.stopPrank();
 
         postExitAssertions(initialBalance, netWorthBefore, sharesToExit, profitsWithdrawn, netWorthAfter);
@@ -317,11 +320,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         withdrawParams.withdrawData = new bytes[](2);
 
         vm.startPrank(msg.sender);
-        uint256[] memory requestIds = AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(abi.encode(withdrawParams));
-        assertEq(requestIds.length, 2);
+        // uint256[] memory requestIds = lendingRouter.initiateWithdraw(msg.sender, address(y), abi.encode(withdrawParams));
+        uint256 requestId = lendingRouter.initiateWithdraw(address(y), abi.encode(withdrawParams));
+        // assertEq(requestIds.length, 2);
 
         vm.warp(block.timestamp + 6 minutes);
-        uint256 shares = y.balanceOfShares(msg.sender);
+        uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         redeemParams.minAmounts = new uint256[](2);
         redeemParams.redemptionTrades = tradeBeforeRedeemParams;
@@ -330,8 +334,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         // The call reverts properly inside the library but we don't propagate the revert
         // so we need to expect a revert here
         vm.expectRevert("Withdraw request not finalized");
-        y.exitPosition(
+        lendingRouter.exitPosition(
             msg.sender,
+            address(y),
             msg.sender,
             shares,
             type(uint256).max,
@@ -342,8 +347,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         finalizeWithdrawRequest(msg.sender);
 
         vm.startPrank(msg.sender);
-        y.exitPosition(
+        lendingRouter.exitPosition(
             msg.sender,
+            address(y),
             msg.sender,
             shares,
             type(uint256).max,
@@ -355,17 +361,11 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function test_cannotEnterAboveMaxPoolShare() public {
-        vm.startPrank(owner);
-        MORPHO.withdraw(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, owner);
-        vm.stopPrank();
-
-        y = new CurveConvex2Token(
+        address newImpl = address(new CurveConvex2Token(
             0.001e18, // 0.1% max pool share
             address(asset),
             address(w),
             0.0010e18, // 0.1%
-            IRM,
-            0.915e18,
             address(new ConvexRewardManager()),
             DeploymentParams({
                 pool: address(lpToken),
@@ -374,21 +374,12 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 convexRewardPool: address(rewardPool),
                 curveInterface: curveInterface
             })
-        );
-        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            address(y),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
-        );
-        y = IYieldStrategy(address(proxy));
-
-        for (uint256 i = 0; i < managers.length; i++) {
-            if (address(managers[i]) == address(0)) continue;
-            vm.prank(owner);
-            managers[i].setApprovedVault(address(y), true);
-        }
+        ));
 
         vm.startPrank(owner);
-        MORPHO.supply(y.marketParams(), 1_000_000 * 10 ** asset.decimals(), 0, owner, "");
+        TimelockUpgradeableProxy(payable(address(y))).initiateUpgrade(address(newImpl));
+        vm.warp(block.timestamp + 7 days);
+        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade();
         vm.stopPrank();
 
         vm.startPrank(msg.sender);
@@ -396,7 +387,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         asset.approve(address(y), defaultDeposit);
         bytes memory depositData = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
         vm.expectPartialRevert(AbstractSingleSidedLP.PoolShareTooHigh.selector);
-        y.enterPosition(msg.sender, defaultDeposit, defaultBorrow, depositData);
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
     }
 
@@ -411,21 +402,19 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         // The staker exists to generate fees on the position to test the withdraw valuation
         _enterPosition(staker, defaultDeposit, defaultBorrow);
 
-        (/* */, uint256 collateralValueBefore, /* */) = y.healthFactor(msg.sender);
-        (/* */, uint256 collateralValueBeforeStaker, /* */) = y.healthFactor(staker);
+        (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        (/* */, uint256 collateralValueBeforeStaker, /* */) = lendingRouter.healthFactor(staker, address(y));
         assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
 
         vm.startPrank(msg.sender);
-        AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(
-            getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
-        );
+        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
         vm.stopPrank();
-        (/* */, uint256 collateralValueAfter, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0001e18, "Withdrawal should not change collateral value");
 
         vm.warp(block.timestamp + 10 days);
-        (/* */, uint256 collateralValueAfterWarp, /* */) = y.healthFactor(msg.sender);
-        (/* */, uint256 collateralValueAfterWarpStaker, /* */) = y.healthFactor(staker);
+        (/* */, uint256 collateralValueAfterWarp, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        (/* */, uint256 collateralValueAfterWarpStaker, /* */) = lendingRouter.healthFactor(staker, address(y));
 
         // Collateral value for the withdrawer should not change over time
         assertEq(collateralValueAfter, collateralValueAfterWarp, "Withdrawal should not change collateral value over time");
@@ -439,7 +428,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             if (address(managers[i]) == address(0)) continue;
             managers[i].finalizeRequestManual(address(y), msg.sender);
         }
-        (/* */, uint256 collateralValueAfterFinalize, /* */) = y.healthFactor(msg.sender);
+        (/* */, uint256 collateralValueAfterFinalize, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
 
         assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
         assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
@@ -450,9 +439,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        AbstractSingleSidedLP(payable(address(y))).initiateWithdraw(
-            getWithdrawRequestData(msg.sender, y.balanceOfShares(msg.sender))
-        );
+        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
         vm.stopPrank();
 
         // Drop the price of the two listed tokens since the LP token valuation is
@@ -474,14 +461,14 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         }
 
         vm.startPrank(owner);
-        uint256 balanceBefore = y.balanceOfShares(msg.sender);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         asset.approve(address(y), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
-        uint256 sharesToLiquidator = y.liquidate(msg.sender, balanceBefore, 0, bytes(""));
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
         uint256 assetAfter = asset.balanceOf(owner);
         uint256 netAsset = assetBefore - assetAfter;
 
-        assertEq(y.balanceOfShares(msg.sender), balanceBefore - sharesToLiquidator);
+        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), balanceBefore - sharesToLiquidator);
         assertEq(y.balanceOf(owner), sharesToLiquidator);
         vm.stopPrank();
 
@@ -503,7 +490,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         }
 
         vm.startPrank(owner);
-        uint256 assets = y.redeem(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
+        uint256 assets = y.redeemNative(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
         assertGt(assets, netAsset);
         vm.stopPrank();
 
