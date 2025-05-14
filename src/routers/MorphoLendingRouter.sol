@@ -148,9 +148,9 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             revert CannotExitPositionWithinCooldownPeriod();
         }
 
+        MarketParams memory m = marketParams(vault);
         if (0 < assetToRepay) {
             uint256 sharesToRepay;
-            MarketParams memory m = marketParams(vault);
             if (assetToRepay == type(uint256).max) {
                 // If assetToRepay is uint256.max then get the morpho borrow shares amount to
                 // get a full exit.
@@ -162,7 +162,28 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
 
             // Will trigger a callback to onMorphoRepay
             MORPHO.repay(m, assetToRepay, sharesToRepay, onBehalf, repayData);
+        } else {
+            uint256 assetsWithdrawn = _redeemShares(m, onBehalf, sharesToRedeem, redeemData);
+            ERC20(m.loanToken).safeTransfer(receiver, assetsWithdrawn);
         }
+    }
+
+    function _redeemShares(
+        MarketParams memory m,
+        address sharesOwner,
+        uint256 sharesToRedeem,
+        bytes memory redeemData
+    ) internal returns (uint256 assetsWithdrawn) {
+        uint256 balanceBefore = balanceOfCollateral(sharesOwner, m.collateralToken);
+
+        // Allows the transfer from the lending market to the sharesOwner
+        IYieldStrategy(m.collateralToken).allowTransfer(sharesOwner, sharesToRedeem);
+
+        MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, sharesOwner);
+
+        assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
+            sharesOwner, sharesToRedeem, balanceBefore, redeemData
+        );
     }
 
     function onMorphoRepay(uint256 assetToRepay, bytes calldata data) external override {
@@ -175,19 +196,8 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             uint256 sharesToRedeem,
             bytes memory redeemData
         ) = abi.decode(data, (address, MarketParams, address, uint256, bytes));
-        uint256 balanceBefore = balanceOfCollateral(sharesOwner, m.collateralToken);
 
-        // Allows the transfer from the lending market to the sharesOwner
-        IYieldStrategy(m.collateralToken).allowTransfer(sharesOwner, sharesToRedeem);
-
-        MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, sharesOwner);
-
-        uint256 assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
-            sharesOwner, sharesToRedeem, balanceBefore, redeemData
-        );
-
-        // Allow morpho to repay the debt
-        ERC20(m.loanToken).forceApprove(address(MORPHO), assetToRepay);
+        uint256 assetsWithdrawn = _redeemShares(m, sharesOwner, sharesToRedeem, redeemData);
 
         // Transfer any profits to the receiver
         if (assetsWithdrawn < assetToRepay) {
@@ -200,6 +210,9 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             profitsWithdrawn = assetsWithdrawn - assetToRepay;
         }
         ERC20(m.loanToken).safeTransfer(receiver, profitsWithdrawn);
+
+        // Allow morpho to repay the debt
+        ERC20(m.loanToken).forceApprove(address(MORPHO), assetToRepay);
     }
 
     function liquidate(
