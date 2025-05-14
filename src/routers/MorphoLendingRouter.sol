@@ -254,7 +254,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         collateralBalance = MORPHO.position(morphoId(vault), account).collateral;
     }
 
-    function healthFactor(address borrower, address vault) public view returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {
+    function healthFactor(address borrower, address vault) public returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {
         MarketParams memory m = marketParams(vault);
         Id id = morphoId(vault);
         Position memory position = MORPHO.position(id, borrower);
@@ -265,8 +265,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         } else {
             borrowed = 0;
         }
-        // TODO: the current account must be set when we call this
-        collateralValue = (uint256(position.collateral) * IYieldStrategy(vault).price()) / 1e36;
+        collateralValue = (uint256(position.collateral) * IYieldStrategy(vault).price(borrower)) / 1e36;
         maxBorrow = collateralValue * m.lltv / 1e18;
     }
 

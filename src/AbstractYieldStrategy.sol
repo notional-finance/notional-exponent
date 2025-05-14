@@ -111,6 +111,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
+    function price(address borrower) external override setCurrentAccount(borrower) returns (uint256) {
+        return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
+    }
+
+    /// @inheritdoc IYieldStrategy
     function totalAssets() public view override returns (uint256) {
         return convertToAssets(totalSupply());
     }

@@ -118,6 +118,12 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function collectFees() external;
 
     /**
+     * @dev Returns the price of a yield token in terms of the asset token for the
+     * given borrower taking into account withdrawals.
+     */
+    function price(address borrower) external returns (uint256 price);
+
+    /**
      * @notice Mints shares for a given number of assets.
      *
      * @param assets The amount of assets to mint shares for.
