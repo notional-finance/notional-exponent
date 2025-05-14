@@ -8,77 +8,6 @@ import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractR
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
 
-contract MockERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
-        _mint(msg.sender, 1000000e18);
-    }
-}
-
-contract MockRewardPool is ERC20 {
-    uint256 public rewardAmount;
-    ERC20 public immutable depositToken;
-    ERC20 public immutable rewardToken;
-
-    constructor(address _depositToken) ERC20("MockRewardPool", "MRP") {
-        depositToken = ERC20(_depositToken);
-        rewardToken = new MockERC20("MockRewardToken", "MRT");
-    }
-
-    function setRewardAmount(uint256 amount) external {
-        rewardAmount = amount;
-    }
-
-    function getReward(address holder, bool claim) external returns (bool) {
-        if (rewardAmount == 0) return true;
-        if (claim) rewardToken.transfer(holder, rewardAmount);
-        // Clear the reward amount every time it's claimed
-        rewardAmount = 0;
-        return true;
-    }
-
-    function deposit(uint256 /* poolId */, uint256 amount, bool /* stake */) external {
-        depositToken.transferFrom(msg.sender, address(this), amount);
-        _mint(msg.sender, amount * 1e18 / 1e6);
-    }
-
-    function withdrawAndUnwrap(uint256 amount, bool claim) external {
-        if (claim) rewardToken.transfer(address(this), amount);
-        _burn(msg.sender, amount);
-        depositToken.transfer(msg.sender, amount * 1e6 / 1e18);
-    }
-
-    function pid() external pure returns (uint256) {
-        return 0;
-    }
-
-    function operator() external view returns (address) {
-        return address(this);
-    }
-}
-
-
-contract MockRewardVault is RewardManagerMixin {
-    constructor(
-        address _asset,
-        address _yieldToken,
-        uint256 _feeRate,
-        address _irm,
-        uint256 _lltv,
-        address _rewardManager
-    ) RewardManagerMixin(_asset, _yieldToken, _feeRate, _irm, _lltv, _rewardManager, ERC20(_yieldToken).decimals()) { }
-
-    function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
-        ERC20(asset).approve(address(yieldToken), type(uint256).max);
-        MockRewardPool(yieldToken).deposit(0, assets, true);
-    }
-
-    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
-        uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
-        MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
-        wasEscrowed = false;
-    }
-}
-
 contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
     ERC20 rewardToken;
@@ -92,8 +21,6 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             address(USDC),
             address(w),
             0.0010e18, // 0.1% fee rate
-            IRM,
-            0.915e18, // 91.5% LTV
             address(rmImpl)
         );
     }
@@ -169,7 +96,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
 
-        uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         uint256[] memory rewards = rm.getAccountRewardClaim(msg.sender, block.timestamp);
         assertEq(rewards.length, hasEmissions ? 2 : 1, "Rewards length is incorrect");
@@ -211,7 +138,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
 
         _enterPosition(msg.sender, defaultDeposit, 0);
-        uint256 sharesAfter = y.balanceOfShares(msg.sender);
+        uint256 sharesAfter = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 expectedRewardsAfter = hasRewards ? y.convertSharesToYieldToken(sharesAfter) : 0;
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
         rm.claimAccountRewards(msg.sender);
@@ -238,22 +165,24 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Rewards are 1-1 with yield tokens
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
-        uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         uint256 emissionsForUser = 7e18 * sharesBefore / y.totalSupply();
         vm.startPrank(msg.sender);
         if (isFullExit) {
-            y.exitPosition(
+            lendingRouter.exitPosition(
                 msg.sender,
+                address(y),
                 msg.sender,
-                y.balanceOfShares(msg.sender),
+                sharesBefore,
                 type(uint256).max,
-                getRedeemData(msg.sender, y.balanceOfShares(msg.sender))
+                getRedeemData(msg.sender, sharesBefore)
             );
         } else {
             // Partial exit
-            y.exitPosition(
+            lendingRouter.exitPosition(
                 msg.sender,
+                address(y),
                 msg.sender,
                 sharesBefore / 10,
                 defaultBorrow / 10,
@@ -278,7 +207,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
 
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
-        uint256 sharesAfter = y.balanceOfShares(msg.sender);
+        uint256 sharesAfter = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 expectedRewardsAfter = hasRewards ? y.convertSharesToYieldToken(sharesAfter) : 0;
 
         rm.claimRewardTokens();
@@ -307,7 +236,8 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Since there were two claims before, the owner should receive 2x the rewards
         // as the balance of shares.
         rm.claimAccountRewards(owner);
-        uint256 expectedRewardsForOwner = hasRewards ? y.convertSharesToYieldToken(y.balanceOfShares(owner)) * 2 : 0;
+        uint256 sharesAfterOwner = lendingRouter.balanceOfCollateral(owner, address(y));
+        uint256 expectedRewardsForOwner = hasRewards ? y.convertSharesToYieldToken(sharesAfterOwner) * 2 : 0;
         if (hasRewards) {
             assertApproxEqRel(rewardToken.balanceOf(owner), expectedRewardsForOwner, 0.0001e18, "Rewards are claimed");
         } else {
@@ -341,12 +271,12 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
         vm.startPrank(liquidator);
-        uint256 sharesBefore = y.balanceOfShares(msg.sender);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 emissionsForUser = 1e18 * sharesBefore / y.totalSupply();
         uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         asset.approve(address(y), type(uint256).max);
         // This should trigger a claim on rewards
-        uint256 sharesToLiquidator = y.liquidate(msg.sender, sharesBefore, 0, bytes(""));
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), sharesBefore, 0);
         vm.stopPrank();
 
         if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account shares");
@@ -368,9 +298,16 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.0010e18, "Liquidator account emissions");
 
         rm.claimAccountRewards(msg.sender);
-        uint256 emissionsForUserAfter = 1e18 * y.balanceOfShares(msg.sender) / y.totalSupply();
+        uint256 sharesAfterUser = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 emissionsForUserAfter = 1e18 * sharesAfterUser / y.totalSupply();
 
         if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewards - expectedRewardsForLiquidator, 0.0001e18, "Liquidated account rewards");
         if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser + emissionsForUserAfter, 0.0010e18, "Liquidated account emissions");
+    }
+
+    function test_withdrawRequest_withRewards() public {
+        // TODO: does a withdraw request work with rewards? will the user still receive rewards while
+        // they are in the withdraw queue?
+        vm.skip(true);
     }
 }

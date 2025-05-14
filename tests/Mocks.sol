@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AbstractCustomOracle} from "../src/oracles/AbstractCustomOracle.sol";
 import {AbstractYieldStrategy} from "../src/AbstractYieldStrategy.sol";
+import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
 
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
@@ -56,6 +57,79 @@ contract MockYieldStrategy is AbstractYieldStrategy {
     function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, uint256 /* sharesHeld */, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
         uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
         MockWrapperERC20(yieldToken).withdraw(yieldTokensBurned);
+        wasEscrowed = false;
+    }
+
+    function _initiateWithdraw(address /* account */, uint256 /* yieldTokenAmount */, uint256 /* sharesHeld */, bytes memory /* data */) internal pure override returns (uint256 requestId) {
+        requestId = 0;
+    }
+}
+
+contract MockERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
+        _mint(msg.sender, 1000000e18);
+    }
+}
+
+contract MockRewardPool is ERC20 {
+    uint256 public rewardAmount;
+    ERC20 public immutable depositToken;
+    ERC20 public immutable rewardToken;
+
+    constructor(address _depositToken) ERC20("MockRewardPool", "MRP") {
+        depositToken = ERC20(_depositToken);
+        rewardToken = new MockERC20("MockRewardToken", "MRT");
+    }
+
+    function setRewardAmount(uint256 amount) external {
+        rewardAmount = amount;
+    }
+
+    function getReward(address holder, bool claim) external returns (bool) {
+        if (rewardAmount == 0) return true;
+        if (claim) rewardToken.transfer(holder, rewardAmount);
+        // Clear the reward amount every time it's claimed
+        rewardAmount = 0;
+        return true;
+    }
+
+    function deposit(uint256 /* poolId */, uint256 amount, bool /* stake */) external {
+        depositToken.transferFrom(msg.sender, address(this), amount);
+        _mint(msg.sender, amount * 1e18 / 1e6);
+    }
+
+    function withdrawAndUnwrap(uint256 amount, bool claim) external {
+        if (claim) rewardToken.transfer(address(this), amount);
+        _burn(msg.sender, amount);
+        depositToken.transfer(msg.sender, amount * 1e6 / 1e18);
+    }
+
+    function pid() external pure returns (uint256) {
+        return 0;
+    }
+
+    function operator() external view returns (address) {
+        return address(this);
+    }
+}
+
+
+contract MockRewardVault is RewardManagerMixin {
+    constructor(
+        address _asset,
+        address _yieldToken,
+        uint256 _feeRate,
+        address _rewardManager
+    ) RewardManagerMixin(_asset, _yieldToken, _feeRate, _rewardManager, ERC20(_yieldToken).decimals()) { }
+
+    function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
+        ERC20(asset).approve(address(yieldToken), type(uint256).max);
+        MockRewardPool(yieldToken).deposit(0, assets, true);
+    }
+
+    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, uint256 /* sharesHeld */, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
+        uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+        MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
         wasEscrowed = false;
     }
 
