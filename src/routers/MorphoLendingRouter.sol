@@ -72,6 +72,14 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
     function morphoId(address vault) public view returns (Id) {
         return Id.wrap(keccak256(abi.encode(marketParams(vault))));
     }
+    // To Roll into a different lending router we would:
+    // 1. New Lending Router: receive collateral from old lending router:
+    //      - flash borrow from new lending platform
+    //      - call exit position on behalf of user to old lending router
+    //      - do not redeem shares but just transfer them back to the user
+    //      - transferFrom the user to the new lending router
+    //      - supply collateral on the new lending platform
+    //      - borrow assets from the new lending platform to repay the current flash loan
 
     function enterPosition(
         address onBehalf,
@@ -126,6 +134,10 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         bytes memory depositData,
         address receiver
     ) internal {
+        // TODO: if we skip the next two lines then we will not mint shares and we would just
+        // transfer the collateral from the receiver and supply it.
+        // TODO: we could get the shares by calling exit position on a previous lending router and
+        // then doing a transferFrom the user back to here.
         ERC20(m.loanToken).approve(m.collateralToken, assetAmount);
         uint256 sharesMinted = IYieldStrategy(m.collateralToken).mintShares(
             assetAmount, receiver, depositData
@@ -181,6 +193,9 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
 
         MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, sharesOwner);
 
+        // TODO: if we skip this then the sharesOwner will have the balance of collateral
+        // in their native balance and then they can call redeem or another lending router
+        // can transferFrom the sharesOwner to deposit into the lending market.
         assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
             sharesOwner, sharesToRedeem, balanceBefore, redeemData
         );
