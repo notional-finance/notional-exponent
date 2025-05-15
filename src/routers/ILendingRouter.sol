@@ -52,5 +52,7 @@ interface ILendingRouter {
     function initiateWithdraw(address vault, bytes calldata data) external returns (uint256 requestId);
 
     function forceWithdraw(address vault, address account, bytes calldata data) external returns (uint256 requestId);
+
+    function claimRewards(address vault) external returns (uint256[] memory rewards);
 }
 

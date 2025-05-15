@@ -3,6 +3,7 @@ pragma solidity >=0.8.29;
 
 import "../utils/Errors.sol";
 
+import {IRewardManager} from "../rewards/IRewardManager.sol";
 import {ILendingRouter} from "./ILendingRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -142,6 +143,9 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         uint256 sharesMinted = IYieldStrategy(m.collateralToken).mintShares(
             assetAmount, receiver, depositData
         );
+
+        // Allows the transfer from the lending market to the sharesOwner
+        IYieldStrategy(m.collateralToken).allowTransfer(address(MORPHO), sharesMinted);
 
         // We should receive shares in return
         ERC20(m.collateralToken).approve(address(MORPHO), sharesMinted);
@@ -303,6 +307,10 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         requestId = _initiateWithdraw(vault, account, data);
 
         // TODO: emit event
+    }
+
+    function claimRewards(address vault) external returns (uint256[] memory rewards) {
+        return IRewardManager(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
     }
 
     function _initiateWithdraw(

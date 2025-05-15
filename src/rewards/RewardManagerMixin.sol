@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import {IRewardManager} from "./IRewardManager.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {LibStorage} from "../utils/LibStorage.sol";
+import {ILendingRouter} from "../routers/ILendingRouter.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
@@ -59,9 +60,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
     function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal override returns (uint256 sharesMinted) {
         uint256 totalSupplyBefore = totalSupply();
-        // TODO: fix this
-        // uint256 initialVaultShares = balanceOfShares(receiver);
-        uint256 initialVaultShares = 0;
+        uint256 initialVaultShares = ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(receiver, address(this));
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
         _updateAccountRewards({
             account: receiver,

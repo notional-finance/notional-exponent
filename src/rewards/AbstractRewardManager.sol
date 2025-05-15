@@ -67,29 +67,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     }
 
     /// @inheritdoc IRewardManager
-    function getAccountRewardClaim(
-        address account,
-        uint256 blockTime
-    ) external view override returns (uint256[] memory rewards) {
-        VaultRewardState[] memory rewardStates = LibStorage.getVaultRewardStateSlot();
-        rewards = new uint256[](rewardStates.length);
-
-        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        // TODO: fix this
-        // uint256 vaultSharesBefore = IYieldStrategy(address(this)).balanceOfShares(account);
-        uint256 vaultSharesBefore = 0;
-
-        for (uint256 i; i < rewards.length; i++) {
-            uint256 rewardsPerVaultShare = _getAccumulatedRewardViaEmissionRate(
-                rewardStates[i], totalVaultSharesBefore, blockTime
-            );
-            rewards[i] = _getRewardsToClaim(
-                rewardStates[i].rewardToken, account, vaultSharesBefore, rewardsPerVaultShare
-            );
-        }
-    }
-
-    /// @inheritdoc IRewardManager
     function updateRewardToken(
         uint256 index,
         address rewardToken,
@@ -154,12 +131,19 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
     }
 
-    function claimAccountRewards(address account) external nonReentrant {
+    function claimAccountRewards(
+        address account,
+        uint256 sharesHeld
+    ) external nonReentrant returns (uint256[] memory rewards) {
         uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
-        // TODO: fix this
-        // uint256 accountShares = IYieldStrategy(address(this)).balanceOfShares(account);
-        uint256 accountShares = 0;
-        _claimAccountRewards(account, totalVaultSharesBefore, accountShares, accountShares);
+        if (!ADDRESS_REGISTRY.isLendingRouter(msg.sender)) {
+            // If the caller is not a lending router we get the shares held in a
+            // native token account.
+            sharesHeld = IERC20(address(this)).balanceOf(account);
+        }
+        if (sharesHeld == 0) return rewards;
+
+        rewards = _claimAccountRewards(account, totalVaultSharesBefore, sharesHeld, sharesHeld);
     }
 
     /// @notice Called by the vault inside a delegatecall to update the account reward claims.
@@ -184,9 +168,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         uint256 totalVaultSharesBefore,
         uint256 vaultSharesBefore,
         uint256 vaultSharesAfter
-    ) internal {
+    ) internal returns (uint256[] memory rewards) {
         VaultRewardState[] memory state = LibStorage.getVaultRewardStateSlot();
         _claimVaultRewards(totalVaultSharesBefore, state);
+        rewards = new uint256[](state.length);
 
         for (uint256 i; i < state.length; i++) {
             if (0 < state[i].emissionRatePerYear) {
@@ -194,7 +179,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
                 _accumulateSecondaryRewardViaEmissionRate(i, state[i], totalVaultSharesBefore);
             }
 
-            _claimRewardToken(
+            rewards[i] = _claimRewardToken(
                 state[i].rewardToken,
                 account,
                 vaultSharesBefore,

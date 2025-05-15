@@ -165,6 +165,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         ERC20(asset).safeTransferFrom(t_CurrentLendingRouter, address(this), assetAmount);
         sharesMinted = _mintSharesGivenAssets(assetAmount, depositData, receiver);
 
+        t_AllowTransfer_To = t_CurrentLendingRouter;
+        t_AllowTransfer_Amount = sharesMinted;
         // Transfer the shares to the lending router so it can supply collateral
         _transfer(receiver, t_CurrentLendingRouter, sharesMinted);
     }
@@ -179,10 +181,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Send all the assets back to the lending router
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
-
-        // Clear the transient variables to prevent re-use in a future call.
-        delete t_AllowTransfer_To;
-        delete t_AllowTransfer_Amount;
     }
 
     function allowTransfer(address to, uint256 amount) external onlyLendingRouter {
@@ -212,14 +210,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address liquidateAccount,
         uint256 sharesToLiquidator
     ) external onlyLendingRouter {
+        t_AllowTransfer_To = liquidator;
+        t_AllowTransfer_Amount = sharesToLiquidator;
         // Transfer the shares to the liquidator from the lending router
         _transfer(t_CurrentLendingRouter, liquidator, sharesToLiquidator);
 
         _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
         // Clear the transient variables to prevent re-use in a future call.
-        delete t_AllowTransfer_To;
-        delete t_AllowTransfer_Amount;
         delete t_CurrentAccount;
         delete t_CurrentLendingRouter;
     }
@@ -291,11 +289,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        // TODO: update this restriction
-        if (from == address(MORPHO)) {
-            // Any transfers off of the lending market must be authorized here.
+        if (from != address(0) && to != address(0)) {
+            // Any transfers off of the lending market must be authorized here, this means that native balances
+            // held cannot be transferred.
             if (t_AllowTransfer_To != to) revert UnauthorizedLendingMarketTransfer(from, to, value);
             if (t_AllowTransfer_Amount < value) revert UnauthorizedLendingMarketTransfer(from, to, value);
+
+            delete t_AllowTransfer_To;
+            delete t_AllowTransfer_Amount;
         }
 
         super._update(from, to, value);

@@ -177,7 +177,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.warp(block.timestamp + 1 days);
 
-        rm.claimAccountRewards(msg.sender);
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(address(y));
         (VaultRewardState[] memory rewardStates, /* */) = rm.getRewardSettings();
         uint256[] memory rewardsBefore = new uint256[](rewardStates.length);
         for (uint256 i = 0; i < rewardStates.length; i++) {
@@ -185,7 +186,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             assertGt(rewardsBefore[i], 0);
         }
 
-        rm.claimAccountRewards(msg.sender);
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(address(y));
         for (uint256 i = 0; i < rewardStates.length; i++) {
             assertEq(ERC20(rewardStates[i].rewardToken).balanceOf(msg.sender), rewardsBefore[i]);
         }
@@ -219,8 +221,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
 
         vm.startPrank(msg.sender);
-        if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
-        asset.approve(address(y), defaultDeposit);
+        if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        asset.approve(address(lendingRouter), defaultDeposit);
 
         // Ensures that the stake tokens function is called
         vm.expectCall(
@@ -243,7 +245,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(msg.sender);
         if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
-        asset.approve(address(y), defaultDeposit);
+        asset.approve(address(lendingRouter), defaultDeposit);
 
         // Ensures that the trading was done
         vm.expectEmit(true, false, false, false, address(y));
@@ -266,7 +268,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.startPrank(msg.sender);
         lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
 
-        asset.approve(address(y), defaultDeposit);
+        asset.approve(address(lendingRouter), defaultDeposit);
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
@@ -384,7 +386,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(msg.sender);
         if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
-        asset.approve(address(y), defaultDeposit);
+        asset.approve(address(lendingRouter), defaultDeposit);
         bytes memory depositData = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
         vm.expectPartialRevert(AbstractSingleSidedLP.PoolShareTooHigh.selector);
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, depositData);
@@ -462,7 +464,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(owner);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        asset.approve(address(y), type(uint256).max);
+        asset.approve(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
         uint256 assetAfter = asset.balanceOf(owner);
