@@ -6,7 +6,7 @@ import {AddressRegistry} from "../src/proxy/AddressRegistry.sol";
 import {TimelockUpgradeableProxy} from "../src/proxy/TimelockUpgradeableProxy.sol";
 import {Initializable} from "../src/proxy/Initializable.sol";
 
-// Sepolia: 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5
+// Sepolia: 0xdfb618098fC858F43fe0E5Fb906AdFE96786832f
 contract DeployAddressRegistry is Script {
     address constant UPGRADE_ADMIN = 0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3;
     address constant PAUSE_ADMIN = 0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3;
