@@ -43,8 +43,8 @@ contract DeployMockVault is DeployVault {
     MockWrapperERC20 w;
     MockOracle assetOracle;
     MockOracle wrapperOracle;
-    MorphoLendingRouter lendingRouter;
-    address constant IRM = 0x0000000000000000000000000000000000000000;
+    MorphoLendingRouter lendingRouter = MorphoLendingRouter(0x280deCD520da16e5571A6f2Fb803A57e0c16f423);
+    address constant IRM = 0x8C5dDCD3F601c91D1BF51c8ec26066010ACAbA7c;
 
     function name() internal override returns (string memory) {
         return "Mock Vault";
