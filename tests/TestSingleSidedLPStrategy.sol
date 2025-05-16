@@ -244,7 +244,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         depositParams.depositTrades[stakeTokenIndex].tradeAmount = (defaultDeposit + defaultBorrow) / 2;
 
         vm.startPrank(msg.sender);
-        if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
+        if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
         asset.approve(address(lendingRouter), defaultDeposit);
 
         // Ensures that the trading was done

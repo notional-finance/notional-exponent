@@ -29,6 +29,15 @@ interface ILendingRouter {
         bytes calldata depositData
     ) external;
 
+    function enterPosition(
+        address onBehalf,
+        address collateralToken,
+        uint256 depositAssetAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData,
+        bytes calldata migrateData
+    ) external;
+
     function exitPosition(
         address onBehalf,
         address collateralToken,

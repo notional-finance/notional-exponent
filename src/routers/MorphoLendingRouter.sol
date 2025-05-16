@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import "forge-std/src/console.sol";
+
 import "../utils/Errors.sol";
 
 import {IRewardManager} from "../rewards/IRewardManager.sol";
@@ -15,6 +17,12 @@ import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 struct MorphoParams {
     address irm;
     uint256 lltv;
+}
+
+struct MigrateParams {
+    address fromLendingRouter;
+    uint256 sharesToMigrate;
+    uint256 assetToRepay;
 }
 
 contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorphoFlashLoanCallback, IMorphoRepayCallback {
@@ -73,14 +81,6 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
     function morphoId(address vault) public view returns (Id) {
         return Id.wrap(keccak256(abi.encode(marketParams(vault))));
     }
-    // To Roll into a different lending router we would:
-    // 1. New Lending Router: receive collateral from old lending router:
-    //      - flash borrow from new lending platform
-    //      - call exit position on behalf of user to old lending router
-    //      - do not redeem shares but just transfer them back to the user
-    //      - transferFrom the user to the new lending router
-    //      - supply collateral on the new lending platform
-    //      - borrow assets from the new lending platform to repay the current flash loan
 
     function enterPosition(
         address onBehalf,
@@ -88,7 +88,18 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) external override isAuthorized(onBehalf) {
+    ) external override {
+        enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, bytes(""));
+    }
+
+    function enterPosition(
+        address onBehalf,
+        address vault,
+        uint256 depositAssetAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData,
+        bytes memory migrateData
+    ) public override isAuthorized(onBehalf) {
         MarketParams memory m = marketParams(vault);
 
         // First collect the margin deposit
@@ -96,15 +107,17 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             ERC20(m.loanToken).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
         }
 
+        // TODO: if migrate data is set and we have a max repay how do we get the borrow amount?
+
         if (borrowAmount > 0) {
             // At this point we will flash borrow funds from the lending market and then
             // receive control in a different function on a callback.
             bytes memory flashLoanData = abi.encode(
-                m, depositAssetAmount, depositData, onBehalf
+                m, depositAssetAmount, depositData, onBehalf, migrateData
             );
             MORPHO.flashLoan(m.loanToken, borrowAmount, flashLoanData);
         } else {
-            _mintSharesAndSupplyCollateral(m, depositAssetAmount, depositData, onBehalf);
+            _supplyCollateral(m, depositAssetAmount, depositData, onBehalf, migrateData);
         }
 
         s_lastEntryTime[vault][onBehalf] = block.timestamp;
@@ -117,10 +130,11 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             MarketParams memory m,
             uint256 depositAssetAmount,
             bytes memory depositData,
-            address receiver
-        ) = abi.decode(data, (MarketParams, uint256, bytes, address));
+            address receiver,
+            bytes memory migrateData
+        ) = abi.decode(data, (MarketParams, uint256, bytes, address, bytes));
 
-        _mintSharesAndSupplyCollateral(m, depositAssetAmount + assets, depositData, receiver);
+        _supplyCollateral(m, depositAssetAmount + assets, depositData, receiver, migrateData);
 
         // Borrow the assets in order to repay the flash loan
         MORPHO.borrow(m, assets, 0, receiver, address(this));
@@ -129,27 +143,46 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         ERC20(m.loanToken).forceApprove(address(MORPHO), assets);
     }
 
-    function _mintSharesAndSupplyCollateral(
+    function _supplyCollateral(
         MarketParams memory m,
         uint256 assetAmount,
         bytes memory depositData,
-        address receiver
+        address receiver,
+        bytes memory migrateData
     ) internal {
-        // TODO: if we skip the next two lines then we will not mint shares and we would just
-        // transfer the collateral from the receiver and supply it.
-        // TODO: we could get the shares by calling exit position on a previous lending router and
-        // then doing a transferFrom the user back to here.
-        ERC20(m.loanToken).approve(m.collateralToken, assetAmount);
-        uint256 sharesMinted = IYieldStrategy(m.collateralToken).mintShares(
-            assetAmount, receiver, depositData
-        );
+        uint256 sharesReceived;
+        if (0 < migrateData.length) {
+            (
+                address fromLendingRouter,
+                uint256 sharesToMigrate,
+                uint256 assetToRepay
+            ) = abi.decode(migrateData, (address, uint256, uint256));
+            require(ADDRESS_REGISTRY.isLendingRouter(fromLendingRouter), "Invalid lending router");
+
+            // Allow the previous lending router to repay the debt from assets held here.
+            ERC20(m.loanToken).approve(fromLendingRouter, assetToRepay);
+            // On migrate the receiver is this current lending router
+            ILendingRouter(fromLendingRouter).exitPosition(
+                receiver, m.collateralToken, address(this), sharesToMigrate, assetToRepay, bytes("")
+            );
+            sharesReceived = sharesToMigrate;
+            // TODO: is this vulnerable to donation attack?
+            assetAmount = ERC20(m.loanToken).balanceOf(address(this));
+        }
+
+        if (0 < assetAmount) {
+            ERC20(m.loanToken).approve(m.collateralToken, assetAmount);
+            sharesReceived += IYieldStrategy(m.collateralToken).mintShares(
+                assetAmount, receiver, depositData
+            );
+        }
 
         // Allows the transfer from the lending market to the sharesOwner
-        IYieldStrategy(m.collateralToken).allowTransfer(address(MORPHO), sharesMinted);
+        IYieldStrategy(m.collateralToken).allowTransfer(address(MORPHO), sharesReceived);
 
         // We should receive shares in return
-        ERC20(m.collateralToken).approve(address(MORPHO), sharesMinted);
-        MORPHO.supplyCollateral(m, sharesMinted, receiver, "");
+        ERC20(m.collateralToken).approve(address(MORPHO), sharesReceived);
+        MORPHO.supplyCollateral(m, sharesReceived, receiver, "");
     }
 
     function exitPosition(
@@ -174,35 +207,52 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
                 assetToRepay = 0;
             }
 
-            bytes memory repayData = abi.encode(onBehalf, m, receiver, sharesToRedeem, redeemData);
+            bytes memory repayData = abi.encode(
+                onBehalf, m, receiver, sharesToRedeem, redeemData, _isMigrate(receiver)
+            );
 
             // Will trigger a callback to onMorphoRepay
             MORPHO.repay(m, assetToRepay, sharesToRepay, onBehalf, repayData);
         } else {
-            uint256 assetsWithdrawn = _redeemShares(m, onBehalf, sharesToRedeem, redeemData);
-            ERC20(m.loanToken).safeTransfer(receiver, assetsWithdrawn);
+            address migrateTo = _isMigrate(receiver) ? receiver : address(0);
+            uint256 assetsWithdrawn = _redeemShares(m, onBehalf, migrateTo, sharesToRedeem, redeemData);
+            if (0 < assetsWithdrawn) ERC20(m.loanToken).safeTransfer(receiver, assetsWithdrawn);
         }
+    }
+
+    function _isMigrate(address receiver) internal view returns (bool) {
+        return receiver == msg.sender && ADDRESS_REGISTRY.isLendingRouter(msg.sender);
     }
 
     function _redeemShares(
         MarketParams memory m,
         address sharesOwner,
+        address migrateTo,
         uint256 sharesToRedeem,
         bytes memory redeemData
     ) internal returns (uint256 assetsWithdrawn) {
-        uint256 balanceBefore = balanceOfCollateral(sharesOwner, m.collateralToken);
+        address receiver;
+        uint256 balanceBefore;
+        if (migrateTo == address(0)) {
+            receiver = sharesOwner;
+            balanceBefore = balanceOfCollateral(sharesOwner, m.collateralToken);
+        } else {
+            // If we are migrating shares then we need to transfer them to the new lending router and
+            // we do not need to track the balance before.
+            receiver = migrateTo;
+        }
 
         // Allows the transfer from the lending market to the sharesOwner
-        IYieldStrategy(m.collateralToken).allowTransfer(sharesOwner, sharesToRedeem);
+        IYieldStrategy(m.collateralToken).allowTransfer(receiver, sharesToRedeem);
 
-        MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, sharesOwner);
+        MORPHO.withdrawCollateral(m, sharesToRedeem, sharesOwner, receiver);
 
-        // TODO: if we skip this then the sharesOwner will have the balance of collateral
-        // in their native balance and then they can call redeem or another lending router
-        // can transferFrom the sharesOwner to deposit into the lending market.
-        assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
-            sharesOwner, sharesToRedeem, balanceBefore, redeemData
-        );
+        // If we are not migrating then burn the shares
+        if (migrateTo == address(0)) {
+            assetsWithdrawn = IYieldStrategy(m.collateralToken).burnShares(
+                sharesOwner, sharesToRedeem, balanceBefore, redeemData
+            );
+        }
     }
 
     function onMorphoRepay(uint256 assetToRepay, bytes calldata data) external override {
@@ -213,10 +263,20 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
             MarketParams memory m,
             address receiver,
             uint256 sharesToRedeem,
-            bytes memory redeemData
-        ) = abi.decode(data, (address, MarketParams, address, uint256, bytes));
+            bytes memory redeemData,
+            bool isMigrate
+        ) = abi.decode(data, (address, MarketParams, address, uint256, bytes, bool));
 
-        uint256 assetsWithdrawn = _redeemShares(m, sharesOwner, sharesToRedeem, redeemData);
+        uint256 assetsWithdrawn = _redeemShares(
+            m, sharesOwner, isMigrate ? receiver : address(0), sharesToRedeem, redeemData
+        );
+
+        if (isMigrate) {
+            // When migrating we do not withdraw any assets and we must repay the entire debt
+            // from the previous lending router.
+            ERC20(m.loanToken).transferFrom(receiver, address(this), assetToRepay);
+            assetsWithdrawn = assetToRepay;
+        }
 
         // Transfer any profits to the receiver
         if (assetsWithdrawn < assetToRepay) {

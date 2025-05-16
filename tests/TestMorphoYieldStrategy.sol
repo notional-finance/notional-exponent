@@ -436,4 +436,44 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
+    function test_migrate_userPositions() public {
+        address user = msg.sender;
+        _enterPosition(user, defaultDeposit, defaultBorrow);
+
+        // Sets up a second lending router
+        vm.startPrank(owner);
+        MorphoLendingRouter lendingRouter2 = new MorphoLendingRouter();
+        ADDRESS_REGISTRY.setLendingRouter(address(lendingRouter2));
+        // Slightly different lltv
+        MorphoLendingRouter(address(lendingRouter2)).initializeMarket(address(y), IRM, 0.98e18);
+
+        asset.approve(address(MORPHO), type(uint256).max);
+        MORPHO.supply(
+            MorphoLendingRouter(address(lendingRouter2)).marketParams(address(y)),
+            1_000_000 * 10 ** asset.decimals(), 0, owner, ""
+        );
+        vm.stopPrank();
+
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        // Can migrate user position into second lending router
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        // Allows the lendingRouter2 to manage the user's position
+        lendingRouter.setApproval(address(lendingRouter2), true);
+
+        asset.approve(address(lendingRouter2), defaultDeposit);
+        // TODO: setting the max borrow amount is tough here because we do not know the max
+        // borrow amount before hand
+        lendingRouter2.enterPosition(
+            user, address(y), defaultDeposit, defaultBorrow + 1e6, getDepositData(user, defaultDeposit),
+            abi.encode(
+                address(lendingRouter),
+                lendingRouter.balanceOfCollateral(user, address(y)),
+                type(uint256).max
+           )
+        );
+        vm.stopPrank();
+    }
 }
