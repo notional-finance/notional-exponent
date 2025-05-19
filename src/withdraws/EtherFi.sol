@@ -8,9 +8,6 @@ import "../interfaces/IEtherFi.sol";
 
 contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721Holder {
 
-    /// @dev Required to withdraw WETH
-    receive() external payable {}
-
     constructor() AbstractWithdrawRequestManager(address(WETH), address(weETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(

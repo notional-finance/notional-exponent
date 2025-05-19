@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractSingleSidedLP, BaseLPLib} from "../AbstractSingleSidedLP.sol";
+import {AbstractSingleSidedLP, BaseLPLib} from "./AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TokenUtils, ERC20} from "../../utils/TokenUtils.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../../utils/Constants.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
+import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Constants.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../../interfaces/Curve/ICurve.sol";
-import "../../interfaces/Curve/IConvex.sol";
-import "../../rewards/IRewardManager.sol";
-import "../../withdraws/IWithdrawRequestManager.sol";
+import "../interfaces/Curve/ICurve.sol";
+import "../interfaces/Curve/IConvex.sol";
+import "../rewards/IRewardManager.sol";
+import "../withdraws/IWithdrawRequestManager.sol";
 
 struct DeploymentParams {
     address pool;
@@ -106,11 +106,6 @@ contract CurveConvexLib is BaseLPLib {
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
     CurveInterface internal immutable CURVE_INTERFACE;
-
-    // Payable is required for the CurveV1 interface which will execute a transfer
-    // when the remove_liquidity function is called, it only will be done to this contract
-    // during the checkReentrancyContext function.
-    receive() external payable {}
 
     constructor(address _token1, address _token2, address _asset, uint8 _primaryIndex, DeploymentParams memory params) {
         TOKEN_1 = _token1;

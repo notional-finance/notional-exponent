@@ -4,7 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
-import "../src/single-sided-lp/curve/CurveConvex2Token.sol";
+import "../src/single-sided-lp/CurveConvex2Token.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 import "./TestWithdrawRequest.sol";
@@ -164,7 +164,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
             vm.startPrank(owner);
-            ADDRESS_REGISTRY.setWithdrawRequestManager(address(managers[i]), false);
+            ADDRESS_REGISTRY.setWithdrawRequestManager(address(managers[i]));
             managers[i].setApprovedVault(address(y), true);
             vm.stopPrank();
         }

@@ -3,17 +3,27 @@ pragma solidity >=0.8.29;
 
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import "../utils/Errors.sol";
+import {Unauthorized, InvalidUpgrade, Paused} from "../utils/Errors.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 
-contract TimelockUpgradeableProxy layout at 100_000_000 is ERC1967Proxy {
+/// @notice A proxy that allows for a timelocked upgrade and selective pausing of the implementation
+/// @dev All storage slots are offset to avoid conflicts with the implementation
+contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
+
     event UpgradeInitiated(address indexed newImplementation, uint32 upgradeValidAt);
 
     uint32 public constant UPGRADE_DELAY = 7 days;
 
+    /// @notice Mapping of selector to whether it is whitelisted during a paused state
     mapping(bytes4 => bool) public whitelistedSelectors;
+
+    /// @notice The address of the new implementation
     address public newImplementation;
+
+    /// @notice The timestamp at which the upgrade will be valid
     uint32 public upgradeValidAt;
+
+    /// @notice Whether the proxy is paused
     bool public isPaused;
 
     constructor(
@@ -40,7 +50,7 @@ contract TimelockUpgradeableProxy layout at 100_000_000 is ERC1967Proxy {
         emit UpgradeInitiated(_newImplementation, upgradeValidAt);
     }
 
-    /// @notice Executes an upgrade.
+    /// @notice Executes an upgrade, any caller can execute the upgrade after the upgrade delay has passed.
     function executeUpgrade() external {
         if (block.timestamp < upgradeValidAt) revert InvalidUpgrade();
         if (newImplementation == address(0)) revert InvalidUpgrade();
@@ -57,6 +67,8 @@ contract TimelockUpgradeableProxy layout at 100_000_000 is ERC1967Proxy {
         isPaused = false;
     }
 
+    /// @dev Allows the pause admin to whitelist selectors that can be called even if the proxy is paused, this
+    /// is useful for allowing vaults to continue to exit funds but not initiate new entries, for example.
     function whitelistSelectors(bytes4[] calldata selectors, bool isWhitelisted) external {
         if (msg.sender != ADDRESS_REGISTRY.pauseAdmin()) revert Unauthorized(msg.sender);
         for (uint256 i; i < selectors.length; i++) whitelistedSelectors[selectors[i]] = isWhitelisted;
