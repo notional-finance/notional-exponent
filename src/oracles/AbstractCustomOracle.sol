@@ -71,6 +71,7 @@ abstract contract AbstractCustomOracle is AggregatorV2V3Interface {
         (roundId, /* */, /* */, /* */, /* */) = _calculateBaseToQuote();
     }
 
+    /// @dev Unused in the trading module
     function getRoundData(uint80 /* _roundId */) external pure override returns (
         uint80 /* roundId */,
         int256 /* answer */,
@@ -81,6 +82,9 @@ abstract contract AbstractCustomOracle is AggregatorV2V3Interface {
         revert();
     }
 
+    /// @dev Unused in the trading module
     function getAnswer(uint256 /* roundId */) external pure override returns (int256) { revert(); }
+
+    /// @dev Unused in the trading module
     function getTimestamp(uint256 /* roundId */) external pure override returns (uint256) { revert(); }
 }
