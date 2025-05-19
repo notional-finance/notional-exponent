@@ -4,7 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 import "../src/utils/Errors.sol";
 import "../src/utils/Constants.sol";
-import "../src/withdraws/IWithdrawRequestManager.sol";
+import "../src/interfaces/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 abstract contract TestWithdrawRequest is Test {
@@ -107,7 +107,7 @@ abstract contract TestWithdrawRequest is Test {
         uint256 sharesAmount = initialYieldTokenBalance / 2;
 
         vm.expectEmit(true, true, true, false, address(manager));
-        emit IWithdrawRequestManager.InitiateWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount, 0);
+        emit IWithdrawRequestManager.InitiateWithdrawRequest(address(this), address(this), initialYieldTokenBalance, sharesAmount, 0);
         uint256 requestId = manager.initiateWithdraw(address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData);
 
         (WithdrawRequest memory request, SplitWithdrawRequest memory splitRequest) = manager.getWithdrawRequest(address(this), address(this));
@@ -189,7 +189,7 @@ abstract contract TestWithdrawRequest is Test {
         uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
         uint256 sharesAmount = initialYieldTokenBalance / 2;
         vm.expectEmit(true, true, true, false, address(manager));
-        emit IWithdrawRequestManager.InitiateWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount, 0);
+        emit IWithdrawRequestManager.InitiateWithdrawRequest(address(this), address(this), initialYieldTokenBalance, sharesAmount, 0);
         uint256 requestId = manager.initiateWithdraw(address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData);
 
         (WithdrawRequest memory request, SplitWithdrawRequest memory splitRequest) = manager.getWithdrawRequest(address(this), address(this));

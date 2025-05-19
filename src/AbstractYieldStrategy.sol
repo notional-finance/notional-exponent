@@ -14,7 +14,7 @@ import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
-import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager} from "./interfaces/IWithdrawRequestManager.sol";
 import {Initializable} from "./proxy/Initializable.sol";
 import {ADDRESS_REGISTRY} from "./utils/Constants.sol";
 import {ILendingRouter} from "./interfaces/ILendingRouter.sol";
