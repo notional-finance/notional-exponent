@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import "forge-std/src/Test.sol";
-import "../src/utils/Errors.sol";
+import "../src/interfaces/Errors.sol";
 import "../src/utils/Constants.sol";
 import "../src/interfaces/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";

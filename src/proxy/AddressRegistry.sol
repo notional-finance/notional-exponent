@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {Unauthorized} from "../utils/Errors.sol";
+import {Unauthorized} from "../interfaces/Errors.sol";
 import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
 
 /// @notice Registry for the addresses for different components of the protocol.

@@ -8,7 +8,7 @@ import {
     ExistingWithdrawRequest,
     NoWithdrawRequest,
     InvalidWithdrawRequestSplit
-} from "../utils/Errors.sol";
+} from "../interfaces/Errors.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";

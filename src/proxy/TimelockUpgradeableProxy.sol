@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import {Unauthorized, InvalidUpgrade, Paused} from "../utils/Errors.sol";
+import {Unauthorized, InvalidUpgrade, Paused} from "../interfaces/Errors.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 
 /// @notice A proxy that allows for a timelocked upgrade and selective pausing of the implementation
