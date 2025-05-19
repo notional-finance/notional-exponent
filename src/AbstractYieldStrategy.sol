@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "forge-std/src/console.sol";
-
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {DEFAULT_DECIMALS, DEFAULT_PRECISION, YEAR, ADDRESS_REGISTRY} from "./utils/Constants.sol";
 
-import "./utils/Errors.sol";
+import {
+    Unauthorized,
+    UnauthorizedLendingMarketTransfer,
+    InsufficientSharesHeld,
+    CannotLiquidate
+} from "./utils/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
@@ -52,6 +55,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /********* Transient Variables *********/
     // Used to authorize transfers off of the lending market
     address internal transient t_CurrentAccount;
+    // TODO: do we need this?
     address internal transient t_CurrentLendingRouter;
     address internal transient t_AllowTransfer_To;
     uint256 internal transient t_AllowTransfer_Amount;
@@ -216,7 +220,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_CurrentAccount;
-        delete t_CurrentLendingRouter;
     }
 
     /// @inheritdoc IYieldStrategy
@@ -363,14 +366,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         if (sharesToBurn == 0) return 0;
         if (sharesHeld < sharesToBurn) revert InsufficientSharesHeld();
 
-        uint256 initialAssetBalance = ERC20(asset).balanceOf(address(this));
+        uint256 initialAssetBalance = TokenUtils.tokenBalance(asset);
 
         // First accrue fees on the yield token
         _accrueFees();
         bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, sharesHeld, redeemData);
         if (wasEscrowed) s_escrowedShares -= sharesToBurn;
 
-        uint256 finalAssetBalance = ERC20(asset).balanceOf(address(this));
+        uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
 
         // This burns the shares from the sharesOwner's balance

@@ -8,7 +8,7 @@ import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
 import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import "../utils/Errors.sol";
+import {CannotEnterPosition, WithdrawRequestNotFinalized} from "../utils/Errors.sol";
 
 struct TradeParams {
     uint256 tradeAmount;
@@ -440,7 +440,7 @@ abstract contract BaseLPLib is ILPLib {
             (exitBalances[i], finalized) = manager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            require(finalized, "Withdraw request not finalized");
+            if (!finalized) revert WithdrawRequestNotFinalized(request.requestId);
             withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
         }
     }

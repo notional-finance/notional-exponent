@@ -11,9 +11,11 @@ error Paused();
 error CannotExitPositionWithinCooldownPeriod();
 error CannotReceiveSplitWithdrawRequest();
 
+error WithdrawRequestNotFinalized(uint256 requestId);
 error CannotInitiateWithdraw(address account);
 error CannotForceWithdraw(address account);
 error InsufficientSharesHeld();
+error SlippageTooHigh(uint256 actualTokensOut, uint256 minTokensOut);
 
 error CannotEnterPosition();
 error InvalidUpgrade();

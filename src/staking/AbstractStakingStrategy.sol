@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../utils/Errors.sol";
+import {ExistingWithdrawRequest, WithdrawRequestNotFinalized} from "../utils/Errors.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {
     IWithdrawRequestManager,
     WithdrawRequest,
     SplitWithdrawRequest
 } from "../interfaces/IWithdrawRequestManager.sol";
+import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {Trade, TradeType, TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -31,11 +32,8 @@ struct DepositParams {
 abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     using SafeERC20 for ERC20;
 
-    /// @notice if non-zero, the withdraw request manager is used to manage illiquid redemptions
-    IWithdrawRequestManager public immutable withdrawRequestManager;
-
-    /// @notice token that is redeemed from a withdraw request
-    address public immutable withdrawToken;
+    IWithdrawRequestManager internal immutable withdrawRequestManager;
+    address internal immutable withdrawToken;
 
     constructor(
         address _asset,
@@ -43,7 +41,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 _feeRate,
         IWithdrawRequestManager _withdrawRequestManager
     ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, ERC20(_yieldToken).decimals()) {
-        // TODO: should we use the address registry here instead?
+        // TODO: for Pendle PT the yield token does not define the withdraw request manager,
+        // it is the token out sy
         withdrawRequestManager = _withdrawRequestManager;
         withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.WITHDRAW_TOKEN() : address(0);
     }
@@ -51,7 +50,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
-            (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(address(this), t_CurrentAccount, asset, shares);
+            (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(
+                address(this), t_CurrentAccount, asset, shares
+            );
             // If the account does not have a withdraw request then this will fall through
             // to the super implementation.
             if (hasRequest) return value;
@@ -118,7 +119,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            require(finalized, "Withdraw request not finalized");
+            if (!finalized) revert WithdrawRequestNotFinalized(accountWithdraw.requestId);
 
             // Trades may be required here if the borrowed token is not the same as what is
             // received when redeeming.

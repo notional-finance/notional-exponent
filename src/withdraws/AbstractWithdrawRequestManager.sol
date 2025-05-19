@@ -3,7 +3,12 @@ pragma solidity >=0.8.29;
 
 import "../interfaces/IWithdrawRequestManager.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
-import "../utils/Errors.sol";
+import {
+    Unauthorized,
+    ExistingWithdrawRequest,
+    NoWithdrawRequest,
+    InvalidWithdrawRequestSplit
+} from "../utils/Errors.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
