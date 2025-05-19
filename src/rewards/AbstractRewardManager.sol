@@ -1,32 +1,48 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "./IRewardManager.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "../interfaces/IRewardManager.sol";
 import {Unauthorized} from "../utils/Errors.sol";
 import {DEFAULT_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
-import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {TokenUtils} from "../utils/TokenUtils.sol";
 import {IEIP20NonStandard} from "../interfaces/IEIP20NonStandard.sol";
-import {LibStorage} from "../utils/LibStorage.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
 
 abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransient {
     using TypeConvert for uint256;
     using TokenUtils for ERC20;
 
-    modifier onlyRewardManager() {
+    modifier onlyUpgradeAdmin() {
         if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         _;
     }
 
+    uint256 private constant REWARD_POOL_SLOT = 1000001;
+    uint256 private constant VAULT_REWARD_STATE_SLOT = 1000002;
+    uint256 private constant ACCOUNT_REWARD_DEBT_SLOT = 1000003;
+
+    function _getRewardPoolSlot() internal pure returns (RewardPoolStorage storage store) {
+        assembly { store.slot := REWARD_POOL_SLOT }
+    }
+
+    function _getVaultRewardStateSlot() internal pure returns (VaultRewardState[] storage store) {
+        assembly { store.slot := VAULT_REWARD_STATE_SLOT }
+    }
+
+    function _getAccountRewardDebtSlot() internal pure returns (
+        mapping(address account => mapping(address rewardToken => uint256 rewardDebt)) storage store
+    ) {
+        assembly { store.slot := ACCOUNT_REWARD_DEBT_SLOT }
+    }
+
     /// @inheritdoc IRewardManager
-    function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyRewardManager nonReentrant {
+    function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyUpgradeAdmin nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
         uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
-        _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
-        RewardPoolStorage memory oldRewardPool = LibStorage.getRewardPoolSlot();
+        _claimVaultRewards(totalVaultSharesBefore, _getVaultRewardStateSlot());
+        RewardPoolStorage memory oldRewardPool = _getRewardPoolSlot();
 
         if (oldRewardPool.rewardPool != address(0)) {
             _withdrawFromPreviousRewardPool(oldRewardPool);
@@ -42,9 +58,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         // migration.
         // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
         // earlier in this method.
-        LibStorage.getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
-        LibStorage.getRewardPoolSlot().rewardPool = newRewardPool.rewardPool;
-        LibStorage.getRewardPoolSlot().forceClaimAfter = newRewardPool.forceClaimAfter;
+        _getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
+        _getRewardPoolSlot().rewardPool = newRewardPool.rewardPool;
+        _getRewardPoolSlot().forceClaimAfter = newRewardPool.forceClaimAfter;
     }
 
 
@@ -53,8 +69,8 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         VaultRewardState[] memory rewardStates,
         RewardPoolStorage memory rewardPool
     ) {
-        rewardStates = LibStorage.getVaultRewardStateSlot();
-        rewardPool = LibStorage.getRewardPoolSlot();
+        rewardStates = _getVaultRewardStateSlot();
+        rewardPool = _getRewardPoolSlot();
     }
 
     /// @inheritdoc IRewardManager
@@ -62,7 +78,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         address rewardToken,
         address account
     ) external view override returns (uint256 rewardDebt) {
-        return LibStorage.getAccountRewardDebtSlot()[rewardToken][account];
+        return _getAccountRewardDebtSlot()[rewardToken][account];
     }
 
     /// @inheritdoc IRewardManager
@@ -71,12 +87,12 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         address rewardToken,
         uint128 emissionRatePerYear,
         uint32 endTime
-    ) external override onlyRewardManager {
+    ) external override onlyUpgradeAdmin {
         uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
-        uint256 numRewardStates = LibStorage.getVaultRewardStateSlot().length;
+        uint256 numRewardStates = _getVaultRewardStateSlot().length;
 
         if (index < numRewardStates) {
-            VaultRewardState memory state = LibStorage.getVaultRewardStateSlot()[index];
+            VaultRewardState memory state = _getVaultRewardStateSlot()[index];
             // Safety check to ensure that the correct token is specified, we can never change the
             // token address once set.
             require(state.rewardToken == rewardToken);
@@ -95,10 +111,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
                 require(block.timestamp < endTime);
                 state.endTime = endTime;
             }
-            LibStorage.getVaultRewardStateSlot()[index] = state;
+            _getVaultRewardStateSlot()[index] = state;
         } else if (index == numRewardStates) {
             // This sets a new reward token, ensure that the current slot is empty
-            VaultRewardState[] storage states = LibStorage.getVaultRewardStateSlot();
+            VaultRewardState[] storage states = _getVaultRewardStateSlot();
             // If no emission rate is set then governance is just adding a token that can be claimed
             // via the LP tokens without an emission rate. These settings will be left empty and the
             // subsequent _claimVaultRewards method will set the initial accumulatedRewardPerVaultShare.
@@ -117,7 +133,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         }
 
         // Claim all vault rewards up to the current time
-        _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
+        _claimVaultRewards(totalVaultSharesBefore, _getVaultRewardStateSlot());
         emit VaultRewardUpdate(rewardToken, emissionRatePerYear, endTime);
     }
 
@@ -127,7 +143,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         // This method is not executed from inside enter or exit vault positions, so this total
         // vault shares value is valid.
         uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
-        _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
+        _claimVaultRewards(totalVaultSharesBefore, _getVaultRewardStateSlot());
     }
 
     function claimAccountRewards(
@@ -168,7 +184,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 vaultSharesBefore,
         uint256 vaultSharesAfter
     ) internal returns (uint256[] memory rewards) {
-        VaultRewardState[] memory state = LibStorage.getVaultRewardStateSlot();
+        VaultRewardState[] memory state = _getVaultRewardStateSlot();
         _claimVaultRewards(totalVaultSharesBefore, state);
         rewards = new uint256[](state.length);
 
@@ -194,7 +210,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 totalVaultSharesBefore,
         VaultRewardState[] memory state
     ) internal {
-        RewardPoolStorage memory rewardPool = LibStorage.getRewardPoolSlot();
+        RewardPoolStorage memory rewardPool = _getRewardPoolSlot();
         if (rewardPool.rewardPool == address(0)) return;
         if (block.timestamp < rewardPool.lastClaimTimestamp + rewardPool.forceClaimAfter) return;
 
@@ -208,7 +224,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
 
         _executeClaim();
 
-        LibStorage.getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
+        _getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
 
         // This only accumulates rewards claimed, it does not accumulate any secondary emissions
         // that are streamed to vault users.
@@ -232,10 +248,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 vaultSharesBefore,
         uint256 rewardsPerVaultShare
     ) internal view returns (uint256 rewardToClaim) {
-        // Vault shares are always in 8 decimal precision
+        // Vault shares are always in DEFAULT_PRECISION
         rewardToClaim = (
             (vaultSharesBefore * rewardsPerVaultShare) / DEFAULT_PRECISION
-        ) - LibStorage.getAccountRewardDebtSlot()[rewardToken][account];
+        ) - _getAccountRewardDebtSlot()[rewardToken][account];
     }
 
     function _claimRewardToken(
@@ -249,7 +265,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             rewardToken, account, vaultSharesBefore, rewardsPerVaultShare
         );
 
-        LibStorage.getAccountRewardDebtSlot()[rewardToken][account] = (
+        _getAccountRewardDebtSlot()[rewardToken][account] = (
             (vaultSharesAfter * rewardsPerVaultShare) / DEFAULT_PRECISION
         );
 
@@ -288,7 +304,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             (tokensClaimed * DEFAULT_PRECISION) / totalVaultSharesBefore
         ).toUint128();
 
-        LibStorage.getVaultRewardStateSlot()[index] = state;
+        _getVaultRewardStateSlot()[index] = state;
     }
 
     function _accumulateSecondaryRewardViaEmissionRate(
@@ -301,7 +317,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         ).toUint128();
         state.lastAccumulatedTime = uint32(block.timestamp);
 
-        LibStorage.getVaultRewardStateSlot()[index] = state;
+        _getVaultRewardStateSlot()[index] = state;
     }
 
     function _getAccumulatedRewardViaEmissionRate(
@@ -326,10 +342,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             //  YEAR (SECONDS)
             //  DEFAULT_PRECISION (1e18)
             // => Precision = REWARD_TOKEN_PRECISION
-            additionalIncentiveAccumulatedPerVaultShare =
-                (timeSinceLastAccumulation
-                    * DEFAULT_PRECISION
-                    * state.emissionRatePerYear)
+            additionalIncentiveAccumulatedPerVaultShare = (timeSinceLastAccumulation * DEFAULT_PRECISION * state.emissionRatePerYear)
                 / (YEAR * totalVaultSharesBefore);
         }
 

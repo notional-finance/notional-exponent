@@ -17,7 +17,7 @@ import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interface
 import {IWithdrawRequestManager} from "./withdraws/IWithdrawRequestManager.sol";
 import {Initializable} from "./proxy/Initializable.sol";
 import {ADDRESS_REGISTRY} from "./utils/Constants.sol";
-import {ILendingRouter} from "./routers/ILendingRouter.sol";
+import {ILendingRouter} from "./interfaces/ILendingRouter.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for

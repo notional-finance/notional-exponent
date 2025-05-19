@@ -5,8 +5,8 @@ import "forge-std/src/console.sol";
 
 import "../utils/Errors.sol";
 
-import {IRewardManager} from "../rewards/IRewardManager.sol";
-import {ILendingRouter} from "./ILendingRouter.sol";
+import {IRewardManager} from "../interfaces/IRewardManager.sol";
+import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
