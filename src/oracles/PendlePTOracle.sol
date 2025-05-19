@@ -18,7 +18,6 @@ contract PendlePTOracle is AbstractCustomOracle {
     int256 public immutable baseToUSDDecimals;
     int256 public immutable ptDecimals;
     bool public immutable invertBase;
-    uint256 public immutable expiry;
 
     constructor (
         address pendleMarket_,
@@ -54,13 +53,13 @@ contract PendlePTOracle is AbstractCustomOracle {
             /* */,
             bool oldestObservationSatisfied
         ) = PENDLE_ORACLE.getOracleState(pendleMarket, twapDuration);
+        // If this fails then we need to increase the cardinality in the Pendle system
         require(!increaseCardinalityRequired && oldestObservationSatisfied, "Oracle Init");
-
-        expiry = IPMarket(pendleMarket).expiry();
     }
 
+    /// @dev ptRate is always returned in 1e18 decimals
     function _getPTRate() internal view returns (int256) {
-        uint256 ptRate = useSyOracleRate ? 
+        uint256 ptRate = useSyOracleRate ?
             PENDLE_ORACLE.getPtToSyRate(pendleMarket, twapDuration) :
             PENDLE_ORACLE.getPtToAssetRate(pendleMarket, twapDuration);
         return ptRate.toInt();
@@ -86,7 +85,6 @@ contract PendlePTOracle is AbstractCustomOracle {
         if (invertBase) baseToUSD = (baseToUSDDecimals * baseToUSDDecimals) / baseToUSD;
 
         int256 ptRate = _getPTRate();
-        // ptRate is always returned in 1e18 decimals (rateDecimals)
         answer = (ptRate * baseToUSD) / baseToUSDDecimals;
     }
 }

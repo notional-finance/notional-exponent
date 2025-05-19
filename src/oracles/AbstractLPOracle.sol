@@ -7,19 +7,23 @@ import {TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 
-/// @notice Returns the value of one LP token in terms of the primary borrowed currency by this
-/// strategy. Will revert if the spot price on the pool is not within some deviation tolerance of
-/// the implied oracle price. This is intended to prevent any pool manipulation.
-/// The value of the LP token is calculated as the value of the token if all the balance claims are
-/// withdrawn proportionally and then converted to the primary currency at the oracle price. Slippage
-/// from selling the tokens is not considered, any slippage effects will be captured by the maximum
-/// leverage ratio allowed before liquidation.
+/// @notice Returns the value of one LP token in terms of the primary index token. Will revert if the spot
+/// price on the pool is not within some deviation tolerance of the implied oracle price. This is intended
+/// to prevent any pool manipulation. The value of the LP token is calculated as the value of the token if
+/// all the balance claims are withdrawn proportionally and then converted to the primary currency at the
+/// oracle price.
 abstract contract AbstractLPOracle is AbstractCustomOracle {
 
+    /// @dev The precision of the pool, generally 1e18
     uint256 internal immutable POOL_PRECISION;
+    /// @dev Defines the lower limit of a tolerable price deviation from the oracle price
     uint256 internal immutable LOWER_LIMIT_MULTIPLIER;
+    /// @dev Defines the upper limit of a tolerable price deviation from the oracle price
     uint256 internal immutable UPPER_LIMIT_MULTIPLIER;
+    /// @dev The address of the LP token
     address internal immutable LP_TOKEN;
+    /// @dev The index of the primary index token in the LP token, the price will be returned
+    /// in terms of this token
     uint8 internal immutable PRIMARY_INDEX;
 
     constructor(
@@ -52,16 +56,16 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
     /// @notice Returns the pair price of two tokens via the TRADING_MODULE which holds a registry
     /// of oracles. Will revert of the oracle pair is not listed.
     function _getOraclePairPrice(address base, address quote) internal view returns (uint256) {
-        // The trading module always returns a positive rate in 18 decimals so we can safely
+        // The trading module always returns a positive rate in DEFAULT_PRECISION so we can safely
         // cast to uint256
         (int256 rate, /* */) = TRADING_MODULE.getOraclePrice(base, quote);
-        return uint256(rate) * POOL_PRECISION / DEFAULT_PRECISION;
+        return uint256(rate);
     }
 
-    /// @notice Helper method called by _checkPriceAndCalculateValue which will supply the relevant
-    /// pool balances and spot prices. Calculates the claim of one LP token on relevant pool balances
+    /// @notice Calculates the claim of one LP token on relevant pool balances
     /// and compares the oracle price to the spot price, reverting if the deviation is too high.
-    /// @return oneLPValueInPrimary the value of one LP token in terms of the primary borrowed currency
+    /// @return oneLPValueInPrimary the value of one LP token in terms of the primary index token,
+    /// scaled to default precision (1e18)
     function _calculateLPTokenValue(
         ERC20[] memory tokens,
         uint8[] memory decimals,
@@ -74,9 +78,10 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         uint256 oneLPValueInPrimary;
 
         for (uint256 i; i < tokens.length; i++) {
-            // Skip the pool token if it is in the token list (i.e. ComposablePools)
+            // Skip the pool token if it is in the token list (i.e. Balancer V2 ComposablePools)
             if (address(tokens[i]) == address(LP_TOKEN)) continue;
-            // This is the claim on the pool balance of 1 LP token.
+            // This is the claim on the pool balance of 1 LP token in terms of the token's native
+            // precision
             uint256 tokenClaim = balances[i] * POOL_PRECISION / totalSupply;
             if (i == PRIMARY_INDEX) {
                 oneLPValueInPrimary += tokenClaim;
@@ -93,13 +98,14 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
 
                 // Convert the token claim to primary using the oracle pair price.
                 uint256 secondaryDecimals = 10 ** decimals[i];
-                oneLPValueInPrimary += (tokenClaim * POOL_PRECISION * primaryDecimals) / 
+                // Scale the token claim to primary token precision, DEFAULT_PRECISION is used
+                // to match the precision of the oracle pair price.
+                oneLPValueInPrimary += (tokenClaim * DEFAULT_PRECISION * primaryDecimals) / 
                     (price * secondaryDecimals);
             }
         }
 
-        // Scale this up to the correct precision
+        // Scale this up to default precision
         return oneLPValueInPrimary * DEFAULT_PRECISION / primaryDecimals;
     }
-
 }
