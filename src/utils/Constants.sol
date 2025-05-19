@@ -7,6 +7,8 @@ import {AddressRegistry} from "../proxy/AddressRegistry.sol";
 address constant ETH_ADDRESS = address(0);
 address constant ALT_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 uint256 constant DEFAULT_PRECISION = 1e18;
+uint256 constant DEFAULT_DECIMALS = 18;
+
 uint256 constant YEAR = 365 days;
 
 

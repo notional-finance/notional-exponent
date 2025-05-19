@@ -92,7 +92,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (accountWithdraw.requestId != 0) revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
 
         // Receive the requested amount of yield tokens from the approved vault.
-        ERC20(YIELD_TOKEN).transferFrom(msg.sender, address(this), yieldTokenAmount);
+        ERC20(YIELD_TOKEN).safeTransferFrom(msg.sender, address(this), yieldTokenAmount);
 
         requestId = _initiateWithdrawImpl(account, yieldTokenAmount, data);
         accountWithdraw.requestId = requestId;
