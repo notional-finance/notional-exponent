@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import "./AbstractStakingStrategy.sol";
 import "../interfaces/IPendle.sol";
-import {SlippageTooHigh} from "../utils/Errors.sol";
+import {SlippageTooHigh} from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PendlePTLib} from "./PendlePTLib.sol";
 

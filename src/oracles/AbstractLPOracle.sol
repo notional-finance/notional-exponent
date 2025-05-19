@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {DEFAULT_PRECISION} from "../utils/Constants.sol";
-import {InvalidPrice} from "../utils/Errors.sol";
+import {InvalidPrice} from "../interfaces/Errors.sol";
 import {TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";

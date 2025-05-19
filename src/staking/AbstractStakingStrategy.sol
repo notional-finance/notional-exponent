@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {ExistingWithdrawRequest, WithdrawRequestNotFinalized} from "../utils/Errors.sol";
+import {ExistingWithdrawRequest, WithdrawRequestNotFinalized} from "../interfaces/Errors.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {
     IWithdrawRequestManager,

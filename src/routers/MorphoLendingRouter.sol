@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import "forge-std/src/console.sol";
 
-import "../utils/Errors.sol";
+import "../interfaces/Errors.sol";
 
 import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {ILendingRouter} from "../interfaces/ILendingRouter.sol";

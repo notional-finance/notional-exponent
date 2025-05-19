@@ -4,7 +4,7 @@ pragma solidity >=0.8.29;
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../interfaces/IRewardManager.sol";
-import {Unauthorized} from "../utils/Errors.sol";
+import {Unauthorized} from "../interfaces/Errors.sol";
 import {DEFAULT_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
 import {IEIP20NonStandard} from "../interfaces/IEIP20NonStandard.sol";

@@ -8,7 +8,7 @@ import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
 import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import {CannotEnterPosition, WithdrawRequestNotFinalized} from "../utils/Errors.sol";
+import {CannotEnterPosition, WithdrawRequestNotFinalized} from "../interfaces/Errors.sol";
 
 struct TradeParams {
     uint256 tradeAmount;

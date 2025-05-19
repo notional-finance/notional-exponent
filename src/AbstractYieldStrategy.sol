@@ -12,7 +12,7 @@ import {
     UnauthorizedLendingMarketTransfer,
     InsufficientSharesHeld,
     CannotLiquidate
-} from "./utils/Errors.sol";
+} from "./interfaces/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
