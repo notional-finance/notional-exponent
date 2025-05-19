@@ -8,6 +8,7 @@ import "../utils/Errors.sol";
 import {IRewardManager} from "../rewards/IRewardManager.sol";
 import {ILendingRouter} from "./ILendingRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {MORPHO, MarketParams, Id, Position, Market} from "../interfaces/Morpho/IMorpho.sol";
@@ -27,6 +28,7 @@ struct MigrateParams {
 
 contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorphoFlashLoanCallback, IMorphoRepayCallback {
     using SafeERC20 for ERC20;
+    using TokenUtils for ERC20;
 
     mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
     mapping(address vault => mapping(address user => uint256 lastEntryTime)) private s_lastEntryTime;
@@ -140,7 +142,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         MORPHO.borrow(m, assets, 0, receiver, address(this));
 
         // Allow for flash loan to be repaid
-        ERC20(m.loanToken).forceApprove(address(MORPHO), assets);
+        ERC20(m.loanToken).checkApprove(address(MORPHO), assets);
     }
 
     function _supplyCollateral(
@@ -274,7 +276,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         if (isMigrate) {
             // When migrating we do not withdraw any assets and we must repay the entire debt
             // from the previous lending router.
-            ERC20(m.loanToken).transferFrom(receiver, address(this), assetToRepay);
+            ERC20(m.loanToken).safeTransferFrom(receiver, address(this), assetToRepay);
             assetsWithdrawn = assetToRepay;
         }
 
@@ -291,7 +293,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         ERC20(m.loanToken).safeTransfer(receiver, profitsWithdrawn);
 
         // Allow morpho to repay the debt
-        ERC20(m.loanToken).forceApprove(address(MORPHO), assetToRepay);
+        ERC20(m.loanToken).checkApprove(address(MORPHO), assetToRepay);
     }
 
     function liquidate(
@@ -326,7 +328,7 @@ contract MorphoLendingRouter is ILendingRouter, IMorphoLiquidateCallback, IMorph
         (address asset, address liquidator) = abi.decode(data, (address, address));
 
         ERC20(asset).safeTransferFrom(liquidator, address(this), repaidAssets);
-        ERC20(asset).forceApprove(address(MORPHO), repaidAssets);
+        ERC20(asset).checkApprove(address(MORPHO), repaidAssets);
     }
 
     function balanceOfCollateral(address account, address vault) public view returns (uint256 collateralBalance) {

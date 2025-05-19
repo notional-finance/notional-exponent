@@ -4,13 +4,13 @@ pragma solidity >=0.8.29;
 import "forge-std/src/console.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {DEFAULT_DECIMALS, DEFAULT_PRECISION, YEAR, ADDRESS_REGISTRY} from "./utils/Constants.sol";
 
 import "./utils/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
-import {MORPHO} from "./interfaces/Morpho/IMorpho.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
@@ -23,14 +23,12 @@ import {ILendingRouter} from "./routers/ILendingRouter.sol";
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
 /// minting, burning and the valuation of tokens.
 abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuardTransient, IYieldStrategy {
+    using TokenUtils for ERC20;
     using SafeERC20 for ERC20;
 
-    uint256 internal constant RATE_DECIMALS = 18;
-    uint256 internal constant RATE_PRECISION = 1e18;
-    uint256 internal constant YEAR = 365 days;
     uint256 internal constant VIRTUAL_SHARES = 1e6;
     uint256 internal constant VIRTUAL_YIELD_TOKENS = 1;
-    uint256 internal constant SHARE_PRECISION = 1e18 * VIRTUAL_SHARES;
+    uint256 internal constant SHARE_PRECISION = DEFAULT_DECIMALS * VIRTUAL_SHARES;
 
     /// @inheritdoc IYieldStrategy
     address public immutable override asset;
@@ -101,7 +99,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertToShares(uint256 assets) public view override returns (uint256) {
         // NOTE: rounds down on division
-        uint256 yieldTokens = assets * (10 ** (_yieldTokenDecimals + RATE_DECIMALS)) / (convertYieldTokenToAsset() * (10 ** _assetDecimals));
+        uint256 yieldTokens = assets * (10 ** (_yieldTokenDecimals + DEFAULT_DECIMALS)) / 
+            (convertYieldTokenToAsset() * (10 ** _assetDecimals));
         return convertYieldTokenToShares(yieldTokens);
     }
 
@@ -268,11 +267,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         if (x == 0) return 0;
 
         // Taylor approximation of e ^ x  - 1 = x + x^2 / 2! + x^3 / 3! + ...
-        uint256 eToTheX = x + (x * x) / (2 * RATE_PRECISION) + (x * x * x) / (6 * RATE_PRECISION * RATE_PRECISION);
+        uint256 eToTheX = x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
 
         additionalFeesInYieldToken = (
             (yieldTokenBalance() - s_accruedFeesInYieldToken) * eToTheX
-        ) / RATE_PRECISION;
+        ) / DEFAULT_PRECISION;
     }
 
     function _accrueFees() private {
@@ -311,7 +310,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
             IWithdrawRequestManager withdrawRequestManager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), trade.buyToken);
-            ERC20(trade.sellToken).forceApprove(address(withdrawRequestManager), trade.amount);
+            ERC20(trade.sellToken).checkApprove(address(withdrawRequestManager), trade.amount);
             amountBought = withdrawRequestManager.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
             return (trade.amount, amountBought);
         } else {
@@ -417,7 +416,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
         uint256 yieldTokens = convertSharesToYieldToken(shares);
         // NOTE: rounds down on division
-        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) / (10 ** (_yieldTokenDecimals + RATE_DECIMALS));
+        return (yieldTokens * convertYieldTokenToAsset() * (10 ** _assetDecimals)) /
+            (10 ** (_yieldTokenDecimals + DEFAULT_DECIMALS));
     }
 
 }
