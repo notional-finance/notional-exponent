@@ -13,6 +13,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AggregatorV2V3Interface} from "../src/interfaces/AggregatorV2V3Interface.sol";
 import {MockWrapperERC20, MockOracle, MockYieldStrategy} from "../tests/Mocks.sol";
 
+// Vault: https://sepolia.etherscan.io/address/0xffd7531ed937f703b269815950cb75bdaaa341c9
 abstract contract DeployVault is Script, GnosisHelper {
     TimelockUpgradeableProxy proxy;
 
@@ -34,7 +35,7 @@ abstract contract DeployVault is Script, GnosisHelper {
         vm.stopBroadcast();
         console.log("Vault proxy deployed at", address(proxy));
 
-        generateBatch("deploy-vault.json", postDeploySetup());
+        postDeploySetup();
     }
 }
 
