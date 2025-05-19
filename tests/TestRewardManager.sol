@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
-import "../src/rewards/IRewardManager.sol";
+import "../src/interfaces/IRewardManager.sol";
 import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractRewardManager.sol";
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";

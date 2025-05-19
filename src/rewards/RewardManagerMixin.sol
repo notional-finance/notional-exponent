@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IRewardManager} from "./IRewardManager.sol";
+import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {LibStorage} from "../utils/LibStorage.sol";
-import {ILendingRouter} from "../routers/ILendingRouter.sol";
+import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
@@ -58,7 +57,11 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         });
     }
 
-    function _mintSharesGivenAssets(uint256 assets, bytes memory depositData, address receiver) internal override returns (uint256 sharesMinted) {
+    function _mintSharesGivenAssets(
+        uint256 assets,
+        bytes memory depositData,
+        address receiver
+    ) internal override returns (uint256 sharesMinted) {
         uint256 totalSupplyBefore = totalSupply();
         uint256 initialVaultShares = ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(receiver, address(this));
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
@@ -71,7 +74,12 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         });
     }
 
-    function _burnShares(uint256 sharesToBurn, uint256 sharesHeld, bytes memory redeemData, address sharesOwner) internal override returns (uint256 assetsWithdrawn) {
+    function _burnShares(
+        uint256 sharesToBurn,
+        uint256 sharesHeld,
+        bytes memory redeemData,
+        address sharesOwner
+    ) internal override returns (uint256 assetsWithdrawn) {
         uint256 totalSupplyBefore = totalSupply();
         assetsWithdrawn = super._burnShares(sharesToBurn, sharesHeld, redeemData, sharesOwner);
         _updateAccountRewards({

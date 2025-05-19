@@ -5,13 +5,12 @@ import {AbstractRewardManager, RewardPoolStorage} from "./AbstractRewardManager.
 import {IConvexRewardPool, IConvexBooster} from "../interfaces/Curve/IConvex.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import {LibStorage} from "../utils/LibStorage.sol";
 
 contract ConvexRewardManager is AbstractRewardManager {
     using TokenUtils for ERC20;
 
     function _executeClaim() internal override {
-        address rewardPool = LibStorage.getRewardPoolSlot().rewardPool;
+        address rewardPool = _getRewardPoolSlot().rewardPool;
         require(IConvexRewardPool(rewardPool).getReward(address(this), true));
     }
 
