@@ -8,6 +8,7 @@ import "../interfaces/IDinero.sol";
 
 contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155Holder {
     uint16 internal s_batchNonce;
+    uint256 internal constant MAX_BATCH_ID = type(uint120).max;
 
     constructor(address pxETHorApxETH) AbstractWithdrawRequestManager(
         address(WETH), address(pxETHorApxETH), address(WETH)
@@ -31,8 +32,8 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         uint256 nonce = ++s_batchNonce;
 
         // May require multiple batches to complete the redemption
-        require(initialBatchId < type(uint120).max);
-        require(finalBatchId < type(uint120).max);
+        require(initialBatchId < MAX_BATCH_ID);
+        require(finalBatchId < MAX_BATCH_ID);
         // Initial and final batch ids may overlap between requests so the nonce is used to ensure uniqueness
         return nonce << 240 | initialBatchId << 120 | finalBatchId;
     }
@@ -42,6 +43,11 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         PirexETH.deposit{value: amount}(address(this), YIELD_TOKEN == address(apxETH));
     }
 
+    function _decodeBatchIds(uint256 requestId) internal pure returns (uint256 initialBatchId, uint256 finalBatchId) {
+        initialBatchId = requestId >> 120 & MAX_BATCH_ID;
+        finalBatchId = requestId & MAX_BATCH_ID;
+    }
+
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
@@ -49,8 +55,7 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         finalized = canFinalizeWithdrawRequest(requestId);
 
         if (finalized) {
-            uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-            uint256 finalBatchId = requestId & type(uint120).max;
+            (uint256 initialBatchId, uint256 finalBatchId) = _decodeBatchIds(requestId);
 
             for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
                 uint256 assets = upxETH.balanceOf(address(this), i);
@@ -64,8 +69,7 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view returns (bool) {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        (uint256 initialBatchId, uint256 finalBatchId) = _decodeBatchIds(requestId);
         uint256 totalAssets;
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {

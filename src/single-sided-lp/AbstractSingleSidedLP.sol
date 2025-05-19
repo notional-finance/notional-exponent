@@ -6,7 +6,7 @@ import {DEFAULT_PRECISION, ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
-import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../withdraws/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import "../utils/Errors.sol";
 

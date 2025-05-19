@@ -1,22 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "./IWithdrawRequestManager.sol";
-import "./ClonedCoolDownHolder.sol";
+import "../interfaces/IWithdrawRequestManager.sol";
+import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import "../utils/Errors.sol";
-import "../utils/TypeConvert.sol";
+import {TypeConvert} from "../utils/TypeConvert.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
 
-struct StakingTradeParams {
-    TradeType tradeType;
-    uint256 minPurchaseAmount;
-    bytes exchangeData;
-    uint16 dexId;
-    bytes stakeData;
-}
 
 /**
  * Library to handle potentially illiquid withdraw requests of staking tokens where there
@@ -32,14 +26,16 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     using SafeERC20 for ERC20;
     using TypeConvert for uint256;
 
-    address public override immutable YIELD_TOKEN;
-    address public override immutable WITHDRAW_TOKEN;
-    address public override immutable STAKING_TOKEN;
+    /// @inheritdoc IWithdrawRequestManager
+    address public immutable override YIELD_TOKEN;
+    /// @inheritdoc IWithdrawRequestManager
+    address public immutable override WITHDRAW_TOKEN;
+    /// @inheritdoc IWithdrawRequestManager
+    address public immutable override STAKING_TOKEN;
 
     mapping(address => bool) public override isApprovedVault;
-    // vault => account => withdraw request
-    mapping(address => mapping(address => WithdrawRequest)) internal s_accountWithdrawRequest;
-    mapping(uint256 => SplitWithdrawRequest) internal s_splitWithdrawRequest;
+    mapping(address vault => mapping(address account => WithdrawRequest)) internal s_accountWithdrawRequest;
+    mapping(uint256 requestId => SplitWithdrawRequest) internal s_splitWithdrawRequest;
 
     constructor(address _withdrawToken, address _yieldToken, address _stakingToken) {
         WITHDRAW_TOKEN = _withdrawToken;
@@ -52,14 +48,15 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         _;
     }
 
-    // TODO: do we really need this?
+    /// @dev Ensures that only approved vaults can initiate withdraw requests.
     modifier onlyApprovedVault() {
         if (!isApprovedVault[msg.sender]) revert Unauthorized(msg.sender);
         _;
     }
 
-    /// @notice Returns the status of a withdraw request
-    function getWithdrawRequest(address vault, address account) public view returns (WithdrawRequest memory w, SplitWithdrawRequest memory s) {
+    /// @inheritdoc IWithdrawRequestManager
+    function getWithdrawRequest(address vault, address account) public view override
+        returns (WithdrawRequest memory w, SplitWithdrawRequest memory s) {
         w = s_accountWithdrawRequest[vault][account];
         s = s_splitWithdrawRequest[w.requestId];
     }
@@ -71,7 +68,11 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     }
 
     /// @inheritdoc IWithdrawRequestManager
-    function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
+    function stakeTokens(
+        address depositToken,
+        uint256 amount,
+        bytes calldata data
+    ) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
         uint256 initialYieldTokenBalance = ERC20(YIELD_TOKEN).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         (uint256 stakeTokenAmount, bytes memory stakeData) = _preStakingTrade(depositToken, amount, data);
@@ -100,7 +101,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         accountWithdraw.yieldTokenAmount = yieldTokenAmount.toUint120();
         accountWithdraw.sharesAmount = sharesAmount.toUint120();
 
-        emit InitiateWithdrawRequest(account, yieldTokenAmount, sharesAmount, requestId);
+        emit InitiateWithdrawRequest(account, msg.sender, yieldTokenAmount, sharesAmount, requestId);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -109,20 +110,20 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         uint256 withdrawYieldTokenAmount,
         uint256 sharesToBurn
     ) external override onlyApprovedVault returns (uint256 tokensWithdrawn, bool finalized) {
-        WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
-        if (accountWithdraw.requestId == 0) return (0, false);
+        WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][account];
+        if (s_withdraw.requestId == 0) return (0, false);
 
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, accountWithdraw);
+        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, s_withdraw);
 
         if (finalized) {
             // Allows for partial withdrawal of yield tokens
-            if (withdrawYieldTokenAmount < accountWithdraw.yieldTokenAmount) {
-                _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
-                tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / accountWithdraw.yieldTokenAmount;
-                accountWithdraw.sharesAmount -= sharesToBurn.toUint120();
-                accountWithdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
+            if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
+                _splitPartialWithdrawRequest(s_withdraw, tokensWithdrawn);
+                tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
+                s_withdraw.sharesAmount -= sharesToBurn.toUint120();
+                s_withdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
             } else {
-                require(accountWithdraw.yieldTokenAmount == withdrawYieldTokenAmount);
+                require(s_withdraw.yieldTokenAmount == withdrawYieldTokenAmount);
                 delete s_accountWithdrawRequest[msg.sender][account];
             }
 
@@ -135,24 +136,32 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         address vault,
         address account
     ) external override returns (uint256 tokensWithdrawn, bool finalized) {
-        WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[vault][account];
-        if (accountWithdraw.requestId == 0) revert NoWithdrawRequest(vault, account);
+        WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[vault][account];
+        if (s_withdraw.requestId == 0) revert NoWithdrawRequest(vault, account);
 
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, accountWithdraw);
-        if (finalized) _splitPartialWithdrawRequest(accountWithdraw, tokensWithdrawn);
+        // Do not transfer any tokens off of this method here. Withdrawn tokens will be held in the
+        // split withdraw request until the vault calls this contract to withdraw the tokens.
+        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, s_withdraw);
+        if (finalized) _splitPartialWithdrawRequest(s_withdraw, tokensWithdrawn);
     }
 
-    function _splitPartialWithdrawRequest(WithdrawRequest storage accountWithdraw, uint256 tokensWithdrawn) internal {
+    /// @dev Splits a withdraw request into a partial withdraw request. Any remaining tokens are held
+    /// in the split withdraw request until all the shares are withdrawn.
+    function _splitPartialWithdrawRequest(
+        WithdrawRequest storage s_withdraw,
+        uint256 tokensWithdrawn
+    ) internal {
         // If the account has not split, we store the total tokens withdrawn in the split withdraw
-        // request. When the account does exit, they will skip `_finalizeWithdrawImpl`
-        if (!accountWithdraw.hasSplit) {
-            s_splitWithdrawRequest[accountWithdraw.requestId] = SplitWithdrawRequest({
-                totalYieldTokenAmount: accountWithdraw.yieldTokenAmount,
+        // request. When the account does exit, they will skip `_finalizeWithdrawImpl`. If the withdraw
+        // has already been split then this will already have been done.
+        if (!s_withdraw.hasSplit) {
+            s_splitWithdrawRequest[s_withdraw.requestId] = SplitWithdrawRequest({
+                totalYieldTokenAmount: s_withdraw.yieldTokenAmount,
                 totalWithdraw: tokensWithdrawn.toUint120(),
                 finalized: true
             });
 
-            accountWithdraw.hasSplit = true;
+            s_withdraw.hasSplit = true;
         }
     }
 
@@ -164,47 +173,48 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     ) external override onlyApprovedVault {
         if (_from == _to) revert InvalidWithdrawRequestSplit();
 
-        WithdrawRequest storage w = s_accountWithdrawRequest[msg.sender][_from];
-        if (w.requestId == 0) return;
+        WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][_from];
+        uint256 requestId = s_withdraw.requestId;
+        if (requestId == 0) return;
 
         // Create a new split withdraw request
-        if (!w.hasSplit) {
-            SplitWithdrawRequest storage s = s_splitWithdrawRequest[w.requestId];
+        if (!s_withdraw.hasSplit) {
+            SplitWithdrawRequest storage s_split = s_splitWithdrawRequest[requestId];
             // Safety check to ensure that the split withdraw request is not active, split withdraw
             // requests are never deleted. This presumes that all withdraw request ids are unique.
-            require(s.finalized == false && s.totalYieldTokenAmount == 0);
-            s_splitWithdrawRequest[w.requestId].totalYieldTokenAmount = w.yieldTokenAmount;
+            require(s_split.finalized == false && s_split.totalYieldTokenAmount == 0);
+            s_splitWithdrawRequest[requestId].totalYieldTokenAmount = s_withdraw.yieldTokenAmount;
         }
 
         // Ensure that no withdraw request gets overridden, the _to account always receives their withdraw
         // request in the account withdraw slot. All storage is updated prior to changes to the `w` storage
         // variable below.
         WithdrawRequest storage toWithdraw = s_accountWithdrawRequest[msg.sender][_to];
-        if (toWithdraw.requestId != 0 && toWithdraw.requestId != w.requestId) {
+        if (toWithdraw.requestId != 0 && toWithdraw.requestId != requestId) {
             revert ExistingWithdrawRequest(msg.sender, _to, toWithdraw.requestId);
         }
 
-        toWithdraw.requestId = w.requestId;
+        toWithdraw.requestId = requestId;
         toWithdraw.hasSplit = true;
 
-        if (w.sharesAmount < sharesAmount) {
+        if (s_withdraw.sharesAmount < sharesAmount) {
             // This should never occur given the checks below.
             revert InvalidWithdrawRequestSplit();
-        } else if (w.sharesAmount == sharesAmount) {
+        } else if (s_withdraw.sharesAmount == sharesAmount) {
             // If the resulting vault shares is zero, then delete the request. The _from account's
             // withdraw request is fully transferred to _to. In this case, the _to account receives
             // the full amount of the _from account's withdraw request.
-            toWithdraw.yieldTokenAmount = toWithdraw.yieldTokenAmount + w.yieldTokenAmount;
-            toWithdraw.sharesAmount = toWithdraw.sharesAmount + w.sharesAmount;
+            toWithdraw.yieldTokenAmount = toWithdraw.yieldTokenAmount + s_withdraw.yieldTokenAmount;
+            toWithdraw.sharesAmount = toWithdraw.sharesAmount + s_withdraw.sharesAmount;
             delete s_accountWithdrawRequest[msg.sender][_from];
         } else {
             // In this case, the amount of yield tokens is transferred from one account to the other.
-            uint256 yieldTokenAmount = w.yieldTokenAmount * sharesAmount / w.sharesAmount;
+            uint256 yieldTokenAmount = s_withdraw.yieldTokenAmount * sharesAmount / s_withdraw.sharesAmount;
             toWithdraw.yieldTokenAmount = (toWithdraw.yieldTokenAmount + yieldTokenAmount).toUint120();
             toWithdraw.sharesAmount = (toWithdraw.sharesAmount + sharesAmount).toUint120();
-            w.yieldTokenAmount = (w.yieldTokenAmount - yieldTokenAmount).toUint120();
-            w.sharesAmount = (w.sharesAmount - sharesAmount).toUint120();
-            w.hasSplit = true;
+            s_withdraw.yieldTokenAmount = (s_withdraw.yieldTokenAmount - yieldTokenAmount).toUint120();
+            s_withdraw.sharesAmount = (s_withdraw.sharesAmount - sharesAmount).toUint120();
+            s_withdraw.hasSplit = true;
         }
     }
 
@@ -242,6 +252,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (w.hasSplit && finalized) {
             s.totalWithdraw = tokensWithdrawn.toUint120();
             s.finalized = true;
+            require(s.finalized == false);
+            // Update the split withdraw request with the total tokens withdrawn
             s_splitWithdrawRequest[w.requestId] = s;
 
             tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
@@ -270,6 +282,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     /// @notice Required implementation to stake the deposit token to the yield token
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal virtual;
 
+    /// @dev Allows for the deposit token to be traded into the staking token prior to staking, i.e.
+    /// enables USDC to USDe trades before staking into sUSDe.
     function _preStakingTrade(address depositToken, uint256 depositAmount, bytes calldata data) internal returns (uint256 amountBought, bytes memory stakeData) {
         if (depositToken == STAKING_TOKEN) {
             amountBought = depositAmount;
@@ -290,17 +304,25 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         }
     }
 
-    /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
     function _executeTrade(
         Trade memory trade,
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
             .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
-        if (!success) revert TradeFailed();
+        if (!success) {
+            assembly {
+                // Copy the return data to memory
+                returndatacopy(0, 0, returndatasize())
+                // Revert with the return data
+                revert(0, returndatasize())
+            }
+        }
+
         (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
+    /// @inheritdoc IWithdrawRequestManager
     function getWithdrawRequestValue(
         address vault,
         address account,
@@ -315,16 +337,16 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         int256 tokenRate;
         uint256 tokenAmount;
         uint256 tokenDecimals;
-        uint256 assetDecimals = ERC20(asset).decimals();
+        uint256 assetDecimals = TokenUtils.getDecimals(asset);
         if (s.finalized) {
             // If finalized the withdraw request is locked to the tokens withdrawn
             (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
-            tokenDecimals = ERC20(WITHDRAW_TOKEN).decimals();
+            tokenDecimals = TokenUtils.getDecimals(WITHDRAW_TOKEN);
             tokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
         } else {
             // Otherwise we use the yield token rate
             (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
-            tokenDecimals = ERC20(YIELD_TOKEN).decimals();
+            tokenDecimals = TokenUtils.getDecimals(YIELD_TOKEN);
             tokenAmount = w.yieldTokenAmount;
         }
 

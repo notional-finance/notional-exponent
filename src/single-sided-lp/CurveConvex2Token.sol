@@ -8,7 +8,6 @@ import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Con
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/Curve/ICurve.sol";
 import "../interfaces/Curve/IConvex.sol";
-import "../withdraws/IWithdrawRequestManager.sol";
 
 struct DeploymentParams {
     address pool;

@@ -4,8 +4,9 @@ pragma solidity >=0.8.29;
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {console2} from "forge-std/src/console2.sol";
 
+/// @dev Used for ERC4626s that can be staked and unstaked on demand without any additional
+/// time constraints.
 contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager {
 
     uint256 private currentRequestId;

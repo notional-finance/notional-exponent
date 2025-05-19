@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {Unauthorized} from "../utils/Errors.sol";
-import {IWithdrawRequestManager} from "../withdraws/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
 
 /// @notice Registry for the addresses for different components of the protocol.
 contract AddressRegistry {

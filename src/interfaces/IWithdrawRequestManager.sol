@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import {TradeType} from "./ITradingModule.sol";
+
 /// Each withdraw request manager contract is responsible for managing withdraws of a token
 /// from a specific token (i.e. wstETH, weETH, sUSDe, etc). Each yield strategy can call the
 /// appropriate withdraw request manager to initiate a withdraw of a given yield token.
+
+struct StakingTradeParams {
+    TradeType tradeType;
+    uint256 minPurchaseAmount;
+    bytes exchangeData;
+    uint16 dexId;
+    bytes stakeData;
+}
 
 struct WithdrawRequest {
     uint256 requestId;
@@ -22,6 +32,7 @@ interface IWithdrawRequestManager {
     event ApprovedVault(address indexed vault, bool indexed isApproved);
     event InitiateWithdrawRequest(
         address indexed account,
+        address indexed vault,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
         uint256 requestId
@@ -38,7 +49,6 @@ interface IWithdrawRequestManager {
     /// @notice Returns the token that will be used to stake
     /// @return stakingToken the staking token of the withdraw request manager
     function STAKING_TOKEN() external view returns (address);
-
 
     /// @notice Returns whether a vault is approved to initiate withdraw requests
     /// @param vault the vault to check the approval for

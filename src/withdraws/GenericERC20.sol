@@ -4,6 +4,9 @@ pragma solidity >=0.8.29;
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+/// @dev Used as a No-Op withdraw request manager for ERC20s that are not staked. Allows for
+/// more generic integrations with yield strategies in LP tokens where one token in the pool allows
+/// for the redemption and the other token is just a generic, non redeemable ERC20.
 contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
 
     uint256 private currentRequestId;
