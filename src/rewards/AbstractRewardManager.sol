@@ -2,20 +2,19 @@
 pragma solidity >=0.8.29;
 
 import "./IRewardManager.sol";
-import "../utils/Constants.sol";
-import "../utils/TypeConvert.sol";
-import "../utils/Errors.sol";
+import {Unauthorized} from "../utils/Errors.sol";
+import {DEFAULT_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
+import {TypeConvert} from "../utils/TypeConvert.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {IEIP20NonStandard} from "../interfaces/IEIP20NonStandard.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LibStorage} from "../utils/LibStorage.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
+abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransient {
     using TypeConvert for uint256;
-    using TokenUtils for IERC20;
+    using TokenUtils for ERC20;
 
     modifier onlyRewardManager() {
         if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
@@ -25,7 +24,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     /// @inheritdoc IRewardManager
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyRewardManager nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
-        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
+        uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
         _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
         RewardPoolStorage memory oldRewardPool = LibStorage.getRewardPoolSlot();
 
@@ -33,10 +32,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
             _withdrawFromPreviousRewardPool(oldRewardPool);
 
             // Clear approvals on the old pool.
-            IERC20(poolToken).checkRevoke(address(oldRewardPool.rewardPool));
+            ERC20(poolToken).checkRevoke(address(oldRewardPool.rewardPool));
         }
 
-        uint256 poolTokens = IERC20(poolToken).balanceOf(address(this));
+        uint256 poolTokens = ERC20(poolToken).balanceOf(address(this));
         _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
 
         // TODO: this will break the parent b/c the yield token will change due to the new reward pool
@@ -73,7 +72,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         uint128 emissionRatePerYear,
         uint32 endTime
     ) external override onlyRewardManager {
-        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
+        uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
         uint256 numRewardStates = LibStorage.getVaultRewardStateSlot().length;
 
         if (index < numRewardStates) {
@@ -127,7 +126,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     function claimRewardTokens() external nonReentrant {
         // This method is not executed from inside enter or exit vault positions, so this total
         // vault shares value is valid.
-        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
+        uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
         _claimVaultRewards(totalVaultSharesBefore, LibStorage.getVaultRewardStateSlot());
     }
 
@@ -135,11 +134,11 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         address account,
         uint256 sharesHeld
     ) external nonReentrant returns (uint256[] memory rewards) {
-        uint256 totalVaultSharesBefore = IERC20(address(this)).totalSupply();
+        uint256 totalVaultSharesBefore = ERC20(address(this)).totalSupply();
         if (!ADDRESS_REGISTRY.isLendingRouter(msg.sender)) {
             // If the caller is not a lending router we get the shares held in a
             // native token account.
-            sharesHeld = IERC20(address(this)).balanceOf(account);
+            sharesHeld = ERC20(address(this)).balanceOf(account);
         }
         if (sharesHeld == 0) return rewards;
 
@@ -204,7 +203,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         // before and after check.
         for (uint256 i; i < state.length; i++) {
             // Presumes that ETH will never be given out as a reward token.
-            balancesBefore[i] = IERC20(state[i].rewardToken).balanceOf(address(this));
+            balancesBefore[i] = ERC20(state[i].rewardToken).balanceOf(address(this));
         }
 
         _executeClaim();
@@ -214,7 +213,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         // This only accumulates rewards claimed, it does not accumulate any secondary emissions
         // that are streamed to vault users.
         for (uint256 i; i < state.length; i++) {
-            uint256 balanceAfter = IERC20(state[i].rewardToken).balanceOf(address(this));
+            uint256 balanceAfter = ERC20(state[i].rewardToken).balanceOf(address(this));
             _accumulateSecondaryRewardViaClaim(
                 i,
                 state[i],
@@ -235,7 +234,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
     ) internal view returns (uint256 rewardToClaim) {
         // Vault shares are always in 8 decimal precision
         rewardToClaim = (
-            (vaultSharesBefore * rewardsPerVaultShare) / VAULT_SHARE_PRECISION
+            (vaultSharesBefore * rewardsPerVaultShare) / DEFAULT_PRECISION
         ) - LibStorage.getAccountRewardDebtSlot()[rewardToken][account];
     }
 
@@ -251,7 +250,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         );
 
         LibStorage.getAccountRewardDebtSlot()[rewardToken][account] = (
-            (vaultSharesAfter * rewardsPerVaultShare) / VAULT_SHARE_PRECISION
+            (vaultSharesAfter * rewardsPerVaultShare) / DEFAULT_PRECISION
         );
 
         if (0 < rewardToClaim) {
@@ -286,7 +285,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
         if (tokensClaimed == 0) return;
 
         state.accumulatedRewardPerVaultShare += (
-            (tokensClaimed * VAULT_SHARE_PRECISION) / totalVaultSharesBefore
+            (tokensClaimed * DEFAULT_PRECISION) / totalVaultSharesBefore
         ).toUint128();
 
         LibStorage.getVaultRewardStateSlot()[index] = state;
@@ -322,14 +321,14 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuard {
             // Precision here is:
             //  timeSinceLastAccumulation (SECONDS)
             //  emissionRatePerYear (REWARD_TOKEN_PRECISION)
-            //  VAULT_SHARE_PRECISION (1e18)
+            //  DEFAULT_PRECISION (1e18)
             // DIVIDE BY
             //  YEAR (SECONDS)
-            //  VAULT_SHARE_PRECISION (1e18)
+            //  DEFAULT_PRECISION (1e18)
             // => Precision = REWARD_TOKEN_PRECISION
             additionalIncentiveAccumulatedPerVaultShare =
                 (timeSinceLastAccumulation
-                    * VAULT_SHARE_PRECISION
+                    * DEFAULT_PRECISION
                     * state.emissionRatePerYear)
                 / (YEAR * totalVaultSharesBefore);
         }

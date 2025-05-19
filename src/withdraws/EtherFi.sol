@@ -3,6 +3,7 @@ pragma solidity >=0.8.29;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {WETH} from "../utils/Constants.sol";
 
@@ -35,15 +36,6 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
         eETH.approve(address(weETH), eETHMinted);
         weETH.wrap(eETHMinted);
     }
-
-    // function _getValueOfWithdrawRequest(
-    //     uint256 totalVaultShares,
-    //     uint256 weETHPrice,
-    //     uint256 borrowPrecision
-    // ) internal pure returns (uint256) {
-    //     return (totalVaultShares * weETHPrice * borrowPrecision) /
-    //         (uint256(Constants.INTERNAL_TOKEN_PRECISION) * Constants.EXCHANGE_RATE_PRECISION);
-    // }
 
     function _finalizeWithdrawImpl(
         address /* account */,
@@ -87,6 +79,6 @@ interface IWithdrawRequestNFT {
 }
 
 IweETH constant weETH = IweETH(0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee);
-IERC20 constant eETH = IERC20(0x35fA164735182de50811E8e2E824cFb9B6118ac2);
+ERC20 constant eETH = ERC20(0x35fA164735182de50811E8e2E824cFb9B6118ac2);
 ILiquidityPool constant LiquidityPool = ILiquidityPool(0x308861A430be4cce5502d0A12724771Fc6DaF216);
 IWithdrawRequestNFT constant WithdrawRequestNFT = IWithdrawRequestNFT(0x7d5706f6ef3F89B3951E23e557CDFBC3239D4E2c);

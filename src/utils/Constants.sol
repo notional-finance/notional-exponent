@@ -5,9 +5,13 @@ import {WETH9} from "../interfaces/IWETH.sol";
 import {AddressRegistry} from "../proxy/AddressRegistry.sol";
 
 address constant ETH_ADDRESS = address(0);
-WETH9 constant WETH = WETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 address constant ALT_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-uint256 constant CHAIN_ID_MAINNET = 1;
-uint256 constant VAULT_SHARE_PRECISION = 1e18;
+uint256 constant DEFAULT_PRECISION = 1e18;
 uint256 constant YEAR = 365 days;
+
+
+
+// TODO: move these to a deployment file
+uint256 constant CHAIN_ID_MAINNET = 1;
+WETH9 constant WETH = WETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 AddressRegistry constant ADDRESS_REGISTRY = AddressRegistry(0x8Ad159a275AEE56fb2334DBb69036E9c7baCEe9b);

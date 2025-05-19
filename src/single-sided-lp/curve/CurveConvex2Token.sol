@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import {AbstractSingleSidedLP, BaseLPLib} from "../AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TokenUtils, IERC20} from "../../utils/TokenUtils.sol";
+import {TokenUtils, ERC20} from "../../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../../utils/Constants.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../interfaces/Curve/ICurve.sol";
@@ -23,17 +23,17 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     uint256 internal constant _NUM_TOKENS = 2;
 
-    IERC20 internal immutable CURVE_POOL_TOKEN;
+    ERC20 internal immutable CURVE_POOL_TOKEN;
     uint8 internal immutable _PRIMARY_INDEX;
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
 
     function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
     function PRIMARY_INDEX() internal view override returns (uint256) { return _PRIMARY_INDEX; }
-    function TOKENS() internal view override returns (IERC20[] memory) {
-        IERC20[] memory tokens = new IERC20[](_NUM_TOKENS);
-        tokens[0] = IERC20(TOKEN_1);
-        tokens[1] = IERC20(TOKEN_2);
+    function TOKENS() internal view override returns (ERC20[] memory) {
+        ERC20[] memory tokens = new ERC20[](_NUM_TOKENS);
+        tokens[0] = ERC20(TOKEN_1);
+        tokens[1] = ERC20(TOKEN_2);
         return tokens;
     }
 
@@ -45,7 +45,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         address _rewardManager,
         DeploymentParams memory params
     ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18) {
-        CURVE_POOL_TOKEN = IERC20(params.poolToken);
+        CURVE_POOL_TOKEN = ERC20(params.poolToken);
 
         // We interact with curve pools directly so we never pass the token addresses back
         // to the curve pools. The amounts are passed back based on indexes instead. Therefore
@@ -85,13 +85,13 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 }
 
 contract CurveConvexLib is BaseLPLib {
-    using SafeERC20 for IERC20;
-    using TokenUtils for IERC20;
+    using SafeERC20 for ERC20;
+    using TokenUtils for ERC20;
 
     uint256 internal constant _NUM_TOKENS = 2;
 
     address internal immutable CURVE_POOL;
-    IERC20 internal immutable CURVE_POOL_TOKEN;
+    ERC20 internal immutable CURVE_POOL_TOKEN;
 
     /// @dev Curve gauge contract used when there is no convex reward pool
     address internal immutable CURVE_GAUGE;
@@ -120,7 +120,7 @@ contract CurveConvexLib is BaseLPLib {
 
         CURVE_POOL = params.pool;
         CURVE_GAUGE = params.gauge;
-        CURVE_POOL_TOKEN = IERC20(params.poolToken);
+        CURVE_POOL_TOKEN = ERC20(params.poolToken);
         CURVE_INTERFACE = params.curveInterface;
 
         // If the convex reward pool is set then get the booster and pool id, if not then
@@ -153,17 +153,17 @@ contract CurveConvexLib is BaseLPLib {
         }
     }
 
-    function TOKENS() internal view override returns (IERC20[] memory) {
-        IERC20[] memory tokens = new IERC20[](_NUM_TOKENS);
-        tokens[0] = IERC20(TOKEN_1);
-        tokens[1] = IERC20(TOKEN_2);
+    function TOKENS() internal view override returns (ERC20[] memory) {
+        ERC20[] memory tokens = new ERC20[](_NUM_TOKENS);
+        tokens[0] = ERC20(TOKEN_1);
+        tokens[1] = ERC20(TOKEN_2);
         return tokens;
     }
 
     function initialApproveTokens() external {
         // If either token is ETH_ADDRESS the check approve will short circuit
-        IERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);
-        IERC20(TOKEN_2).checkApprove(address(CURVE_POOL), type(uint256).max);
+        ERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);
+        ERC20(TOKEN_2).checkApprove(address(CURVE_POOL), type(uint256).max);
         if (CONVEX_BOOSTER != address(0)) {
             CURVE_POOL_TOKEN.checkApprove(address(CONVEX_BOOSTER), type(uint256).max);
         } else {

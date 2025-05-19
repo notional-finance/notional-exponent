@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
@@ -9,7 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * this contract will receive the staked token and initiate a cooldown
  */
 abstract contract ClonedCoolDownHolder {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for ERC20;
 
     /// @notice The manager contract that is responsible for managing the cooldown period.
     address immutable manager;
@@ -22,7 +22,7 @@ abstract contract ClonedCoolDownHolder {
     }
 
     /// @notice If anything ever goes wrong, allows the manager to recover lost tokens.
-    function rescueTokens(IERC20 token, address receiver, uint256 amount) external onlyManager {
+    function rescueTokens(ERC20 token, address receiver, uint256 amount) external onlyManager {
        token.safeTransfer(receiver, amount);
     }
 

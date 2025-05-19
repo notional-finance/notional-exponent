@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractLPOracle, IERC20} from "./AbstractLPOracle.sol";
+import {AbstractLPOracle, ERC20} from "./AbstractLPOracle.sol";
 import {ICurvePool} from "../interfaces/Curve/ICurve.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS} from "../utils/Constants.sol";
@@ -58,9 +58,9 @@ contract Curve2TokenOracle is AbstractLPOracle {
         decimals[0] = DECIMALS_1;
         decimals[1] = DECIMALS_2;
 
-        IERC20[] memory tokens = new IERC20[](2);
-        tokens[0] = IERC20(TOKEN_1);
-        tokens[1] = IERC20(TOKEN_2);
+        ERC20[] memory tokens = new ERC20[](2);
+        tokens[0] = ERC20(TOKEN_1);
+        tokens[1] = ERC20(TOKEN_2);
 
         // The primary index spot price is left as zero.
         uint256[] memory spotPrices = new uint256[](2);

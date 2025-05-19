@@ -23,6 +23,8 @@ error ExistingWithdrawRequest(address vault, address account, uint256 requestId)
 error NoWithdrawRequest(address vault, address account);
 error InvalidWithdrawRequestSplit();
 
+error InvalidPrice(uint256 oraclePrice, uint256 spotPrice);
+
 function checkRevert(bool success, bytes memory result) pure {
     if (!success) {
         // If the result length is less than 4, it's not a valid revert
