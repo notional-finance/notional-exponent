@@ -3,10 +3,9 @@ pragma solidity >=0.8.29;
 
 import "./AbstractStakingStrategy.sol";
 import "../interfaces/IPendle.sol";
-import "../utils/Constants.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./PendlePTLib.sol";
+import {SlippageTooHigh} from "../utils/Errors.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {PendlePTLib} from "./PendlePTLib.sol";
 
 struct PendleDepositParams {
     uint16 dexId;
@@ -24,8 +23,6 @@ struct PendleRedeemParams {
 
 /** Base implementation for Pendle PT vaults */
 contract PendlePT is AbstractStakingStrategy {
-    using SafeERC20 for ERC20;
-
     IPMarket public immutable MARKET;
     address public immutable TOKEN_OUT_SY;
 
@@ -122,7 +119,7 @@ contract PendlePT is AbstractStakingStrategy {
             // each dex and token it wants to sell.
             (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
         } else {
-            require(params.minPurchaseAmount <= netTokenOut, "Slippage");
+            if (params.minPurchaseAmount > netTokenOut) revert SlippageTooHigh(netTokenOut, params.minPurchaseAmount);
             assetsPurchased = netTokenOut;
         }
     }
@@ -135,7 +132,7 @@ contract PendlePT is AbstractStakingStrategy {
     ) internal override returns (uint256 requestId) {
         // Withdraws can only be initiated for expired PTs
         require(PT.isExpired(), "Cannot initiate withdraw for non-expired PTs");
-        // When doing a direct withdraw for PTs, we first redeem or trade out of the PT
+        // When doing a direct withdraw for PTs, we first redeem the expired PT
         // and then initiate a withdraw on the TOKEN_OUT_SY. Since the vault shares are
         // stored in PT terms, we pass tokenOutSy terms (i.e. weETH or sUSDe) to the withdraw
         // implementation.

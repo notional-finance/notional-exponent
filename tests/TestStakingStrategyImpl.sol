@@ -9,6 +9,7 @@ import "../src/withdraws/EtherFi.sol";
 import "../src/interfaces/ITradingModule.sol";
 import "./TestStakingStrategy.sol";
 import "../src/staking/PendlePT.sol";
+import "../src/staking/PendlePTLib.sol";
 import "../src/oracles/PendlePTOracle.sol";
 import "../src/staking/PendlePT_sUSDe.sol";
 
@@ -30,10 +31,7 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
 
     function deployYieldStrategy() internal override {
         manager = new EtherFiWithdrawRequestManager();
-        y = new EtherFiStaking(
-            0.0010e18, // 0.1% fee rate
-            manager
-        );
+        y = new EtherFiStaking(0.0010e18);
         // weETH
         w = ERC20(y.yieldToken());
         (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));

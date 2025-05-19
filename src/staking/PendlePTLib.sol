@@ -13,6 +13,7 @@ struct PendleDepositData {
     IPRouter.LimitOrderData limitOrderData;
 }
 
+/// @dev Generic Pendle PT library for interacting with the Pendle router, reduces bytecode size
 library PendlePTLib {
     using SafeERC20 for ERC20;
     using TokenUtils for ERC20;

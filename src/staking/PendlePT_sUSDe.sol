@@ -17,7 +17,7 @@ contract PendlePT_sUSDe is PendlePT {
         uint256 feeRate,
         IWithdrawRequestManager withdrawRequestManager
     ) PendlePT(market, tokenInSY, tokenOutSY, asset, yieldToken, feeRate, withdrawRequestManager) {
-        require(tokenOutSY == address(sUSDe), "Invalid tokenOutSY");
+        require(tokenOutSY == address(sUSDe));
     }
 
     /// @notice The vast majority of the sUSDe liquidity is in an sDAI/sUSDe curve pool.
@@ -64,7 +64,7 @@ contract PendlePT_sUSDe is PendlePT {
             // Trades the unwrapped DAI back to the given token.
             (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
         } else {
-            require(params.minPurchaseAmount <= daiAmount, "Slippage");
+            if (params.minPurchaseAmount > daiAmount) revert SlippageTooHigh(daiAmount, params.minPurchaseAmount);
             assetsPurchased = daiAmount;
         }
     }
