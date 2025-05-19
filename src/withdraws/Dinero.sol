@@ -9,8 +9,6 @@ import "../interfaces/IDinero.sol";
 contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155Holder {
     uint16 internal s_batchNonce;
 
-    receive() external payable {}
-
     constructor(address pxETHorApxETH) AbstractWithdrawRequestManager(
         address(WETH), address(pxETHorApxETH), address(WETH)
     ) { }

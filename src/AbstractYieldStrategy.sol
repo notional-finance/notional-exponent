@@ -57,8 +57,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint256 internal transient t_AllowTransfer_Amount;
     /****** End Transient Variables ******/
 
-    receive() external payable {}
-
     constructor(
         address _asset,
         address _yieldToken,
@@ -309,7 +307,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
-            IWithdrawRequestManager withdrawRequestManager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), trade.buyToken);
+            IWithdrawRequestManager withdrawRequestManager = ADDRESS_REGISTRY.getWithdrawRequestManager(trade.buyToken);
             ERC20(trade.sellToken).checkApprove(address(withdrawRequestManager), trade.amount);
             amountBought = withdrawRequestManager.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
             return (trade.amount, amountBought);

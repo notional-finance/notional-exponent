@@ -373,7 +373,7 @@ abstract contract BaseLPLib is ILPLib {
         WithdrawRequest memory request;
 
         for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(msg.sender, address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             if (address(manager) == address(0)) continue;
             (request, /* */) = manager.getWithdrawRequest(msg.sender, account);
             if (request.requestId != 0) return true;
@@ -390,7 +390,7 @@ abstract contract BaseLPLib is ILPLib {
         ERC20[] memory tokens = TOKENS();
 
         for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(msg.sender, address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             (/* */, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
             totalValue += value;
         }
@@ -407,7 +407,7 @@ abstract contract BaseLPLib is ILPLib {
         requestIds = new uint256[](exitBalances.length);
         for (uint256 i; i < exitBalances.length; i++) {
             if (exitBalances[i] == 0) continue;
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
 
             tokens[i].checkApprove(address(manager), exitBalances[i]);
             // Will revert if there is already a pending withdraw
@@ -432,7 +432,7 @@ abstract contract BaseLPLib is ILPLib {
 
         WithdrawRequest memory request;
         for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             (request, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
 
             uint256 yieldTokensBurned = uint256(request.yieldTokenAmount) * sharesToRedeem / totalShares;
@@ -448,7 +448,7 @@ abstract contract BaseLPLib is ILPLib {
     function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override {
         ERC20[] memory tokens = TOKENS();
         for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(this), address(tokens[i]));
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             if (address(manager) == address(0)) continue;
             // If there is no withdraw request then this will be a noop
             manager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
