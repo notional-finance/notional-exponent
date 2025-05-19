@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC1155} from "@openzeppelin/contracts/interfaces/IERC1155.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
@@ -46,7 +46,7 @@ interface IPirexETH {
 }
 
 IPirexETH constant PirexETH = IPirexETH(0xD664b74274DfEB538d9baC494F3a4760828B02b0);
-IERC20 constant pxETH = IERC20(0x04C154b66CB340F3Ae24111CC767e0184Ed00Cc6);
+ERC20 constant pxETH = ERC20(0x04C154b66CB340F3Ae24111CC767e0184Ed00Cc6);
 IERC4626 constant apxETH = IERC4626(0x9Ba021B0a9b958B5E75cE9f6dff97C7eE52cb3E6);
 IERC1155 constant upxETH = IERC1155(0x5BF2419a33f82F4C1f075B4006d7fC4104C43868);
 

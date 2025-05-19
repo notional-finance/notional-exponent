@@ -3,13 +3,16 @@ pragma solidity >=0.8.29;
 
 import {AggregatorV2V3Interface} from "../interfaces/AggregatorV2V3Interface.sol";
 
+/// @notice Defines a custom oracle that implements the AggregatorV2V3Interface. Used to
+/// get the price of more exotic assets like LP tokens, PT tokens, etc. Returns the price
+/// in USD terms. Used inside the TradingModule to calculate the price of arbitrary token
+/// pairs.
 abstract contract AbstractCustomOracle is AggregatorV2V3Interface {
 
     uint256 public override constant version = 1;
     string public override description;
 
     uint8 public override constant decimals = 18;
-    uint256 public constant rateDecimals = 10**18;
 
     AggregatorV2V3Interface public immutable sequencerUptimeOracle;
     uint256 public constant SEQUENCER_UPTIME_GRACE_PERIOD = 1 hours;

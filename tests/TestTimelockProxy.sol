@@ -9,7 +9,7 @@ import "../src/proxy/AddressRegistry.sol";
 contract MockInitializable is Initializable {
     bool public didInitialize;
 
-    function doSomething() external returns (bool) {
+    function doSomething() external pure returns (bool) {
         return true;
     }
 

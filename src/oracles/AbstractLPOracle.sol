@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import {DEFAULT_PRECISION} from "../utils/Constants.sol";
+import {InvalidPrice} from "../utils/Errors.sol";
 import {TRADING_MODULE} from "../interfaces/ITradingModule.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 
 /// @notice Returns the value of one LP token in terms of the primary borrowed currency by this
@@ -13,10 +15,7 @@ import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 /// from selling the tokens is not considered, any slippage effects will be captured by the maximum
 /// leverage ratio allowed before liquidation.
 abstract contract AbstractLPOracle is AbstractCustomOracle {
-    error InvalidPrice(uint256 oraclePrice, uint256 spotPrice);
 
-    uint256 internal constant RATE_PRECISION = 1e18;
-    uint256 internal constant PERCENT_BASIS = 1e18;
     uint256 internal immutable POOL_PRECISION;
     uint256 internal immutable LOWER_LIMIT_MULTIPLIER;
     uint256 internal immutable UPPER_LIMIT_MULTIPLIER;
@@ -35,10 +34,11 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         description_,
         sequencerUptimeOracle_
     ) {
-        require(_lowerLimitMultiplier < PERCENT_BASIS);
-        require(PERCENT_BASIS < _upperLimitMultiplier);
+        require(_lowerLimitMultiplier < DEFAULT_PRECISION);
+        require(DEFAULT_PRECISION < _upperLimitMultiplier);
 
         POOL_PRECISION = _poolPrecision;
+        // These are in "default precision" terms, so 0.99e18 is 99%
         LOWER_LIMIT_MULTIPLIER = _lowerLimitMultiplier;
         UPPER_LIMIT_MULTIPLIER = _upperLimitMultiplier;
         LP_TOKEN = _lpToken;
@@ -46,7 +46,7 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
     }
 
     function _totalPoolSupply() internal view virtual returns (uint256) {
-        return IERC20(LP_TOKEN).totalSupply();
+        return ERC20(LP_TOKEN).totalSupply();
     }
 
     /// @notice Returns the pair price of two tokens via the TRADING_MODULE which holds a registry
@@ -55,7 +55,7 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         // The trading module always returns a positive rate in 18 decimals so we can safely
         // cast to uint256
         (int256 rate, /* */) = TRADING_MODULE.getOraclePrice(base, quote);
-        return uint256(rate) * POOL_PRECISION / RATE_PRECISION;
+        return uint256(rate) * POOL_PRECISION / DEFAULT_PRECISION;
     }
 
     /// @notice Helper method called by _checkPriceAndCalculateValue which will supply the relevant
@@ -63,7 +63,7 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
     /// and compares the oracle price to the spot price, reverting if the deviation is too high.
     /// @return oneLPValueInPrimary the value of one LP token in terms of the primary borrowed currency
     function _calculateLPTokenValue(
-        IERC20[] memory tokens,
+        ERC20[] memory tokens,
         uint8[] memory decimals,
         uint256[] memory balances,
         uint256[] memory spotPrices
@@ -85,8 +85,8 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
 
                 // Check that the spot price and the oracle price are near each other. If this is
                 // not true then we assume that the LP pool is being manipulated.
-                uint256 lowerLimit = price * LOWER_LIMIT_MULTIPLIER / PERCENT_BASIS;
-                uint256 upperLimit = price * UPPER_LIMIT_MULTIPLIER / PERCENT_BASIS;
+                uint256 lowerLimit = price * LOWER_LIMIT_MULTIPLIER / DEFAULT_PRECISION;
+                uint256 upperLimit = price * UPPER_LIMIT_MULTIPLIER / DEFAULT_PRECISION;
                 if (spotPrices[i] < lowerLimit || upperLimit < spotPrices[i]) {
                     revert InvalidPrice(price, spotPrices[i]);
                 }
@@ -99,7 +99,7 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         }
 
         // Scale this up to the correct precision
-        return oneLPValueInPrimary * rateDecimals / primaryDecimals;
+        return oneLPValueInPrimary * DEFAULT_PRECISION / primaryDecimals;
     }
 
 }

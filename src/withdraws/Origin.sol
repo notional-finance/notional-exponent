@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {WETH} from "../utils/Constants.sol";
 
 interface IOriginVault {
@@ -38,7 +38,7 @@ interface IOriginVault {
 }
 
 IOriginVault constant OriginVault = IOriginVault(0x39254033945AA2E4809Cc2977E7087BEE48bd7Ab);
-IERC20 constant oETH = IERC20(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3);
+ERC20 constant oETH = ERC20(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3);
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
 
@@ -49,7 +49,7 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
         uint256 oETHToWithdraw,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
-        IERC20(YIELD_TOKEN).approve(address(OriginVault), oETHToWithdraw);
+        ERC20(YIELD_TOKEN).approve(address(OriginVault), oETHToWithdraw);
         (requestId, ) = OriginVault.requestWithdrawal(oETHToWithdraw);
     }
 

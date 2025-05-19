@@ -92,7 +92,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
         if (accountWithdraw.requestId != 0) revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
 
         // Receive the requested amount of yield tokens from the approved vault.
-        IERC20(YIELD_TOKEN).transferFrom(msg.sender, address(this), yieldTokenAmount);
+        ERC20(YIELD_TOKEN).transferFrom(msg.sender, address(this), yieldTokenAmount);
 
         requestId = _initiateWithdrawImpl(account, yieldTokenAmount, data);
         accountWithdraw.requestId = requestId;
@@ -212,7 +212,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     function rescueTokens(
         address cooldownHolder, address token, address receiver, uint256 amount
     ) external override onlyOwner {
-        ClonedCoolDownHolder(cooldownHolder).rescueTokens(IERC20(token), receiver, amount);
+        ClonedCoolDownHolder(cooldownHolder).rescueTokens(ERC20(token), receiver, amount);
     }
 
     /// @notice Finalizes a withdraw request and updates the account required to determine how many

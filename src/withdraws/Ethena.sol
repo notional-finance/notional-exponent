@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
@@ -10,9 +10,9 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 // Mainnet Ethena contract addresses
 IsUSDe constant sUSDe = IsUSDe(0x9D39A5DE30e57443BfF2A8307A4256c8797A3497);
-IERC20 constant USDe = IERC20(0x4c9EDD5852cd905f086C759E8383e09bff1E68B3);
+ERC20 constant USDe = ERC20(0x4c9EDD5852cd905f086C759E8383e09bff1E68B3);
 // Dai and sDAI are required for trading out of sUSDe
-IERC20 constant DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
+ERC20 constant DAI = ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
 IERC4626 constant sDAI = IERC4626(0x83F20F44975D03b1b09e64809B757c47f942BEeA);
 
 interface IsUSDe is IERC4626 {
