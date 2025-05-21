@@ -78,7 +78,7 @@ abstract contract TestEnvironment is Test {
         vm.stopPrank();
 
         // Deal WETH
-        deal(address(WETH), owner, 1_500_000e18);
+        deal(address(WETH), owner, 2_000_000e18);
         vm.prank(owner);
         WETH.transfer(msg.sender, 250_000e18);
 

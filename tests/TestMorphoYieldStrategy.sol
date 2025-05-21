@@ -450,7 +450,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         asset.approve(address(MORPHO), type(uint256).max);
         MORPHO.supply(
             MorphoLendingRouter(address(lendingRouter2)).marketParams(address(y)),
-            1_000_000 * 10 ** asset.decimals(), 0, owner, ""
+            500_000 * 10 ** asset.decimals(), 0, owner, ""
         );
         vm.stopPrank();
 
