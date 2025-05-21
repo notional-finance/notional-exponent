@@ -165,6 +165,11 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
             vm.startPrank(owner);
+            // Create a proxy to the manager
+            managers[i] = IWithdrawRequestManager(address(
+                new TimelockUpgradeableProxy(address(managers[i]),
+                abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))))
+            );
             ADDRESS_REGISTRY.setWithdrawRequestManager(address(managers[i]));
             managers[i].setApprovedVault(address(y), true);
             vm.stopPrank();
@@ -336,7 +341,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         // The call reverts properly inside the library but we don't propagate the revert
         // so we need to expect a revert here
-        vm.expectRevert("Withdraw request not finalized");
+        vm.expectPartialRevert(WithdrawRequestNotFinalized.selector);
         lendingRouter.exitPosition(
             msg.sender,
             address(y),
