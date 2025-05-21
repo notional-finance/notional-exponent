@@ -15,8 +15,7 @@ contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
         WithdrawRequestNFT.finalizeRequests(requestId);
     }
 
-    function setUp() public override {
-        super.setUp();
+    function deployManager() public override {
         manager = new EtherFiWithdrawRequestManager();
         allowedDepositTokens.push(ERC20(address(WETH)));
         WETH.deposit{value: 10e18}();
@@ -31,8 +30,7 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
         vm.warp(wCooldown.cooldownEnd);
     }
 
-    function setUp() public override {
-        super.setUp();
+    function deployManager() public override {
         manager = new EthenaWithdrawRequestManager();
         allowedDepositTokens.push(ERC20(address(USDe)));
         deal(address(USDe), address(this), 10_000e18);
@@ -46,8 +44,7 @@ contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
         return;
     }
 
-    function setUp() public override {
-        super.setUp();
+    function deployManager() public override {
         manager = new GenericERC4626WithdrawRequestManager(address(sDAI));
         allowedDepositTokens.push(ERC20(address(DAI)));
         deal(address(DAI), address(this), 10_000e18);
@@ -61,8 +58,7 @@ contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
         return;
     }
 
-    function setUp() public override {
-        super.setUp();
+    function deployManager() public override {
         manager = new GenericERC20WithdrawRequestManager(address(DAI));
         allowedDepositTokens.push(ERC20(address(DAI)));
         deal(address(DAI), address(this), 10_000e18);
@@ -81,8 +77,7 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
         OriginVault.addWithdrawalQueueLiquidity();
     }
 
-    function setUp() public override {
-        super.setUp();
+    function deployManager() public override {
         manager = new OriginWithdrawRequestManager();
         allowedDepositTokens.push(ERC20(address(WETH)));
         WETH.deposit{value: 10e18}();
@@ -111,8 +106,7 @@ contract TestDineropxETHWithdrawRequest is TestWithdrawRequest {
         }
     }
 
-    function setUp() public override {
-        super.setUp();
+    function deployManager() public override {
         manager = new DineroWithdrawRequestManager(address(pxETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
         WETH.deposit{value: 45e18}();

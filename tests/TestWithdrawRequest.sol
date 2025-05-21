@@ -4,6 +4,8 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 import "../src/interfaces/Errors.sol";
 import "../src/utils/Constants.sol";
+import "../src/proxy/TimelockUpgradeableProxy.sol";
+import "../src/proxy/Initializable.sol";
 import "../src/interfaces/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -24,11 +26,19 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(address(addressRegistry), address(ADDRESS_REGISTRY), "AddressRegistry is incorrect");
     }
 
+    function deployManager() public virtual;
+
     function setUp() public virtual {
         owner = makeAddr("owner");
 
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         deployAddressRegistry();
+        deployManager();
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
+            address(manager), abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))
+        );
+
+        manager = IWithdrawRequestManager(address(proxy));
     }
 
     modifier approveVault() {
