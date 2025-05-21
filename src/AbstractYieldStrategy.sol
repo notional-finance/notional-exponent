@@ -31,7 +31,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     uint256 internal constant VIRTUAL_SHARES = 1e6;
     uint256 internal constant VIRTUAL_YIELD_TOKENS = 1;
-    uint256 internal constant SHARE_PRECISION = DEFAULT_DECIMALS * VIRTUAL_SHARES;
+    uint256 internal constant SHARE_PRECISION = DEFAULT_PRECISION * VIRTUAL_SHARES;
 
     /// @inheritdoc IYieldStrategy
     address public immutable override asset;
