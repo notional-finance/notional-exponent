@@ -2,6 +2,7 @@
 pragma solidity >=0.8.29;
 
 import "../interfaces/IWithdrawRequestManager.sol";
+import {Initializable} from "../proxy/Initializable.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import {
     Unauthorized,
@@ -27,7 +28,7 @@ import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfac
  * request. It also allows for the withdraw request to be "tokenized" so that shares of the withdraw
  * request can be liquidated.
  */
-abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
+abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Initializable {
     using SafeERC20 for ERC20;
     using TypeConvert for uint256;
 
@@ -42,7 +43,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
     mapping(address vault => mapping(address account => WithdrawRequest)) internal s_accountWithdrawRequest;
     mapping(uint256 requestId => SplitWithdrawRequest) internal s_splitWithdrawRequest;
 
-    constructor(address _withdrawToken, address _yieldToken, address _stakingToken) {
+    constructor(address _withdrawToken, address _yieldToken, address _stakingToken) Initializable() {
         WITHDRAW_TOKEN = _withdrawToken;
         YIELD_TOKEN = _yieldToken;
         STAKING_TOKEN = _stakingToken;
@@ -256,8 +257,9 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager {
 
         if (w.hasSplit && finalized) {
             s.totalWithdraw = tokensWithdrawn.toUint120();
-            s.finalized = true;
+            // Safety check to ensure that we do not override a finalized split withdraw request
             require(s.finalized == false);
+            s.finalized = true;
             // Update the split withdraw request with the total tokens withdrawn
             s_splitWithdrawRequest[w.requestId] = s;
 

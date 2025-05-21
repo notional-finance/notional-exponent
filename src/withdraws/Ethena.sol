@@ -52,9 +52,11 @@ contract EthenaCooldownHolder is ClonedCoolDownHolder {
 
 contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
 
-    address internal immutable HOLDER_IMPLEMENTATION;
+    address public HOLDER_IMPLEMENTATION;
 
-    constructor() AbstractWithdrawRequestManager(address(USDe), address(sUSDe), address(USDe)) {
+    constructor() AbstractWithdrawRequestManager(address(USDe), address(sUSDe), address(USDe)) { }
+
+    function _initialize(bytes calldata /* data */) internal override {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 
