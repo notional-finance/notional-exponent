@@ -40,7 +40,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         return marketParams(vault, IYieldStrategy(vault).asset());
     }
 
-    function marketParams(address vault, address asset) public view returns (MarketParams memory) {
+    function marketParams(address vault, address asset) internal view returns (MarketParams memory) {
         MorphoParams memory params = s_morphoParams[vault];
 
         return MarketParams({
@@ -60,7 +60,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address onBehalf,
         address vault,
         address asset,
-        uint256 depositAssetAmount,
+        uint256 /* depositAssetAmount */,
         uint256 borrowAmount,
         bytes calldata depositData,
         bytes memory migrateData
@@ -68,7 +68,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         // At this point we will flash borrow funds from the lending market and then
         // receive control in a different function on a callback.
         bytes memory flashLoanData = abi.encode(
-            onBehalf, vault, asset, depositAssetAmount, depositData, migrateData
+            onBehalf, vault, asset, depositData, migrateData
         );
         MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
     }
@@ -80,14 +80,11 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             address onBehalf,
             address vault,
             address asset,
-            uint256 depositAssetAmount,
             bytes memory depositData,
             bytes memory migrateData
-        ) = abi.decode(data, (address, address, address, uint256, bytes, bytes));
+        ) = abi.decode(data, (address, address, address, bytes, bytes));
 
-        _enterOrMigrate(
-            onBehalf, vault, asset, depositAssetAmount + assets, depositData, migrateData
-        );
+        _enterOrMigrate(onBehalf, vault, asset, depositData, migrateData);
 
         MarketParams memory m = marketParams(vault, asset);
         // Borrow the assets in order to repay the flash loan
@@ -220,6 +217,8 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     function healthFactor(address borrower, address vault) public override returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {
         MarketParams memory m = marketParams(vault);
         Id id = morphoId(m);
+        // Ensure interest is accrued before calculating health factor
+        MORPHO.accrueInterest(m);
         Position memory position = MORPHO.position(id, borrower);
         Market memory market = MORPHO.market(id);
 

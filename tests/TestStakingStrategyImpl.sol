@@ -170,7 +170,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         o = new MockOracle(pendleOracle.latestAnswer());
     }
 
-    function postDeploySetup() internal override {
+    function postDeploySetup() internal override virtual {
         vm.startPrank(owner);
         if (address(manager) != address(0)) manager.setApprovedVault(address(y), true);
         TRADING_MODULE.setTokenPermissions(
@@ -310,6 +310,9 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         ptToken = 0xb7de5dFCb74d25c2f21841fbd6230355C50d9308;
         manager = new EthenaWithdrawRequestManager();
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(address(manager), abi.encodeWithSelector(Initializable.initialize.selector, bytes("")));
+        manager = EthenaWithdrawRequestManager(address(proxy));
+
         withdrawRequest = new TestEthenaWithdrawRequest();
         defaultDexId = uint8(DexId.CURVE_V2);
         defaultDepositExchangeData = abi.encode(CurveV2SingleData({

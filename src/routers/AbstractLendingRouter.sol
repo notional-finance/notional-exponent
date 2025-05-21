@@ -9,6 +9,7 @@ import {
     CannotForceWithdraw
 } from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {TokenUtils} from "../utils/TokenUtils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
@@ -23,6 +24,7 @@ struct MigrateParams {
 
 abstract contract AbstractLendingRouter is ILendingRouter {
     using SafeERC20 for ERC20;
+    using TokenUtils for ERC20;
 
     mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
     mapping(address vault => mapping(address user => uint256 lastEntryTime)) internal s_lastEntryTime;
@@ -37,15 +39,18 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         _;
     }
 
+    /// @inheritdoc ILendingRouter
     function setApproval(address operator, bool approved) external override {
         if (operator == msg.sender) revert NotAuthorized(msg.sender, operator);
         s_isApproved[msg.sender][operator] = approved;
     }
 
+    /// @inheritdoc ILendingRouter
     function isApproved(address user, address operator) public view override returns (bool) {
         return s_isApproved[user][operator];
     }
 
+    /// @inheritdoc ILendingRouter
     function enterPosition(
         address onBehalf,
         address vault,
@@ -57,6 +62,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, bytes(""));
     }
 
+    /// @inheritdoc ILendingRouter
     function enterPosition(
         address onBehalf,
         address vault,
@@ -68,23 +74,31 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address asset = IYieldStrategy(vault).asset();
 
         if (depositAssetAmount > 0) {
+            // Take any margin deposit from the sender initially
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
         }
 
-        // TODO: if migrate data is set and we have a max repay how do we get the borrow amount?
         if (borrowAmount > 0) {
+            if (borrowAmount == type(uint256).max && migrateData.length > 0) {
+                // If max borrow is specified and migrate data is set then set the borrow amount to be
+                // the total debt of the previous position so that it can be fully repaid.
+                MigrateParams memory migrateParams = abi.decode(migrateData, (MigrateParams));
+                (borrowAmount, /* */, /* */) = ILendingRouter(migrateParams.fromLendingRouter).healthFactor(onBehalf, vault);
+            }
+
             _flashBorrowAndEnter(
                 onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateData
             );
         } else {
             _enterOrMigrate(
-                onBehalf, vault, asset, depositAssetAmount, depositData, migrateData
+                onBehalf, vault, asset, depositData, migrateData
             );
         }
 
         s_lastEntryTime[vault][onBehalf] = block.timestamp;
     }
 
+    /// @inheritdoc ILendingRouter
     function exitPosition(
         address onBehalf,
         address vault,
@@ -94,6 +108,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         bytes calldata redeemData
     ) external override isAuthorized(onBehalf) {
         if (block.timestamp - s_lastEntryTime[vault][onBehalf] < COOLDOWN_PERIOD) {
+            // Safety check to prevent any sort of short term arbitrage attack where a user
+            // enters a position and then exits it immediately.
             revert CannotExitPositionWithinCooldownPeriod();
         }
 
@@ -107,38 +123,80 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         }
     }
 
+    /// @inheritdoc ILendingRouter
     function liquidate(
         address liquidateAccount,
         address vault,
         uint256 seizedAssets,
         uint256 repaidShares
     ) external override returns (uint256 sharesToLiquidator) {
+        // TODO: do we need to check the cooldown period here?
+
         address liquidator = msg.sender;
+        // TODO: is this check necessary?
         // If the liquidator has a position then they cannot liquidate or they will have
         // a native balance and a balance on the lending market.
         require(balanceOfCollateral(liquidator, vault) == 0);
 
+        // Runs any checks on the vault to ensure that the liquidation can proceed, whitelists the lending platform
+        // to transfer collateral to the lending router.
         IYieldStrategy(vault).preLiquidation(
             liquidator, liquidateAccount, seizedAssets, balanceOfCollateral(liquidateAccount, vault)
         );
 
+        // After this call, address(this) will have the liquidated shares
         sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, seizedAssets, repaidShares);
 
+        // Transfers the shares to the liquidator from the lending router and does any post liquidation logic
         IYieldStrategy(vault).postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
         // The liquidator will receive shares in their native balance and then they can call redeem
         // on the yield strategy to get the assets.
     }
 
+    /// @inheritdoc ILendingRouter
+    function initiateWithdraw(address vault, bytes calldata data) external returns (uint256 requestId) {
+        requestId = _initiateWithdraw(vault, msg.sender, data);
+
+        // Can only initiate a withdraw if health factor remains positive
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender, vault);
+        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
+    }
+
+    /// @inheritdoc ILendingRouter
+    function forceWithdraw(address vault, address account, bytes calldata data) external returns (uint256 requestId) {
+        // Can only force a withdraw if health factor is negative, this allows a liquidator to
+        // force a withdraw and liquidate a position at a later time.
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
+        if (borrowed <= maxBorrow) revert CannotForceWithdraw(account);
+
+        requestId = _initiateWithdraw(vault, account, data);
+    }
+
+    /// @inheritdoc ILendingRouter
+    function claimRewards(address vault) external returns (uint256[] memory rewards) {
+        return IRewardManager(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
+    }
+
+    /// @inheritdoc ILendingRouter
+    function healthFactor(address borrower, address vault) public override virtual returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
+
+    /// @inheritdoc ILendingRouter
+    function balanceOfCollateral(address account, address vault) public override view virtual returns (uint256 collateralBalance);
+
+
+    /*** Internal Methods ***/
+
+    /// @dev Checks if an exitPosition call is a migration, this would be called via a lending router
     function _isMigrate(address receiver) internal view returns (bool) {
         return receiver == msg.sender && ADDRESS_REGISTRY.isLendingRouter(msg.sender);
     }
 
+    /// @dev Enters a position or migrates shares from a previous lending router
     function _enterOrMigrate(
         address onBehalf,
         address vault,
         address asset,
-        uint256 assetAmount,
         bytes memory depositData,
         bytes memory migrateData
     ) internal returns (uint256 sharesReceived) {
@@ -147,26 +205,26 @@ abstract contract AbstractLendingRouter is ILendingRouter {
             require(ADDRESS_REGISTRY.isLendingRouter(migrateParams.fromLendingRouter), "Invalid lending router");
 
             // Allow the previous lending router to repay the debt from assets held here.
-            ERC20(asset).approve(migrateParams.fromLendingRouter, migrateParams.assetToRepay);
+            ERC20(asset).checkApprove(migrateParams.fromLendingRouter, migrateParams.assetToRepay);
             // On migrate the receiver is this current lending router
             ILendingRouter(migrateParams.fromLendingRouter).exitPosition(
                 onBehalf, vault, address(this), migrateParams.sharesToMigrate, migrateParams.assetToRepay, bytes("")
             );
             sharesReceived = migrateParams.sharesToMigrate;
-            // TODO: is this vulnerable to donation attack?
-            assetAmount = ERC20(asset).balanceOf(address(this));
+            ERC20(asset).checkRevoke(migrateParams.fromLendingRouter);
         }
 
+        // TODO: is this vulnerable to donation attack?
+        uint256 assetAmount = ERC20(asset).balanceOf(address(this));
         if (0 < assetAmount) {
             ERC20(asset).approve(vault, assetAmount);
-            sharesReceived += IYieldStrategy(vault).mintShares(
-                assetAmount, onBehalf, depositData
-            );
+            sharesReceived += IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
         }
 
         _supplyCollateral(onBehalf, vault, asset, sharesReceived);
     }
 
+    /// @dev Redeems or withdraws shares from the lending market, handles migration
     function _redeemShares(
         address sharesOwner,
         address vault,
@@ -199,6 +257,19 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         }
     }
 
+    /// @dev Initiates a withdraw request for the vault shares held by the account
+    function _initiateWithdraw(
+        address vault,
+        address account,
+        bytes calldata data
+    ) internal returns (uint256 requestId) {
+        uint256 sharesHeld = balanceOfCollateral(account, vault);
+        return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data);
+    }
+
+    /*** Virtual Methods (lending market specific) ***/
+
+    /// @dev Flash borrows the assets and enters a position
     function _flashBorrowAndEnter(
         address onBehalf,
         address vault,
@@ -209,18 +280,12 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         bytes memory migrateData
     ) internal virtual;
 
+    /// @dev Supplies collateral in the amount of shares received to the lending market
     function _supplyCollateral(
         address onBehalf, address vault, address asset, uint256 sharesReceived
     ) internal virtual;
 
-    function _liquidate(
-        address liquidator,
-        address vault,
-        address liquidateAccount,
-        uint256 seizedAssets,
-        uint256 repaidShares
-    ) internal virtual returns (uint256 sharesToLiquidator);
-
+    /// @dev Withdraws collateral from the lending market
     function _withdrawCollateral(
         address vault,
         address asset,
@@ -229,6 +294,16 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address receiver
     ) internal virtual;
 
+    /// @dev Liquidates a position on the lending market
+    function _liquidate(
+        address liquidator,
+        address vault,
+        address liquidateAccount,
+        uint256 seizedAssets,
+        uint256 repaidShares
+    ) internal virtual returns (uint256 sharesToLiquidator);
+
+    /// @dev Exits a position with a debt repayment
     function _exitWithRepay(
         address onBehalf,
         address vault,
@@ -239,38 +314,4 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         bytes calldata redeemData
     ) internal virtual;
 
-    function healthFactor(address borrower, address vault) public override virtual returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
-
-    function balanceOfCollateral(address account, address vault) public override view virtual returns (uint256 collateralBalance);
-
-
-    function initiateWithdraw(address vault, bytes calldata data) external returns (uint256 requestId) {
-        requestId = _initiateWithdraw(vault, msg.sender, data);
-
-        // Can only initiate a withdraw if health factor remains positive
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender, vault);
-        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
-    }
-
-    function forceWithdraw(address vault, address account, bytes calldata data) external returns (uint256 requestId) {
-        // Can only force a withdraw if health factor is negative, this allows a liquidator to
-        // force a withdraw and liquidate a position at a later time.
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
-        if (borrowed <= maxBorrow) revert CannotForceWithdraw(account);
-
-        requestId = _initiateWithdraw(vault, account, data);
-    }
-
-    function claimRewards(address vault) external returns (uint256[] memory rewards) {
-        return IRewardManager(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
-    }
-
-    function _initiateWithdraw(
-        address vault,
-        address account,
-        bytes calldata data
-    ) internal returns (uint256 requestId) {
-        uint256 sharesHeld = balanceOfCollateral(account, vault);
-        return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data);
-    }
 }

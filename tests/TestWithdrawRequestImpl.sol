@@ -27,7 +27,9 @@ contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
 contract TestEthenaWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) public override {
         IsUSDe.UserCooldown memory wCooldown = sUSDe.cooldowns(address(uint160(requestId)));
-        vm.warp(wCooldown.cooldownEnd);
+        if (wCooldown.cooldownEnd > block.timestamp) {
+            vm.warp(wCooldown.cooldownEnd);
+        }
     }
 
     function deployManager() public override {
