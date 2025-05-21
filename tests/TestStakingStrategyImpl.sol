@@ -31,6 +31,12 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
 
     function deployYieldStrategy() internal override {
         manager = new EtherFiWithdrawRequestManager();
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(address(manager), abi.encodeWithSelector(Initializable.initialize.selector, bytes("")));
+        manager = EtherFiWithdrawRequestManager(address(proxy));
+        if (address(ADDRESS_REGISTRY.getWithdrawRequestManager(manager.YIELD_TOKEN())) == address(0)) {
+            vm.prank(ADDRESS_REGISTRY.upgradeAdmin());
+            ADDRESS_REGISTRY.setWithdrawRequestManager(address(manager));
+        }
         y = new EtherFiStaking(0.0010e18);
         // weETH
         w = ERC20(y.yieldToken());

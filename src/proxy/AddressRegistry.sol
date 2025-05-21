@@ -87,7 +87,7 @@ contract AddressRegistry {
         // Prevent accidental override of a withdraw request manager, this is dangerous
         // as it could lead to withdraw requests being stranded on the deprecated withdraw
         // request manager. Managers can be upgraded using a TimelockUpgradeableProxy.
-        require (withdrawRequestManagers[yieldToken] != address(0), "Withdraw request manager already set");
+        require (withdrawRequestManagers[yieldToken] == address(0), "Withdraw request manager already set");
 
         withdrawRequestManagers[yieldToken] = withdrawRequestManager;
         emit WithdrawRequestManagerSet(yieldToken, withdrawRequestManager);
