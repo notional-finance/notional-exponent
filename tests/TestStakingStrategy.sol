@@ -46,9 +46,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        bytes memory withdrawRequestData = getWithdrawRequestData(msg.sender, balanceBefore);
+        (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        lendingRouter.initiateWithdraw(address(y), withdrawRequestData);
         (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
@@ -242,15 +243,15 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         // The staker exists to generate fees on the position to test the withdraw valuation
         _enterPosition(staker, defaultDeposit, defaultBorrow);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        bytes memory withdrawRequestData = getWithdrawRequestData(msg.sender, balanceBefore);
 
         (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         (/* */, uint256 collateralValueBeforeStaker, /* */) = lendingRouter.healthFactor(staker, address(y));
         assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
 
-        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        lendingRouter.initiateWithdraw(address(y), withdrawRequestData);
         vm.stopPrank();
 
         (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
