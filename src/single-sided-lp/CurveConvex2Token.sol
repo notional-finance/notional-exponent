@@ -105,6 +105,11 @@ contract CurveConvexLib is BaseLPLib {
     address internal immutable TOKEN_2;
     CurveInterface internal immutable CURVE_INTERFACE;
 
+    // Payable is required for the CurveV1 interface which will execute a transfer
+    // when the remove_liquidity function is called, it only will be done to this contract
+    // during the checkReentrancyContext function.
+    receive() external payable {}
+
     constructor(address _token1, address _token2, address _asset, uint8 _primaryIndex, DeploymentParams memory params) {
         TOKEN_1 = _token1;
         TOKEN_2 = _token2;
