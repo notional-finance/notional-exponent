@@ -26,3 +26,5 @@ error NoWithdrawRequest(address vault, address account);
 error InvalidWithdrawRequestSplit();
 
 error InvalidPrice(uint256 oraclePrice, uint256 spotPrice);
+error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
+error AssetRemaining(uint256 assetRemaining);
