@@ -54,7 +54,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
             // there will be some slippage as a result of selling the PT
-            assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Price changed during withdraw request");
+            assertApproxEqRel(collateralValueBefore, collateralValueAfter, maxWithdrawValuationChange, "Price changed during withdraw request");
         } else {
             assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Price changed during withdraw request");
         }
@@ -258,7 +258,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
             // there will be some slippage as a result of selling the PT
-            assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0050e18, "Withdrawal should not change collateral value");
+            assertApproxEqRel(collateralValueBefore, collateralValueAfter, maxWithdrawValuationChange, "Withdrawal should not change collateral value");
         } else {
             assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Withdrawal should not change collateral value");
         }
