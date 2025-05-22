@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+struct MigrateParams {
+    address fromLendingRouter;
+    uint256 sharesToMigrate;
+    uint256 assetToRepay;
+}
+
 interface ILendingRouter {
 
     /**
