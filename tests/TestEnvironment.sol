@@ -24,6 +24,7 @@ abstract contract TestEnvironment is Test {
     uint256 public defaultBorrow;
     uint256 public maxEntryValuationSlippage = 0.0010e18;
     uint256 public maxExitValuationSlippage = 0.0010e18;
+    uint256 public maxWithdrawValuationChange = 0.0050e18;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
