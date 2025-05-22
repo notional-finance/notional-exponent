@@ -8,12 +8,47 @@ import "../src/interfaces/ITradingModule.sol";
 
 abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
+    function test_initiateWithdraw_RevertsIf_NotAuthorized() public onlyIfWithdrawRequestManager {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        address operator = makeAddr("operator");
+
+        vm.startPrank(operator);
+        uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, operator, msg.sender));
+        lendingRouter.initiateWithdraw(
+            msg.sender,
+            address(y),
+            getWithdrawRequestData(msg.sender, shares)
+        );
+        vm.stopPrank();
+
+        vm.prank(msg.sender);
+        lendingRouter.setApproval(operator, true);
+
+        vm.startPrank(operator);
+        lendingRouter.initiateWithdraw(
+            msg.sender,
+            address(y),
+            getWithdrawRequestData(msg.sender, shares)
+        );
+        vm.stopPrank();
+    }
+
+    function test_forceWithdraw_RevertsIf_IsCollateralized() public onlyIfWithdrawRequestManager {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.expectRevert(abi.encodeWithSelector(CannotForceWithdraw.selector, msg.sender));
+        lendingRouter.forceWithdraw(msg.sender, address(y), "");
+    }
+    
+
     function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
         uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 requestId = lendingRouter.initiateWithdraw(
+            msg.sender,
             address(y),
             getWithdrawRequestData(msg.sender, shares)
         );
@@ -38,7 +73,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         bytes memory data = getWithdrawRequestData(msg.sender, shares);
         vm.expectRevert(abi.encodeWithSelector(CannotInitiateWithdraw.selector, msg.sender));
-        lendingRouter.initiateWithdraw(address(y), data);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), data);
         vm.stopPrank();
     }
 
@@ -49,7 +84,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         bytes memory withdrawRequestData = getWithdrawRequestData(msg.sender, balanceBefore);
         (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
-        lendingRouter.initiateWithdraw(address(y), withdrawRequestData);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), withdrawRequestData);
         (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
@@ -80,7 +115,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
         vm.stopPrank();
 
         finalizeWithdrawRequest(msg.sender);
@@ -119,7 +154,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
         vm.stopPrank();
 
         // No fees should accrue at this point since all yield tokens are escrowed
@@ -151,7 +186,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
         vm.stopPrank();
 
         // If you change the price here you need to change the amount of shares
@@ -220,7 +255,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
         vm.stopPrank();
 
         if (address(withdrawTokenOracle) != address(0)) {
@@ -252,7 +287,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), withdrawRequestData);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), withdrawRequestData);
         vm.stopPrank();
 
         (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));

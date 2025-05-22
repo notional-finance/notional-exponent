@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
+import {ILendingRouter, MigrateParams} from "../interfaces/ILendingRouter.sol";
 import {
     NotAuthorized,
     CannotExitPositionWithinCooldownPeriod,
     CannotInitiateWithdraw,
-    CannotForceWithdraw
+    CannotForceWithdraw,
+    InvalidLendingRouter
 } from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -15,12 +16,6 @@ import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {ADDRESS_REGISTRY, COOLDOWN_PERIOD} from "../utils/Constants.sol";
-
-struct MigrateParams {
-    address fromLendingRouter;
-    uint256 sharesToMigrate;
-    uint256 assetToRepay;
-}
 
 abstract contract AbstractLendingRouter is ILendingRouter {
     using SafeERC20 for ERC20;
@@ -211,7 +206,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     ) internal returns (uint256 sharesReceived) {
         if (0 < migrateData.length) {
             MigrateParams memory migrateParams = abi.decode(migrateData, (MigrateParams));
-            require(ADDRESS_REGISTRY.isLendingRouter(migrateParams.fromLendingRouter), "Invalid lending router");
+            if (!ADDRESS_REGISTRY.isLendingRouter(migrateParams.fromLendingRouter)) revert InvalidLendingRouter();
 
             // Allow the previous lending router to repay the debt from assets held here.
             ERC20(asset).checkApprove(migrateParams.fromLendingRouter, migrateParams.assetToRepay);

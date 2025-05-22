@@ -42,10 +42,14 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {
+        _enterPosition(user, depositAmount, borrowAmount, lendingRouter);
+    }
+
+    function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount, ILendingRouter l) internal {
         vm.startPrank(user);
-        if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
-        asset.approve(address(lendingRouter), depositAmount);
-        lendingRouter.enterPosition(
+        if (!MORPHO.isAuthorized(user, address(l))) MORPHO.setAuthorization(address(l), true);
+        asset.approve(address(l), depositAmount);
+        l.enterPosition(
             user, address(y), depositAmount, borrowAmount,
             getDepositData(user, depositAmount + borrowAmount)
         );
@@ -76,20 +80,20 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(computedTotalSupply, totalSupply, "Total supply is correct");
     }
 
-    function postEntryAssertions() internal view {
+    function postEntryAssertions(address user, ILendingRouter l) internal view {
         // Check that the yield token balance is correct
-        assertEq(w.balanceOf(msg.sender), 0);
+        assertEq(w.balanceOf(user), 0);
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply());
-        assertEq(y.balanceOf(msg.sender), 0);
-        assertGt(lendingRouter.balanceOfCollateral(msg.sender, address(y)), 0);
+        assertEq(y.balanceOf(user), 0);
+        assertGt(l.balanceOfCollateral(user, address(y)), 0);
         assertEq(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()));
-        assertEq(y.convertSharesToYieldToken(lendingRouter.balanceOfCollateral(msg.sender, address(y))), w.balanceOf(address(y)));
-        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), y.balanceOf(address(MORPHO)));
+        assertEq(y.convertSharesToYieldToken(l.balanceOfCollateral(user, address(y))), w.balanceOf(address(y)));
+        assertEq(l.balanceOfCollateral(user, address(y)), y.balanceOf(address(MORPHO)));
     }
 
     function test_enterPosition() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        postEntryAssertions();
+        postEntryAssertions(msg.sender, lendingRouter);
         assertApproxEqRel(
             defaultDeposit + defaultBorrow,
             y.convertToAssets(lendingRouter.balanceOfCollateral(msg.sender, address(y))),
@@ -99,7 +103,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
     function test_enterPosition_zeroBorrow() public { 
         _enterPosition(msg.sender, defaultDeposit, 0);
-        postEntryAssertions();
+        postEntryAssertions(msg.sender, lendingRouter);
         assertApproxEqRel(
             defaultDeposit,
             y.convertToAssets(lendingRouter.balanceOfCollateral(msg.sender, address(y))),
@@ -438,44 +442,164 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
-    function test_migrate_userPositions() public {
-        address user = msg.sender;
+    function setup_migration_test(address user) public returns (MorphoLendingRouter lendingRouter2) {
         _enterPosition(user, defaultDeposit, defaultBorrow);
+        lendingRouter2 = MorphoLendingRouter(address(setupLendingRouter(0.98e18)));
 
-        // Sets up a second lending router
-        vm.startPrank(owner);
-        MorphoLendingRouter lendingRouter2 = new MorphoLendingRouter();
-        ADDRESS_REGISTRY.setLendingRouter(address(lendingRouter2));
-        // Slightly different lltv
-        MorphoLendingRouter(address(lendingRouter2)).initializeMarket(address(y), IRM, 0.98e18);
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        lendingRouter.setApproval(address(lendingRouter2), true);
 
-        asset.approve(address(MORPHO), type(uint256).max);
-        MORPHO.supply(
-            MorphoLendingRouter(address(lendingRouter2)).marketParams(address(y)),
-            500_000 * 10 ** asset.decimals(), 0, owner, ""
+        asset.approve(address(lendingRouter2), defaultDeposit);
+        vm.stopPrank();
+    }
+
+    
+    function test_migrate_RevertsIf_NotAuthorized() public {
+        address user = msg.sender;
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+        vm.startPrank(user);
+        lendingRouter.setApproval(address(lendingRouter2), false);
+        uint256 sharesToMigrate = lendingRouter.balanceOfCollateral(user, address(y));
+        // Revert occurs on the original lending router
+        vm.expectRevert(
+            abi.encodeWithSelector(NotAuthorized.selector, address(lendingRouter2), user),
+            address(lendingRouter)
+        );
+        lendingRouter2.enterPosition(
+            user, address(y), defaultDeposit, defaultBorrow + 1e6, getDepositData(user, defaultDeposit),
+            abi.encode(
+                address(lendingRouter),
+                sharesToMigrate,
+                type(uint256).max
+           )
         );
         vm.stopPrank();
 
+    }
+
+    function test_migrate_RevertsIf_PriorToCooldownPeriod() public {
+        address user = msg.sender;
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+
+        vm.startPrank(user);
+        uint256 sharesToMigrate = lendingRouter.balanceOfCollateral(user, address(y));
+        vm.expectRevert(abi.encodeWithSelector(CannotExitPositionWithinCooldownPeriod.selector));
+        lendingRouter2.enterPosition(
+            user, address(y), defaultDeposit, defaultBorrow + 1e6, getDepositData(user, defaultDeposit),
+            abi.encode(
+                address(lendingRouter),
+                sharesToMigrate,
+                type(uint256).max
+           )
+        );
+        vm.stopPrank();
+    }
+
+    function test_migrate_RevertsIf_InsufficientRepayment() public {
+        address user = msg.sender;
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(user);
+        uint256 sharesToMigrate = lendingRouter.balanceOfCollateral(user, address(y));
+        vm.expectRevert();
+        lendingRouter2.enterPosition(
+            user, address(y), 0, 1e6, getDepositData(user, defaultDeposit),
+            abi.encode(
+                address(lendingRouter),
+                sharesToMigrate,
+                type(uint256).max
+           )
+        );
+        vm.stopPrank();
+    }
+
+    function test_migrate_RevertsIf_NotCalledByLendingRouter() public {
+        address user = msg.sender;
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+        vm.startPrank(user);
+        uint256 sharesToMigrate = lendingRouter.balanceOfCollateral(user, address(y));
+        vm.expectRevert(InvalidLendingRouter.selector);
+        lendingRouter2.enterPosition(
+            user, address(y), 0, 1e6, getDepositData(user, defaultDeposit),
+            abi.encode(
+                address(user),
+                sharesToMigrate,
+                type(uint256).max
+           )
+        );
+        vm.stopPrank();
+    }
+
+    function test_migrate_noExistingPosition(bool isFull, bool hasExistingPosition) public {
+        address user = msg.sender;
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+        uint256 borrowBefore = 0;
+        if (hasExistingPosition) {
+            _enterPosition(user, defaultDeposit, defaultBorrow, lendingRouter2);
+            borrowBefore = defaultBorrow;
+        }
+        uint256 balanceBefore = lendingRouter2.balanceOfCollateral(user, address(y));
 
         vm.warp(block.timestamp + 6 minutes);
 
         // Can migrate user position into second lending router
         vm.startPrank(user);
-        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
-        // Allows the lendingRouter2 to manage the user's position
-        lendingRouter.setApproval(address(lendingRouter2), true);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
+        uint256 amountToRepay;
+        uint256 sharesToMigrate;
+        if (isFull) {
+            amountToRepay = type(uint256).max;
+            sharesToMigrate = sharesBefore;
+        } else {
+            amountToRepay = defaultBorrow / 2;
+            sharesToMigrate = sharesBefore / 2;
+        }
 
-        asset.approve(address(lendingRouter2), defaultDeposit);
-        // TODO: setting the max borrow amount is tough here because we do not know the max
-        // borrow amount before hand
         lendingRouter2.enterPosition(
-            user, address(y), defaultDeposit, defaultBorrow + 1e6, getDepositData(user, defaultDeposit),
+            user,
+            address(y),
+            0,
+            amountToRepay,
+            getDepositData(user, 0),
             abi.encode(
                 address(lendingRouter),
-                lendingRouter.balanceOfCollateral(user, address(y)),
-                type(uint256).max
+                sharesToMigrate,
+                amountToRepay
            )
         );
         vm.stopPrank();
+
+        assertEq(lendingRouter2.lastEntryTime(address(y), user), block.timestamp);
+        (
+            uint256 borrowed1,
+            /* uint256 collateralValue1 */,
+            /* uint256 maxBorrow1 */
+        ) = lendingRouter.healthFactor(user, address(y));
+        (
+            uint256 borrowed2,
+            /* uint256 collateralValue2 */,
+            /* uint256 maxBorrow2 */
+        ) = lendingRouter2.healthFactor(user, address(y));
+
+        if (isFull) {
+            assertEq(borrowed1, 0);
+            assertApproxEqRel(borrowed2, defaultBorrow + borrowBefore, 0.001e18);
+
+            assertEq(lendingRouter.balanceOfCollateral(user, address(y)), 0);
+            assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesToMigrate + balanceBefore);
+        } else {
+            assertApproxEqRel(borrowed1, defaultBorrow / 2, 0.001e18);
+            assertApproxEqRel(borrowed2, defaultBorrow / 2 + borrowBefore, 0.001e18);
+
+            assertEq(lendingRouter.balanceOfCollateral(user, address(y)), sharesBefore - sharesToMigrate);
+            assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesToMigrate + balanceBefore);
+        }
     }
 }

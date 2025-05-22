@@ -20,6 +20,7 @@ error SlippageTooHigh(uint256 actualTokensOut, uint256 minTokensOut);
 error CannotEnterPosition();
 error InvalidUpgrade();
 error InvalidInitialization();
+error InvalidLendingRouter();
 
 error ExistingWithdrawRequest(address vault, address account, uint256 requestId);
 error NoWithdrawRequest(address vault, address account);

@@ -237,7 +237,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             1
         );
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
-        postEntryAssertions();
+        postEntryAssertions(msg.sender, lendingRouter);
         vm.stopPrank();
 
         delete depositParams;
@@ -259,7 +259,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             address(asset), address(0), (defaultDeposit + defaultBorrow) / 2, 0
         );
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit + defaultBorrow));
-        postEntryAssertions();
+        postEntryAssertions(msg.sender, lendingRouter);
         vm.stopPrank();
 
         delete depositParams;
