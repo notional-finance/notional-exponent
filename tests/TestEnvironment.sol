@@ -88,7 +88,7 @@ abstract contract TestEnvironment is Test {
         vm.prank(owner);
         WETH.transfer(msg.sender, 250_000e18);
 
-        setupLendingRouter();
+        lendingRouter = setupLendingRouter(0.915e18);
 
         postDeploySetup();
     }
@@ -125,6 +125,6 @@ abstract contract TestEnvironment is Test {
 
     function postDeploySetup() internal virtual { }
 
-    function setupLendingRouter() internal virtual;
+    function setupLendingRouter(uint256 lltv) internal virtual returns (ILendingRouter);
 
 }

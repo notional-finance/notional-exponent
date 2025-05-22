@@ -27,19 +27,21 @@ abstract contract TestDilutionAttack is TestEnvironment {
         defaultBorrow = asset == USDC ? 90_000e6 : 90e18;
     }
 
-    function setupLendingRouter() internal override {
-        lendingRouter = new MorphoLendingRouter();
+    function setupLendingRouter(uint256 lltv) internal override returns (ILendingRouter l) {
+        l = new MorphoLendingRouter();
 
         vm.startPrank(owner);
-        ADDRESS_REGISTRY.setLendingRouter(address(lendingRouter));
-        MorphoLendingRouter(address(lendingRouter)).initializeMarket(address(y), IRM, 0.915e18);
+        ADDRESS_REGISTRY.setLendingRouter(address(l));
+        MorphoLendingRouter(address(l)).initializeMarket(address(y), IRM, lltv);
 
         asset.approve(address(MORPHO), type(uint256).max);
         MORPHO.supply(
-            MorphoLendingRouter(address(lendingRouter)).marketParams(address(y)),
+            MorphoLendingRouter(address(l)).marketParams(address(y)),
             1_000_000 * 10 ** asset.decimals(), 0, owner, ""
         );
         vm.stopPrank();
+
+        return l;
     }
 
     function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {

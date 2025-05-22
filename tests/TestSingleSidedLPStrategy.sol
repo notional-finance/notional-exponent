@@ -272,7 +272,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
 
         asset.approve(address(lendingRouter), defaultDeposit);
 
@@ -329,7 +329,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(msg.sender);
         // uint256[] memory requestIds = lendingRouter.initiateWithdraw(msg.sender, address(y), abi.encode(withdrawParams));
-        uint256 requestId = lendingRouter.initiateWithdraw(address(y), abi.encode(withdrawParams));
+        uint256 requestId = lendingRouter.initiateWithdraw(msg.sender, address(y), abi.encode(withdrawParams));
         // assertEq(requestIds.length, 2);
 
         vm.warp(block.timestamp + 6 minutes);
@@ -415,7 +415,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         assertApproxEqRel(collateralValueBefore, collateralValueBeforeStaker, 0.0005e18, "Staker should have same collateral value as msg.sender");
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
         vm.stopPrank();
         (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
         assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0001e18, "Withdrawal should not change collateral value");
@@ -447,7 +447,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
         vm.stopPrank();
 
         // Drop the price of the two listed tokens since the LP token valuation is
