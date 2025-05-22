@@ -266,6 +266,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 sharesHeld,
         bytes memory data
     ) internal override returns (uint256 requestId) {
+        _clearAccountRewardsOnWithdraw(account, sharesHeld);
+
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
         uint256[] memory exitBalances = _unstakeAndExitPool({
