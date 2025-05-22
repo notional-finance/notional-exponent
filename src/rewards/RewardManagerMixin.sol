@@ -78,7 +78,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 sharesToBurn,
         bytes memory redeemData,
         address sharesOwner
-    ) internal override returns (uint256 assetsWithdrawn) {
+    ) internal override returns (uint256 assetsWithdrawn, bool wasEscrowed) {
         uint256 totalSupplyBefore = totalSupply();
         // When burning shares, the sharesOwner will hold them directly, they will
         // not be held on a lending market
@@ -87,13 +87,31 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             (t_CurrentLendingRouter == address(0) ? 0 :
                 ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(sharesOwner, address(this)));
 
-        assetsWithdrawn = super._burnShares(sharesToBurn, redeemData, sharesOwner);
+        (assetsWithdrawn, wasEscrowed) = super._burnShares(sharesToBurn, redeemData, sharesOwner);
 
+        if (!wasEscrowed) {
+            // If shares were escrowed then the account will not have rewards since they were
+            // already cleared upon exit.
+            _updateAccountRewards({
+                account: sharesOwner,
+                accountVaultSharesBefore: sharesHeld,
+                vaultShares: sharesToBurn,
+                totalVaultSharesBefore: totalSupplyBefore,
+                isMint: false
+            });
+        }
+    }
+    
+    function _clearAccountRewardsOnWithdraw(
+        address account,
+        uint256 sharesHeld
+    ) internal {
+        // Update the account rewards to ensure that they no longer accumulate rewards.
         _updateAccountRewards({
-            account: sharesOwner,
+            account: account,
             accountVaultSharesBefore: sharesHeld,
-            vaultShares: sharesToBurn,
-            totalVaultSharesBefore: totalSupplyBefore,
+            vaultShares: sharesHeld,
+            totalVaultSharesBefore: totalSupply(),
             isMint: false
         });
     }
