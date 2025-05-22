@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import "../interfaces/ISingleSidedLP.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {DEFAULT_PRECISION, ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -8,60 +9,12 @@ import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
 import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import {CannotEnterPosition, WithdrawRequestNotFinalized} from "../interfaces/Errors.sol";
-
-struct TradeParams {
-    uint256 tradeAmount;
-    uint16 dexId;
-    TradeType tradeType;
-    uint256 minPurchaseAmount;
-    bytes exchangeData;
-}
-
-/// @notice Deposit parameters
-struct DepositParams {
-    /// @notice min pool claim for slippage control
-    uint256 minPoolClaim;
-    /// @notice DepositTradeParams or empty (single-sided entry)
-    TradeParams[] depositTrades;
-}
-
-/// @notice Redeem parameters
-struct RedeemParams {
-    /// @notice min amounts for slippage control
-    uint256[] minAmounts;
-    /// @notice Redemption trades or empty (single-sided exit)
-    TradeParams[] redemptionTrades;
-}
-
-struct WithdrawParams {
-    uint256[] minAmounts;
-    bytes[] withdrawData;
-}
-
-interface ILPLib {
-    function initialApproveTokens() external;
-    function joinPoolAndStake(uint256[] memory amounts, uint256 minPoolClaim) external;
-    function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
-    function hasPendingWithdraw(address account) external view returns (bool);
-
-    function getWithdrawRequestValue(address account, address asset, uint256 shares) external view returns (uint256 totalValue);
-
-    function finalizeAndRedeemWithdrawRequest(
-        address sharesOwner,
-        uint256 sharesToRedeem,
-        uint256 totalShares
-    ) external returns (uint256[] memory exitBalances, ERC20[] memory withdrawTokens);
-
-    function initiateWithdraw(
-        address account,
-        uint256 sharesHeld,
-        uint256[] calldata exitBalances,
-        bytes[] calldata withdrawData
-    ) external returns (uint256[] memory requestIds);
-
-    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external;
-}
+import {
+    CannotEnterPosition,
+    WithdrawRequestNotFinalized,
+    PoolShareTooHigh,
+    AssetRemaining
+} from "../interfaces/Errors.sol";
 
 /**
  * @notice Base contract for the SingleSidedLP strategy. This strategy deposits into an LP
@@ -72,8 +25,6 @@ interface ILPLib {
  */
 abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     using TokenUtils for ERC20;
-
-    error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
 
     uint256 immutable MAX_POOL_SHARE;
     address internal immutable LP_LIB;
@@ -88,7 +39,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function NUM_TOKENS() internal view virtual returns (uint256);
 
     /// @notice Addresses of tokens held and decimal places of each token. ETH will always be
-    /// recorded in this array as Deployments.ETH_Address
+    /// recorded in this array as address(0)
     function TOKENS() internal view virtual returns (ERC20[] memory);
 
     /// @notice Index of the TOKENS() array that refers to the primary borrowed currency by the
@@ -100,6 +51,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     /// to get the actual total supply.
     function _totalPoolSupply() internal view virtual returns (uint256);
 
+    /// @dev Checks that the reentrancy context is valid
     function _checkReentrancyContext() internal virtual;
 
     /// @notice Called once during initialization to set the initial token approvals.
@@ -148,14 +100,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         _initialApproveTokens();
     }
 
-    /************************************************************************
-     * USER FUNCTIONS                                                       *
-     * These functions are called during normal usage of the vault.         *
-     * They allow for deposits and redemptions from the vault as well as a  *
-     * valuation check that is used by Notional to determine if the user is *
-     * properly collateralized.                                             *
-     ************************************************************************/
-
     function _mintYieldTokens(
         uint256 assets,
         address receiver,
@@ -201,12 +145,13 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     ) internal override returns (bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
 
-        // Returns the amount of each token that has been withdrawn from the pool.
+        // Stores the amount of each token that has been withdrawn from the pool.
         uint256[] memory exitBalances;
         bool isSingleSided;
         ERC20[] memory tokens;
         if (_hasPendingWithdraw(sharesOwner)) {
-            // Attempt to withdraw all pending requests
+            // Attempt to withdraw all pending requests, tokens may be different if there
+            // is a withdraw request.
             (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem, sharesHeld);
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
@@ -264,8 +209,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
         if (PRIMARY_INDEX() < amounts.length) {
             amounts[PRIMARY_INDEX()] = assetRemaining;
-        } else {
-            require(assetRemaining == 0, "Asset remaining");
+        } else if (0 < assetRemaining) {
+            // This can happen if the asset is not in the pool and we need to trade all
+            // of the remaining asset for tokens in the pool.
+            revert AssetRemaining(assetRemaining);
         }
     }
 
@@ -368,7 +315,8 @@ abstract contract BaseLPLib is ILPLib {
 
     function TOKENS() internal view virtual returns (ERC20[] memory);
 
-    function hasPendingWithdraw(address account) external view returns (bool) {
+    /// @inheritdoc ILPLib
+    function hasPendingWithdraw(address account) external view override returns (bool) {
         ERC20[] memory tokens = TOKENS();
         WithdrawRequest memory request;
 
@@ -382,6 +330,7 @@ abstract contract BaseLPLib is ILPLib {
         return false;
     }
 
+    /// @inheritdoc ILPLib
     function getWithdrawRequestValue(
         address account,
         address asset,
@@ -396,6 +345,7 @@ abstract contract BaseLPLib is ILPLib {
         }
     }
 
+    /// @inheritdoc ILPLib
     function initiateWithdraw(
         address account,
         uint256 sharesHeld,
@@ -420,6 +370,7 @@ abstract contract BaseLPLib is ILPLib {
         }
     }
 
+    /// @inheritdoc ILPLib
     function finalizeAndRedeemWithdrawRequest(
         address sharesOwner,
         uint256 sharesToRedeem,
@@ -445,6 +396,7 @@ abstract contract BaseLPLib is ILPLib {
         }
     }
 
+    /// @inheritdoc ILPLib
     function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override {
         ERC20[] memory tokens = TOKENS();
         for (uint256 i; i < tokens.length; i++) {

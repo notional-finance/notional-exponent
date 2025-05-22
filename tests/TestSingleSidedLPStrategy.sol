@@ -394,7 +394,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
         asset.approve(address(lendingRouter), defaultDeposit);
         bytes memory depositData = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
-        vm.expectPartialRevert(AbstractSingleSidedLP.PoolShareTooHigh.selector);
+        vm.expectPartialRevert(PoolShareTooHigh.selector);
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
     }

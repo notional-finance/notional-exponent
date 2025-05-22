@@ -110,7 +110,13 @@ contract CurveConvexLib is BaseLPLib {
     // during the checkReentrancyContext function.
     receive() external payable {}
 
-    constructor(address _token1, address _token2, address _asset, uint8 _primaryIndex, DeploymentParams memory params) {
+    constructor(
+        address _token1,
+        address _token2,
+        address _asset,
+        uint8 _primaryIndex,
+        DeploymentParams memory params
+    ) {
         TOKEN_1 = _token1;
         TOKEN_2 = _token2;
         ASSET = _asset;
