@@ -36,6 +36,9 @@ abstract contract TestEnvironment is Test {
     TestWithdrawRequest public withdrawRequest;
     MockOracle internal withdrawTokenOracle;
 
+    string public strategyName;
+    string public strategySymbol;
+
     modifier onlyIfWithdrawRequestManager() {
         vm.skip(address(manager) == address(0));
         _;
@@ -55,13 +58,15 @@ abstract contract TestEnvironment is Test {
 
     function setUp() public virtual {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
+        strategyName = "name";
+        strategySymbol = "symbol";
         deployAddressRegistry();
         setMaxOracleFreshness();
 
         deployYieldStrategy();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
             address(y),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(strategyName, strategySymbol))
         );
         y = IYieldStrategy(address(proxy));
 

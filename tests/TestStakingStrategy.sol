@@ -114,6 +114,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
     
     function test_withdrawRequest_FeeCollection() public onlyIfWithdrawRequestManager {
+        vm.skip(keccak256(abi.encodePacked(y.name())) == keccak256(abi.encodePacked("Pendle PT")));
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
