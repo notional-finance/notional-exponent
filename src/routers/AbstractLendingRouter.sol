@@ -51,6 +51,11 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     }
 
     /// @inheritdoc ILendingRouter
+    function lastEntryTime(address vault, address user) public view override returns (uint256) {
+        return s_lastEntryTime[vault][user];
+    }
+
+    /// @inheritdoc ILendingRouter
     function enterPosition(
         address onBehalf,
         address vault,
@@ -155,16 +160,20 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     }
 
     /// @inheritdoc ILendingRouter
-    function initiateWithdraw(address vault, bytes calldata data) external returns (uint256 requestId) {
-        requestId = _initiateWithdraw(vault, msg.sender, data);
+    function initiateWithdraw(
+        address onBehalf,
+        address vault,
+        bytes calldata data
+    ) external override isAuthorized(onBehalf) returns (uint256 requestId) {
+        requestId = _initiateWithdraw(vault, onBehalf, data);
 
         // Can only initiate a withdraw if health factor remains positive
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(msg.sender, vault);
-        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(msg.sender);
+        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(onBehalf, vault);
+        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(onBehalf);
     }
 
     /// @inheritdoc ILendingRouter
-    function forceWithdraw(address vault, address account, bytes calldata data) external returns (uint256 requestId) {
+    function forceWithdraw(address account, address vault, bytes calldata data) external returns (uint256 requestId) {
         // Can only force a withdraw if health factor is negative, this allows a liquidator to
         // force a withdraw and liquidate a position at a later time.
         (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
