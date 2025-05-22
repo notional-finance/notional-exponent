@@ -95,16 +95,15 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
-        uint256 sharesHeld,
         bytes memory redeemData
     ) internal override returns (bool wasEscrowed) {
-        WithdrawRequest memory accountWithdraw;
+        WithdrawRequest memory w;
 
         if (address(withdrawRequestManager) != address(0)) {
-            (accountWithdraw, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
+            (w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
         }
 
-        if (accountWithdraw.requestId == 0) {
+        if (w.requestId == 0) {
             uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             _executeInstantRedemption(yieldTokensBurned, redeemData);
             wasEscrowed = false;
@@ -113,13 +112,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             // This assumes that the the account cannot get more shares once they initiate a withdraw. That
             // is why accounts are restricted from receiving split withdraw requests if they already have an
             // active position.
-            uint256 yieldTokensBurned = uint256(accountWithdraw.yieldTokenAmount) * sharesToRedeem / sharesHeld;
+            uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             wasEscrowed = true;
 
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            if (!finalized) revert WithdrawRequestNotFinalized(accountWithdraw.requestId);
+            if (!finalized) revert WithdrawRequestNotFinalized(w.requestId);
 
             // Trades may be required here if the borrowed token is not the same as what is
             // received when redeeming.

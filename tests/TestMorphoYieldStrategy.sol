@@ -536,7 +536,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
-    function test_migrate_noExistingPosition(bool isFull, bool hasExistingPosition) public {
+    function test_migrate(bool isFull, bool hasExistingPosition) public {
         address user = msg.sender;
         MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
 
