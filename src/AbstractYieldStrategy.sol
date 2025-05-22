@@ -175,10 +175,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function burnShares(
         address sharesOwner,
         uint256 sharesToBurn,
-        uint256 sharesHeld,
         bytes calldata redeemData
     ) external override onlyLendingRouter setCurrentAccount(sharesOwner) nonReentrant returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToBurn, sharesHeld, redeemData, sharesOwner);
+        assetsWithdrawn = _burnShares(sharesToBurn, redeemData, sharesOwner);
 
         // Send all the assets back to the lending router
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
@@ -227,7 +226,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesToRedeem,
         bytes memory redeemData
     ) external override nonReentrant setCurrentAccount(msg.sender) returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToRedeem, balanceOf(msg.sender), redeemData, msg.sender);
+        assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
 
@@ -362,15 +361,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Marked as virtual to allow for RewardManagerMixin to override
-    function _burnShares(uint256 sharesToBurn, uint256 sharesHeld, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
+    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (uint256 assetsWithdrawn) {
         if (sharesToBurn == 0) return 0;
-        if (sharesHeld < sharesToBurn) revert InsufficientSharesHeld();
 
         uint256 initialAssetBalance = TokenUtils.tokenBalance(asset);
 
         // First accrue fees on the yield token
         _accrueFees();
-        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, sharesHeld, redeemData);
+        bool wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, redeemData);
         if (wasEscrowed) s_escrowedShares -= sharesToBurn;
 
         uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
@@ -402,7 +400,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
-        uint256 sharesHeld,
         bytes memory redeemData
     ) internal virtual returns (bool wasEscrowed);
 

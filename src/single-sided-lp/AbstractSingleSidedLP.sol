@@ -140,7 +140,6 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
-        uint256 sharesHeld,
         bytes memory redeemData
     ) internal override returns (bool wasEscrowed) {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
@@ -152,7 +151,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         if (_hasPendingWithdraw(sharesOwner)) {
             // Attempt to withdraw all pending requests, tokens may be different if there
             // is a withdraw request.
-            (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem, sharesHeld);
+            (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem);
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
             wasEscrowed = true;
@@ -286,11 +285,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     function _withdrawPendingRequests(
         address sharesOwner,
-        uint256 sharesToRedeem,
-        uint256 sharesHeld
+        uint256 sharesToRedeem
     ) internal returns (uint256[] memory exitBalances, ERC20[] memory tokens) {
         bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
-            ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem, sharesHeld
+            ILPLib.finalizeAndRedeemWithdrawRequest.selector, sharesOwner, sharesToRedeem
         ));
         (exitBalances, tokens) = abi.decode(result, (uint256[], ERC20[]));
     }
@@ -373,25 +371,24 @@ abstract contract BaseLPLib is ILPLib {
     /// @inheritdoc ILPLib
     function finalizeAndRedeemWithdrawRequest(
         address sharesOwner,
-        uint256 sharesToRedeem,
-        uint256 totalShares
+        uint256 sharesToRedeem
     ) external override returns (uint256[] memory exitBalances, ERC20[] memory withdrawTokens) {
         ERC20[] memory tokens = TOKENS();
 
         exitBalances = new uint256[](tokens.length);
         withdrawTokens = new ERC20[](tokens.length);
 
-        WithdrawRequest memory request;
+        WithdrawRequest memory w;
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
-            (request, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
+            (w, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
 
-            uint256 yieldTokensBurned = uint256(request.yieldTokenAmount) * sharesToRedeem / totalShares;
+            uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             bool finalized;
             (exitBalances[i], finalized) = manager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            if (!finalized) revert WithdrawRequestNotFinalized(request.requestId);
+            if (!finalized) revert WithdrawRequestNotFinalized(w.requestId);
             withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
         }
     }

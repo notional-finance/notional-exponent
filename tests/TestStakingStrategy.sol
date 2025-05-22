@@ -181,23 +181,28 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         "Fees should have accrued");
     }
 
-    function test_liquidate_splitsWithdrawRequest() public onlyIfWithdrawRequestManager {
+    function test_liquidate_splitsWithdrawRequest(bool isForceWithdraw) public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
-        vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
-        vm.stopPrank();
+        if (!isForceWithdraw) {
+            vm.startPrank(msg.sender);
+            lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+            vm.stopPrank();
+        }
 
         // If you change the price here you need to change the amount of shares
         // to liquidate or it will revert
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
         if (address(withdrawTokenOracle) != address(0)) {
             withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
-        } else {
-            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
         }
 
         vm.startPrank(owner);
+        if (isForceWithdraw) {
+            lendingRouter.forceWithdraw(msg.sender, address(y),  getWithdrawRequestData(msg.sender, balanceBefore));
+        }
+
         asset.approve(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);

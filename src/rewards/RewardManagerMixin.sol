@@ -76,12 +76,19 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
     function _burnShares(
         uint256 sharesToBurn,
-        uint256 sharesHeld,
         bytes memory redeemData,
         address sharesOwner
     ) internal override returns (uint256 assetsWithdrawn) {
         uint256 totalSupplyBefore = totalSupply();
-        assetsWithdrawn = super._burnShares(sharesToBurn, sharesHeld, redeemData, sharesOwner);
+        // When burning shares, the sharesOwner will hold them directly, they will
+        // not be held on a lending market
+        uint256 sharesHeld = balanceOf(sharesOwner) + 
+        // Also include any shares held on a lending market
+            (t_CurrentLendingRouter == address(0) ? 0 :
+                ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(sharesOwner, address(this)));
+
+        assetsWithdrawn = super._burnShares(sharesToBurn, redeemData, sharesOwner);
+
         _updateAccountRewards({
             account: sharesOwner,
             accountVaultSharesBefore: sharesHeld,

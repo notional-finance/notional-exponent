@@ -7,18 +7,6 @@ import {IOracle} from "./Morpho/IOracle.sol";
 import {MarketParams} from "./Morpho/IMorpho.sol";
 import {IMorphoLiquidateCallback, IMorphoFlashLoanCallback} from "./Morpho/IMorphoCallbacks.sol";
 
-enum LendingMarket {
-    NONE,
-    MORPHO,
-    EULER,
-    SILO
-}
-
-enum Operation {
-    WITHDRAW_AND_BURN,
-    LIQUIDATE_AND_BURN
-}
-
 /**
  * @notice A strategy vault that is specifically designed for leveraged yield
  * strategies. Minting and burning shares are restricted to the `enterPosition`
@@ -137,13 +125,11 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      *
      * @param sharesOwner The address of the account to burn the shares for.
      * @param sharesToBurn The amount of shares to burn.
-     * @param sharesHeld The number of shares the account holds on the given lending market.
      * @param redeemData calldata used to redeem the yield token.
      */
     function burnShares(
         address sharesOwner,
         uint256 sharesToBurn,
-        uint256 sharesHeld,
         bytes memory redeemData
     ) external returns (uint256 assetsWithdrawn);
 

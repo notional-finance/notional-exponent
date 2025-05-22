@@ -54,8 +54,7 @@ interface ILPLib {
     /// @dev Finalizes a withdraw request and redeems the shares
     function finalizeAndRedeemWithdrawRequest(
         address sharesOwner,
-        uint256 sharesToRedeem,
-        uint256 totalShares
+        uint256 sharesToRedeem
     ) external returns (uint256[] memory exitBalances, ERC20[] memory withdrawTokens);
 
     /// @dev Initiates a withdraw request
