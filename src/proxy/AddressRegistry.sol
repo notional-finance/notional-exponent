@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {Unauthorized} from "../interfaces/Errors.sol";
+import {Unauthorized, CannotEnterPosition} from "../interfaces/Errors.sol";
 import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
+import {VaultPosition} from "../interfaces/ILendingRouter.sol";
 
 /// @notice Registry for the addresses for different components of the protocol.
 contract AddressRegistry {
@@ -39,6 +40,9 @@ contract AddressRegistry {
 
     /// @notice Mapping of lending router to boolean indicating if it is whitelisted
     mapping(address lendingRouter => bool isLendingRouter) public lendingRouters;
+
+    /// @notice Mapping of accounts to their existing position on a given vault
+    mapping(address account => mapping(address vault => VaultPosition)) internal accountPositions;
 
     /// @notice Constructor to set the initial admins, this contract is intended to be
     /// non-upgradeable
@@ -104,5 +108,27 @@ contract AddressRegistry {
 
     function isLendingRouter(address lendingRouter) external view returns (bool) {
         return lendingRouters[lendingRouter];
+    }
+
+    function getVaultPosition(address account, address vault) external view returns (VaultPosition memory) {
+        return accountPositions[account][vault];
+    }
+
+    function setPosition(address account, address vault) external {
+        // Must only be called by a lending router
+        if (!lendingRouters[msg.sender]) revert Unauthorized(msg.sender);
+        VaultPosition storage position = accountPositions[account][vault];
+
+        if (position.lendingRouter == address(0)) position.lendingRouter = msg.sender;
+        else if (position.lendingRouter != msg.sender) revert CannotEnterPosition();
+
+        position.lastEntryTime = uint32(block.timestamp);
+    }
+
+    function clearPosition(address account, address vault) external {
+        // Must only be called by a lending router
+        if (!lendingRouters[msg.sender]) revert Unauthorized(msg.sender);
+
+        delete accountPositions[account][vault];
     }
 }

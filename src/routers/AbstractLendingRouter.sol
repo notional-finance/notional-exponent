@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {ILendingRouter, MigrateParams} from "../interfaces/ILendingRouter.sol";
+import {ILendingRouter, VaultPosition} from "../interfaces/ILendingRouter.sol";
 import {
     NotAuthorized,
     CannotExitPositionWithinCooldownPeriod,
     CannotInitiateWithdraw,
     CannotForceWithdraw,
-    InvalidLendingRouter
+    InvalidLendingRouter,
+    NoExistingPosition,
+    LiquidatorHasPosition
 } from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -22,7 +24,6 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     using TokenUtils for ERC20;
 
     mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
-    mapping(address vault => mapping(address user => uint256 lastEntryTime)) internal s_lastEntryTime;
 
     /*** Authorization Methods ***/
     modifier isAuthorized(address onBehalf) {
@@ -46,31 +47,37 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     }
 
     /// @inheritdoc ILendingRouter
-    function lastEntryTime(address vault, address user) public view override returns (uint256) {
-        return s_lastEntryTime[vault][user];
-    }
-
-    /// @inheritdoc ILendingRouter
     function enterPosition(
         address onBehalf,
         address vault,
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) external override {
-        // Is authorized is checked in this call
-        enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, bytes(""));
+    ) external override isAuthorized(onBehalf) {
+        _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
     /// @inheritdoc ILendingRouter
-    function enterPosition(
+    function migratePosition(
+        address onBehalf,
+        address vault,
+        address migrateFrom
+    ) external override isAuthorized(onBehalf) {
+        if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
+        // Borrow amount is set to the amount of debt owed to the previous lending router
+        (uint256 borrowAmount, /* */, /* */) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
+
+        _enterPosition(onBehalf, vault, 0, borrowAmount, bytes(""), migrateFrom);
+    }
+
+    function _enterPosition(
         address onBehalf,
         address vault,
         uint256 depositAssetAmount,
         uint256 borrowAmount,
-        bytes calldata depositData,
-        bytes memory migrateData
-    ) public override isAuthorized(onBehalf) {
+        bytes memory depositData,
+        address migrateFrom
+    ) internal {
         address asset = IYieldStrategy(vault).asset();
 
         if (depositAssetAmount > 0) {
@@ -79,23 +86,14 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         }
 
         if (borrowAmount > 0) {
-            if (borrowAmount == type(uint256).max && migrateData.length > 0) {
-                // If max borrow is specified and migrate data is set then set the borrow amount to be
-                // the total debt of the previous position so that it can be fully repaid.
-                MigrateParams memory migrateParams = abi.decode(migrateData, (MigrateParams));
-                (borrowAmount, /* */, /* */) = ILendingRouter(migrateParams.fromLendingRouter).healthFactor(onBehalf, vault);
-            }
-
             _flashBorrowAndEnter(
-                onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateData
+                onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateFrom
             );
         } else {
-            _enterOrMigrate(
-                onBehalf, vault, asset, depositData, migrateData
-            );
+            _enterOrMigrate(onBehalf, vault, asset, depositAssetAmount, depositData, migrateFrom);
         }
 
-        s_lastEntryTime[vault][onBehalf] = block.timestamp;
+        ADDRESS_REGISTRY.setPosition(onBehalf, vault);
     }
 
     /// @inheritdoc ILendingRouter
@@ -107,11 +105,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 assetToRepay,
         bytes calldata redeemData
     ) external override isAuthorized(onBehalf) {
-        if (block.timestamp - s_lastEntryTime[vault][onBehalf] < COOLDOWN_PERIOD) {
-            // Safety check to prevent any sort of short term arbitrage attack where a user
-            // enters a position and then exits it immediately.
-            revert CannotExitPositionWithinCooldownPeriod();
-        }
+        _checkExit(onBehalf, vault);
 
         address asset = IYieldStrategy(vault).asset();
         if (0 < assetToRepay) {
@@ -120,6 +114,10 @@ abstract contract AbstractLendingRouter is ILendingRouter {
             address migrateTo = _isMigrate(receiver) ? receiver : address(0);
             uint256 assetsWithdrawn = _redeemShares(onBehalf, vault, asset, migrateTo, sharesToRedeem, redeemData);
             if (0 < assetsWithdrawn) ERC20(asset).safeTransfer(receiver, assetsWithdrawn);
+        }
+
+        if (balanceOfCollateral(onBehalf, vault) == 0) {
+            ADDRESS_REGISTRY.clearPosition(onBehalf, vault);
         }
     }
 
@@ -130,19 +128,22 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 seizedAssets,
         uint256 repaidShares
     ) external override returns (uint256 sharesToLiquidator) {
-        // TODO: do we need to check the cooldown period here?
+        // Ensure that the cooldown period has passed to avoid any sort of short term arbitrage attack
+        // via self-liquidation. Although the cooldown period can be pushed forward by calling enterPosition,
+        // if an account did do that they would exit the call collateralized by definition.
+        _checkExit(liquidateAccount, vault);
 
         address liquidator = msg.sender;
-        // TODO: is this check necessary?
+        VaultPosition memory position = ADDRESS_REGISTRY.getVaultPosition(liquidator, vault);
         // If the liquidator has a position then they cannot liquidate or they will have
         // a native balance and a balance on the lending market.
-        require(balanceOfCollateral(liquidator, vault) == 0);
+        if (position.lendingRouter != address(0)) revert LiquidatorHasPosition();
+
+        uint256 balanceBefore = balanceOfCollateral(liquidateAccount, vault);
 
         // Runs any checks on the vault to ensure that the liquidation can proceed, whitelists the lending platform
         // to transfer collateral to the lending router.
-        IYieldStrategy(vault).preLiquidation(
-            liquidator, liquidateAccount, seizedAssets, balanceOfCollateral(liquidateAccount, vault)
-        );
+        IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, seizedAssets, balanceBefore);
 
         // After this call, address(this) will have the liquidated shares
         sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, seizedAssets, repaidShares);
@@ -152,6 +153,13 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         // The liquidator will receive shares in their native balance and then they can call redeem
         // on the yield strategy to get the assets.
+
+        // Clear the position if the liquidator has taken all the shares, in the case of an insolvency,
+        // the account's position will just be left on the lending market with zero collateral. The account
+        // would be able to create a new position on this lending router or a new position on a different
+        // lending router. If they do create a new position on an insolvent account their old debt may
+        // be applied to their new position.
+        if (sharesToLiquidator == balanceBefore) ADDRESS_REGISTRY.clearPosition(liquidateAccount, vault);
     }
 
     /// @inheritdoc ILendingRouter
@@ -191,6 +199,14 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
     /*** Internal Methods ***/
 
+    function _checkExit(address onBehalf, address vault) internal view  {
+        VaultPosition memory position = ADDRESS_REGISTRY.getVaultPosition(onBehalf, vault);
+        if (position.lendingRouter != address(this)) revert NoExistingPosition();
+        if (block.timestamp - position.lastEntryTime < COOLDOWN_PERIOD) {
+            revert CannotExitPositionWithinCooldownPeriod();
+        }
+    }
+
     /// @dev Checks if an exitPosition call is a migration, this would be called via a lending router
     function _isMigrate(address receiver) internal view returns (bool) {
         return receiver == msg.sender && ADDRESS_REGISTRY.isLendingRouter(msg.sender);
@@ -201,28 +217,22 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         address asset,
+        uint256 assetAmount,
         bytes memory depositData,
-        bytes memory migrateData
+        address migrateFrom
     ) internal returns (uint256 sharesReceived) {
-        if (0 < migrateData.length) {
-            MigrateParams memory migrateParams = abi.decode(migrateData, (MigrateParams));
-            if (!ADDRESS_REGISTRY.isLendingRouter(migrateParams.fromLendingRouter)) revert InvalidLendingRouter();
-
+        if (migrateFrom != address(0)) {
             // Allow the previous lending router to repay the debt from assets held here.
-            ERC20(asset).checkApprove(migrateParams.fromLendingRouter, migrateParams.assetToRepay);
-            // On migrate the receiver is this current lending router
-            ILendingRouter(migrateParams.fromLendingRouter).exitPosition(
-                onBehalf, vault, address(this), migrateParams.sharesToMigrate, migrateParams.assetToRepay, bytes("")
-            );
-            sharesReceived = migrateParams.sharesToMigrate;
-            ERC20(asset).checkRevoke(migrateParams.fromLendingRouter);
-        }
+            ERC20(asset).checkApprove(migrateFrom, assetAmount);
+            sharesReceived = ILendingRouter(migrateFrom).balanceOfCollateral(onBehalf, vault);
 
-        // TODO: is this vulnerable to donation attack?
-        uint256 assetAmount = ERC20(asset).balanceOf(address(this));
-        if (0 < assetAmount) {
+            // Must migrate the entire position
+            ILendingRouter(migrateFrom).exitPosition(
+                onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes("")
+            );
+        } else {
             ERC20(asset).approve(vault, assetAmount);
-            sharesReceived += IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
+            sharesReceived = IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
         }
 
         _supplyCollateral(onBehalf, vault, asset, sharesReceived);
@@ -268,8 +278,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address asset,
         uint256 depositAssetAmount,
         uint256 borrowAmount,
-        bytes calldata depositData,
-        bytes memory migrateData
+        bytes memory depositData,
+        address migrateFrom
     ) internal virtual;
 
     /// @dev Supplies collateral in the amount of shares received to the lending market

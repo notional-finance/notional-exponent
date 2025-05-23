@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-struct MigrateParams {
-    address fromLendingRouter;
-    uint256 sharesToMigrate;
-    uint256 assetToRepay;
+struct VaultPosition {
+    address lendingRouter;
+    uint32 lastEntryTime;
 }
 
 interface ILendingRouter {
@@ -28,16 +27,6 @@ interface ILendingRouter {
     function isApproved(address user, address operator) external view returns (bool);
 
     /**
-     * @dev Returns the last entry time of a user for a given vault.
-     *
-     * @param vault The address of the vault.
-     * @param user The address of the user.
-     *
-     * @return The last entry time.
-     */
-    function lastEntryTime(address vault, address user) external view returns (uint256);
-
-    /**
      * @dev Enters a position in the lending market.
      *
      * @param onBehalf The address of the user to enter the position on behalf of.
@@ -55,22 +44,16 @@ interface ILendingRouter {
     ) external;
 
     /**
-     * @dev Enters a position in the lending market.
+     * @dev Migrates a position to the lending market.
      *
-     * @param onBehalf The address of the user to enter the position on behalf of.
+     * @param onBehalf The address of the user to migrate the position on behalf of.
      * @param vault The address of the vault.
-     * @param depositAssetAmount The amount of margin to deposit.
-     * @param borrowAmount The amount of assets to borrow.
-     * @param depositData The data to pass to the deposit function.
-     * @param migrateData Defines if the position will be migrated from another lending router.
+     * @param migrateFrom The address of the lending router to migrate the position from.
      */
-    function enterPosition(
+    function migratePosition(
         address onBehalf,
         address vault,
-        uint256 depositAssetAmount,
-        uint256 borrowAmount,
-        bytes calldata depositData,
-        bytes calldata migrateData
+        address migrateFrom
     ) external;
 
     /**

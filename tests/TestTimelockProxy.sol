@@ -34,7 +34,9 @@ contract TestTimelockProxy is Test {
         feeReceiver = makeAddr("feeReceiver");
 
         vm.prank(deployer);
-        deployCodeTo("AddressRegistry.sol:AddressRegistry", abi.encode(upgradeOwner, pauseOwner, feeReceiver), address(registry));
+        deployCodeTo("AddressRegistry.sol:AddressRegistry", 
+            abi.encode(upgradeOwner, pauseOwner, feeReceiver), address(registry)
+        );
 
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(

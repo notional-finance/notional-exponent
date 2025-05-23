@@ -18,6 +18,8 @@ error InsufficientSharesHeld();
 error SlippageTooHigh(uint256 actualTokensOut, uint256 minTokensOut);
 
 error CannotEnterPosition();
+error NoExistingPosition();
+error LiquidatorHasPosition();
 error InvalidUpgrade();
 error InvalidInitialization();
 error InvalidLendingRouter();

@@ -20,10 +20,6 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         REWARD_MANAGER = IRewardManager(_rewardManager);
     }
 
-    function _initialize(bytes calldata data) internal override virtual {
-        super._initialize(data);
-    }
-
     function _preLiquidation(
         address liquidateAccount,
         address liquidator,

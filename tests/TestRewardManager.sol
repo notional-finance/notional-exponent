@@ -268,6 +268,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         _enterPosition(owner, defaultDeposit, 0);
 
         if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
         
         vm.prank(owner);
         asset.transfer(liquidator, defaultDeposit + defaultBorrow);

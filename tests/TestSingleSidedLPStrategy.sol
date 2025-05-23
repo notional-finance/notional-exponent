@@ -468,6 +468,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             TRADING_MODULE.setPriceOracle(yieldToken, AggregatorV2V3Interface(address(o)));
         }
 
+        vm.warp(block.timestamp + 6 minutes);
+
         vm.startPrank(owner);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         asset.approve(address(lendingRouter), type(uint256).max);

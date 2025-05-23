@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {InsufficientAssetsForRepayment} from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -60,15 +61,15 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address onBehalf,
         address vault,
         address asset,
-        uint256 /* depositAssetAmount */,
+        uint256 depositAssetAmount,
         uint256 borrowAmount,
-        bytes calldata depositData,
-        bytes memory migrateData
+        bytes memory depositData,
+        address migrateFrom
     ) internal override {
         // At this point we will flash borrow funds from the lending market and then
         // receive control in a different function on a callback.
         bytes memory flashLoanData = abi.encode(
-            onBehalf, vault, asset, depositData, migrateData
+            onBehalf, vault, asset, depositAssetAmount, depositData, migrateFrom
         );
         MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
     }
@@ -80,11 +81,12 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             address onBehalf,
             address vault,
             address asset,
+            uint256 depositAssetAmount,
             bytes memory depositData,
-            bytes memory migrateData
-        ) = abi.decode(data, (address, address, address, bytes, bytes));
+            address migrateFrom
+        ) = abi.decode(data, (address, address, address, uint256, bytes, address));
 
-        _enterOrMigrate(onBehalf, vault, asset, depositData, migrateData);
+        _enterOrMigrate(onBehalf, vault, asset, assets + depositAssetAmount, depositData, migrateFrom);
 
         MarketParams memory m = marketParams(vault, asset);
         // Borrow the assets in order to repay the flash loan

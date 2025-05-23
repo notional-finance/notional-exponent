@@ -12,7 +12,7 @@ import {
 } from "../interfaces/Errors.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
+import {ADDRESS_REGISTRY, DEFAULT_PRECISION} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
@@ -360,7 +360,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         // The trading module always returns a positive rate in 18 decimals so we can safely
         // cast to uint256
         uint256 totalValue = (uint256(tokenRate) * tokenAmount * (10 ** assetDecimals)) /
-            ((10 ** tokenDecimals) * 1e18);
+            ((10 ** tokenDecimals) * DEFAULT_PRECISION);
         // NOTE: returns the normalized value given the shares input
         return (true, totalValue * shares / w.sharesAmount);
     }
