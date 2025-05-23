@@ -108,10 +108,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             _executeInstantRedemption(yieldTokensBurned, redeemData);
             wasEscrowed = false;
         } else {
-            // TODO: review this logic
-            // This assumes that the the account cannot get more shares once they initiate a withdraw. That
-            // is why accounts are restricted from receiving split withdraw requests if they already have an
-            // active position.
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             wasEscrowed = true;
 

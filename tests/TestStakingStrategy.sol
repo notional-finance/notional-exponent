@@ -42,52 +42,52 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
     
 
-    // function test_migrate_RevertsIf_ExistingWithdrawRequest() public onlyIfWithdrawRequestManager {
-    //     _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-    //     MorphoLendingRouter lendingRouter2 = setup_migration_test(msg.sender);
+    function test_migrate_WithdrawRequest() public onlyIfWithdrawRequestManager {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(msg.sender);
 
-    //     // Cannot migrate into a lending router with an existing withdraw request
-    //     _enterPosition(msg.sender, defaultDeposit, defaultBorrow, lendingRouter2);
 
-    //     vm.startPrank(msg.sender);
-    //     uint256 sharesBefore = lendingRouter2.balanceOfCollateral(msg.sender, address(y));
-    //     uint256 requestId = lendingRouter2.initiateWithdraw(
-    //         msg.sender,
-    //         address(y),
-    //         getWithdrawRequestData(msg.sender, sharesBefore)
-    //     );
-    //     uint256 amountToRepay = type(uint256).max;
+        vm.startPrank(msg.sender);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 requestId = lendingRouter.initiateWithdraw(
+            msg.sender,
+            address(y),
+            getWithdrawRequestData(msg.sender, sharesBefore)
+        );
 
-    //     vm.expectRevert(abi.encodeWithSelector(
-    //         ExistingWithdrawRequest.selector,
-    //         address(y),
-    //         msg.sender,
-    //         requestId
-    //     ));
-    //     lendingRouter2.enterPosition(
-    //         msg.sender,
-    //         address(y),
-    //         0,
-    //         amountToRepay,
-    //         getDepositData(msg.sender, 0)
-    //         abi.encode(
-    //             address(lendingRouter),
-    //             sharesBefore,
-    //             amountToRepay
-    //         )
-    //     );
-    //     vm.stopPrank();
-    // }
+        vm.warp(block.timestamp + 6 minutes);
+        lendingRouter2.migratePosition(msg.sender, address(y), address(lendingRouter));
 
-    // function test_migrate_RevertsIf_CreateTwoWithdrawRequests() public onlyIfWithdrawRequestManager {
-    //     // Can migrate a position with a withdraw request into another lending router,
-    //     // and create two withdraw requests in the process
-    // }
+        // Cannot enter since we now have a withdraw request
+        vm.expectRevert(abi.encodeWithSelector(ExistingWithdrawRequest.selector, address(y), msg.sender, requestId));
+        lendingRouter2.enterPosition(
+            msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit)
+        );
 
-    // function test_migrate_WithdrawRequest(bool isFull) public onlyIfWithdrawRequestManager {
-    //     // Can migrate a position with a withdraw request into another lending router,
-    //     // either in full or partially
-    // }
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(msg.sender);
+
+        vm.startPrank(msg.sender);
+        vm.warp(block.timestamp + 6 minutes);
+        // Now we can withdraw the position from lendingRouter2
+        lendingRouter2.exitPosition(
+            msg.sender,
+            address(y),
+            msg.sender,
+            sharesBefore,
+            type(uint256).max,
+            getRedeemData(msg.sender, sharesBefore)
+        );
+        vm.stopPrank();
+
+        // Assert that the withdraw request is cleared
+        (WithdrawRequest memory w, SplitWithdrawRequest memory s) = manager.getWithdrawRequest(address(y), msg.sender);
+        assertEq(w.requestId, 0);
+        assertEq(w.sharesAmount, 0);
+        assertEq(w.yieldTokenAmount, 0);
+        assertEq(w.hasSplit, false);
+    }
 
     function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);

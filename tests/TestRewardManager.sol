@@ -320,8 +320,4 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // they are in the withdraw queue?
         vm.skip(true);
     }
-
-    // TODO: what happens when we roll between lending platforms, reward debt is
-    // on a per account basis? what happens if we initiate a withdraw request
-    // on one platform but not the other?
 }
