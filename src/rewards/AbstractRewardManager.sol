@@ -171,9 +171,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     /// @notice Called by the vault inside a delegatecall to update the account reward claims.
     function updateAccountRewards(
         address account,
+        uint256 effectiveSupplyBefore,
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
-        uint256 effectiveSupplyBefore,
         bool sharesInEscrow
     ) external {
         _claimAccountRewards(account, effectiveSupplyBefore, accountSharesBefore, accountSharesAfter, sharesInEscrow);
@@ -190,6 +190,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         VaultRewardState[] memory state = _getVaultRewardStateSlot();
         _claimVaultRewards(effectiveSupplyBefore, state);
         rewards = new uint256[](state.length);
+        bool isEscrowed = _getAccountEscrowStateSlot()[account];
 
         for (uint256 i; i < state.length; i++) {
             if (0 < state[i].emissionRatePerYear) {
@@ -203,9 +204,13 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
                 accountSharesBefore,
                 accountSharesAfter,
                 state[i].accumulatedRewardPerVaultShare,
-                sharesInEscrow
+                sharesInEscrow,
+                isEscrowed
             );
         }
+
+        // Set the debt to escrowed if the shares are in escrow for the first time
+        if (sharesInEscrow && !isEscrowed) _getAccountEscrowStateSlot()[account] = true;
     }
 
     /// @notice Executes a claim against the given reward pool type and updates internal
@@ -253,9 +258,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
         uint256 rewardsPerVaultShare,
-        bool sharesInEscrow
+        bool sharesInEscrow,
+        bool isEscrowed
     ) internal returns (uint256 rewardToClaim) {
-        bool isEscrowed = _getAccountEscrowStateSlot()[account];
         // If the shares are not in escrow but the debt is marked as escrowed then something has gotten
         // out of sync. Revert in this case.
         if (!sharesInEscrow && isEscrowed) revert();
@@ -272,12 +277,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             }
             return 0;
         }
-        // Set the debt to escrowed if the shares are in escrow for the first time and claim rewards
-        // for the last time.
-        if (sharesInEscrow && !isEscrowed) _getAccountEscrowStateSlot()[account] = true;
-
-        // if (!sharesInEscrow && !debt.isEscrowed) nothing to do in this case, this is a normal exit without
-        // a withdraw request.
 
         // Vault shares are always in DEFAULT_PRECISION
         uint256 rewardDebt = _getAccountRewardDebtSlot()[rewardToken][account];

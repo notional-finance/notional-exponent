@@ -238,8 +238,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         bytes calldata data
     ) external onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
         _escrowShares(sharesHeld);
-        return _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -248,8 +248,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     ) external override setCurrentAccount(msg.sender) returns (uint256 requestId) {
         uint256 sharesHeld = balanceOf(msg.sender);
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        requestId = _initiateWithdraw(msg.sender, yieldTokenAmount, sharesHeld, data);
         _escrowShares(sharesHeld);
-        return _initiateWithdraw(msg.sender, yieldTokenAmount, sharesHeld, data);
     }
 
     /*** Private Functions ***/

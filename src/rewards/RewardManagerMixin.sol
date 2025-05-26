@@ -103,7 +103,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             // If shares after is zero then the escrow state will be cleared
             accountSharesAfter: sharesHeld - sharesToBurn,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            sharesInEscrow: true
+            sharesInEscrow: wasEscrowed
         });
     }
 
@@ -135,14 +135,14 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
     function _updateAccountRewards(
         address account,
+        uint256 effectiveSupplyBefore,
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
-        uint256 effectiveSupplyBefore,
         bool sharesInEscrow
     ) internal {
         _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
             IRewardManager.updateAccountRewards.selector,
-            account, accountSharesBefore, accountSharesAfter, effectiveSupplyBefore, sharesInEscrow
+            account, effectiveSupplyBefore, accountSharesBefore, accountSharesAfter, sharesInEscrow
         ));
     }
 
