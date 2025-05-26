@@ -260,14 +260,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         ));
     }
 
-    function _initiateWithdraw(
+    function __initiateWithdraw(
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
         bytes memory data
     ) internal override returns (uint256 requestId) {
-        _clearAccountRewardsOnWithdraw(account, sharesHeld);
-
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
         uint256[] memory exitBalances = _unstakeAndExitPool({

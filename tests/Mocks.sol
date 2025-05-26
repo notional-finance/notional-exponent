@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.8.29;
 
+import {console} from "forge-std/src/console.sol";
+
+import {IWithdrawRequestManager, WithdrawRequest} from "../src/interfaces/IWithdrawRequestManager.sol";
+import {ADDRESS_REGISTRY} from "../src/utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AbstractCustomOracle} from "../src/oracles/AbstractCustomOracle.sol";
 import {AbstractYieldStrategy} from "../src/AbstractYieldStrategy.sol";
@@ -127,13 +131,34 @@ contract MockRewardVault is RewardManagerMixin {
         MockRewardPool(yieldToken).deposit(0, assets, true);
     }
 
-    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
+    function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
+        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
+        if (address(withdrawRequestManager) != address(0)) {
+            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
+
+            if (w.requestId != 0) {
+                uint256 yieldTokenAmount = w.yieldTokenAmount * sharesToRedeem / w.sharesAmount;
+                (uint256 tokensWithdrawn, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner, yieldTokenAmount, sharesToRedeem);
+                require(finalized, "Withdraw request not finalized");
+                wasEscrowed = true;
+                MockRewardPool(yieldToken).withdrawAndUnwrap(tokensWithdrawn, true);
+                return wasEscrowed;
+            }
+        }
+
         uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
         MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
         wasEscrowed = false;
     }
 
-    function _initiateWithdraw(address /* account */, uint256 /* yieldTokenAmount */, uint256 /* sharesHeld */, bytes memory /* data */) internal pure override returns (uint256 requestId) {
-        requestId = 0;
+    function __initiateWithdraw(
+        address account,
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal override returns (uint256 requestId) {
+        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
+        ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
+        requestId = withdrawRequestManager.initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
     }
 }

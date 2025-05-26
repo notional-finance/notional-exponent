@@ -97,17 +97,29 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             });
         }
     }
-    
-    function _clearAccountRewardsOnWithdraw(
+
+    function __initiateWithdraw(
         address account,
-        uint256 sharesHeld
-    ) internal {
-        // Update the account rewards to ensure that they no longer accumulate rewards.
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal virtual returns (uint256 requestId);
+    
+    /// @dev Ensures that the account no longer accrues rewards after a withdraw request is initiated.
+    function _initiateWithdraw(
+        address account,
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data
+    ) internal override returns (uint256 requestId) {
+        uint256 totalSupplyBefore = totalSupply();
+        requestId = __initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+
         _updateAccountRewards({
             account: account,
             accountVaultSharesBefore: sharesHeld,
             vaultShares: sharesHeld,
-            totalVaultSharesBefore: totalSupply(),
+            totalVaultSharesBefore: totalSupplyBefore,
             isMint: false
         });
     }

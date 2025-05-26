@@ -194,12 +194,12 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address liquidator,
         address vault,
         address liquidateAccount,
-        uint256 seizedAssets,
-        uint256 repaidShares
+        uint256 sharesToLiquidate,
+        uint256 debtToRepay
     ) internal override returns (uint256 sharesToLiquidator) {
         MarketParams memory m = marketParams(vault);
         (sharesToLiquidator, /* */) = MORPHO.liquidate(
-            m, liquidateAccount, seizedAssets, repaidShares, abi.encode(m.loanToken, liquidator)
+            m, liquidateAccount, sharesToLiquidate, debtToRepay, abi.encode(m.loanToken, liquidator)
         );
     }
 

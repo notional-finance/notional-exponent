@@ -193,12 +193,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function preLiquidation(
         address liquidator,
         address liquidateAccount,
-        uint256 liquidateAccountShares,
-        uint256 seizedAssets
+        uint256 sharesToLiquidate
     ) external onlyLendingRouter {
         t_CurrentAccount = liquidateAccount;
-        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
-        if (maxLiquidateShares < seizedAssets) revert CannotLiquidate(maxLiquidateShares, seizedAssets);
+        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate);
+        if (maxLiquidateShares < sharesToLiquidate) {
+            revert CannotLiquidate(maxLiquidateShares, sharesToLiquidate);
+        }
 
         // Allow transfers to the lending router which will proxy the call to liquidate.
         t_AllowTransfer_To = msg.sender;

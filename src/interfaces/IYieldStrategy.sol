@@ -147,14 +147,12 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      *
      * @param liquidator The address of the liquidator.
      * @param liquidateAccount The address of the account to liquidate.
-     * @param liquidateAccountShares The amount of shares to liquidate.
-     * @param seizedAssets The amount of assets to seize.
+     * @param sharesToLiquidate The amount of shares to liquidate.
      */
     function preLiquidation(
         address liquidator,
         address liquidateAccount,
-        uint256 liquidateAccountShares,
-        uint256 seizedAssets
+        uint256 sharesToLiquidate
     ) external;
 
     /**

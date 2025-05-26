@@ -87,6 +87,9 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         assertEq(w.sharesAmount, 0);
         assertEq(w.yieldTokenAmount, 0);
         assertEq(w.hasSplit, false);
+        assertEq(s.totalYieldTokenAmount, 0);
+        assertEq(s.totalWithdraw, 0);
+        assertEq(s.finalized, false);
     }
 
     function test_enterPosition_RevertsIf_ExistingWithdrawRequest() public onlyIfWithdrawRequestManager {

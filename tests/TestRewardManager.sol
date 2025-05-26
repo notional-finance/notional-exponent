@@ -4,6 +4,9 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import "../src/interfaces/IRewardManager.sol";
+import "../src/utils/Constants.sol";
+import "../src/interfaces/IWithdrawRequestManager.sol";
+import "../src/withdraws/GenericERC20.sol";
 import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractRewardManager.sol";
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
@@ -12,6 +15,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
     ERC20 rewardToken;
     ERC20 emissionsToken;
+    IWithdrawRequestManager withdrawRequestManager;
 
     function deployYieldStrategy() internal override {
         ConvexRewardManager rmImpl = new ConvexRewardManager();
@@ -23,6 +27,8 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             0.0010e18, // 0.1% fee rate
             address(rmImpl)
         );
+
+        withdrawRequestManager = new GenericERC20WithdrawRequestManager(address(w));
     }
 
     function postDeploySetup() internal override {
@@ -43,6 +49,10 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             lastClaimTimestamp: 0
         }));
         rm.updateRewardToken(0, address(rewardToken), 0, 0);
+
+        ADDRESS_REGISTRY.setWithdrawRequestManager(address(withdrawRequestManager));
+        withdrawRequestManager.setApprovedVault(address(y), true);
+
         vm.stopPrank();
     }
 
@@ -315,9 +325,337 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser + emissionsForUserAfter, 0.0010e18, "Liquidated account emissions");
     }
 
-    function test_withdrawRequest_withRewards() public {
-        // TODO: does a withdraw request work with rewards? will the user still receive rewards while
-        // they are in the withdraw queue?
-        vm.skip(true);
+    function test_migrate_withRewards(bool hasEmissions, bool hasRewards) public {
+        address user = msg.sender;
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
+        // Create a first position to ensure that the user doesn't just claim all the rewards
+        _enterPosition(owner, defaultDeposit, 0);
+
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        vm.startPrank(user);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
+        uint256 expectedEmissions = hasEmissions ? 1e18 * sharesBefore / y.totalSupply() : 0;
+        uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
+        lendingRouter2.migratePosition(user, address(y), address(lendingRouter));
+        vm.stopPrank();
+
+        // During migration shares are transferred from one lending router to another but there is no
+        // minting or redemption of yield tokens so no claim occurs.
+        assertEq(rewardToken.balanceOf(user), 0, "No rewards after migration");
+        assertEq(emissionsToken.balanceOf(user), 0, "No emissions after migration");
+
+        // Must claim rewards through the new lending router
+        vm.prank(user);
+        lendingRouter2.claimRewards(address(y));
+
+        // Assert that rewards are claimed on the position during migration
+        assertApproxEqRel(rewardToken.balanceOf(user), expectedRewards, 0.0001e18, "Rewards are claimed");
+        assertApproxEqRel(emissionsToken.balanceOf(user), expectedEmissions, 0.0010e18, "Emissions are claimed");
     }
+
+    function test_withdrawRequest_exitPosition_withRewards(bool hasEmissions, bool hasRewards) public {
+        address user = msg.sender;
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
+        // Create two positions with rewards
+        _enterPosition(user, defaultDeposit, defaultBorrow);
+        _enterPosition(owner, defaultDeposit, 0);
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Both positions should have rewards
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(address(y));
+        vm.prank(owner);
+        lendingRouter.claimRewards(address(y));
+
+        uint256 emissionsBefore1 = emissionsToken.balanceOf(msg.sender);
+        uint256 emissionsBefore2 = emissionsToken.balanceOf(owner);
+        uint256 rewardsBefore1 = rewardToken.balanceOf(msg.sender);
+        uint256 rewardsBefore2 = rewardToken.balanceOf(owner);
+        if (hasEmissions) {
+            assertGt(emissionsBefore1, 0, "User account emissions");
+            assertGt(emissionsBefore2, 0, "Owner account emissions");
+        } else {
+            assertEq(emissionsBefore1, 0, "User account emissions");
+            assertEq(emissionsBefore2, 0, "Owner account emissions");
+        }
+
+        if (hasRewards) {
+            assertGt(rewardsBefore1, 0, "User account rewards");
+            assertGt(rewardsBefore2, 0, "Owner account rewards");
+        } else {
+            assertEq(rewardsBefore1, 0, "User account rewards");
+            assertEq(rewardsBefore2, 0, "Owner account rewards");
+        }
+
+        // Initiate a withdraw request on the first position
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(
+            msg.sender,
+            address(y),
+            getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)))
+        );
+        vm.stopPrank();
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Exit the position, no rewards should be claimed
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(msg.sender);
+        lendingRouter.exitPosition(
+            msg.sender,
+            address(y),
+            msg.sender,
+            lendingRouter.balanceOfCollateral(msg.sender, address(y)),
+            type(uint256).max,
+            getRedeemData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)))
+        );
+        vm.stopPrank();
+
+        vm.prank(owner);
+        lendingRouter.claimRewards(address(y));
+
+        // No rewards should be claimed for the user but the owner should have accrued more rewards since it
+        // does not have a withdraw request.
+        uint256 emissionsAfter1 = emissionsToken.balanceOf(msg.sender);
+        uint256 emissionsAfter2 = emissionsToken.balanceOf(owner);
+        assertEq(emissionsAfter1, emissionsBefore1, "User account emissions no change");
+        if (hasEmissions) assertGt(emissionsAfter2, emissionsBefore2, "Owner account emissions change");
+
+        uint256 rewardsAfter1 = rewardToken.balanceOf(msg.sender);
+        uint256 rewardsAfter2 = rewardToken.balanceOf(owner);
+        assertEq(rewardsAfter1, rewardsBefore1, "User account rewards no change");
+        if (hasRewards) assertGt(rewardsAfter2, rewardsBefore2, "Owner account rewards change");
+    }
+
+    function test_liquidate_withdrawRequest_withRewards(bool hasEmissions, bool hasRewards) public {
+        int256 originalPrice = o.latestAnswer();
+        address liquidator = makeAddr("liquidator");
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        _enterPosition(owner, defaultDeposit, 0);
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Initiate a withdraw request on the first position
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(
+            msg.sender,
+            address(y),
+            getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)))
+        );
+        vm.stopPrank();
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
+        
+        vm.prank(owner);
+        asset.transfer(liquidator, defaultDeposit + defaultBorrow);
+
+        // TODO: this is wrong if it is here...
+        // vm.startPrank(msg.sender);
+        // lendingRouter.initiateWithdraw(
+        //     msg.sender,
+        //     address(y),
+        //     getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)))
+        // );
+        // vm.stopPrank();
+
+        o.setPrice(originalPrice * 0.90e18 / 1e18);
+
+        vm.startPrank(liquidator);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 emissionsForUser = 1e18 * sharesBefore / y.totalSupply();
+        uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
+        asset.approve(address(lendingRouter), type(uint256).max);
+        // This should trigger a claim on rewards
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), sharesBefore / 2, 0);
+        vm.stopPrank();
+
+        if (hasRewards) {
+            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account shares");
+        }
+        if (hasEmissions) {
+            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Liquidated account emissions");
+        }
+
+        assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
+        assertEq(emissionsToken.balanceOf(liquidator), 0, "Liquidator account emissions");
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        uint256 emissionsForLiquidator = 1e18 * sharesToLiquidator / y.totalSupply();
+
+        // This second parameter is ignored because we get the balanceOf from
+        // the contract itself.
+        rm.claimAccountRewards(liquidator, type(uint256).max);
+
+        uint256 expectedRewardsForLiquidator = hasRewards ? y.convertSharesToYieldToken(sharesToLiquidator) : 0;
+        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(liquidator), expectedRewardsForLiquidator, 0.0001e18, "Liquidator account rewards");
+        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.0010e18, "Liquidator account emissions");
+
+        uint256 initialRewards = rewardToken.balanceOf(msg.sender);
+        uint256 initialEmissions = emissionsToken.balanceOf(msg.sender);
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(address(y));
+        uint256 sharesAfterUser = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 emissionsForUserAfter = 1e18 * sharesAfterUser / y.totalSupply();
+
+        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender) - initialRewards, sharesAfterUser, 0.0001e18, "Liquidated account rewards 2");
+        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender) - initialEmissions, emissionsForUserAfter, 0.0010e18, "Liquidated account emissions 2");
+    }
+
+    function test_withdrawRequest_migratePosition_withRewards(bool hasEmissions, bool hasRewards) public {
+        address user = msg.sender;
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
+        // Create a first position to ensure that the user doesn't just claim all the rewards
+        _enterPosition(owner, defaultDeposit, 0);
+
+        MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Initiate a withdraw request on the first position
+        vm.startPrank(user);
+        lendingRouter.initiateWithdraw(
+            user,
+            address(y),
+            getWithdrawRequestData(user, lendingRouter.balanceOfCollateral(user, address(y)))
+        );
+        vm.stopPrank();
+
+        // Accrued rewards should be claimed for both accounts
+        uint256 emissionsBefore1 = emissionsToken.balanceOf(msg.sender);
+        uint256 rewardsBefore1 = rewardToken.balanceOf(msg.sender);
+        if (hasEmissions) {
+            assertGt(emissionsBefore1, 0, "User account emissions");
+        } else {
+            assertEq(emissionsBefore1, 0, "User account emissions");
+        }
+
+        if (hasRewards) {
+            assertGt(rewardsBefore1, 0, "User account rewards");
+        } else {
+            assertEq(rewardsBefore1, 0, "User account rewards");
+        }
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+
+        // No rewards claimed on migration
+        vm.prank(user);
+        lendingRouter2.migratePosition(user, address(y), address(lendingRouter));
+
+        assertEq(emissionsToken.balanceOf(user), emissionsBefore1, "User account emissions no change");
+        assertEq(rewardToken.balanceOf(user), rewardsBefore1, "User account rewards no change");
+
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+
+        // No rewards claimed on claim via the second lending router
+        vm.prank(user);
+        lendingRouter2.claimRewards(address(y));
+
+        assertEq(emissionsToken.balanceOf(user), emissionsBefore1, "User account emissions no change");
+        assertEq(rewardToken.balanceOf(user), rewardsBefore1, "User account rewards no change");
+
+        // No rewards claimed on exit via the second lending router
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+
+        vm.startPrank(user);
+        lendingRouter2.exitPosition(
+            user,
+            address(y),
+            user,
+            lendingRouter2.balanceOfCollateral(user, address(y)),
+            type(uint256).max,
+            getRedeemData(user, lendingRouter2.balanceOfCollateral(user, address(y)))
+        );
+        vm.stopPrank();
+
+        assertEq(emissionsToken.balanceOf(user), emissionsBefore1, "User account emissions no change");
+        assertEq(rewardToken.balanceOf(user), rewardsBefore1, "User account rewards no change");
+    }
+
+    function test_withdrawRequest_claimRewards_withRewards(bool hasEmissions, bool hasRewards) public {
+        int256 originalPrice = o.latestAnswer();
+        address liquidator = makeAddr("liquidator");
+        if (hasEmissions) {
+            vm.prank(owner);
+            rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        }
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        _enterPosition(owner, defaultDeposit, 0);
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        else vm.warp(block.timestamp + 6 minutes);
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Initiate a withdraw request on the first position
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(
+            msg.sender,
+            address(y),
+            getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)))
+        );
+        vm.stopPrank();
+
+        // Rewards are claimed on the first position
+        uint256 emissionsBefore1 = emissionsToken.balanceOf(msg.sender);
+        uint256 rewardsBefore1 = rewardToken.balanceOf(msg.sender);
+        if (hasEmissions) {
+            assertGt(emissionsBefore1, 0, "User account emissions");
+        } else {
+            assertEq(emissionsBefore1, 0, "User account emissions");
+        }
+
+        if (hasRewards) {
+            assertGt(rewardsBefore1, 0, "User account rewards");
+        } else {
+            assertEq(rewardsBefore1, 0, "User account rewards");
+        }
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // No rewards are claimed after the withdraw request
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(address(y));
+
+        assertEq(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions no change");
+        assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
+    }
+
 }

@@ -125,8 +125,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     function liquidate(
         address liquidateAccount,
         address vault,
-        uint256 seizedAssets,
-        uint256 repaidShares
+        uint256 sharesToLiquidate,
+        uint256 debtToRepay
     ) external override returns (uint256 sharesToLiquidator) {
         // Ensure that the cooldown period has passed to avoid any sort of short term arbitrage attack
         // via self-liquidation. Although the cooldown period can be pushed forward by calling enterPosition,
@@ -143,10 +143,10 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         // Runs any checks on the vault to ensure that the liquidation can proceed, whitelists the lending platform
         // to transfer collateral to the lending router.
-        IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, seizedAssets, balanceBefore);
+        IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, sharesToLiquidate);
 
         // After this call, address(this) will have the liquidated shares
-        sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, seizedAssets, repaidShares);
+        sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);
 
         // Transfers the shares to the liquidator from the lending router and does any post liquidation logic
         IYieldStrategy(vault).postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
@@ -301,8 +301,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address liquidator,
         address vault,
         address liquidateAccount,
-        uint256 seizedAssets,
-        uint256 repaidShares
+        uint256 sharesToLiquidate,
+        uint256 debtToRepay
     ) internal virtual returns (uint256 sharesToLiquidator);
 
     /// @dev Exits a position with a debt repayment
