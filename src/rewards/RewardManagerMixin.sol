@@ -25,31 +25,42 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address liquidator,
         uint256 liquidateAccountShares
     ) internal override virtual returns (uint256 maxLiquidateShares) {
+        // This only works because the liquidator is prevented from having a position on the lending router so any
+        // balance will be a native token balance.
         t_Liquidator_SharesBefore = balanceOf(liquidator);
         t_LiquidateAccount_SharesBefore = liquidateAccountShares;
         return super._preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
     }
+    function __postLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 sharesToLiquidator
+    ) internal virtual returns (bool didSplit);
 
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override virtual {
-        super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
-       
+    function _postLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 sharesToLiquidator
+    ) internal override returns (bool didSplit) {
         // Total supply does not change during liquidation
         uint256 effectiveSupplyBefore = effectiveSupply();
 
+        didSplit = __postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+
         _updateAccountRewards({
             account: liquidator,
-            accountVaultSharesBefore: t_Liquidator_SharesBefore,
-            vaultShares: sharesToLiquidator,
+            accountSharesBefore: t_Liquidator_SharesBefore,
+            accountSharesAfter: t_Liquidator_SharesBefore + sharesToLiquidator,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            isMint: true
+            sharesInEscrow: didSplit
         });
 
         _updateAccountRewards({
             account: liquidateAccount,
-            accountVaultSharesBefore: t_LiquidateAccount_SharesBefore,
-            vaultShares: sharesToLiquidator,
+            accountSharesBefore: t_LiquidateAccount_SharesBefore,
+            accountSharesAfter: t_LiquidateAccount_SharesBefore - sharesToLiquidator,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            isMint: false
+            sharesInEscrow: didSplit
         });
     }
 
@@ -63,10 +74,11 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
         _updateAccountRewards({
             account: receiver,
-            accountVaultSharesBefore: initialVaultShares,
-            vaultShares: sharesMinted,
+            accountSharesBefore: initialVaultShares,
+            accountSharesAfter: initialVaultShares + sharesMinted,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            isMint: true
+            // Shares cannot be in escrow during minting
+            sharesInEscrow: false
         });
     }
 
@@ -85,17 +97,14 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
         (assetsWithdrawn, wasEscrowed) = super._burnShares(sharesToBurn, redeemData, sharesOwner);
 
-        if (!wasEscrowed) {
-            // If shares were escrowed then the account will not have rewards since they were
-            // already cleared upon exit.
-            _updateAccountRewards({
-                account: sharesOwner,
-                accountVaultSharesBefore: sharesHeld,
-                vaultShares: sharesToBurn,
-                effectiveSupplyBefore: effectiveSupplyBefore,
-                isMint: false
-            });
-        }
+        _updateAccountRewards({
+            account: sharesOwner,
+            accountSharesBefore: sharesHeld,
+            // If shares after is zero then the escrow state will be cleared
+            accountSharesAfter: sharesHeld - sharesToBurn,
+            effectiveSupplyBefore: effectiveSupplyBefore,
+            sharesInEscrow: true
+        });
     }
 
     function __initiateWithdraw(
@@ -117,23 +126,23 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
 
         _updateAccountRewards({
             account: account,
-            accountVaultSharesBefore: sharesHeld,
-            vaultShares: sharesHeld,
+            accountSharesBefore: sharesHeld,
+            accountSharesAfter: sharesHeld,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            isMint: false
+            sharesInEscrow: true
         });
     }
 
     function _updateAccountRewards(
         address account,
-        uint256 accountVaultSharesBefore,
-        uint256 vaultShares,
+        uint256 accountSharesBefore,
+        uint256 accountSharesAfter,
         uint256 effectiveSupplyBefore,
-        bool isMint
+        bool sharesInEscrow
     ) internal {
         _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
             IRewardManager.updateAccountRewards.selector,
-            account, accountVaultSharesBefore, vaultShares, effectiveSupplyBefore, isMint
+            account, accountSharesBefore, accountSharesAfter, effectiveSupplyBefore, sharesInEscrow
         ));
     }
 

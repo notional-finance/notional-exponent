@@ -115,7 +115,7 @@ interface IWithdrawRequestManager {
         address from,
         address to,
         uint256 sharesAmount
-    ) external;
+    ) external returns (bool didSplit);
 
     /// @notice Allows the emergency exit role to rescue tokens from the withdraw request manager
     /// @param cooldownHolder the cooldown holder to rescue tokens from

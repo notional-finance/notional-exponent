@@ -66,5 +66,9 @@ interface ILPLib {
     ) external returns (uint256[] memory requestIds);
 
     /// @dev Splits a withdraw request during liquidation
-    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external;
+    function splitWithdrawRequest(
+        address liquidateAccount,
+        address liquidator,
+        uint256 sharesToLiquidator
+    ) external returns (bool didSplit);
 }

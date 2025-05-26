@@ -176,12 +176,12 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address _from,
         address _to,
         uint256 sharesAmount
-    ) external override onlyApprovedVault {
+    ) external override onlyApprovedVault returns (bool didSplit) {
         if (_from == _to) revert InvalidWithdrawRequestSplit();
 
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][_from];
         uint256 requestId = s_withdraw.requestId;
-        if (requestId == 0) return;
+        if (requestId == 0) return false;
 
         // Create a new split withdraw request
         if (!s_withdraw.hasSplit) {
@@ -222,6 +222,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             s_withdraw.sharesAmount = (s_withdraw.sharesAmount - sharesAmount).toUint120();
             s_withdraw.hasSplit = true;
         }
+
+        return true;
     }
 
     /// @inheritdoc IWithdrawRequestManager

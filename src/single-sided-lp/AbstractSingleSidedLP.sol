@@ -251,13 +251,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
     }
 
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override {
-        // Updates the reward state for the liquidator and liquidateAccount
-        super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
-
-        _delegateCall(LP_LIB, abi.encodeWithSelector(
+    function __postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didSplit) {
+        bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
             ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator
         ));
+        didSplit = abi.decode(result, (bool));
     }
 
     function __initiateWithdraw(
@@ -394,13 +392,15 @@ abstract contract BaseLPLib is ILPLib {
     }
 
     /// @inheritdoc ILPLib
-    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override {
+    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override returns (bool didSplit) {
         ERC20[] memory tokens = TOKENS();
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             if (address(manager) == address(0)) continue;
-            // If there is no withdraw request then this will be a noop
-            manager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
+            // If there is no withdraw request then this will be a noop, make sure to OR with the previous result
+            // to ensure that the result is always set but it is done after so the splitWithdrawRequest call
+            // is not short circuited.
+            didSplit = manager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator) || didSplit;
         }
     }
 }

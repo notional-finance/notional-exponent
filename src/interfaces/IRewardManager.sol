@@ -54,16 +54,16 @@ interface IRewardManager {
 
     /// @notice Updates account rewards during enter and exit vault operations
     /// @param account Address of the account
-    /// @param accountVaultSharesBefore Number of vault shares before the operation
-    /// @param vaultShares Number of vault shares
+    /// @param accountSharesBefore Number of shares before the operation
+    /// @param accountSharesAfter Number of shares after the operation
     /// @param effectiveSupplyBefore Total vault shares before the operation
-    /// @param isMint Whether this is a mint operation
+    /// @param sharesInEscrow Whether the shares are in escrow
     function updateAccountRewards(
         address account,
-        uint256 accountVaultSharesBefore,
-        uint256 vaultShares,
+        uint256 accountSharesBefore,
+        uint256 accountSharesAfter,
         uint256 effectiveSupplyBefore,
-        bool isMint
+        bool sharesInEscrow
     ) external;
 
 

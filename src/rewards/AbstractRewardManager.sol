@@ -24,6 +24,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     uint256 private constant REWARD_POOL_SLOT = 1000001;
     uint256 private constant VAULT_REWARD_STATE_SLOT = 1000002;
     uint256 private constant ACCOUNT_REWARD_DEBT_SLOT = 1000003;
+    uint256 private constant ACCOUNT_ESCROW_STATE_SLOT = 1000004;
 
     function _getRewardPoolSlot() internal pure returns (RewardPoolStorage storage store) {
         assembly { store.slot := REWARD_POOL_SLOT }
@@ -37,6 +38,12 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         mapping(address account => mapping(address rewardToken => uint256 rewardDebt)) storage store
     ) {
         assembly { store.slot := ACCOUNT_REWARD_DEBT_SLOT }
+    }
+
+    function _getAccountEscrowStateSlot() internal pure returns (
+        mapping(address account => bool isEscrowed) storage store
+    ) {
+        assembly { store.slot := ACCOUNT_ESCROW_STATE_SLOT }
     }
 
     /// @inheritdoc IRewardManager
@@ -76,10 +83,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     /// @inheritdoc IRewardManager
-    function getRewardDebt(
-        address rewardToken,
-        address account
-    ) external view override returns (uint256 rewardDebt) {
+    function getRewardDebt(address rewardToken, address account) external view override returns (uint256) {
         return _getAccountRewardDebtSlot()[rewardToken][account];
     }
 
@@ -160,31 +164,28 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         }
         if (sharesHeld == 0) return rewards;
 
-        rewards = _claimAccountRewards(account, effectiveSupplyBefore, sharesHeld, sharesHeld);
+        bool isEscrowed = _getAccountEscrowStateSlot()[account];
+        rewards = _claimAccountRewards(account, effectiveSupplyBefore, sharesHeld, sharesHeld, isEscrowed);
     }
 
     /// @notice Called by the vault inside a delegatecall to update the account reward claims.
     function updateAccountRewards(
         address account,
-        uint256 accountVaultSharesBefore,
-        uint256 vaultShares,
+        uint256 accountSharesBefore,
+        uint256 accountSharesAfter,
         uint256 effectiveSupplyBefore,
-        bool isMint
+        bool sharesInEscrow
     ) external {
-        _claimAccountRewards(
-            account,
-            effectiveSupplyBefore,
-            accountVaultSharesBefore,
-            isMint ? accountVaultSharesBefore + vaultShares : accountVaultSharesBefore - vaultShares
-        );
+        _claimAccountRewards(account, effectiveSupplyBefore, accountSharesBefore, accountSharesAfter, sharesInEscrow);
     }
 
     /// @notice Executes a claim on account rewards
     function _claimAccountRewards(
         address account,
         uint256 effectiveSupplyBefore,
-        uint256 vaultSharesBefore,
-        uint256 vaultSharesAfter
+        uint256 accountSharesBefore,
+        uint256 accountSharesAfter,
+        bool sharesInEscrow
     ) internal returns (uint256[] memory rewards) {
         VaultRewardState[] memory state = _getVaultRewardStateSlot();
         _claimVaultRewards(effectiveSupplyBefore, state);
@@ -199,9 +200,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             rewards[i] = _claimRewardToken(
                 state[i].rewardToken,
                 account,
-                vaultSharesBefore,
-                vaultSharesAfter,
-                state[i].accumulatedRewardPerVaultShare
+                accountSharesBefore,
+                accountSharesAfter,
+                state[i].accumulatedRewardPerVaultShare,
+                sharesInEscrow
             );
         }
     }
@@ -244,31 +246,44 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
 
 
     /** Reward Claim Methods **/
-    function _getRewardsToClaim(
-        address rewardToken,
-        address account,
-        uint256 vaultSharesBefore,
-        uint256 rewardsPerVaultShare
-    ) internal view returns (uint256 rewardToClaim) {
-        // Vault shares are always in DEFAULT_PRECISION
-        rewardToClaim = (
-            (vaultSharesBefore * rewardsPerVaultShare) / DEFAULT_PRECISION
-        ) - _getAccountRewardDebtSlot()[rewardToken][account];
-    }
 
     function _claimRewardToken(
         address rewardToken,
         address account,
-        uint256 vaultSharesBefore,
-        uint256 vaultSharesAfter,
-        uint256 rewardsPerVaultShare
+        uint256 accountSharesBefore,
+        uint256 accountSharesAfter,
+        uint256 rewardsPerVaultShare,
+        bool sharesInEscrow
     ) internal returns (uint256 rewardToClaim) {
-        rewardToClaim = _getRewardsToClaim(
-            rewardToken, account, vaultSharesBefore, rewardsPerVaultShare
-        );
+        bool isEscrowed = _getAccountEscrowStateSlot()[account];
+        // If the shares are not in escrow but the debt is marked as escrowed then something has gotten
+        // out of sync. Revert in this case.
+        if (!sharesInEscrow && isEscrowed) revert();
 
+        // If shares are in escrow and we've already marked the account as in escrow then
+        // do not claim any rewards. Since we use the effectiveSupply to calculate rewardsPerVaultShare
+        // escrowed shares are not included in the denominator.
+        if (sharesInEscrow && isEscrowed) {
+            // If all shares are redeemed then delete the debt, it will be recreated if the
+            // account opens a new position.
+            if (accountSharesAfter == 0) {
+                delete _getAccountRewardDebtSlot()[rewardToken][account];
+                delete _getAccountEscrowStateSlot()[account];
+            }
+            return 0;
+        }
+        // Set the debt to escrowed if the shares are in escrow for the first time and claim rewards
+        // for the last time.
+        if (sharesInEscrow && !isEscrowed) _getAccountEscrowStateSlot()[account] = true;
+
+        // if (!sharesInEscrow && !debt.isEscrowed) nothing to do in this case, this is a normal exit without
+        // a withdraw request.
+
+        // Vault shares are always in DEFAULT_PRECISION
+        uint256 rewardDebt = _getAccountRewardDebtSlot()[rewardToken][account];
+        rewardToClaim = ((accountSharesBefore * rewardsPerVaultShare) / DEFAULT_PRECISION) - rewardDebt;
         _getAccountRewardDebtSlot()[rewardToken][account] = (
-            (vaultSharesAfter * rewardsPerVaultShare) / DEFAULT_PRECISION
+            (accountSharesAfter * rewardsPerVaultShare) / DEFAULT_PRECISION
         );
 
         if (0 < rewardToClaim) {

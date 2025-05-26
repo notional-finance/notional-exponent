@@ -67,6 +67,10 @@ contract MockYieldStrategy is AbstractYieldStrategy {
     function _initiateWithdraw(address /* account */, uint256 /* yieldTokenAmount */, uint256 /* sharesHeld */, bytes memory /* data */) internal pure override returns (uint256 requestId) {
         requestId = 0;
     }
+
+    function _postLiquidation(address /* liquidator */, address /* liquidateAccount */, uint256 /* sharesToLiquidator */) internal pure override returns (bool didSplit) {
+        didSplit = false;
+    } 
 }
 
 contract MockERC20 is ERC20 {
@@ -160,5 +164,18 @@ contract MockRewardVault is RewardManagerMixin {
         IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+    }
+
+    function __postLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 sharesToLiquidator
+    ) internal override returns (bool didSplit) {
+        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
+        if (address(withdrawRequestManager) != address(0)) {
+            // No need to accrue fees because neither the total supply or total yield token balance is changing. If there
+            // is no withdraw request then this will be a noop.
+            didSplit = withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
+        }
     }
 }
