@@ -34,13 +34,13 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         super._postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
        
         // Total supply does not change during liquidation
-        uint256 totalSupplyBefore = totalSupply();
+        uint256 effectiveSupplyBefore = effectiveSupply();
 
         _updateAccountRewards({
             account: liquidator,
             accountVaultSharesBefore: t_Liquidator_SharesBefore,
             vaultShares: sharesToLiquidator,
-            totalVaultSharesBefore: totalSupplyBefore,
+            effectiveSupplyBefore: effectiveSupplyBefore,
             isMint: true
         });
 
@@ -48,7 +48,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             account: liquidateAccount,
             accountVaultSharesBefore: t_LiquidateAccount_SharesBefore,
             vaultShares: sharesToLiquidator,
-            totalVaultSharesBefore: totalSupplyBefore,
+            effectiveSupplyBefore: effectiveSupplyBefore,
             isMint: false
         });
     }
@@ -58,14 +58,14 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         bytes memory depositData,
         address receiver
     ) internal override returns (uint256 sharesMinted) {
-        uint256 totalSupplyBefore = totalSupply();
+        uint256 effectiveSupplyBefore = effectiveSupply();
         uint256 initialVaultShares = ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(receiver, address(this));
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
         _updateAccountRewards({
             account: receiver,
             accountVaultSharesBefore: initialVaultShares,
             vaultShares: sharesMinted,
-            totalVaultSharesBefore: totalSupplyBefore,
+            effectiveSupplyBefore: effectiveSupplyBefore,
             isMint: true
         });
     }
@@ -75,7 +75,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         bytes memory redeemData,
         address sharesOwner
     ) internal override returns (uint256 assetsWithdrawn, bool wasEscrowed) {
-        uint256 totalSupplyBefore = totalSupply();
+        uint256 effectiveSupplyBefore = effectiveSupply();
         // When burning shares, the sharesOwner will hold them directly, they will
         // not be held on a lending market
         uint256 sharesHeld = balanceOf(sharesOwner) + 
@@ -92,7 +92,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
                 account: sharesOwner,
                 accountVaultSharesBefore: sharesHeld,
                 vaultShares: sharesToBurn,
-                totalVaultSharesBefore: totalSupplyBefore,
+                effectiveSupplyBefore: effectiveSupplyBefore,
                 isMint: false
             });
         }
@@ -112,14 +112,14 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 sharesHeld,
         bytes memory data
     ) internal override returns (uint256 requestId) {
-        uint256 totalSupplyBefore = totalSupply();
+        uint256 effectiveSupplyBefore = effectiveSupply();
         requestId = __initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
 
         _updateAccountRewards({
             account: account,
             accountVaultSharesBefore: sharesHeld,
             vaultShares: sharesHeld,
-            totalVaultSharesBefore: totalSupplyBefore,
+            effectiveSupplyBefore: effectiveSupplyBefore,
             isMint: false
         });
     }
@@ -128,12 +128,12 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address account,
         uint256 accountVaultSharesBefore,
         uint256 vaultShares,
-        uint256 totalVaultSharesBefore,
+        uint256 effectiveSupplyBefore,
         bool isMint
     ) internal {
         _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
             IRewardManager.updateAccountRewards.selector,
-            account, accountVaultSharesBefore, vaultShares, totalVaultSharesBefore, isMint
+            account, accountVaultSharesBefore, vaultShares, effectiveSupplyBefore, isMint
         ));
     }
 

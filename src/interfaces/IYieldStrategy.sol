@@ -50,6 +50,11 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function totalAssets() external view returns (uint256 totalManagedAssets);
 
     /**
+     * @dev Returns the effective supply which excludes any escrowed shares.
+     */
+    function effectiveSupply() external view returns (uint256);
+
+    /**
      * @dev Returns the amount of shares that the Vault would exchange for the amount of assets provided, in an ideal
      * scenario where all the conditions are met.
      *

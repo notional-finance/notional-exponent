@@ -89,13 +89,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
         // NOTE: rounds down on division
-        return (shares * (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (_effectiveSupply());
+        return (shares * (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (effectiveSupply());
     }
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
         // NOTE: rounds down on division
-        return (yieldTokens * _effectiveSupply()) / (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+        return (yieldTokens * effectiveSupply()) / (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -253,7 +253,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /*** Private Functions ***/
-    function _effectiveSupply() private view returns (uint256) {
+    function effectiveSupply() public view returns (uint256) {
         return (totalSupply() - s_escrowedShares + VIRTUAL_SHARES);
     }
 
@@ -357,7 +357,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _mintYieldTokens(assets, receiver, depositData);
         uint256 yieldTokensMinted = yieldTokenBalance() - initialYieldTokenBalance;
 
-        sharesMinted = (yieldTokensMinted * _effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+        sharesMinted = (yieldTokensMinted * effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
         _mint(receiver, sharesMinted);
     }
 
