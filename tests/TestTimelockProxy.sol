@@ -26,17 +26,25 @@ contract TestTimelockProxy is Test {
     address public feeReceiver;
     AddressRegistry public registry = ADDRESS_REGISTRY;
 
-    function setUp() public {
+    function deployAddressRegistry() public {
         address deployer = makeAddr("deployer");
+        vm.prank(deployer);
+        address addressRegistry = address(new AddressRegistry());
+        TimelockUpgradeableProxy p = new TimelockUpgradeableProxy(
+            address(addressRegistry),
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(upgradeOwner, pauseOwner, feeReceiver))
+        );
+        registry = AddressRegistry(address(p));
 
+        assertEq(address(registry), address(ADDRESS_REGISTRY), "AddressRegistry is incorrect");
+    }
+
+    function setUp() public {
         upgradeOwner = makeAddr("upgradeOwner");
         pauseOwner = makeAddr("pauseOwner");
         feeReceiver = makeAddr("feeReceiver");
 
-        vm.prank(deployer);
-        deployCodeTo("AddressRegistry.sol:AddressRegistry", 
-            abi.encode(upgradeOwner, pauseOwner, feeReceiver), address(registry)
-        );
+        deployAddressRegistry();
 
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(

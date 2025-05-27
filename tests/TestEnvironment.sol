@@ -47,7 +47,13 @@ abstract contract TestEnvironment is Test {
     function deployAddressRegistry() public {
         address deployer = makeAddr("deployer");
         vm.prank(deployer);
-        addressRegistry = address(new AddressRegistry(owner, owner, owner));
+        addressRegistry = address(new AddressRegistry());
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
+            address(addressRegistry),
+            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(owner, owner, owner))
+        );
+        addressRegistry = address(proxy);
+
         assertEq(address(addressRegistry), address(ADDRESS_REGISTRY), "AddressRegistry is incorrect");
     }
 

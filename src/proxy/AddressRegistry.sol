@@ -4,9 +4,10 @@ pragma solidity >=0.8.29;
 import {Unauthorized, CannotEnterPosition} from "../interfaces/Errors.sol";
 import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
 import {VaultPosition} from "../interfaces/ILendingRouter.sol";
+import {Initializable} from "./Initializable.sol";
 
 /// @notice Registry for the addresses for different components of the protocol.
-contract AddressRegistry {
+contract AddressRegistry is Initializable {
     event PendingUpgradeAdminSet(address indexed newPendingUpgradeAdmin);
     event UpgradeAdminTransferred(address indexed newUpgradeAdmin);
     event PendingPauseAdminSet(address indexed newPendingPauseAdmin);
@@ -44,9 +45,8 @@ contract AddressRegistry {
     /// @notice Mapping of accounts to their existing position on a given vault
     mapping(address account => mapping(address vault => VaultPosition)) internal accountPositions;
 
-    /// @notice Constructor to set the initial admins, this contract is intended to be
-    /// non-upgradeable
-    constructor(address _upgradeAdmin, address _pauseAdmin, address _feeReceiver) {
+    function _initialize(bytes calldata data) internal override {
+        (address _upgradeAdmin, address _pauseAdmin, address _feeReceiver) = abi.decode(data, (address, address, address));
         upgradeAdmin = _upgradeAdmin;
         pauseAdmin = _pauseAdmin;
         feeReceiver = _feeReceiver;
