@@ -237,18 +237,23 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesHeld,
         bytes calldata data
     ) external onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
-        uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
-        _escrowShares(sharesHeld);
+        requestId = _withdraw(account, sharesHeld, data);
     }
 
     /// @inheritdoc IYieldStrategy
     function initiateWithdrawNativeBalance(
         bytes memory data
     ) external override setCurrentAccount(msg.sender) returns (uint256 requestId) {
-        uint256 sharesHeld = balanceOf(msg.sender);
+        requestId = _withdraw(msg.sender, balanceOf(msg.sender), data);
+    }
+
+    function _withdraw(address account, uint256 sharesHeld, bytes memory data) internal returns (uint256 requestId) {
+        // Accrue fees before initiating a withdraw since it will change the effective supply
+        _accrueFees();
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        requestId = _initiateWithdraw(msg.sender, yieldTokenAmount, sharesHeld, data);
+        requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+        // Escrow the shares after the withdraw since it will change the effective supply
+        // during reward claims when using the RewardManagerMixin.
         _escrowShares(sharesHeld);
     }
 
@@ -283,8 +288,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @dev Removes some shares from the "pool" that is used to pay fees.
-    function _escrowShares(uint256 shares) internal {
-        _accrueFees();
+    function _escrowShares(uint256 shares) private {
         s_escrowedShares += shares;
     }
 
