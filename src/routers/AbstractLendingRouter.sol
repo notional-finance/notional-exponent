@@ -53,7 +53,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) external override isAuthorized(onBehalf) {
+    ) public override isAuthorized(onBehalf) {
         _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
@@ -62,7 +62,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         address migrateFrom
-    ) external override isAuthorized(onBehalf) {
+    ) public override isAuthorized(onBehalf) {
         if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
         // Borrow amount is set to the amount of debt owed to the previous lending router
         (uint256 borrowAmount, /* */, /* */) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);

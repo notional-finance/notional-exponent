@@ -352,3 +352,32 @@ interface IMorpho is IMorphoBase {
 }
 
 IMorpho constant MORPHO = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
+
+
+struct Withdrawal {
+    /// @notice The market from which to withdraw.
+    MarketParams marketParams;
+    /// @notice The amount to withdraw.
+    uint128 amount;
+}
+
+/// @dev This interface is used for factorizing IPublicAllocatorStaticTyping and IPublicAllocator.
+/// @dev Consider using the IPublicAllocator interface instead of this one.
+interface IPublicAllocator {
+
+    /// @notice Reallocates from a list of markets to one market.
+    /// @param vault The MetaMorpho vault to reallocate.
+    /// @param withdrawals The markets to withdraw from,and the amounts to withdraw.
+    /// @param supplyMarketParams The market receiving total withdrawn to.
+    /// @dev Will call MetaMorpho's `reallocate`.
+    /// @dev Checks that the flow caps are respected.
+    /// @dev Will revert when `withdrawals` contains a duplicate or is not sorted.
+    /// @dev Will revert if `withdrawals` contains the supply market.
+    /// @dev Will revert if a withdrawal amount is larger than available liquidity.
+    function reallocateTo(address vault, Withdrawal[] calldata withdrawals, MarketParams calldata supplyMarketParams)
+        external
+        payable;
+
+}
+
+IPublicAllocator constant PUBLIC_ALLOCATOR = IPublicAllocator(0xfd32fA2ca22c76dD6E550706Ad913FC6CE91c75D);

@@ -7,14 +7,28 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
-import {MORPHO, MarketParams, Id, Position, Market} from "../interfaces/Morpho/IMorpho.sol";
 import {IMorphoLiquidateCallback, IMorphoFlashLoanCallback, IMorphoRepayCallback} from "../interfaces/Morpho/IMorphoCallbacks.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {AbstractLendingRouter} from "./AbstractLendingRouter.sol";
+import {
+    MORPHO,
+    MarketParams,
+    Id,
+    Position,
+    Market,
+    Withdrawal,
+    PUBLIC_ALLOCATOR
+} from "../interfaces/Morpho/IMorpho.sol";
 
 struct MorphoParams {
     address irm;
     uint256 lltv;
+}
+
+struct MorphoAllocation {
+    address vault;
+    uint256 feeAmount;
+    Withdrawal[] withdrawals;
 }
 
 contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback, IMorphoFlashLoanCallback, IMorphoRepayCallback {
@@ -55,6 +69,43 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
 
     function morphoId(MarketParams memory m) internal pure returns (Id) {
         return Id.wrap(keccak256(abi.encode(m)));
+    }
+
+    /// @dev Allows integration with the public allocator so that accounts can
+    /// ensure there is sufficient liquidity in the lending market before entering
+    function _allocate(address vault, MorphoAllocation[] calldata allocationData) internal {
+        MarketParams memory m = marketParams(vault);
+
+        uint256 totalFeeAmount;
+        for (uint256 i = 0; i < allocationData.length; i++) {
+            PUBLIC_ALLOCATOR.reallocateTo{value: allocationData[i].feeAmount}(
+                allocationData[i].vault, allocationData[i].withdrawals, m
+            );
+            totalFeeAmount += allocationData[i].feeAmount;
+        }
+        require(msg.value == totalFeeAmount, "Insufficient fee amount");
+    }
+
+    function allocateAndEnterPosition(
+        address onBehalf,
+        address vault,
+        uint256 depositAssetAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData,
+        MorphoAllocation[] calldata allocationData
+    ) external payable isAuthorized(onBehalf) {
+        _allocate(vault, allocationData);
+        enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData);
+    }
+
+    function allocateAndMigratePosition(
+        address onBehalf,
+        address vault,
+        address migrateFrom,
+        MorphoAllocation[] calldata allocationData
+    ) external payable isAuthorized(onBehalf) {
+        _allocate(vault, allocationData);
+        migratePosition(onBehalf, vault, migrateFrom);
     }
 
     function _flashBorrowAndEnter(
