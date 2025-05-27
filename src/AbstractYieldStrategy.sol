@@ -241,7 +241,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function initiateWithdrawNativeBalance(
+    function initiateWithdrawNative(
         bytes memory data
     ) external override setCurrentAccount(msg.sender) returns (uint256 requestId) {
         requestId = _withdraw(msg.sender, balanceOf(msg.sender), data);

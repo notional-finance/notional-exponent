@@ -231,6 +231,56 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         "Fees should have accrued");
     }
 
+    function test_liquidate_and_withdrawRequest() public onlyIfWithdrawRequestManager {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+
+        // First liquidate the position
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(owner);
+        asset.approve(address(lendingRouter), type(uint256).max);
+        uint256 assetBefore = asset.balanceOf(owner);
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
+        uint256 assetAfter = asset.balanceOf(owner);
+        uint256 netAsset = assetBefore - assetAfter;
+
+        uint256 balanceAfter = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        assertEq(balanceAfter, balanceBefore - sharesToLiquidator);
+        assertEq(y.balanceOf(owner), sharesToLiquidator);
+        vm.stopPrank();
+
+        // Now initiate a withdraw request
+        vm.startPrank(owner);
+        y.initiateWithdrawNative(getWithdrawRequestData(owner, sharesToLiquidator));
+        vm.stopPrank();
+
+        // Assert that the withdraw request is active
+        (WithdrawRequest memory w, SplitWithdrawRequest memory s) = manager.getWithdrawRequest(address(y), owner);
+        assertNotEq(w.requestId, 0);
+        assertEq(w.sharesAmount, balanceBefore);
+        assertGt(w.yieldTokenAmount, 0);
+
+        // Now finalize the withdraw request and redeem
+        finalizeWithdrawRequest(owner);
+
+        vm.startPrank(owner);
+        y.redeemNative(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
+        vm.stopPrank();
+
+        // Assert that the owner received a profit after redeeming
+        assertGt(asset.balanceOf(owner) - assetAfter, netAsset);
+        assertEq(y.balanceOf(owner), 0);
+
+        // Assert that the withdraw request is cleared
+        (w, s) = manager.getWithdrawRequest(address(y), owner);
+        assertEq(w.requestId, 0);
+        assertEq(w.sharesAmount, 0);
+        assertEq(w.yieldTokenAmount, 0); 
+    }
+
     function test_liquidate_splitsWithdrawRequest(bool isForceWithdraw) public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
