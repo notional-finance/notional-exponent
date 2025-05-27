@@ -178,4 +178,18 @@ contract MockRewardVault is RewardManagerMixin {
             didSplit = withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
+
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
+        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
+        if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
+            (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(
+                address(this), t_CurrentAccount, asset, shares
+            );
+            // If the account does not have a withdraw request then this will fall through
+            // to the super implementation.
+            if (hasRequest) return value;
+        }
+
+        return super.convertToAssets(shares);
+    }
 }

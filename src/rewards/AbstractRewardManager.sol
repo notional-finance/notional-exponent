@@ -3,8 +3,8 @@ pragma solidity >=0.8.29;
 
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import "../interfaces/IRewardManager.sol";
+import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {Unauthorized} from "../interfaces/Errors.sol";
 import {DEFAULT_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
@@ -192,6 +192,10 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         rewards = new uint256[](state.length);
         bool isEscrowed = _getAccountEscrowStateSlot()[account];
 
+        // If the shares are not in escrow but the debt is marked as escrowed then something has gotten
+        // out of sync. Revert in this case.
+        if (!sharesInEscrow && isEscrowed) revert();
+
         for (uint256 i; i < state.length; i++) {
             if (0 < state[i].emissionRatePerYear) {
                 // Accumulate any rewards with an emission rate here
@@ -210,7 +214,12 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         }
 
         // Set the debt to escrowed if the shares are in escrow for the first time
-        if (sharesInEscrow && !isEscrowed) _getAccountEscrowStateSlot()[account] = true;
+        if (sharesInEscrow && !isEscrowed) {
+            _getAccountEscrowStateSlot()[account] = true;
+        } else if (sharesInEscrow && isEscrowed && accountSharesAfter == 0) {
+            // If all shares are redeemed then delete the escrow state
+            _getAccountEscrowStateSlot()[account] = false;
+        }
     }
 
     /// @notice Executes a claim against the given reward pool type and updates internal
@@ -261,20 +270,16 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         bool sharesInEscrow,
         bool isEscrowed
     ) internal returns (uint256 rewardToClaim) {
-        // If the shares are not in escrow but the debt is marked as escrowed then something has gotten
-        // out of sync. Revert in this case.
-        if (!sharesInEscrow && isEscrowed) revert();
-
         // If shares are in escrow and we've already marked the account as in escrow then
         // do not claim any rewards. Since we use the effectiveSupply to calculate rewardsPerVaultShare
         // escrowed shares are not included in the denominator.
         if (sharesInEscrow && isEscrowed) {
-            // If all shares are redeemed then delete the debt, it will be recreated if the
-            // account opens a new position.
             if (accountSharesAfter == 0) {
+                // Delete the reward debt if all shares are redeemed, it will be recreated
+                // if the account opens a new position.
                 delete _getAccountRewardDebtSlot()[rewardToken][account];
-                delete _getAccountEscrowStateSlot()[account];
             }
+
             return 0;
         }
 
