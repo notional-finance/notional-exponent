@@ -115,6 +115,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         setMarketVariables();
         if (usdOracleToken == address(0)) usdOracleToken = address(asset);
+        if (address(w) == address(0)) w = ERC20(rewardPool);
 
         y = new CurveConvex2Token(
             maxPoolShare,
@@ -328,9 +329,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         withdrawParams.withdrawData = new bytes[](2);
 
         vm.startPrank(msg.sender);
-        // uint256[] memory requestIds = lendingRouter.initiateWithdraw(msg.sender, address(y), abi.encode(withdrawParams));
-        uint256 requestId = lendingRouter.initiateWithdraw(msg.sender, address(y), abi.encode(withdrawParams));
-        // assertEq(requestIds.length, 2);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), abi.encode(withdrawParams));
 
         vm.warp(block.timestamp + 6 minutes);
         uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));

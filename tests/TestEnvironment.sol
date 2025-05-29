@@ -62,7 +62,10 @@ abstract contract TestEnvironment is Test {
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
+    function overrideForkBlock() internal virtual { }
+
     function setUp() public virtual {
+        overrideForkBlock();
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         strategyName = "name";
         strategySymbol = "symbol";
