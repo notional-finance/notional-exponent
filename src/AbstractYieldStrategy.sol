@@ -193,10 +193,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function preLiquidation(
         address liquidator,
         address liquidateAccount,
-        uint256 sharesToLiquidate
+        uint256 sharesToLiquidate,
+        uint256 accountSharesHeld
     ) external onlyLendingRouter {
         t_CurrentAccount = liquidateAccount;
-        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate);
+        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
         if (maxLiquidateShares < sharesToLiquidate) {
             revert CannotLiquidate(maxLiquidateShares, sharesToLiquidate);
         }
@@ -393,8 +394,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
-    function _preLiquidation(address /* liquidateAccount */, address /* liquidator */, uint256 liquidateAccountShares) internal virtual returns (uint256 maxLiquidateShares) {
-        return liquidateAccountShares;
+    function _preLiquidation(
+        address /* liquidateAccount */,
+        address /* liquidator */,
+        uint256 sharesToLiquidate,
+        uint256 /* accountSharesHeld */
+    ) internal virtual returns (uint256 maxLiquidateShares) {
+        return sharesToLiquidate;
     }
 
     /// @dev Called after liquidation

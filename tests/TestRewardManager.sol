@@ -266,7 +266,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
     }
 
-    function test_liquidate_withRewards(bool hasEmissions, bool hasRewards) public {
+    function test_liquidate_withRewards(bool hasEmissions, bool hasRewards, bool isPartialLiquidation) public {
         int256 originalPrice = o.latestAnswer();
         address liquidator = makeAddr("liquidator");
         if (hasEmissions) {
@@ -292,8 +292,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         uint256 emissionsForUser = 1e18 * sharesBefore / y.totalSupply();
         uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
         asset.approve(address(lendingRouter), type(uint256).max);
+        uint256 sharesToLiquidate = isPartialLiquidation ? sharesBefore / 2 : sharesBefore;
         // This should trigger a claim on rewards
-        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), sharesBefore, 0);
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), sharesToLiquidate, 0);
         vm.stopPrank();
 
         if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account shares");

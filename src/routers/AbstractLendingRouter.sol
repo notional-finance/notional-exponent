@@ -143,7 +143,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         // Runs any checks on the vault to ensure that the liquidation can proceed, whitelists the lending platform
         // to transfer collateral to the lending router.
-        IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, sharesToLiquidate);
+        IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, sharesToLiquidate, balanceBefore);
 
         // After this call, address(this) will have the liquidated shares
         sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);

@@ -246,9 +246,14 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         }
     }
 
-    function _preLiquidation(address liquidateAccount, address liquidator, uint256 liquidateAccountShares) internal override returns (uint256 maxLiquidateShares) {
+    function _preLiquidation(
+        address liquidateAccount,
+        address liquidator,
+        uint256 sharesToLiquidate,
+        uint256 accountSharesHeld
+    ) internal override returns (uint256 maxLiquidateShares) {
         _checkReentrancyContext();
-        return super._preLiquidation(liquidateAccount, liquidator, liquidateAccountShares);
+        return super._preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
     }
 
     function __postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didSplit) {
