@@ -62,6 +62,18 @@ abstract contract TestEnvironment is Test {
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
+    function setupWithdrawRequestManager(address impl) internal virtual {
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
+            address(impl), abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))
+        );
+        manager = IWithdrawRequestManager(address(proxy));
+
+        if (address(ADDRESS_REGISTRY.getWithdrawRequestManager(manager.YIELD_TOKEN())) == address(0)) {
+            vm.prank(ADDRESS_REGISTRY.upgradeAdmin());
+            ADDRESS_REGISTRY.setWithdrawRequestManager(address(manager));
+        }
+    }
+
     function overrideForkBlock() internal virtual { }
 
     function setUp() public virtual {
@@ -98,6 +110,10 @@ abstract contract TestEnvironment is Test {
         WETH.transfer(msg.sender, 250_000e18);
 
         lendingRouter = setupLendingRouter(0.915e18);
+        if (address(manager) != address(0)) {
+            vm.prank(owner);
+            manager.setApprovedVault(address(y), true);
+        }
 
         postDeploySetup();
     }

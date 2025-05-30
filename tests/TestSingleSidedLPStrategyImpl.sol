@@ -328,7 +328,7 @@ contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
         managers[0] = new GenericERC20WithdrawRequestManager(address(WETH));
         managers[1] = new DineroWithdrawRequestManager(address(pxETH));
         withdrawRequests[0] = new TestGenericERC20WithdrawRequest();
-        withdrawRequests[1] = new TestDineropxETHWithdrawRequest();
+        withdrawRequests[1] = new TestDinero_pxETH_WithdrawRequest();
 
         curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
