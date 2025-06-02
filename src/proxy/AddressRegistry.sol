@@ -15,6 +15,8 @@ contract AddressRegistry is Initializable {
     event FeeReceiverTransferred(address indexed newFeeReceiver);
     event WithdrawRequestManagerSet(address indexed yieldToken, address indexed withdrawRequestManager);
     event LendingRouterSet(address indexed lendingRouter);
+    event AccountPositionCreated(address indexed account, address indexed vault, address indexed lendingRouter);
+    event AccountPositionCleared(address indexed account, address indexed vault, address indexed lendingRouter);
 
     /// @notice Address of the admin that is allowed to:
     /// - Upgrade TimelockUpgradeableProxy contracts given a 7 day timelock
@@ -123,6 +125,7 @@ contract AddressRegistry is Initializable {
         else if (position.lendingRouter != msg.sender) revert CannotEnterPosition();
 
         position.lastEntryTime = uint32(block.timestamp);
+        emit AccountPositionCreated(account, vault, msg.sender);
     }
 
     function clearPosition(address account, address vault) external {
@@ -130,5 +133,6 @@ contract AddressRegistry is Initializable {
         if (!lendingRouters[msg.sender]) revert Unauthorized(msg.sender);
 
         delete accountPositions[account][vault];
+        emit AccountPositionCleared(account, vault, msg.sender);
     }
 }

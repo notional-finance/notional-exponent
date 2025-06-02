@@ -38,6 +38,13 @@ interface IWithdrawRequestManager {
         uint256 requestId
     );
 
+    event WithdrawRequestSplit(
+        address indexed from,
+        address indexed to,
+        uint256 indexed requestId,
+        uint256 sharesAmount
+    );
+
     /// @notice Returns the token that will be the result of staking
     /// @return yieldToken the yield token of the withdraw request manager
     function YIELD_TOKEN() external view returns (address);

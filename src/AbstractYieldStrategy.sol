@@ -52,6 +52,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint256 private s_escrowedShares;
     /****** End Storage Variables ******/
 
+    // TODO: check these....
     /********* Transient Variables *********/
     // Used to authorize transfers off of the lending market
     address internal transient t_CurrentAccount;
@@ -273,12 +274,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 x = (feeRate * timeSinceLastFeeAccrual) / YEAR;
         if (x == 0) return 0;
 
-        // Taylor approximation of e ^ x  - 1 = x + x^2 / 2! + x^3 / 3! + ...
-        uint256 eToTheX = x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
+        uint256 preFeeUserHeldYieldTokens = yieldTokenBalance() - s_accruedFeesInYieldToken;
+        // Taylor approximation of e ^ x = 1 + x + x^2 / 2! + x^3 / 3! + ...
+        uint256 eToTheX = DEFAULT_PRECISION + x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
+        // Decay the user's yield tokens by e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
+        uint256 postFeeUserHeldYieldTokens = preFeeUserHeldYieldTokens * DEFAULT_PRECISION / eToTheX;
 
-        additionalFeesInYieldToken = (
-            (yieldTokenBalance() - s_accruedFeesInYieldToken) * eToTheX
-        ) / DEFAULT_PRECISION;
+        additionalFeesInYieldToken = preFeeUserHeldYieldTokens - postFeeUserHeldYieldTokens;
     }
 
     function _accrueFees() private {

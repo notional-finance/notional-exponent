@@ -223,6 +223,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             s_withdraw.hasSplit = true;
         }
 
+        emit WithdrawRequestSplit(_from, _to, requestId, sharesAmount);
         return true;
     }
 

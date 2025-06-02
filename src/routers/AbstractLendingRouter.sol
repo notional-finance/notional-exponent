@@ -9,7 +9,8 @@ import {
     CannotForceWithdraw,
     InvalidLendingRouter,
     NoExistingPosition,
-    LiquidatorHasPosition
+    LiquidatorHasPosition,
+    CannotEnterPosition
 } from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -79,6 +80,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address migrateFrom
     ) internal {
         address asset = IYieldStrategy(vault).asset();
+        // Cannot enter a position if the account already has a native share balance
+        if (IYieldStrategy(vault).balanceOf(onBehalf) > 0) revert CannotEnterPosition();
 
         if (depositAssetAmount > 0) {
             // Take any margin deposit from the sender initially

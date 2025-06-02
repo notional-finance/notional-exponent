@@ -287,7 +287,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         uint256 totalSupply = y.totalSupply();
 
         uint256 yieldTokensPerShare0 = y.convertSharesToYieldToken(1e18);
-        uint256 expectedFees = y.convertSharesToYieldToken(totalSupply) * 0.001000500166e18 / 1e18;
+        uint256 expectedFees = y.convertSharesToYieldToken(totalSupply) * 0.00099950016658341e18 / 1e18;
         vm.warp(block.timestamp + 365 days);
         uint256 yieldTokensPerShare1 = y.convertSharesToYieldToken(1e18);
         assertLt(yieldTokensPerShare1, yieldTokensPerShare0);

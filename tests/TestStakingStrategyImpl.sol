@@ -58,7 +58,7 @@ contract TestStakingStrategy_apxETH is TestStakingStrategy {
     function getRedeemData(
         address /* user */,
         uint256 /* shares */
-    ) internal pure override returns (bytes memory redeemData) {
+    ) internal override returns (bytes memory redeemData) {
         vm.skip(true);
         // No way to trade out of this position
         return bytes("");
