@@ -7,8 +7,9 @@ import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
-    uint256 transient t_Liquidator_SharesBefore;
-    uint256 transient t_LiquidateAccount_SharesBefore;
+
+    uint256 internal transient t_Liquidator_SharesBefore;
+    uint256 internal transient t_LiquidateAccount_SharesBefore;
 
     constructor(
         address _asset,
@@ -87,16 +88,19 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 sharesToBurn,
         bytes memory redeemData,
         address sharesOwner
-    ) internal override returns (uint256 assetsWithdrawn, bool wasEscrowed) {
+    ) internal override returns (uint256 assetsWithdrawn) {
         uint256 effectiveSupplyBefore = effectiveSupply();
+        // Get the escrow state before burning the shares since it will be cleared if
+        // the entire balance is burned.
+        bool wasEscrowed = _isWithdrawRequestPending(sharesOwner);
         // When burning shares, the sharesOwner will hold them directly, they will
         // not be held on a lending market
         uint256 sharesHeld = balanceOf(sharesOwner) + 
-        // Also include any shares held on a lending market
+        // Also include any shares held on a lending market in the total sharesHeld
             (t_CurrentLendingRouter == address(0) ? 0 :
                 ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(sharesOwner, address(this)));
 
-        (assetsWithdrawn, wasEscrowed) = super._burnShares(sharesToBurn, redeemData, sharesOwner);
+        assetsWithdrawn = super._burnShares(sharesToBurn, redeemData, sharesOwner);
 
         _updateAccountRewards({
             account: sharesOwner,

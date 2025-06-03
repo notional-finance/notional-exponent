@@ -361,10 +361,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(liquidator);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         asset.approve(address(lendingRouter), type(uint256).max);
-        uint256 assetBefore = asset.balanceOf(liquidator);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
-        uint256 assetAfter = asset.balanceOf(liquidator);
-        uint256 netAsset = assetBefore - assetAfter;
 
         assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), balanceBefore - sharesToLiquidator);
         assertEq(y.balanceOf(liquidator), sharesToLiquidator);

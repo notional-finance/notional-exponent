@@ -45,9 +45,6 @@ interface ILPLib {
     /// @dev Unstakes and exits the pool
     function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
 
-    /// @dev Checks if there are any pending withdrawals
-    function hasPendingWithdraw(address account) external view returns (bool);
-
     /// @dev Gets the value of all pending withdrawals
     function getWithdrawRequestValue(address account, address asset, uint256 shares) external view returns (uint256 totalValue);
 

@@ -102,12 +102,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     function _mintYieldTokens(
         uint256 assets,
-        address receiver,
+        address /* receiver */,
         bytes memory depositData
     ) internal override {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
-        if (_hasPendingWithdraw(receiver)) revert CannotEnterPosition();
 
         // If depositTrades are specified, then parts of the initial deposit are traded
         // for corresponding amounts of the other pool tokens via external exchanges. If
@@ -133,34 +132,33 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 maxSupplyThreshold = (_totalPoolSupply() * MAX_POOL_SHARE) / DEFAULT_PRECISION;
         // This is incumbent on a 1-1 ratio between the lpToken and the yieldToken, if that is not the
         // case then this function must be overridden.
-        uint256 poolClaim = yieldTokenBalance();
+        uint256 poolClaim = _yieldTokenBalance();
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
     }
 
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
+        bool isEscrowed,
         bytes memory redeemData
-    ) internal override returns (bool wasEscrowed) {
+    ) internal override {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
 
         // Stores the amount of each token that has been withdrawn from the pool.
         uint256[] memory exitBalances;
         bool isSingleSided;
         ERC20[] memory tokens;
-        if (_hasPendingWithdraw(sharesOwner)) {
+        if (isEscrowed) {
             // Attempt to withdraw all pending requests, tokens may be different if there
             // is a withdraw request.
             (exitBalances, tokens) = _withdrawPendingRequests(sharesOwner, sharesToRedeem);
             // If there are pending requests, then we are not single sided by definition
             isSingleSided = false;
-            wasEscrowed = true;
         } else {
             isSingleSided = params.redemptionTrades.length == 0;
             uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
             exitBalances = _unstakeAndExitPool(yieldTokensBurned, params.minAmounts, isSingleSided);
             tokens = TOKENS();
-            wasEscrowed = false;
         }
 
         if (!isSingleSided) {
@@ -298,15 +296,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
-        if (t_CurrentAccount != address(0) && _hasPendingWithdraw(t_CurrentAccount)) {
+        if (t_CurrentAccount != address(0) && _isWithdrawRequestPending(t_CurrentAccount)) {
             return ILPLib(LP_LIB).getWithdrawRequestValue(t_CurrentAccount, asset, shares);
         }
 
         return super.convertToAssets(shares);
-    }
-
-    function _hasPendingWithdraw(address account) internal view returns (bool) {
-        return ILPLib(LP_LIB).hasPendingWithdraw(account);
     }
 
 }
@@ -315,21 +309,6 @@ abstract contract BaseLPLib is ILPLib {
     using TokenUtils for ERC20;
 
     function TOKENS() internal view virtual returns (ERC20[] memory);
-
-    /// @inheritdoc ILPLib
-    function hasPendingWithdraw(address account) external view override returns (bool) {
-        ERC20[] memory tokens = TOKENS();
-        WithdrawRequest memory request;
-
-        for (uint256 i; i < tokens.length; i++) {
-            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
-            if (address(manager) == address(0)) continue;
-            (request, /* */) = manager.getWithdrawRequest(msg.sender, account);
-            if (request.requestId != 0) return true;
-        }
-
-        return false;
-    }
 
     /// @inheritdoc ILPLib
     function getWithdrawRequestValue(

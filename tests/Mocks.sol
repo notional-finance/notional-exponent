@@ -58,10 +58,9 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         MockWrapperERC20(yieldToken).deposit(assets);
     }
 
-    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
+    function _redeemShares(uint256 sharesToRedeem, address /* sharesOwner */, bool /* isEscrowed */, bytes memory /* redeemData */) internal override {
         uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
         MockWrapperERC20(yieldToken).withdraw(yieldTokensBurned);
-        wasEscrowed = false;
     }
 
     function _initiateWithdraw(address /* account */, uint256 /* yieldTokenAmount */, uint256 /* sharesHeld */, bytes memory /* data */) internal pure override returns (uint256 requestId) {
@@ -135,24 +134,26 @@ contract MockRewardVault is RewardManagerMixin {
         MockRewardPool(yieldToken).deposit(0, assets, true);
     }
 
-    function _redeemShares(uint256 sharesToRedeem, address sharesOwner, bytes memory /* redeemData */) internal override returns (bool wasEscrowed) {
-        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
-        if (address(withdrawRequestManager) != address(0)) {
+    function _redeemShares(
+        uint256 sharesToRedeem,
+        address sharesOwner,
+        bool isEscrowed,
+        bytes memory /* redeemData */
+    ) internal override {
+        if (isEscrowed) {
+            IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
             (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
 
             if (w.requestId != 0) {
                 uint256 yieldTokenAmount = w.yieldTokenAmount * sharesToRedeem / w.sharesAmount;
                 (uint256 tokensWithdrawn, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner, yieldTokenAmount, sharesToRedeem);
                 require(finalized, "Withdraw request not finalized");
-                wasEscrowed = true;
                 MockRewardPool(yieldToken).withdrawAndUnwrap(tokensWithdrawn, true);
-                return wasEscrowed;
             }
+        } else {
+            uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+            MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
         }
-
-        uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
-        MockRewardPool(yieldToken).withdrawAndUnwrap(yieldTokensBurned, true);
-        wasEscrowed = false;
     }
 
     function __initiateWithdraw(

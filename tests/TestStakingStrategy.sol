@@ -59,7 +59,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         lendingRouter2.migratePosition(msg.sender, address(y), address(lendingRouter));
 
         // Cannot enter since we now have a withdraw request
-        vm.expectRevert(abi.encodeWithSelector(ExistingWithdrawRequest.selector, address(y), msg.sender, requestId));
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter2.enterPosition(
             msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit)
         );
@@ -105,7 +105,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         asset.approve(address(lendingRouter), defaultDeposit);
 
-        vm.expectRevert(abi.encodeWithSelector(ExistingWithdrawRequest.selector, address(y), msg.sender, requestId));
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, getDepositData(msg.sender, defaultDeposit));
         vm.stopPrank();
     }
@@ -425,8 +425,29 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
     }
 
-    // function test_multiple_entries_exits_with_withdrawRequest() public {
-    //     assertEq(true, false);
-    //     // TODO: check that asset valuation is continuous for multiple entries and exits
-    // }
+    function test_enterPosition_after_Exit_WithdrawRequest() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(msg.sender);
+
+        vm.startPrank(msg.sender);
+        lendingRouter.exitPosition(
+            msg.sender,
+            address(y),
+            msg.sender,
+            balanceBefore,
+            type(uint256).max,
+            getRedeemData(msg.sender, balanceBefore)
+        );
+        vm.stopPrank();
+        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), 0);
+
+        // Assert that we can re-enter the position after previously exiting a withdraw request
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    }
 }
