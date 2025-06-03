@@ -67,8 +67,8 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         requestId = 0;
     }
 
-    function _postLiquidation(address /* liquidator */, address /* liquidateAccount */, uint256 /* sharesToLiquidator */) internal pure override returns (bool didSplit) {
-        didSplit = false;
+    function _postLiquidation(address /* liquidator */, address /* liquidateAccount */, uint256 /* sharesToLiquidator */) internal pure override returns (bool didTokenize) {
+        didTokenize = false;
     } 
 
     function _preLiquidation(address /* liquidateAccount */, address /* liquidator */, uint256 /* sharesToLiquidate */, uint256 /* accountSharesHeld */) internal pure override {
@@ -175,12 +175,12 @@ contract MockRewardVault is RewardManagerMixin {
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) internal override returns (bool didSplit) {
+    ) internal override returns (bool didTokenize) {
         IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
         if (address(withdrawRequestManager) != address(0)) {
             // No need to accrue fees because neither the total supply or total yield token balance is changing. If there
             // is no withdraw request then this will be a noop.
-            didSplit = withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
+            didTokenize = withdrawRequestManager.tokenizeWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
 

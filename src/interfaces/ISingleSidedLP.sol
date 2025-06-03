@@ -62,10 +62,10 @@ interface ILPLib {
         bytes[] calldata withdrawData
     ) external returns (uint256[] memory requestIds);
 
-    /// @dev Splits a withdraw request during liquidation
-    function splitWithdrawRequest(
+    /// @dev Tokenizes a withdraw request during liquidation
+    function tokenizeWithdrawRequest(
         address liquidateAccount,
         address liquidator,
         uint256 sharesToLiquidator
-    ) external returns (bool didSplit);
+    ) external returns (bool didTokenize);
 }

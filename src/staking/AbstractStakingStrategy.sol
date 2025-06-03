@@ -6,7 +6,7 @@ import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {
     IWithdrawRequestManager,
     WithdrawRequest,
-    SplitWithdrawRequest
+    TokenizedWithdrawRequest
 } from "../interfaces/IWithdrawRequestManager.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {Trade, TradeType, TRADING_MODULE} from "../interfaces/ITradingModule.sol";
@@ -141,11 +141,11 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     
     function _preLiquidation(address, address, uint256, uint256) internal override { /* no-op */ }
 
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didSplit) {
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didTokenize) {
         if (address(withdrawRequestManager) != address(0)) {
             // No need to accrue fees because neither the total supply or total yield token balance is changing. If there
             // is no withdraw request then this will be a noop.
-            didSplit = withdrawRequestManager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
+            didTokenize = withdrawRequestManager.tokenizeWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
 

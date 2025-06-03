@@ -441,7 +441,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
     }
 
-    function test_liquidate_splitsWithdrawRequest() public {
+    function test_liquidate_tokenizesWithdrawRequest() public {
         vm.skip(address(managers[stakeTokenIndex]) == address(0));
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
@@ -483,16 +483,16 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         finalizeWithdrawRequest(owner);
 
-        // The owner does receive a split withdraw request
+        // The owner does receive a tokenized withdraw request
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
-            (WithdrawRequest memory w, SplitWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
+            (WithdrawRequest memory w, TokenizedWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
             assertNotEq(w.requestId, 0);
             assertEq(w.sharesAmount, sharesToLiquidator);
             assertGt(w.yieldTokenAmount, 0);
-            assertEq(w.hasSplit, true);
+            assertEq(w.isTokenized, true);
 
-            // We have not finalized the split withdraw request yet
+            // We have not finalized the tokenized withdraw request yet
             assertGt(s.totalYieldTokenAmount, 0);
             assertEq(s.finalized, false);
             assertEq(s.totalWithdraw, 0);
@@ -503,14 +503,14 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         assertGt(assets, netAsset);
         vm.stopPrank();
 
-        // The owner does receive a split withdraw request
+        // The owner does receive a tokenized withdraw request
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
             // Assert that the withdraw request is cleared
-            (WithdrawRequest memory w, SplitWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
+            (WithdrawRequest memory w, TokenizedWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
             assertEq(w.sharesAmount, 0);
             assertEq(w.yieldTokenAmount, 0);
-            assertEq(w.hasSplit, false);
+            assertEq(w.isTokenized, false);
 
             // The original withdraw request is still active on the liquidated account
             if (balanceBefore > sharesToLiquidator) {
@@ -518,7 +518,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 assertNotEq(w.requestId, 0);
                 assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
                 assertGt(w.yieldTokenAmount, 0);
-                assertEq(w.hasSplit, true);
+                assertEq(w.isTokenized, true);
 
                 assertGt(s.totalYieldTokenAmount, 0);
                 assertGt(s.totalWithdraw, 0);

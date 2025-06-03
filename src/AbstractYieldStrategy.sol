@@ -206,9 +206,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 accountSharesHeld
     ) external onlyLendingRouter {
         t_CurrentAccount = liquidateAccount;
-        // Liquidator cannot liquidate if they have an active withdraw request, including a split
+        // Liquidator cannot liquidate if they have an active withdraw request, including a tokenized
         // withdraw request.
-        // TODO: this is not ideal if the liquidator wants to take more of an existing split
         if (_isWithdrawRequestPending(liquidator)) revert CannotEnterPosition();
         _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
 
@@ -227,8 +226,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Transfer the shares to the liquidator from the lending router
         _transfer(t_CurrentLendingRouter, liquidator, sharesToLiquidator);
 
-        bool didSplit = _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
-        if (didSplit) s_isWithdrawRequestPending[liquidator] = true;
+        bool didTokenize = _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+        if (didTokenize) s_isWithdrawRequestPending[liquidator] = true;
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_CurrentAccount;
@@ -417,7 +416,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _preLiquidation(address liquidateAccount, address liquidator, uint256 sharesToLiquidate, uint256 accountSharesHeld) internal virtual;
 
     /// @dev Called after liquidation
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual returns (bool didSplit);
+    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual returns (bool didTokenize);
 
     /// @dev Mints yield tokens given a number of assets.
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;

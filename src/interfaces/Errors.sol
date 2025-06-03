@@ -9,7 +9,7 @@ error InsufficientAssetsForRepayment(uint256 assetsToRepay, uint256 assetsWithdr
 error CannotLiquidate(uint256 maxLiquidateShares, uint256 seizedAssets);
 error Paused();
 error CannotExitPositionWithinCooldownPeriod();
-error CannotReceiveSplitWithdrawRequest();
+error CannotTokenizeWithdrawRequest();
 
 error WithdrawRequestNotFinalized(uint256 requestId);
 error CannotInitiateWithdraw(address account);
@@ -26,7 +26,7 @@ error InvalidLendingRouter();
 
 error ExistingWithdrawRequest(address vault, address account, uint256 requestId);
 error NoWithdrawRequest(address vault, address account);
-error InvalidWithdrawRequestSplit();
+error InvalidWithdrawRequestTokenization();
 
 error InvalidPrice(uint256 oraclePrice, uint256 spotPrice);
 error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
