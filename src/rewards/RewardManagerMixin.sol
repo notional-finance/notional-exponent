@@ -23,17 +23,17 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
     }
 
     function _preLiquidation(
-        address liquidateAccount,
+        address /* liquidateAccount */,
         address liquidator,
-        uint256 sharesToLiquidate,
+        uint256 /* sharesToLiquidate */,
         uint256 accountSharesHeld
-    ) internal override virtual returns (uint256 maxLiquidateShares) {
+    ) internal override virtual {
         // This only works because the liquidator is prevented from having a position on the lending router so any
         // balance will be a native token balance.
         t_Liquidator_SharesBefore = balanceOf(liquidator);
         t_LiquidateAccount_SharesBefore = accountSharesHeld;
-        return super._preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
     }
+
     function __postLiquidation(
         address liquidator,
         address liquidateAccount,

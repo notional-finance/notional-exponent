@@ -41,7 +41,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 _feeRate,
         IWithdrawRequestManager _withdrawRequestManager
     ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, ERC20(_yieldToken).decimals()) {
-        // TODO: for Pendle PT the yield token does not define the withdraw request manager,
+        // For Pendle PT the yield token does not define the withdraw request manager,
         // it is the token out sy
         withdrawRequestManager = _withdrawRequestManager;
         withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.WITHDRAW_TOKEN() : address(0);
@@ -49,10 +49,11 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
-        if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
+        if (t_CurrentAccount != address(0) && _isWithdrawRequestPending(t_CurrentAccount)) {
             (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(
                 address(this), t_CurrentAccount, asset, shares
             );
+
             // If the account does not have a withdraw request then this will fall through
             // to the super implementation.
             if (hasRequest) return value;
@@ -137,6 +138,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         // each dex and token it wants to sell.
         (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
     }
+    
+    function _preLiquidation(address, address, uint256, uint256) internal override { /* no-op */ }
 
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didSplit) {
         if (address(withdrawRequestManager) != address(0)) {

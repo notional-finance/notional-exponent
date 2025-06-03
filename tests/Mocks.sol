@@ -70,6 +70,10 @@ contract MockYieldStrategy is AbstractYieldStrategy {
     function _postLiquidation(address /* liquidator */, address /* liquidateAccount */, uint256 /* sharesToLiquidator */) internal pure override returns (bool didSplit) {
         didSplit = false;
     } 
+
+    function _preLiquidation(address /* liquidateAccount */, address /* liquidator */, uint256 /* sharesToLiquidate */, uint256 /* accountSharesHeld */) internal pure override {
+        // No-op
+    }
 }
 
 contract MockERC20 is ERC20 {
