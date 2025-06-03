@@ -527,6 +527,35 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         }
     }
 
-    // TODO: test that you can re-enter after clearing a withdraw request
+    function test_enterPosition_after_Exit_WithdrawRequest() public {
+        vm.skip(address(managers[stakeTokenIndex]) == address(0));
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        vm.stopPrank();
+
+        finalizeWithdrawRequest(msg.sender);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(msg.sender);
+        lendingRouter.exitPosition(
+            msg.sender,
+            address(y),
+            msg.sender,
+            balanceBefore,
+            type(uint256).max,
+            getRedeemData(msg.sender, balanceBefore)
+        );
+        vm.stopPrank();
+        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), 0);
+
+        // Assert that we can re-enter the position after previously exiting a withdraw request
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    }
+
     // TODO: test re-entrancy context
 }

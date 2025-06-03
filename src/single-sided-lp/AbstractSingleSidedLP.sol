@@ -280,7 +280,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             ILPLib.initiateWithdraw.selector, account, sharesHeld, exitBalances, params.withdrawData
         ));
         uint256[] memory requestIds = abi.decode(result, (uint256[]));
-        // TODO: fix this?
+        // Although we get multiple requests ids, we just return the first one here. The rest will be
+        // observable off chain.
         requestId = requestIds[0];
     }
 
