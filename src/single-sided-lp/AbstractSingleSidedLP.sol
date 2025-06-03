@@ -7,7 +7,7 @@ import {DEFAULT_PRECISION, ADDRESS_REGISTRY} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
-import {IWithdrawRequestManager, WithdrawRequest, SplitWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest, TokenizedWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {
     CannotEnterPosition,
@@ -249,11 +249,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super._preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
     }
 
-    function __postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didSplit) {
+    function __postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didTokenize) {
         bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
-            ILPLib.splitWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator
+            ILPLib.tokenizeWithdrawRequest.selector, liquidateAccount, liquidator, sharesToLiquidator
         ));
-        didSplit = abi.decode(result, (bool));
+        didTokenize = abi.decode(result, (bool));
     }
 
     function __initiateWithdraw(
@@ -372,15 +372,15 @@ abstract contract BaseLPLib is ILPLib {
     }
 
     /// @inheritdoc ILPLib
-    function splitWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override returns (bool didSplit) {
+    function tokenizeWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override returns (bool didTokenize) {
         ERC20[] memory tokens = TOKENS();
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             if (address(manager) == address(0)) continue;
             // If there is no withdraw request then this will be a noop, make sure to OR with the previous result
-            // to ensure that the result is always set but it is done after so the splitWithdrawRequest call
+            // to ensure that the result is always set but it is done after so the tokenizeWithdrawRequest call
             // is not short circuited.
-            didSplit = manager.splitWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator) || didSplit;
+            didTokenize = manager.tokenizeWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator) || didTokenize;
         }
     }
 }

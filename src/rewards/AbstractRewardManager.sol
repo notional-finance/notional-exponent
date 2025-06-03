@@ -41,6 +41,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     /// @inheritdoc IRewardManager
+    // if we migrate the reward pool then the yield token will change.
+    // the yield token is an immutable on the base strategy which will change on upgrade
+    // so we need to call this atomically with the upgrade
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyUpgradeAdmin nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
         uint256 effectiveSupplyBefore = IYieldStrategy(address(this)).effectiveSupply();
@@ -57,8 +60,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 poolTokens = ERC20(poolToken).balanceOf(address(this));
         _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
 
-        // TODO: this will break the parent b/c the yield token will change due to the new reward pool
-        // migration.
         // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
         // earlier in this method.
         _getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);

@@ -38,24 +38,24 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) internal virtual returns (bool didSplit);
+    ) internal virtual returns (bool didTokenize);
 
     function _postLiquidation(
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) internal override returns (bool didSplit) {
+    ) internal override returns (bool didTokenize) {
         // Total supply does not change during liquidation
         uint256 effectiveSupplyBefore = effectiveSupply();
 
-        didSplit = __postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+        didTokenize = __postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
         _updateAccountRewards({
             account: liquidator,
             accountSharesBefore: t_Liquidator_SharesBefore,
             accountSharesAfter: t_Liquidator_SharesBefore + sharesToLiquidator,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            sharesInEscrow: didSplit
+            sharesInEscrow: didTokenize
         });
 
         _updateAccountRewards({
@@ -63,7 +63,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             accountSharesBefore: t_LiquidateAccount_SharesBefore,
             accountSharesAfter: t_LiquidateAccount_SharesBefore - sharesToLiquidator,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            sharesInEscrow: didSplit
+            sharesInEscrow: didTokenize
         });
     }
 

@@ -19,10 +19,10 @@ struct WithdrawRequest {
     uint256 requestId;
     uint120 yieldTokenAmount;
     uint120 sharesAmount;
-    bool hasSplit;
+    bool isTokenized;
 }
 
-struct SplitWithdrawRequest {
+struct TokenizedWithdrawRequest {
     uint120 totalYieldTokenAmount;
     uint120 totalWithdraw;
     bool finalized;
@@ -38,7 +38,7 @@ interface IWithdrawRequestManager {
         uint256 requestId
     );
 
-    event WithdrawRequestSplit(
+    event WithdrawRequestTokenized(
         address indexed from,
         address indexed to,
         uint256 indexed requestId,
@@ -103,7 +103,7 @@ interface IWithdrawRequestManager {
 
     /// @notice Finalizes withdraw requests outside of a vault exit. This may be required in cases if an
     /// account is negligent in exiting their vault position and letting the withdraw request sit idle
-    /// could result in losses. The withdraw request is finalized and stored in a "split" withdraw request
+    /// could result in losses. The withdraw request is finalized and stored in a tokenized withdraw request
     /// where the account has the full claim on the withdraw.
     /// @dev No access control is enforced on this function but no tokens are transferred off the request
     /// manager either.
@@ -112,17 +112,17 @@ interface IWithdrawRequestManager {
         address account
     ) external returns (uint256 tokensWithdrawn, bool finalized);
 
-    /// @notice If an account has an illiquid withdraw request, this method will split their
+    /// @notice If an account has an illiquid withdraw request, this method will tokenize their
     /// claim on it during liquidation.
-    /// @dev Only approved vaults can split withdraw requests
+    /// @dev Only approved vaults can tokenize withdraw requests
     /// @param from the account that is being liquidated
     /// @param to the liquidator
     /// @param sharesAmount the amount of shares to the liquidator
-    function splitWithdrawRequest(
+    function tokenizeWithdrawRequest(
         address from,
         address to,
         uint256 sharesAmount
-    ) external returns (bool didSplit);
+    ) external returns (bool didTokenize);
 
     /// @notice Allows the emergency exit role to rescue tokens from the withdraw request manager
     /// @param cooldownHolder the cooldown holder to rescue tokens from
@@ -136,12 +136,12 @@ interface IWithdrawRequestManager {
     /// @return canFinalize whether the withdraw request can be finalized
     function canFinalizeWithdrawRequest(uint256 requestId) external view returns (bool);
 
-    /// @notice Returns the withdraw request and split withdraw request for an account
+    /// @notice Returns the withdraw request and tokenized withdraw request for an account
     /// @param vault the vault to get the withdraw request for
     /// @param account the account to get the withdraw request for
     /// @return w the withdraw request
-    /// @return s the split withdraw request
-    function getWithdrawRequest(address vault, address account) external view returns (WithdrawRequest memory w, SplitWithdrawRequest memory s);
+    /// @return s the tokenized withdraw request
+    function getWithdrawRequest(address vault, address account) external view returns (WithdrawRequest memory w, TokenizedWithdrawRequest memory s);
 
     /// @notice Returns the value of a withdraw request in terms of the asset
     /// @param vault the vault to get the withdraw request for
