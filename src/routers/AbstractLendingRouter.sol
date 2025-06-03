@@ -251,6 +251,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         bytes memory redeemData
     ) internal returns (uint256 assetsWithdrawn) {
         address receiver = migrateTo == address(0) ? sharesOwner : migrateTo;
+        uint256 sharesHeld = balanceOfCollateral(sharesOwner, vault);
 
         // Allows the transfer from the lending market to the sharesOwner
         IYieldStrategy(vault).allowTransfer(receiver, sharesToRedeem);
@@ -258,7 +259,9 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         // If we are not migrating then burn the shares
         if (migrateTo == address(0)) {
-            assetsWithdrawn = IYieldStrategy(vault).burnShares(sharesOwner, sharesToRedeem, redeemData);
+            assetsWithdrawn = IYieldStrategy(vault).burnShares(
+                sharesOwner, sharesToRedeem, sharesHeld, redeemData
+            );
         }
     }
 

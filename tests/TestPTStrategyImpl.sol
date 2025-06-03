@@ -74,6 +74,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     function setMarketVariables() virtual internal;
 
     function deployYieldStrategy() internal override {
+        strategyName = "Pendle PT";
         address(deployCode("PendlePTLib.sol:PendlePTLib"));
 
         setMarketVariables();
@@ -251,7 +252,6 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy_PT {
 
 contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
     function setMarketVariables() internal override {
-        strategyName = "Pendle PT";
         market = 0xB162B764044697cf03617C2EFbcB1f42e31E4766;
         tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
         tokenOut = address(sUSDe);
