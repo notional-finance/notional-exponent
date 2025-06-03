@@ -15,8 +15,8 @@ import {
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
+import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
 import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {ADDRESS_REGISTRY, COOLDOWN_PERIOD} from "../utils/Constants.sol";
 
@@ -190,7 +190,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
     /// @inheritdoc ILendingRouter
     function claimRewards(address vault) external returns (uint256[] memory rewards) {
-        return IRewardManager(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
+        return RewardManagerMixin(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
     }
 
     /// @inheritdoc ILendingRouter

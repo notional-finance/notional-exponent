@@ -52,7 +52,8 @@ interface IRewardManager {
     );
 
 
-    /// @notice Updates account rewards during enter and exit vault operations
+    /// @notice Updates account rewards during enter and exit vault operations, only
+    /// callable via delegatecall from inside the vault
     /// @param account Address of the account
     /// @param effectiveSupplyBefore Total vault shares before the operation
     /// @param accountSharesBefore Number of shares before the operation
@@ -64,8 +65,7 @@ interface IRewardManager {
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
         bool sharesInEscrow
-    ) external;
-
+    ) external returns (uint256[] memory rewards);
 
     /// @notice Sets a secondary reward rate for a given token, only callable via the owner
     /// @param index Index of the reward token
@@ -87,10 +87,4 @@ interface IRewardManager {
 
     /// @notice Claims all the rewards for the entire vault and updates the accumulators
     function claimRewardTokens() external;
-
-    /// @notice Claims rewards for a specific account, only callable by the lending router
-    /// @param account Address of the account to claim rewards for
-    /// @param sharesHeld Number of shares held by the account
-    /// @return rewards Array of claimable rewards for each reward token
-    function claimAccountRewards(address account, uint256 sharesHeld) external returns (uint256[] memory rewards);
 }

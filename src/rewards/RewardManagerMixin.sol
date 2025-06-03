@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
+import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
@@ -122,15 +123,18 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         bytes memory data
     ) internal override returns (uint256 requestId) {
         uint256 effectiveSupplyBefore = effectiveSupply();
-        requestId = __initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
 
+        // Claim all rewards before initiating a withdraw shares not considered 
+        // in the escrow state at this point.
         _updateAccountRewards({
             account: account,
             accountSharesBefore: sharesHeld,
             accountSharesAfter: sharesHeld,
             effectiveSupplyBefore: effectiveSupplyBefore,
-            sharesInEscrow: true
+            sharesInEscrow: false
         });
+
+        requestId = __initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
     }
 
     function _updateAccountRewards(
@@ -139,11 +143,35 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
         bool sharesInEscrow
-    ) internal {
-        _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
+    ) internal returns (bytes memory) {
+        return _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
             IRewardManager.updateAccountRewards.selector,
             account, effectiveSupplyBefore, accountSharesBefore, accountSharesAfter, sharesInEscrow
         ));
+    }
+
+    function claimAccountRewards(
+        address account,
+        uint256 sharesHeld
+    ) external nonReentrant returns (uint256[] memory rewards) {
+        uint256 effectiveSupplyBefore = effectiveSupply();
+        if (!ADDRESS_REGISTRY.isLendingRouter(msg.sender)) {
+            // If the caller is not a lending router we get the shares held in a
+            // native token account.
+            sharesHeld = balanceOf(account);
+        }
+        // Short circuit if the account has no shares or a withdraw request is pending
+        if (sharesHeld == 0 || _isWithdrawRequestPending(account)) return rewards;
+
+        bytes memory result = _updateAccountRewards({
+            account: account,
+            accountSharesBefore: sharesHeld,
+            accountSharesAfter: sharesHeld,
+            effectiveSupplyBefore: effectiveSupplyBefore,
+            sharesInEscrow: false
+        });
+
+        rewards = abi.decode(result, (uint256[]));
     }
 
     fallback() external {

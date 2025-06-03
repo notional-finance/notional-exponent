@@ -311,7 +311,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // This second parameter is ignored because we get the balanceOf from
         // the contract itself.
-        rm.claimAccountRewards(liquidator, type(uint256).max);
+        RewardManagerMixin(address(rm)).claimAccountRewards(liquidator, type(uint256).max);
 
         uint256 expectedRewardsForLiquidator = hasRewards ? y.convertSharesToYieldToken(sharesToLiquidator) : 0;
         if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(liquidator), expectedRewardsForLiquidator, 0.0001e18, "Liquidator account rewards");
@@ -524,7 +524,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // This second parameter is ignored because we get the balanceOf from
         // the contract itself.
-        rm.claimAccountRewards(liquidator, type(uint256).max);
+        RewardManagerMixin(address(rm)).claimAccountRewards(liquidator, type(uint256).max);
 
         // No claims here because inside a withdraw request
         if (hasRewards) assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
