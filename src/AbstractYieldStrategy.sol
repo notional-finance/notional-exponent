@@ -183,9 +183,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function burnShares(
         address sharesOwner,
         uint256 sharesToBurn,
+        uint256 sharesHeld,
         bytes calldata redeemData
     ) external override onlyLendingRouter setCurrentAccount(sharesOwner) nonReentrant returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToBurn, redeemData, sharesOwner);
+        assetsWithdrawn = _burnShares(sharesToBurn, sharesHeld, redeemData, sharesOwner);
 
         // Send all the assets back to the lending router
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
@@ -242,7 +243,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesToRedeem,
         bytes memory redeemData
     ) external override nonReentrant setCurrentAccount(msg.sender) returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
+        assetsWithdrawn = _burnShares(sharesToRedeem, balanceOf(msg.sender), redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
 
@@ -384,6 +385,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @dev Marked as virtual to allow for RewardManagerMixin to override
     function _burnShares(
         uint256 sharesToBurn,
+        uint256 sharesHeld,
         bytes memory redeemData,
         address sharesOwner
     ) internal virtual returns (uint256 assetsWithdrawn) {
@@ -395,8 +397,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // First accrue fees on the yield token
         _accrueFees();
         _redeemShares(sharesToBurn, sharesOwner, isEscrowed, redeemData);
-        if (isEscrowed) s_escrowedShares -= sharesToBurn;
-        // TODO: clear escrow state if all shares are burned
+        if (isEscrowed) {
+            s_escrowedShares -= sharesToBurn;
+            // Clear the withdraw request if all shares are burned
+            if (sharesHeld == sharesToBurn) s_isWithdrawRequestPending[sharesOwner] = false;
+        }
 
         uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;

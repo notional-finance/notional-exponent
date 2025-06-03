@@ -135,6 +135,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function burnShares(
         address sharesOwner,
         uint256 sharesToBurn,
+        uint256 sharesHeld,
         bytes memory redeemData
     ) external returns (uint256 assetsWithdrawn);
 

@@ -49,7 +49,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(msg.sender);
         uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        uint256 requestId = lendingRouter.initiateWithdraw(
+        lendingRouter.initiateWithdraw(
             msg.sender,
             address(y),
             getWithdrawRequestData(msg.sender, sharesBefore)
@@ -97,7 +97,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(msg.sender);
         uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        uint256 requestId = lendingRouter.initiateWithdraw(
+        lendingRouter.initiateWithdraw(
             msg.sender,
             address(y),
             getWithdrawRequestData(msg.sender, shares)
@@ -426,6 +426,8 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
 
     function test_enterPosition_after_Exit_WithdrawRequest() public {
+        // Skip this test for Pendle PTs since we warp to expiration
+        vm.skip(keccak256(abi.encodePacked(y.name())) == keccak256(abi.encodePacked("Pendle PT")));
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
@@ -434,6 +436,8 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
 
         finalizeWithdrawRequest(msg.sender);
+
+        vm.warp(block.timestamp + 6 minutes);
 
         vm.startPrank(msg.sender);
         lendingRouter.exitPosition(
