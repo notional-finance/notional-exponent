@@ -11,7 +11,8 @@ import {
     Unauthorized,
     UnauthorizedLendingMarketTransfer,
     InsufficientSharesHeld,
-    CannotLiquidate
+    CannotLiquidate,
+    CannotEnterPosition
 } from "./interfaces/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
@@ -50,13 +51,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint32 private s_lastFeeAccrualTime;
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
+    mapping(address => bool) private s_isWithdrawRequestPending;
     /****** End Storage Variables ******/
 
-    // TODO: check these....
     /********* Transient Variables *********/
     // Used to authorize transfers off of the lending market
     address internal transient t_CurrentAccount;
-    // TODO: do we need this?
     address internal transient t_CurrentLendingRouter;
     address internal transient t_AllowTransfer_To;
     uint256 internal transient t_AllowTransfer_Amount;
@@ -90,13 +90,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
         // NOTE: rounds down on division
-        return (shares * (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (effectiveSupply());
+        return (shares * (_yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (effectiveSupply());
     }
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
         // NOTE: rounds down on division
-        return (yieldTokens * effectiveSupply()) / (yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+        return (yieldTokens * effectiveSupply()) / (_yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -128,6 +128,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // cast to uint256
         (int256 rate , /* */) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
         return uint256(rate);
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function effectiveSupply() public view returns (uint256) {
+        return (totalSupply() - s_escrowedShares + VIRTUAL_SHARES);
     }
 
     /*** Fee Methods ***/
@@ -164,6 +169,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address receiver,
         bytes calldata depositData
     ) external override onlyLendingRouter setCurrentAccount(receiver) nonReentrant returns (uint256 sharesMinted) {
+        // Cannot mint shares if the receiver has an active withdraw request
+        if (_isWithdrawRequestPending(receiver)) revert CannotEnterPosition();
         ERC20(asset).safeTransferFrom(t_CurrentLendingRouter, address(this), assetAmount);
         sharesMinted = _mintSharesGivenAssets(assetAmount, depositData, receiver);
 
@@ -178,7 +185,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesToBurn,
         bytes calldata redeemData
     ) external override onlyLendingRouter setCurrentAccount(sharesOwner) nonReentrant returns (uint256 assetsWithdrawn) {
-        (assetsWithdrawn, /* */) = _burnShares(sharesToBurn, redeemData, sharesOwner);
+        assetsWithdrawn = _burnShares(sharesToBurn, redeemData, sharesOwner);
 
         // Send all the assets back to the lending router
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
@@ -198,6 +205,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 accountSharesHeld
     ) external onlyLendingRouter {
         t_CurrentAccount = liquidateAccount;
+        // Liquidator cannot liquidate if they have an active withdraw request, including a split
+        // withdraw request.
+        // TODO: this is not ideal if the liquidator wants to take more of an existing split
+        if (_isWithdrawRequestPending(liquidator)) revert CannotEnterPosition();
+
         uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
         if (maxLiquidateShares < sharesToLiquidate) {
             revert CannotLiquidate(maxLiquidateShares, sharesToLiquidate);
@@ -218,7 +230,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Transfer the shares to the liquidator from the lending router
         _transfer(t_CurrentLendingRouter, liquidator, sharesToLiquidator);
 
-        _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+        bool didSplit = _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
+        if (didSplit) s_isWithdrawRequestPending[liquidator] = true;
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_CurrentAccount;
@@ -229,7 +242,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesToRedeem,
         bytes memory redeemData
     ) external override nonReentrant setCurrentAccount(msg.sender) returns (uint256 assetsWithdrawn) {
-        (assetsWithdrawn, /* */) = _burnShares(sharesToRedeem, redeemData, msg.sender);
+        assetsWithdrawn = _burnShares(sharesToRedeem, redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
 
@@ -254,19 +267,16 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _accrueFees();
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+        // _initiateWithdraw is expected to revert if a withdraw is not successfully initiated but
+        // check again here to ensure the requestId is not 0.
+        require(requestId > 0);
         // Escrow the shares after the withdraw since it will change the effective supply
         // during reward claims when using the RewardManagerMixin.
-        _escrowShares(sharesHeld);
+        s_escrowedShares += sharesHeld;
+        s_isWithdrawRequestPending[account] = true;
     }
 
     /*** Private Functions ***/
-    function effectiveSupply() public view returns (uint256) {
-        return (totalSupply() - s_escrowedShares + VIRTUAL_SHARES);
-    }
-
-    function yieldTokenBalance() internal view returns (uint256) {
-        return ERC20(yieldToken).balanceOf(address(this));
-    }
 
     function _calculateAdditionalFeesInYieldToken() private view returns (uint256 additionalFeesInYieldToken) {
         uint256 timeSinceLastFeeAccrual = block.timestamp - s_lastFeeAccrualTime;
@@ -274,7 +284,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 x = (feeRate * timeSinceLastFeeAccrual) / YEAR;
         if (x == 0) return 0;
 
-        uint256 preFeeUserHeldYieldTokens = yieldTokenBalance() - s_accruedFeesInYieldToken;
+        uint256 preFeeUserHeldYieldTokens = _yieldTokenBalance() - s_accruedFeesInYieldToken;
         // Taylor approximation of e ^ x = 1 + x + x^2 / 2! + x^3 / 3! + ...
         uint256 eToTheX = DEFAULT_PRECISION + x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
         // Decay the user's yield tokens by e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
@@ -288,11 +298,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // NOTE: this has to be called before any mints or burns.
         s_accruedFeesInYieldToken += _calculateAdditionalFeesInYieldToken();
         s_lastFeeAccrualTime = uint32(block.timestamp);
-    }
-
-    /// @dev Removes some shares from the "pool" that is used to pay fees.
-    function _escrowShares(uint256 shares) private {
-        s_escrowedShares += shares;
     }
 
     function _update(address from, address to, uint256 value) internal override {
@@ -310,6 +315,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /*** Internal Helper Functions ***/
+
+    function _isWithdrawRequestPending(address account) internal view returns (bool) {
+        return s_isWithdrawRequestPending[account];
+    }
+
+    function _yieldTokenBalance() internal view returns (uint256) {
+        return ERC20(yieldToken).balanceOf(address(this));
+    }
 
     /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
     function _executeTrade(
@@ -360,26 +373,30 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
-        uint256 initialYieldTokenBalance = yieldTokenBalance();
+        uint256 initialYieldTokenBalance = _yieldTokenBalance();
         _mintYieldTokens(assets, receiver, depositData);
-        uint256 yieldTokensMinted = yieldTokenBalance() - initialYieldTokenBalance;
+        uint256 yieldTokensMinted = _yieldTokenBalance() - initialYieldTokenBalance;
 
         sharesMinted = (yieldTokensMinted * effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
         _mint(receiver, sharesMinted);
     }
 
     /// @dev Marked as virtual to allow for RewardManagerMixin to override
-    function _burnShares(uint256 sharesToBurn, bytes memory redeemData, address sharesOwner) internal virtual returns (
-        uint256 assetsWithdrawn, bool wasEscrowed
-   ) {
-        if (sharesToBurn == 0) return (0, false);
+    function _burnShares(
+        uint256 sharesToBurn,
+        bytes memory redeemData,
+        address sharesOwner
+    ) internal virtual returns (uint256 assetsWithdrawn) {
+        if (sharesToBurn == 0) return 0;
+        bool isEscrowed = _isWithdrawRequestPending(sharesOwner);
 
         uint256 initialAssetBalance = TokenUtils.tokenBalance(asset);
 
         // First accrue fees on the yield token
         _accrueFees();
-        wasEscrowed = _redeemShares(sharesToBurn, sharesOwner, redeemData);
-        if (wasEscrowed) s_escrowedShares -= sharesToBurn;
+        _redeemShares(sharesToBurn, sharesOwner, isEscrowed, redeemData);
+        if (isEscrowed) s_escrowedShares -= sharesToBurn;
+        // TODO: clear escrow state if all shares are burned
 
         uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
@@ -415,8 +432,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
+        bool isEscrowed,
         bytes memory redeemData
-    ) internal virtual returns (bool wasEscrowed);
+    ) internal virtual;
 
     function _initiateWithdraw(
         address account,

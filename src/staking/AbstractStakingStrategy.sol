@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {ExistingWithdrawRequest, WithdrawRequestNotFinalized} from "../interfaces/Errors.sol";
+import {WithdrawRequestNotFinalized} from "../interfaces/Errors.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {
     IWithdrawRequestManager,
@@ -73,21 +73,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         });
     }
 
-    function _mintYieldTokens(
-        uint256 assets,
-        address receiver,
-        bytes memory depositData
-    ) internal override {
-        if (address(withdrawRequestManager) != address(0)) {
-            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), receiver);
-            if (w.requestId != 0) revert ExistingWithdrawRequest(address(this), receiver, w.requestId);
-        }
-
-        _stakeTokens(assets, receiver, depositData);
-    }
-
     /// @dev By default we can use the withdraw request manager to stake the tokens
-    function _stakeTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal virtual {
+    function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal override virtual {
         ERC20(asset).approve(address(withdrawRequestManager), assets);
         withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
     }
@@ -95,21 +82,12 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function _redeemShares(
         uint256 sharesToRedeem,
         address sharesOwner,
+        bool isEscrowed,
         bytes memory redeemData
-    ) internal override returns (bool wasEscrowed) {
-        WithdrawRequest memory w;
-
-        if (address(withdrawRequestManager) != address(0)) {
-            (w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
-        }
-
-        if (w.requestId == 0) {
-            uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
-            _executeInstantRedemption(yieldTokensBurned, redeemData);
-            wasEscrowed = false;
-        } else {
+    ) internal override {
+        if (isEscrowed) {
+            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
-            wasEscrowed = true;
 
             (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
@@ -132,6 +110,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
                 _executeTrade(trade, params.dexId);
             }
+        } else {
+            uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
+            _executeInstantRedemption(yieldTokensBurned, redeemData);
         }
     }
 

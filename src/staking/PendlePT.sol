@@ -55,7 +55,7 @@ contract PendlePT is AbstractStakingStrategy {
         TOKEN_OUT_SY = tokenOutSY;
     }
 
-    function _stakeTokens(
+    function _mintYieldTokens(
         uint256 assets,
         address /* receiver */,
         bytes memory data
