@@ -347,6 +347,39 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
+    function test_nativeBalance_RevertsIf_EnterPosition_or_Migrate() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        int256 originalPrice = o.latestAnswer();
+        address liquidator = makeAddr("liquidator");
+        
+        vm.prank(owner);
+        asset.transfer(liquidator, defaultDeposit + defaultBorrow);
+
+        vm.warp(block.timestamp + 6 minutes);
+        o.setPrice(originalPrice * 0.90e18 / 1e18);
+
+        vm.startPrank(liquidator);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        asset.approve(address(lendingRouter), type(uint256).max);
+        uint256 assetBefore = asset.balanceOf(liquidator);
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
+        uint256 assetAfter = asset.balanceOf(liquidator);
+        uint256 netAsset = assetBefore - assetAfter;
+
+        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), balanceBefore - sharesToLiquidator);
+        assertEq(y.balanceOf(liquidator), sharesToLiquidator);
+
+        // Now liquidator has a native balance, ensure they can't enter a position or migrate
+        vm.startPrank(liquidator);
+
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+        lendingRouter.enterPosition(liquidator, address(y), defaultDeposit, defaultBorrow, getDepositData(liquidator, defaultDeposit + defaultBorrow));
+
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+        lendingRouter.migratePosition(liquidator, address(y), address(lendingRouter));
+        vm.stopPrank();
+    }
+
     function test_liquidate_RevertsIf_InsufficientAssetsForRepayment() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         address liquidator = makeAddr("liquidator");
