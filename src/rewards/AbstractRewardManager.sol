@@ -154,14 +154,15 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 accountSharesAfter,
         bool sharesInEscrow
     ) external returns (uint256[] memory rewards) {
+        // Short circuit in this case, no rewards to claim
+        if (sharesInEscrow && accountSharesAfter > 0) return rewards;
+
         VaultRewardState[] memory state = _getVaultRewardStateSlot();
         _claimVaultRewards(effectiveSupplyBefore, state);
         rewards = new uint256[](state.length);
 
         for (uint256 i; i < state.length; i++) {
             if (sharesInEscrow && accountSharesAfter == 0) {
-                // Clear the account's reward debt when the account is fully withdrawn
-                // so it can re-enter later
                 delete _getAccountRewardDebtSlot()[state[i].rewardToken][account];
                 continue;
             }

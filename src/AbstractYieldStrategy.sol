@@ -210,15 +210,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // withdraw request.
         // TODO: this is not ideal if the liquidator wants to take more of an existing split
         if (_isWithdrawRequestPending(liquidator)) revert CannotEnterPosition();
-
-        uint256 maxLiquidateShares = _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
-        if (maxLiquidateShares < sharesToLiquidate) {
-            revert CannotLiquidate(maxLiquidateShares, sharesToLiquidate);
-        }
+        _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
 
         // Allow transfers to the lending router which will proxy the call to liquidate.
         t_AllowTransfer_To = msg.sender;
-        t_AllowTransfer_Amount = maxLiquidateShares;
+        t_AllowTransfer_Amount = sharesToLiquidate;
     }
 
     function postLiquidation(
@@ -418,14 +414,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @dev Returns the maximum number of shares that can be liquidated. Allows the strategy to override the
     /// underlying lending market's liquidation logic.
-    function _preLiquidation(
-        address /* liquidateAccount */,
-        address /* liquidator */,
-        uint256 sharesToLiquidate,
-        uint256 /* accountSharesHeld */
-    ) internal virtual returns (uint256 maxLiquidateShares) {
-        return sharesToLiquidate;
-    }
+    function _preLiquidation(address liquidateAccount, address liquidator, uint256 sharesToLiquidate, uint256 accountSharesHeld) internal virtual;
 
     /// @dev Called after liquidation
     function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal virtual returns (bool didSplit);
