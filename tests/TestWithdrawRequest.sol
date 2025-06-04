@@ -129,9 +129,8 @@ abstract contract TestWithdrawRequest is Test {
         (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
         assertEq(request.sharesAmount, sharesAmount);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, requestId);
-        assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+        assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
         assertEq(tokenizedRequest.finalized, false);
 
@@ -148,9 +147,8 @@ abstract contract TestWithdrawRequest is Test {
             (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
             assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
             assertEq(request.sharesAmount, sharesAmount);
-            assertEq(request.isTokenized, false);
             assertEq(request.requestId, requestId);
-            assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+            assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
             assertEq(tokenizedRequest.totalWithdraw, 0);
             assertEq(tokenizedRequest.finalized, false);
         }
@@ -170,7 +168,6 @@ abstract contract TestWithdrawRequest is Test {
         if (partialWithdraw) {
             assertEq(request.yieldTokenAmount, initialYieldTokenBalance - yieldTokenWithdraw);
             assertEq(request.sharesAmount, sharesAmount - sharesToBurn);
-            assertEq(request.isTokenized, true);
             assertEq(request.requestId, requestId);
             assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
             assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 1);
@@ -179,7 +176,6 @@ abstract contract TestWithdrawRequest is Test {
             // The requests should now be empty
             assertEq(request.yieldTokenAmount, 0);
             assertEq(request.sharesAmount, 0);
-            assertEq(request.isTokenized, false);
             assertEq(request.requestId, 0);
             assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
             assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -211,9 +207,8 @@ abstract contract TestWithdrawRequest is Test {
         (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
         assertEq(request.sharesAmount, sharesAmount);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, requestId);
-        assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+        assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
         assertEq(tokenizedRequest.finalized, false);
 
@@ -228,9 +223,8 @@ abstract contract TestWithdrawRequest is Test {
             (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
             assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
             assertEq(request.sharesAmount, sharesAmount);
-            assertEq(request.isTokenized, false);
             assertEq(request.requestId, requestId);
-            assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+            assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
             assertEq(tokenizedRequest.totalWithdraw, 0);
             assertEq(tokenizedRequest.finalized, false);
         }
@@ -247,7 +241,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
         assertEq(request.sharesAmount, sharesAmount);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, tokensWithdrawn);
@@ -264,7 +257,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, 0);
         assertEq(request.sharesAmount, 0);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, 0);
         assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -312,7 +304,6 @@ abstract contract TestWithdrawRequest is Test {
         (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount * 2);
         assertEq(request.sharesAmount, sharesAmount - splitAmount);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -321,7 +312,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, splitAmount * 2);
         assertEq(request.sharesAmount, splitAmount);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -338,7 +328,6 @@ abstract contract TestWithdrawRequest is Test {
             (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
             assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount * 2);
             assertEq(request.sharesAmount, sharesAmount - splitAmount);
-            assertEq(request.isTokenized, true);
             assertEq(request.requestId, requestId);
             assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
             assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 2);
@@ -351,7 +340,6 @@ abstract contract TestWithdrawRequest is Test {
 
             (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
             assertEq(request.yieldTokenAmount, 0);
-            assertEq(request.isTokenized, false);
             assertEq(request.requestId, 0);
             assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
             assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -361,7 +349,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, splitAmount * 2);
         assertEq(request.sharesAmount, splitAmount);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 2);
@@ -372,7 +359,6 @@ abstract contract TestWithdrawRequest is Test {
 
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, 0);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, 0);
         assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -393,7 +379,6 @@ abstract contract TestWithdrawRequest is Test {
         (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, 0);
         assertEq(request.sharesAmount, 0);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, 0);
         assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -402,7 +387,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
         assertEq(request.sharesAmount, initialYieldTokenBalance);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -419,7 +403,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, 0);
         assertEq(request.sharesAmount, 0);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, 0);
         assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -428,7 +411,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance);
         assertEq(request.sharesAmount, initialYieldTokenBalance);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -446,7 +428,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), to);
         assertEq(request.yieldTokenAmount, 0);
         assertEq(request.sharesAmount, 0);
-        assertEq(request.isTokenized, false);
         assertEq(request.requestId, 0);
         assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -480,7 +461,6 @@ abstract contract TestWithdrawRequest is Test {
         (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) = manager.getWithdrawRequest(address(this), addr1);
         assertEq(request.yieldTokenAmount, splitAmount);
         assertEq(request.sharesAmount, splitAmount);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -489,7 +469,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount);
         assertEq(request.sharesAmount, initialYieldTokenBalance - splitAmount);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -501,7 +480,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), addr1);
         assertEq(request.yieldTokenAmount, splitAmount * 2);
         assertEq(request.sharesAmount, splitAmount * 2);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);
@@ -510,7 +488,6 @@ abstract contract TestWithdrawRequest is Test {
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
         assertEq(request.yieldTokenAmount, initialYieldTokenBalance - splitAmount * 2);
         assertEq(request.sharesAmount, initialYieldTokenBalance - splitAmount * 2);
-        assertEq(request.isTokenized, true);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
         assertEq(tokenizedRequest.totalWithdraw, 0);

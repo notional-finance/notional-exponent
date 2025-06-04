@@ -498,10 +498,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             assertNotEq(w.requestId, 0);
             assertEq(w.sharesAmount, sharesToLiquidator);
             assertGt(w.yieldTokenAmount, 0);
-            assertEq(w.isTokenized, true);
 
             // We have not finalized the tokenized withdraw request yet
-            assertGt(s.totalYieldTokenAmount, 0);
+            assertEq(s.totalYieldTokenAmount, w.yieldTokenAmount);
             assertEq(s.finalized, false);
             assertEq(s.totalWithdraw, 0);
         }
@@ -518,7 +517,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             (WithdrawRequest memory w, TokenizedWithdrawRequest memory s) = managers[i].getWithdrawRequest(address(y), owner);
             assertEq(w.sharesAmount, 0);
             assertEq(w.yieldTokenAmount, 0);
-            assertEq(w.isTokenized, false);
 
             // The original withdraw request is still active on the liquidated account
             if (balanceBefore > sharesToLiquidator) {
@@ -526,7 +524,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 assertNotEq(w.requestId, 0);
                 assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
                 assertGt(w.yieldTokenAmount, 0);
-                assertEq(w.isTokenized, true);
 
                 assertGt(s.totalYieldTokenAmount, 0);
                 assertGt(s.totalWithdraw, 0);

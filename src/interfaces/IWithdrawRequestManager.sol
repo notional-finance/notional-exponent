@@ -19,7 +19,6 @@ struct WithdrawRequest {
     uint256 requestId;
     uint120 yieldTokenAmount;
     uint120 sharesAmount;
-    bool isTokenized;
 }
 
 struct TokenizedWithdrawRequest {
