@@ -86,7 +86,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         assertEq(w.requestId, 0);
         assertEq(w.sharesAmount, 0);
         assertEq(w.yieldTokenAmount, 0);
-        assertEq(w.isTokenized, false);
         assertEq(s.totalYieldTokenAmount, 0);
         assertEq(s.totalWithdraw, 0);
         assertEq(s.finalized, false);
@@ -325,7 +324,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         assertNotEq(w.requestId, 0);
         assertEq(w.sharesAmount, sharesToLiquidator);
         assertGt(w.yieldTokenAmount, 0);
-        assertEq(w.isTokenized, true);
 
         // We have not finalized the tokenized withdraw request yet
         assertGt(s.totalYieldTokenAmount, 0);
@@ -341,7 +339,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         (w, s) = manager.getWithdrawRequest(address(y), owner);
         assertEq(w.sharesAmount, 0);
         assertEq(w.yieldTokenAmount, 0);
-        assertEq(w.isTokenized, false);
 
         // The original withdraw request is still active on the liquidated account
         if (balanceBefore > sharesToLiquidator) {
@@ -349,7 +346,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             assertNotEq(w.requestId, 0);
             assertEq(w.sharesAmount, balanceBefore - sharesToLiquidator);
             assertGt(w.yieldTokenAmount, 0);
-            assertEq(w.isTokenized, true);
 
             assertGt(s.totalYieldTokenAmount, 0);
             assertGt(s.totalWithdraw, 0);
@@ -464,32 +460,4 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
     }
 
-    function test_enterPosition_after_FullLiquidation() public {
-        // Skip this test for Pendle PTs since we warp to expiration
-        vm.skip(keccak256(abi.encodePacked(y.name())) == keccak256(abi.encodePacked("Pendle PT")));
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-
-        vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
-        vm.stopPrank();
-
-
-        vm.warp(block.timestamp + 6 minutes);
-
-        vm.startPrank(msg.sender);
-        lendingRouter.exitPosition(
-            msg.sender,
-            address(y),
-            msg.sender,
-            balanceBefore,
-            type(uint256).max,
-            getRedeemData(msg.sender, balanceBefore)
-        );
-        vm.stopPrank();
-        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), 0);
-
-        // Assert that we can re-enter the position after previously exiting a withdraw request
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-    }
 }

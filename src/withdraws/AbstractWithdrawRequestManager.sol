@@ -40,8 +40,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     address public immutable override STAKING_TOKEN;
 
     mapping(address => bool) public override isApprovedVault;
-    mapping(address vault => mapping(address account => WithdrawRequest)) internal s_accountWithdrawRequest;
-    mapping(uint256 requestId => TokenizedWithdrawRequest) internal s_tokenizedWithdrawRequest;
+    mapping(address vault => mapping(address account => WithdrawRequest)) private s_accountWithdrawRequest;
+    mapping(uint256 requestId => TokenizedWithdrawRequest) private s_tokenizedWithdrawRequest;
 
     constructor(address _withdrawToken, address _yieldToken, address _stakingToken) Initializable() {
         WITHDRAW_TOKEN = _withdrawToken;
@@ -108,9 +108,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
         requestId = _initiateWithdrawImpl(account, yieldTokenAmount, data);
         accountWithdraw.requestId = requestId;
-        accountWithdraw.isTokenized = false;
         accountWithdraw.yieldTokenAmount = yieldTokenAmount.toUint120();
         accountWithdraw.sharesAmount = sharesAmount.toUint120();
+        s_tokenizedWithdrawRequest[requestId] = TokenizedWithdrawRequest({
+            totalYieldTokenAmount: yieldTokenAmount.toUint120(),
+            totalWithdraw: 0,
+            finalized: false
+        });
 
         emit InitiateWithdrawRequest(account, msg.sender, yieldTokenAmount, sharesAmount, requestId);
     }
@@ -129,7 +133,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         if (finalized) {
             // Allows for partial withdrawal of yield tokens
             if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
-                _tokenizePartialWithdrawRequest(s_withdraw, tokensWithdrawn);
                 tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
                 s_withdraw.sharesAmount -= sharesToBurn.toUint120();
                 s_withdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
@@ -153,27 +156,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         // Do not transfer any tokens off of this method here. Withdrawn tokens will be held in the
         // tokenized withdraw request until the vault calls this contract to withdraw the tokens.
         (tokensWithdrawn, finalized) = _finalizeWithdraw(account, s_withdraw);
-        if (finalized) _tokenizePartialWithdrawRequest(s_withdraw, tokensWithdrawn);
-    }
-
-    /// @dev Tokenizes a withdraw request into a partial withdraw request. Any remaining tokens are held
-    /// in the tokenized withdraw request until all the shares are withdrawn.
-    function _tokenizePartialWithdrawRequest(
-        WithdrawRequest storage s_withdraw,
-        uint256 tokensWithdrawn
-    ) internal {
-        // If the account has not tokenized, we store the total tokens withdrawn in the tokenized withdraw
-        // request. When the account does exit, they will skip `_finalizeWithdrawImpl`. If the withdraw
-        // has already been tokenized then this will already have been done.
-        if (!s_withdraw.isTokenized) {
-            s_tokenizedWithdrawRequest[s_withdraw.requestId] = TokenizedWithdrawRequest({
-                totalYieldTokenAmount: s_withdraw.yieldTokenAmount,
-                totalWithdraw: tokensWithdrawn.toUint120(),
-                finalized: true
-            });
-
-            s_withdraw.isTokenized = true;
-        }
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -188,15 +170,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         uint256 requestId = s_withdraw.requestId;
         if (requestId == 0) return false;
 
-        // Create a new tokenized withdraw request
-        if (!s_withdraw.isTokenized) {
-            TokenizedWithdrawRequest storage s_tokenized = s_tokenizedWithdrawRequest[requestId];
-            // Safety check to ensure that the tokenized withdraw request is not active, tokenized
-            // withdraw requests are never deleted. This presumes that all withdraw request ids are unique.
-            require(s_tokenized.finalized == false && s_tokenized.totalYieldTokenAmount == 0);
-            s_tokenizedWithdrawRequest[requestId].totalYieldTokenAmount = s_withdraw.yieldTokenAmount;
-        }
-
         // Ensure that no withdraw request gets overridden, the _to account always receives their withdraw
         // request in the account withdraw slot. All storage is updated prior to changes to the `w` storage
         // variable below.
@@ -206,7 +179,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         }
 
         toWithdraw.requestId = requestId;
-        toWithdraw.isTokenized = true;
 
         if (s_withdraw.sharesAmount < sharesAmount) {
             // This should never occur given the checks below.
@@ -225,7 +197,6 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             toWithdraw.sharesAmount = (toWithdraw.sharesAmount + sharesAmount).toUint120();
             s_withdraw.yieldTokenAmount = (s_withdraw.yieldTokenAmount - yieldTokenAmount).toUint120();
             s_withdraw.sharesAmount = (s_withdraw.sharesAmount - sharesAmount).toUint120();
-            s_withdraw.isTokenized = true;
         }
 
         emit WithdrawRequestTokenized(_from, _to, requestId, sharesAmount);
@@ -245,34 +216,29 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         WithdrawRequest memory w
     ) internal returns (uint256 tokensWithdrawn, bool finalized) {
-        TokenizedWithdrawRequest memory s;
-        if (w.isTokenized) {
-            s = s_tokenizedWithdrawRequest[w.requestId];
+        TokenizedWithdrawRequest storage s = s_tokenizedWithdrawRequest[w.requestId];
 
-            // If the tokenized request was already finalized in a different transaction
-            // then return the values here and we can short circuit the withdraw impl
-            if (s.finalized) {
-                return (
-                    uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount),
-                    true
-                );
-            }
+        // If the tokenized request was already finalized in a different transaction
+        // then return the values here and we can short circuit the withdraw impl
+        if (s.finalized) {
+            return (
+                uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount),
+                true
+            );
         }
 
         // These values are the total tokens claimed from the withdraw request, does not
         // account for potential tokenization.
         (tokensWithdrawn, finalized) = _finalizeWithdrawImpl(account, w.requestId);
 
-        if (w.isTokenized && finalized) {
+        if (finalized) {
             s.totalWithdraw = tokensWithdrawn.toUint120();
             // Safety check to ensure that we do not override a finalized tokenized withdraw request
             require(s.finalized == false);
             s.finalized = true;
-            // Update the tokenized withdraw request with the total tokens withdrawn
-            s_tokenizedWithdrawRequest[w.requestId] = s;
 
             tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
-        } else if (!finalized) {
+        } else {
             // No tokens claimed if not finalized
             require(tokensWithdrawn == 0);
         }
