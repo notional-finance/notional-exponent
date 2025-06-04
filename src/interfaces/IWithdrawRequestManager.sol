@@ -62,6 +62,12 @@ interface IWithdrawRequestManager {
     /// @return isApproved whether the vault is approved
     function isApprovedVault(address vault) external view returns (bool);
 
+    /// @notice Returns whether a vault has a pending withdraw request
+    /// @param vault the vault to check the pending withdraw request for
+    /// @param account the account to check the pending withdraw request for
+    /// @return isPending whether the vault has a pending withdraw request
+    function isPendingWithdrawRequest(address vault, address account) external view returns (bool);
+
     /// @notice Sets whether a vault is approved to initiate withdraw requests
     /// @param vault the vault to set the approval for
     /// @param isApproved whether the vault is approved

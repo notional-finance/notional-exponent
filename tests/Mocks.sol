@@ -131,7 +131,9 @@ contract MockRewardVault is RewardManagerMixin {
         address _yieldToken,
         uint256 _feeRate,
         address _rewardManager
-    ) RewardManagerMixin(_asset, _yieldToken, _feeRate, _rewardManager, ERC20(_yieldToken).decimals()) { }
+    ) RewardManagerMixin(_asset, _yieldToken, _feeRate, _rewardManager, ERC20(_yieldToken).decimals()) {
+        withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(_yieldToken));
+    }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
         ERC20(asset).approve(address(yieldToken), type(uint256).max);
@@ -145,7 +147,6 @@ contract MockRewardVault is RewardManagerMixin {
         bytes memory /* redeemData */
     ) internal override {
         if (isEscrowed) {
-            IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
             (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
 
             if (w.requestId != 0) {
@@ -166,7 +167,6 @@ contract MockRewardVault is RewardManagerMixin {
         uint256 sharesHeld,
         bytes memory data
     ) internal override returns (uint256 requestId) {
-        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
     }
@@ -176,7 +176,6 @@ contract MockRewardVault is RewardManagerMixin {
         address liquidateAccount,
         uint256 sharesToLiquidator
     ) internal override returns (bool didTokenize) {
-        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
         if (address(withdrawRequestManager) != address(0)) {
             // No need to accrue fees because neither the total supply or total yield token balance is changing. If there
             // is no withdraw request then this will be a noop.
@@ -185,7 +184,6 @@ contract MockRewardVault is RewardManagerMixin {
     }
 
     function convertToAssets(uint256 shares) public view override returns (uint256) {
-        IWithdrawRequestManager withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
         if (t_CurrentAccount != address(0) && address(withdrawRequestManager) != address(0)) {
             (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(
                 address(this), t_CurrentAccount, asset, shares
