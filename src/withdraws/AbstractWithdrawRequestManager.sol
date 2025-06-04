@@ -68,6 +68,11 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     }
 
     /// @inheritdoc IWithdrawRequestManager
+    function isPendingWithdrawRequest(address vault, address account) public view override returns (bool) {
+        return s_accountWithdrawRequest[vault][account].requestId != 0;
+    }
+
+    /// @inheritdoc IWithdrawRequestManager
     function setApprovedVault(address vault, bool isApproved) external override onlyOwner {
         isApprovedVault[vault] = isApproved;
         emit ApprovedVault(vault, isApproved);

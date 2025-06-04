@@ -41,6 +41,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     uint256 public immutable override feeRate;
 
+    IWithdrawRequestManager internal immutable withdrawRequestManager;
+
     uint8 internal immutable _yieldTokenDecimals;
     uint8 internal immutable _assetDecimals;
 
@@ -51,7 +53,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint32 private s_lastFeeAccrualTime;
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
-    mapping(address => bool) private s_isWithdrawRequestPending;
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
@@ -226,8 +227,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Transfer the shares to the liquidator from the lending router
         _transfer(t_CurrentLendingRouter, liquidator, sharesToLiquidator);
 
-        bool didTokenize = _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
-        if (didTokenize) s_isWithdrawRequestPending[liquidator] = true;
+        _postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_CurrentAccount;
@@ -269,7 +269,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Escrow the shares after the withdraw since it will change the effective supply
         // during reward claims when using the RewardManagerMixin.
         s_escrowedShares += sharesHeld;
-        s_isWithdrawRequestPending[account] = true;
     }
 
     /*** Private Functions ***/
@@ -313,7 +312,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /*** Internal Helper Functions ***/
 
     function _isWithdrawRequestPending(address account) internal view returns (bool) {
-        return s_isWithdrawRequestPending[account];
+        return address(withdrawRequestManager) != address(0) && withdrawRequestManager.isPendingWithdrawRequest(address(this), account);
     }
 
     function _yieldTokenBalance() internal view returns (uint256) {
@@ -326,9 +325,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint16 dexId
     ) internal returns (uint256 amountSold, uint256 amountBought) {
         if (trade.tradeType == TradeType.STAKE_TOKEN) {
-            IWithdrawRequestManager withdrawRequestManager = ADDRESS_REGISTRY.getWithdrawRequestManager(trade.buyToken);
-            ERC20(trade.sellToken).checkApprove(address(withdrawRequestManager), trade.amount);
-            amountBought = withdrawRequestManager.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
+            IWithdrawRequestManager wrm = ADDRESS_REGISTRY.getWithdrawRequestManager(trade.buyToken);
+            ERC20(trade.sellToken).checkApprove(address(wrm), trade.amount);
+            amountBought = wrm.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
             return (trade.amount, amountBought);
         } else {
             address implementation = nProxy(payable(address(TRADING_MODULE))).getImplementation();
@@ -380,7 +379,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @dev Marked as virtual to allow for RewardManagerMixin to override
     function _burnShares(
         uint256 sharesToBurn,
-        uint256 sharesHeld,
+        uint256 /* sharesHeld */,
         bytes memory redeemData,
         address sharesOwner
     ) internal virtual returns (uint256 assetsWithdrawn) {
@@ -392,11 +391,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // First accrue fees on the yield token
         _accrueFees();
         _redeemShares(sharesToBurn, sharesOwner, isEscrowed, redeemData);
-        if (isEscrowed) {
-            s_escrowedShares -= sharesToBurn;
-            // Clear the withdraw request if all shares are burned
-            if (sharesHeld == sharesToBurn) s_isWithdrawRequestPending[sharesOwner] = false;
-        }
+        if (isEscrowed) s_escrowedShares -= sharesToBurn;
 
         uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;

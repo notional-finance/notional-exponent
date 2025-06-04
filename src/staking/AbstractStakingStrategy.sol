@@ -32,7 +32,6 @@ struct DepositParams {
 abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     using SafeERC20 for ERC20;
 
-    IWithdrawRequestManager internal immutable withdrawRequestManager;
     address internal immutable withdrawToken;
 
     constructor(

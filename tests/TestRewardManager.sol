@@ -18,8 +18,14 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     IWithdrawRequestManager withdrawRequestManager;
 
     function deployYieldStrategy() internal override {
-        ConvexRewardManager rmImpl = new ConvexRewardManager();
         w = new MockRewardPool(address(USDC));
+
+        withdrawRequestManager = new GenericERC20WithdrawRequestManager(address(w));
+        vm.startPrank(owner);
+        ADDRESS_REGISTRY.setWithdrawRequestManager(address(withdrawRequestManager));
+        vm.stopPrank();
+
+        ConvexRewardManager rmImpl = new ConvexRewardManager();
         o = new MockOracle(1e18);
         y = new MockRewardVault(
             address(USDC),
@@ -27,8 +33,6 @@ contract TestRewardManager is TestMorphoYieldStrategy {
             0.0010e18, // 0.1% fee rate
             address(rmImpl)
         );
-
-        withdrawRequestManager = new GenericERC20WithdrawRequestManager(address(w));
     }
 
     function postDeploySetup() internal override {
@@ -50,7 +54,6 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }));
         rm.updateRewardToken(0, address(rewardToken), 0, 0);
 
-        ADDRESS_REGISTRY.setWithdrawRequestManager(address(withdrawRequestManager));
         withdrawRequestManager.setApprovedVault(address(y), true);
 
         vm.stopPrank();

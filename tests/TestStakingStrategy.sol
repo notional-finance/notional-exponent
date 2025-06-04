@@ -281,9 +281,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         assertEq(w.yieldTokenAmount, 0); 
     }
 
-    function test_liquidate_tokenizesWithdrawRequest(bool isForceWithdraw) public onlyIfWithdrawRequestManager {
+    function test_liquidate_tokenizesWithdrawRequest(bool isForceWithdraw, bool isPartialLiquidation) public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        int256 originalPrice = o.latestAnswer();
 
         if (!isForceWithdraw) {
             vm.startPrank(msg.sender);
@@ -307,7 +308,8 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         asset.approve(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
-        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
+        uint256 liquidateShares = isPartialLiquidation ? balanceBefore / 2 : balanceBefore;
+        uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), liquidateShares, 0);
         uint256 assetAfter = asset.balanceOf(owner);
         uint256 netAsset = assetBefore - assetAfter;
 
@@ -352,6 +354,13 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             assertGt(s.totalYieldTokenAmount, 0);
             assertGt(s.totalWithdraw, 0);
             assertEq(s.finalized, true);
+        }
+
+        if (balanceBefore == sharesToLiquidator) {
+            if (keccak256(abi.encodePacked(strategyName)) == keccak256(abi.encodePacked("Pendle PT"))) return;
+            o.setPrice(originalPrice);
+            // Ensure that we can re-enter the position after a full liquidation
+            _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         }
     }
 
@@ -436,6 +445,35 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
 
         finalizeWithdrawRequest(msg.sender);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(msg.sender);
+        lendingRouter.exitPosition(
+            msg.sender,
+            address(y),
+            msg.sender,
+            balanceBefore,
+            type(uint256).max,
+            getRedeemData(msg.sender, balanceBefore)
+        );
+        vm.stopPrank();
+        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), 0);
+
+        // Assert that we can re-enter the position after previously exiting a withdraw request
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+    }
+
+    function test_enterPosition_after_FullLiquidation() public {
+        // Skip this test for Pendle PTs since we warp to expiration
+        vm.skip(keccak256(abi.encodePacked(y.name())) == keccak256(abi.encodePacked("Pendle PT")));
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        vm.stopPrank();
+
 
         vm.warp(block.timestamp + 6 minutes);
 

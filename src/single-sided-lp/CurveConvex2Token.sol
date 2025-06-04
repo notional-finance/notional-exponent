@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
+import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
 import {AbstractSingleSidedLP, BaseLPLib} from "./AbstractSingleSidedLP.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -41,8 +42,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         address _yieldToken,
         uint256 _feeRate,
         address _rewardManager,
-        DeploymentParams memory params
-    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18) {
+        DeploymentParams memory params,
+        IWithdrawRequestManager _withdrawRequestManager
+    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18, _withdrawRequestManager) {
         CURVE_POOL_TOKEN = ERC20(params.poolToken);
 
         // We interact with curve pools directly so we never pass the token addresses back

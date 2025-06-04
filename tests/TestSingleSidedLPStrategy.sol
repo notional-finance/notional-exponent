@@ -117,6 +117,18 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         if (usdOracleToken == address(0)) usdOracleToken = address(asset);
         if (address(w) == address(0)) w = ERC20(rewardPool);
 
+        for (uint256 i = 0; i < managers.length; i++) {
+            if (address(managers[i]) == address(0)) continue;
+            vm.startPrank(owner);
+            // Create a proxy to the manager
+            managers[i] = IWithdrawRequestManager(address(
+                new TimelockUpgradeableProxy(address(managers[i]),
+                abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))))
+            );
+            ADDRESS_REGISTRY.setWithdrawRequestManager(address(managers[i]));
+            vm.stopPrank();
+        }
+
         y = new CurveConvex2Token(
             maxPoolShare,
             address(asset),
@@ -129,7 +141,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 gauge: curveGauge,
                 convexRewardPool: address(rewardPool),
                 curveInterface: curveInterface
-            })
+            }),
+            managers[0]
         );
 
         feeToken = lpToken;
@@ -166,12 +179,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
             vm.startPrank(owner);
-            // Create a proxy to the manager
-            managers[i] = IWithdrawRequestManager(address(
-                new TimelockUpgradeableProxy(address(managers[i]),
-                abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))))
-            );
-            ADDRESS_REGISTRY.setWithdrawRequestManager(address(managers[i]));
             managers[i].setApprovedVault(address(y), true);
             vm.stopPrank();
         }
@@ -380,7 +387,8 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 gauge: curveGauge,
                 convexRewardPool: address(rewardPool),
                 curveInterface: curveInterface
-            })
+            }),
+            managers[0]
         ));
 
         vm.startPrank(owner);

@@ -90,9 +90,15 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address _yieldToken,
         uint256 _feeRate,
         address _rewardManager,
-        uint8 _yieldTokenDecimals
+        uint8 _yieldTokenDecimals,
+        IWithdrawRequestManager _withdrawRequestManager
     ) RewardManagerMixin( _asset, _yieldToken, _feeRate, _rewardManager, _yieldTokenDecimals) {
         MAX_POOL_SHARE = _maxPoolShare;
+        // Although there will be multiple withdraw request managers, we only need to set one here
+        // to check whether or not a withdraw request is pending. If any one of the withdraw requests
+        // is not finalized then the entire withdraw will revert and the user will remain in a pending
+        // withdraw state.
+        withdrawRequestManager = _withdrawRequestManager;
     }
 
     function _initialize(bytes calldata data) internal override {
@@ -316,7 +322,9 @@ abstract contract BaseLPLib is ILPLib {
 
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
-            (/* */, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
+            (bool hasRequest, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
+            // Ensure that this is true so that we do not lose any value.
+            require(hasRequest);
             totalValue += value;
         }
     }
