@@ -460,4 +460,91 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
     }
 
+    function test_balanceOf_and_withdrawRequest_after_liquidation() public onlyIfWithdrawRequestManager {
+        address user1 = makeAddr("user1");
+        address user2 = makeAddr("user2");
+        vm.startPrank(owner);
+        asset.transfer(user1, defaultDeposit);
+        asset.transfer(user2, defaultDeposit);
+        vm.stopPrank();
+
+        _enterPosition(user1, defaultDeposit, defaultBorrow);
+        _enterPosition(user2, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(user2);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(user2, address(y));
+        lendingRouter.initiateWithdraw(user2, address(y), getWithdrawRequestData(user2, balanceBefore));
+        vm.stopPrank();
+
+        // If you change the price here you need to change the amount of shares
+        // to liquidate or it will revert
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        if (address(withdrawTokenOracle) != address(0)) {
+            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+        }
+
+        vm.startPrank(owner);
+        vm.warp(block.timestamp + 6 minutes);
+
+        asset.approve(address(lendingRouter), type(uint256).max);
+        balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
+        // Liquidate user1's position to receive a balanceOf but no withdraw request
+        lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
+        assertEq(y.balanceOf(owner), 0);
+        (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), owner);
+        assertEq(w.requestId, 0);
+
+        // Now liquidating user2's position will revert because the liquidator has a balanceOf
+        balanceBefore = lendingRouter.balanceOfCollateral(user2, address(y));
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+        lendingRouter.liquidate(user2, address(y), balanceBefore, 0);
+        vm.stopPrank();
+    }
+
+    function test_RevertsIf_LiquidatorHasWithdrawRequest() public onlyIfWithdrawRequestManager {
+        address user1 = makeAddr("user1");
+        address user2 = makeAddr("user2");
+        vm.startPrank(owner);
+        asset.transfer(user1, defaultDeposit);
+        asset.transfer(user2, defaultDeposit);
+        vm.stopPrank();
+
+        _enterPosition(user1, defaultDeposit, defaultBorrow);
+        _enterPosition(user2, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(user1);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
+        lendingRouter.initiateWithdraw(user1, address(y), getWithdrawRequestData(user1, balanceBefore));
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        balanceBefore = lendingRouter.balanceOfCollateral(user2, address(y));
+        lendingRouter.initiateWithdraw(user2, address(y), getWithdrawRequestData(user2, balanceBefore));
+        vm.stopPrank();
+
+        // If you change the price here you need to change the amount of shares
+        // to liquidate or it will revert
+        o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
+        if (address(withdrawTokenOracle) != address(0)) {
+            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
+        }
+
+        vm.startPrank(owner);
+        vm.warp(block.timestamp + 6 minutes);
+
+        asset.approve(address(lendingRouter), type(uint256).max);
+        balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
+        // Liquidate user1's position to receive a balanceOf and a withdraw request
+        lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
+        (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), owner);
+        assertNotEq(w.requestId, 0);
+
+        // Cannot liquidate the second position since we already have a withdraw request
+        balanceBefore = lendingRouter.balanceOfCollateral(user2, address(y));
+        // This reverts inside preLiquidation
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+        lendingRouter.liquidate(user2, address(y), balanceBefore, 0);
+        vm.stopPrank();
+    }
+
 }

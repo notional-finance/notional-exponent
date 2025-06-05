@@ -168,7 +168,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][_from];
         uint256 requestId = s_withdraw.requestId;
-        if (requestId == 0) return false;
+        if (requestId == 0 || sharesAmount == 0) return false;
 
         // Ensure that no withdraw request gets overridden, the _to account always receives their withdraw
         // request in the account withdraw slot. All storage is updated prior to changes to the `w` storage
