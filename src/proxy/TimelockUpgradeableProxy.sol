@@ -50,11 +50,12 @@ contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
         emit UpgradeInitiated(_newImplementation, upgradeValidAt);
     }
 
-    /// @notice Executes an upgrade, any caller can execute the upgrade after the upgrade delay has passed.
-    function executeUpgrade() external {
+    /// @notice Executes an upgrade, only the upgradeAdmin can execute this to allow for a post upgrade function call.
+    function executeUpgrade(bytes calldata data) external {
+        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         if (block.timestamp < upgradeValidAt) revert InvalidUpgrade();
         if (newImplementation == address(0)) revert InvalidUpgrade();
-        ERC1967Utils.upgradeToAndCall(newImplementation, "");
+        ERC1967Utils.upgradeToAndCall(newImplementation, data);
     }
 
     function pause() external {

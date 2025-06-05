@@ -394,7 +394,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.startPrank(owner);
         TimelockUpgradeableProxy(payable(address(y))).initiateUpgrade(address(newImpl));
         vm.warp(block.timestamp + 7 days);
-        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade();
+        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade(bytes(""));
         vm.stopPrank();
 
         vm.startPrank(msg.sender);
