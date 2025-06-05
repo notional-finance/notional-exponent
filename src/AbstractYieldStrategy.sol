@@ -210,6 +210,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Liquidator cannot liquidate if they have an active withdraw request, including a tokenized
         // withdraw request.
         if (_isWithdrawRequestPending(liquidator)) revert CannotEnterPosition();
+        // Cannot receive a pending withdraw request if the liquidator has a balanceOf
+        if (_isWithdrawRequestPending(liquidateAccount) && balanceOf(liquidator) > 0) {
+            revert CannotEnterPosition();
+        }
         _preLiquidation(liquidateAccount, liquidator, sharesToLiquidate, accountSharesHeld);
 
         // Allow transfers to the lending router which will proxy the call to liquidate.
