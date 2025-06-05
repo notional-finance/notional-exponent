@@ -490,7 +490,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
         // Liquidate user1's position to receive a balanceOf but no withdraw request
         lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
-        assertEq(y.balanceOf(owner), 0);
+        assertGt(y.balanceOf(owner), 0);
         (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(address(y), owner);
         assertEq(w.requestId, 0);
 

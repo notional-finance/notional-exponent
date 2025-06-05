@@ -104,15 +104,17 @@ contract MockRewardPool is ERC20 {
         return true;
     }
 
-    function deposit(uint256 /* poolId */, uint256 amount, bool /* stake */) external {
+    function deposit(uint256 /* poolId */, uint256 amount, bool /* stake */) external returns (bool success) {
         depositToken.transferFrom(msg.sender, address(this), amount);
         _mint(msg.sender, amount * 1e18 / 1e6);
+        success = true;
     }
 
-    function withdrawAndUnwrap(uint256 amount, bool claim) external {
+    function withdrawAndUnwrap(uint256 amount, bool claim) external returns (bool success) {
         if (claim) rewardToken.transfer(address(this), amount);
         _burn(msg.sender, amount);
         depositToken.transfer(msg.sender, amount * 1e6 / 1e18);
+        success = true;
     }
 
     function pid() external pure returns (uint256) {

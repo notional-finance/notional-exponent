@@ -81,14 +81,16 @@ contract TestTimelockProxy is Test {
         assertEq(proxy.newImplementation(), address(timelock2));
         assertEq(proxy.upgradeValidAt(), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
 
+        vm.startPrank(upgradeOwner);
         // Cannot upgrade before the delay
         vm.expectRevert(abi.encodeWithSelector(InvalidUpgrade.selector));
-        proxy.executeUpgrade();
+        proxy.executeUpgrade(bytes(""));
 
         vm.warp(block.timestamp + proxy.UPGRADE_DELAY() + 1);
-        proxy.executeUpgrade();
+        proxy.executeUpgrade(bytes(""));
 
         assertEq(proxy.newImplementation(), address(timelock2));
+        vm.stopPrank();
     }
 
     function test_cancelUpgrade() public {
@@ -105,8 +107,13 @@ contract TestTimelockProxy is Test {
         assertEq(proxy.newImplementation(), address(0));
         assertEq(proxy.upgradeValidAt(), uint32(0));
 
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        proxy.executeUpgrade(bytes(""));
+
+        vm.startPrank(upgradeOwner);
         vm.expectRevert(abi.encodeWithSelector(InvalidUpgrade.selector));
-        proxy.executeUpgrade();
+        proxy.executeUpgrade(bytes(""));
+        vm.stopPrank();
     }
 
     function test_pause() public {

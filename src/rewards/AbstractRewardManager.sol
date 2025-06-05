@@ -41,9 +41,6 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     /// @inheritdoc IRewardManager
-    // if we migrate the reward pool then the yield token will change.
-    // the yield token is an immutable on the base strategy which will change on upgrade
-    // so we need to call this atomically with the upgrade
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyUpgradeAdmin nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
         uint256 effectiveSupplyBefore = IYieldStrategy(address(this)).effectiveSupply();

@@ -16,6 +16,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     ERC20 rewardToken;
     ERC20 emissionsToken;
     IWithdrawRequestManager withdrawRequestManager;
+    address rmImpl;
 
     function deployYieldStrategy() internal override {
         w = new MockRewardPool(address(USDC));
@@ -25,7 +26,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         ADDRESS_REGISTRY.setWithdrawRequestManager(address(withdrawRequestManager));
         vm.stopPrank();
 
-        ConvexRewardManager rmImpl = new ConvexRewardManager();
+        rmImpl = address(new ConvexRewardManager());
         o = new MockOracle(1e18);
         y = new MockRewardVault(
             address(USDC),
@@ -60,23 +61,90 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     }
 
     function test_migrateRewardPool() public {
-        vm.skip(true);
-        // No tokens in the vault at this point
-        assertEq(y.totalSupply(), 0);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        assertGt(y.totalSupply(), 0);
+        
 
+        address newRewardPool = address(new MockRewardPool(address(USDC)));
+        address newVault = address(new MockRewardVault(
+            address(USDC),
+            address(newRewardPool),
+            0.0010e18, // 0.1% fee rate
+            address(rmImpl)
+        ));
+
+
+        MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Now we deploy a new reward pool and migrate all the tokens into it
         vm.startPrank(owner);
-        rm.migrateRewardPool(address(USDC), RewardPoolStorage({
-            rewardPool: address(w),
-            forceClaimAfter: 0,
-            lastClaimTimestamp: 0
-        }));
+        TRADING_MODULE.setPriceOracle(newRewardPool, AggregatorV2V3Interface(address(o)));
+
+        TimelockUpgradeableProxy(payable(address(y))).initiateUpgrade(address(newVault));
+        vm.warp(block.timestamp + 7 days);
+        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade(abi.encodeWithSelector(
+            AbstractRewardManager.migrateRewardPool.selector, address(USDC), RewardPoolStorage({
+                rewardPool: address(newRewardPool),
+                forceClaimAfter: 0,
+                lastClaimTimestamp: 0
+        })));
+
+        rm.updateRewardToken(1, address(MockRewardPool(address(newRewardPool)).rewardToken()), 0, 0);
         vm.stopPrank();
 
         (VaultRewardState[] memory rewardStates, RewardPoolStorage memory rewardPool) = rm.getRewardSettings();
-        assertEq(rewardStates.length, 0);
-        assertEq(rewardPool.rewardPool, address(w));
+        assertEq(rewardStates.length, 2);
+        assertEq(rewardPool.rewardPool, address(newRewardPool));
         assertEq(rewardPool.forceClaimAfter, 0);
         assertEq(rewardPool.lastClaimTimestamp, block.timestamp);
+
+        address user = makeAddr("user");
+        vm.prank(owner);
+        asset.transfer(user, defaultDeposit);
+
+        // Assert that we can claim rewards and also enter the position
+        _enterPosition(user, defaultDeposit, defaultBorrow);
+
+        // Claim rewards
+        {
+            vm.prank(msg.sender);
+            uint256[] memory rewardInitial = lendingRouter.claimRewards(address(y));
+            assertGt(rewardInitial[0], 0);
+            assertEq(rewardInitial[1], 0);
+
+            // No additional rewards for second user
+            vm.prank(user);
+            uint256[] memory rewardSecondUser = lendingRouter.claimRewards(address(y));
+            assertEq(rewardSecondUser[0], 0);
+            assertEq(rewardSecondUser[1], 0);
+        }
+
+        // Set more rewards
+        MockRewardPool(address(newRewardPool)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        // Claim rewards for the second time
+        {
+            vm.prank(msg.sender);
+            uint256[] memory rewardInitial = lendingRouter.claimRewards(address(y));
+            assertEq(rewardInitial[0], 0);
+            assertGt(rewardInitial[1], 0);
+
+            vm.prank(user);
+            uint256[] memory rewardSecondUser = lendingRouter.claimRewards(address(y));
+            assertEq(rewardSecondUser[0], 0);
+            assertGt(rewardSecondUser[1], 0);
+        }
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        // Both users can exit the pool
+        vm.startPrank(msg.sender);
+        lendingRouter.exitPosition(msg.sender, address(y), msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)), type(uint256).max, "");
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        lendingRouter.exitPosition(user, address(y), user, lendingRouter.balanceOfCollateral(user, address(y)), type(uint256).max, "");
+        vm.stopPrank();
     }
 
     function test_callUpdateRewardToken_RevertIf_NotRewardManager() public {
@@ -470,6 +538,27 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         } else {
             assertEq(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions no change");
         }
+
+        // Now re-open the position and see that the user will start receiving rewards again
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        if (hasEmissions) vm.warp(block.timestamp + 1 days);
+        if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(address(y));
+
+        if (hasRewards) {
+            assertGt(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards claimed");
+        } else {
+            assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
+        }
+
+        if (hasEmissions) {
+            assertGt(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions claimed");
+        } else {
+            assertEq(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions no change");
+        }
     }
 
     function test_liquidate_withdrawRequest_withRewards(bool hasEmissions, bool hasRewards) public {
@@ -670,10 +759,6 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         assertEq(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions no change");
         assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
-    }
-
-    function test_withdrawRequest_exitPosition_and_reopenPosition(bool hasEmissions, bool hasRewards) public {
-
     }
 
 }
