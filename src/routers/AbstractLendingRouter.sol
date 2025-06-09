@@ -27,13 +27,16 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
 
     /*** Authorization Methods ***/
-    modifier isAuthorized(address onBehalf) {
+    modifier isAuthorized(address onBehalf, address vault) {
         // In this case msg.sender is the operator
         if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
             revert NotAuthorized(msg.sender, onBehalf);
         }
 
         _;
+
+        // Clear the current account after the transaction is finished
+        IYieldStrategy(vault).clearCurrentAccount();
     }
 
     /// @inheritdoc ILendingRouter
@@ -54,7 +57,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) public override isAuthorized(onBehalf) {
+    ) public override isAuthorized(onBehalf, vault) {
         _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
@@ -63,7 +66,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         address migrateFrom
-    ) public override isAuthorized(onBehalf) {
+    ) public override isAuthorized(onBehalf, vault) {
         if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
         // Borrow amount is set to the amount of debt owed to the previous lending router
         (uint256 borrowAmount, /* */, /* */) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
@@ -107,7 +110,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf) {
+    ) external override isAuthorized(onBehalf, vault) {
         _checkExit(onBehalf, vault);
 
         address asset = IYieldStrategy(vault).asset();
@@ -131,11 +134,6 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToLiquidate,
         uint256 debtToRepay
     ) external override returns (uint256 sharesToLiquidator) {
-        // Ensure that the cooldown period has passed to avoid any sort of short term arbitrage attack
-        // via self-liquidation. Although the cooldown period can be pushed forward by calling enterPosition,
-        // if an account did do that they would exit the call collateralized by definition.
-        _checkExit(liquidateAccount, vault);
-
         address liquidator = msg.sender;
         VaultPosition memory position = ADDRESS_REGISTRY.getVaultPosition(liquidator, vault);
         // If the liquidator has a position then they cannot liquidate or they will have
@@ -145,13 +143,14 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 balanceBefore = balanceOfCollateral(liquidateAccount, vault);
 
         // Runs any checks on the vault to ensure that the liquidation can proceed, whitelists the lending platform
-        // to transfer collateral to the lending router.
+        // to transfer collateral to the lending router. The current account is set in this method.
         IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, sharesToLiquidate, balanceBefore);
 
         // After this call, address(this) will have the liquidated shares
         sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);
 
-        // Transfers the shares to the liquidator from the lending router and does any post liquidation logic
+        // Transfers the shares to the liquidator from the lending router and does any post liquidation logic. The
+        // current account is cleared in this method.
         IYieldStrategy(vault).postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 
         // The liquidator will receive shares in their native balance and then they can call redeem
@@ -170,7 +169,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         bytes calldata data
-    ) external override isAuthorized(onBehalf) returns (uint256 requestId) {
+    ) external override isAuthorized(onBehalf, vault) returns (uint256 requestId) {
         requestId = _initiateWithdraw(vault, onBehalf, data);
 
         // Can only initiate a withdraw if health factor remains positive

@@ -12,7 +12,8 @@ import {
     UnauthorizedLendingMarketTransfer,
     InsufficientSharesHeld,
     CannotLiquidate,
-    CannotEnterPosition
+    CannotEnterPosition,
+    CurrentAccountAlreadySet
 } from "./interfaces/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
@@ -56,9 +57,14 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
-    // Used to authorize transfers off of the lending market
+    // Used to adjust the valuation call of price(), is set on some methods and
+    // cleared by the lending router using clearCurrentAccount(). This is required to
+    // ensure that the variable is set throughout the entire context of the lending router
+    // call.
     address internal transient t_CurrentAccount;
+    // Set and cleared on every call to a lending router authorized method
     address internal transient t_CurrentLendingRouter;
+    // Used to authorize transfers off of the lending market
     address internal transient t_AllowTransfer_To;
     uint256 internal transient t_AllowTransfer_Amount;
     /****** End Transient Variables ******/
@@ -114,8 +120,15 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function price(address borrower) external override setCurrentAccount(borrower) returns (uint256) {
-        return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
+    function price(address borrower) external override returns (uint256 price) {
+        // Do not change the current account in this method since this method is not
+        // authenticated and we do not want to have any unexpected side effects.
+        address prevCurrentAccount = t_CurrentAccount;
+
+        t_CurrentAccount = borrower;
+        price = convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
+
+        t_CurrentAccount = prevCurrentAccount;
     }
 
     /// @inheritdoc IYieldStrategy
@@ -160,8 +173,17 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     modifier setCurrentAccount(address onBehalf) {
-        t_CurrentAccount = onBehalf;
+        if (t_CurrentAccount == address(0)) {
+            t_CurrentAccount = onBehalf;
+        } else if (t_CurrentAccount != onBehalf) {
+            revert CurrentAccountAlreadySet();
+        }
+
         _;
+    }
+
+    /// @inheritdoc IYieldStrategy
+    function clearCurrentAccount() external override onlyLendingRouter {
         delete t_CurrentAccount;
     }
 
@@ -238,10 +260,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
+    /// @dev We do not set the current account here because valuation is not done in this method.
+    /// A native balance does not require a collateral check.
     function redeemNative(
         uint256 sharesToRedeem,
         bytes memory redeemData
-    ) external override nonReentrant setCurrentAccount(msg.sender) returns (uint256 assetsWithdrawn) {
+    ) external override nonReentrant returns (uint256 assetsWithdrawn) {
         assetsWithdrawn = _burnShares(sharesToRedeem, balanceOf(msg.sender), redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
@@ -256,9 +280,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
+    /// @dev We do not set the current account here because valuation is not done in this method. A
+    /// native balance does not require a collateral check.
     function initiateWithdrawNative(
         bytes memory data
-    ) external override setCurrentAccount(msg.sender) returns (uint256 requestId) {
+    ) external override returns (uint256 requestId) {
         requestId = _withdraw(msg.sender, balanceOf(msg.sender), data);
     }
 

@@ -203,4 +203,9 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * @param data calldata used to initiate the withdraw.
      */
     function initiateWithdrawNative(bytes calldata data) external returns (uint256 requestId);
+
+    /**
+     * @notice Clears the current account.
+     */
+    function clearCurrentAccount() external;
 }
