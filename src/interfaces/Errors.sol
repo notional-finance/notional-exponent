@@ -10,6 +10,7 @@ error CannotLiquidate(uint256 maxLiquidateShares, uint256 seizedAssets);
 error Paused();
 error CannotExitPositionWithinCooldownPeriod();
 error CannotTokenizeWithdrawRequest();
+error CurrentAccountAlreadySet();
 
 error WithdrawRequestNotFinalized(uint256 requestId);
 error CannotInitiateWithdraw(address account);
