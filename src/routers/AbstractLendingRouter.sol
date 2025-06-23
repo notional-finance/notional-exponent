@@ -176,10 +176,6 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         bytes calldata data
     ) external override isAuthorized(onBehalf, vault) returns (uint256 requestId) {
         requestId = _initiateWithdraw(vault, onBehalf, data);
-
-        // Can only initiate a withdraw if health factor remains positive
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(onBehalf, vault);
-        if (borrowed > maxBorrow) revert CannotInitiateWithdraw(onBehalf);
     }
 
     /// @inheritdoc ILendingRouter
