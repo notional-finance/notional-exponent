@@ -22,6 +22,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         );
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+        canInspectTransientVariables = true;
     }
 
     function setupLendingRouter(uint256 lltv) internal override returns (ILendingRouter l) {
@@ -99,6 +100,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             y.convertToAssets(lendingRouter.balanceOfCollateral(msg.sender, address(y))),
             maxEntryValuationSlippage
         );
+        checkTransientsCleared();
     }
 
     function test_enterPosition_zeroBorrow() public { 
@@ -109,6 +111,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             y.convertToAssets(lendingRouter.balanceOfCollateral(msg.sender, address(y))),
             maxEntryValuationSlippage
         );
+        checkTransientsCleared();
     }
 
     function postExitAssertions(uint256 initialBalance, uint256 netWorthBefore, uint256 sharesToExit, uint256 profitsWithdrawn, uint256 netWorthAfter) internal view {
@@ -141,6 +144,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             defaultBorrow / 10,
             getRedeemData(msg.sender, sharesToExit)
         );
+        checkTransientsCleared();
         uint256 balanceAfter = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 netWorthAfter = y.convertToAssets(balanceAfter) - (defaultBorrow - defaultBorrow / 10);
         uint256 assetsAfter = asset.balanceOf(msg.sender);
@@ -167,6 +171,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             type(uint256).max,
             getRedeemData(msg.sender, initialBalance)
         );
+        checkTransientsCleared();
         uint256 assetsAfter = asset.balanceOf(msg.sender);
         uint256 profitsWithdrawn = assetsAfter - assetsBefore;
         vm.stopPrank();
@@ -258,6 +263,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             msg.sender, address(y), defaultDeposit, defaultBorrow,
             getDepositData(msg.sender, defaultDeposit + defaultBorrow)
         );
+        checkTransientsCleared();
         vm.stopPrank();
 
         // Revoke approval
@@ -271,6 +277,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             msg.sender, address(y), 100_000e6, 100_000e6,
             getDepositData(msg.sender, 100_000e6)
         );
+        checkTransientsCleared();
         vm.stopPrank();
     }
 
@@ -296,6 +303,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         vm.prank(owner);
         y.collectFees();
+        checkTransientsCleared();
         uint256 yieldTokensPerShare2 = y.convertSharesToYieldToken(1e18);
 
         assertApproxEqAbs(yieldTokensPerShare1, yieldTokensPerShare2, 1, "Yield tokens per share should be equal");
@@ -310,6 +318,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         uint256 shares = lendingRouter.balanceOfCollateral(user, address(y));
         uint256 assets = y.convertToAssets(shares);
         uint256 yieldTokens = y.convertSharesToYieldToken(shares);
+        checkTransientsCleared();
 
         assertEq(yieldTokens, w.balanceOf(address(y)), "yield token balance should be equal to yield tokens");
         assertEq(shares, y.convertYieldTokenToShares(yieldTokens), "convertYieldTokenToShares should equal shares");
@@ -320,6 +329,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(msg.sender);
         vm.expectRevert(abi.encodeWithSelector(InsufficientSharesHeld.selector));
         y.redeemNative(100_000e6, bytes(""));
+        checkTransientsCleared();
         vm.stopPrank();
     }
 
@@ -328,6 +338,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(msg.sender);
         vm.expectRevert(abi.encodeWithSelector(CannotLiquidateZeroShares.selector));
         lendingRouter.liquidate(msg.sender, address(y), 0, 0);
+        checkTransientsCleared();
         vm.stopPrank();
     }
 
@@ -335,6 +346,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(msg.sender);
         vm.expectRevert(abi.encodeWithSelector(InsufficientSharesHeld.selector));
         lendingRouter.liquidate(msg.sender, address(y), 100e6, 10e6);
+        checkTransientsCleared();
         vm.stopPrank();
     }
 
@@ -354,6 +366,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         asset.approve(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(liquidator);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
+        checkTransientsCleared();
         uint256 assetAfter = asset.balanceOf(liquidator);
         uint256 netAsset = assetBefore - assetAfter;
 
@@ -361,6 +374,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(y.balanceOf(liquidator), sharesToLiquidator);
 
         uint256 assets = y.redeemNative(sharesToLiquidator, getRedeemData(owner, sharesToLiquidator));
+        checkTransientsCleared();
         assertGt(assets, netAsset);
 
         // Set the price back for the valuation assertion
@@ -384,6 +398,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         asset.approve(address(lendingRouter), type(uint256).max);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
+        checkTransientsCleared();
 
         assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), balanceBefore - sharesToLiquidator);
         assertEq(y.balanceOf(liquidator), sharesToLiquidator);
@@ -393,9 +408,11 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.enterPosition(liquidator, address(y), defaultDeposit, defaultBorrow, getDepositData(liquidator, defaultDeposit + defaultBorrow));
+        checkTransientsCleared();
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.migratePosition(liquidator, address(y), address(lendingRouter));
+        checkTransientsCleared();
         vm.stopPrank();
     }
 
@@ -410,6 +427,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         // This reverts on an ERC20 transfer balance error which depends on the token implementation
         vm.expectRevert();
         lendingRouter.liquidate(msg.sender, address(y), 0, defaultBorrow);
+        checkTransientsCleared();
         vm.stopPrank();
     }
 
@@ -476,7 +494,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
                 );
                 vm.stopPrank();
             }
-
+            checkTransientsCleared();
             checkInvariants(users);
         }
     }
@@ -572,6 +590,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(user);
         uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
         lendingRouter2.migratePosition(user, address(y), address(lendingRouter));
+        checkTransientsCleared();
         vm.stopPrank();
 
         (
