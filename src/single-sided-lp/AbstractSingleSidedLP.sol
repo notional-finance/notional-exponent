@@ -305,6 +305,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         return super.convertToAssets(shares);
     }
 
+    function _isWithdrawRequestPending(address account) internal view override returns (bool) {
+        return ILPLib(LP_LIB).hasPendingWithdrawals(account);
+    }
 }
 
 abstract contract BaseLPLib is ILPLib {
@@ -322,11 +325,28 @@ abstract contract BaseLPLib is ILPLib {
 
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+            // This is called as a view function, not a delegate call so use the msg.sender to get
+            // the correct vault address
             (bool hasRequest, uint256 value) = manager.getWithdrawRequestValue(msg.sender, account, asset, shares);
             // Ensure that this is true so that we do not lose any value.
             require(hasRequest);
             totalValue += value;
         }
+    }
+
+    /// @inheritdoc ILPLib
+    function hasPendingWithdrawals(address account) external view override returns (bool) {
+        ERC20[] memory tokens = TOKENS();
+        for (uint256 i; i < tokens.length; i++) {
+            IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
+            if (address(manager) == address(0)) continue;
+            // This is called as a view function, not a delegate call so use the msg.sender to get
+            // the correct vault address
+            (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(msg.sender, account);
+            if (w.requestId != 0) return true;
+        }
+
+        return false;
     }
 
     /// @inheritdoc ILPLib
@@ -380,7 +400,11 @@ abstract contract BaseLPLib is ILPLib {
     }
 
     /// @inheritdoc ILPLib
-    function tokenizeWithdrawRequest(address liquidateAccount, address liquidator, uint256 sharesToLiquidator) external override returns (bool didTokenize) {
+    function tokenizeWithdrawRequest(
+        address liquidateAccount,
+        address liquidator,
+        uint256 sharesToLiquidator
+    ) external override returns (bool didTokenize) {
         ERC20[] memory tokens = TOKENS();
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));

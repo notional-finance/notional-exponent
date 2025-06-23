@@ -68,4 +68,7 @@ interface ILPLib {
         address liquidator,
         uint256 sharesToLiquidator
     ) external returns (bool didTokenize);
+
+    /// @dev Checks if the account has pending withdrawals
+    function hasPendingWithdrawals(address account) external view returns (bool);
 }
