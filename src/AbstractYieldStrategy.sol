@@ -120,15 +120,16 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function price(address borrower) external override returns (uint256 price) {
+    function price(address borrower) external override returns (uint256) {
         // Do not change the current account in this method since this method is not
         // authenticated and we do not want to have any unexpected side effects.
         address prevCurrentAccount = t_CurrentAccount;
 
         t_CurrentAccount = borrower;
-        price = convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
+        uint256 p = convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
 
         t_CurrentAccount = prevCurrentAccount;
+        return p;
     }
 
     /// @inheritdoc IYieldStrategy
@@ -341,8 +342,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /*** Internal Helper Functions ***/
 
-    function _isWithdrawRequestPending(address account) internal view returns (bool) {
-        return address(withdrawRequestManager) != address(0) && withdrawRequestManager.isPendingWithdrawRequest(address(this), account);
+    function _isWithdrawRequestPending(address account) virtual internal view returns (bool) {
+        return address(withdrawRequestManager) != address(0)
+            && withdrawRequestManager.isPendingWithdrawRequest(address(this), account);
     }
 
     function _yieldTokenBalance() internal view returns (uint256) {

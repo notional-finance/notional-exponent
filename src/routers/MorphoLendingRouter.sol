@@ -155,7 +155,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     ) internal override {
         MarketParams memory m = marketParams(vault, asset);
 
-        // Allows the transfer from the lending market to the sharesOwner
+        // Allows the transfer from the lending market to the Morpho contract
         IYieldStrategy(vault).allowTransfer(address(MORPHO), sharesReceived);
 
         // We should receive shares in return
