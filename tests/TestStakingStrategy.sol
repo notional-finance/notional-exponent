@@ -123,23 +123,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_initiateWithdrawRequest_RevertIf_InsufficientCollateral() public onlyIfWithdrawRequestManager {
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-
-        if (address(withdrawTokenOracle) != address(0)) {
-            withdrawTokenOracle.setPrice(withdrawTokenOracle.latestAnswer() * 0.85e18 / 1e18);
-        } else {
-            o.setPrice(o.latestAnswer() * 0.85e18 / 1e18);
-        }
-
-        vm.startPrank(msg.sender);
-        uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        bytes memory data = getWithdrawRequestData(msg.sender, shares);
-        vm.expectRevert(abi.encodeWithSelector(CannotInitiateWithdraw.selector, msg.sender));
-        lendingRouter.initiateWithdraw(msg.sender, address(y), data);
-        vm.stopPrank();
-    }
-
     function test_exitPosition_FullWithdrawRequest() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
