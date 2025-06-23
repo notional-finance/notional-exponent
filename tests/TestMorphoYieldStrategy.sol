@@ -316,6 +316,13 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertApproxEqRel(shares, y.convertToShares(assets), 0.0001e18, "convertToShares(convertToAssets(balanceOfShares)) should be equal to balanceOfShares");
     }
 
+    function test_redeemNative_RevertsIf_NoSharesHeld() public {
+        vm.startPrank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(InsufficientSharesHeld.selector));
+        y.redeemNative(100_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
     function test_liquidate() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();
