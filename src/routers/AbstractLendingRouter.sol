@@ -272,6 +272,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         bytes calldata data
     ) internal returns (uint256 requestId) {
         uint256 sharesHeld = balanceOfCollateral(account, vault);
+        if (sharesHeld == 0) revert InsufficientSharesHeld();
         return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data);
     }
 
