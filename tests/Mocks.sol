@@ -9,6 +9,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {AbstractCustomOracle} from "../src/oracles/AbstractCustomOracle.sol";
 import {AbstractYieldStrategy} from "../src/AbstractYieldStrategy.sol";
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
+import {StakingStrategy} from "../src/staking/StakingStrategy.sol";
 
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
@@ -73,6 +74,10 @@ contract MockYieldStrategy is AbstractYieldStrategy {
 
     function _preLiquidation(address /* liquidateAccount */, address /* liquidator */, uint256 /* sharesToLiquidate */, uint256 /* accountSharesHeld */) internal pure override {
         // No-op
+    }
+
+    function transientVariables() external view returns (address, address, address, uint256) {
+        return (t_CurrentAccount, t_CurrentLendingRouter, t_AllowTransfer_To, t_AllowTransfer_Amount);
     }
 }
 
@@ -196,5 +201,17 @@ contract MockRewardVault is RewardManagerMixin {
         }
 
         return super.convertToAssets(shares);
+    }
+}
+
+contract MockStakingStrategy is StakingStrategy {
+    constructor(
+        address _asset,
+        address _yieldToken,
+        uint256 _feeRate
+    ) StakingStrategy(_asset, _yieldToken, _feeRate) { }
+
+    function transientVariables() external view returns (address, address, address, uint256) {
+        return (t_CurrentAccount, t_CurrentLendingRouter, t_AllowTransfer_To, t_AllowTransfer_Amount);
     }
 }

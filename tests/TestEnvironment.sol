@@ -39,10 +39,23 @@ abstract contract TestEnvironment is Test {
     string public strategyName;
     string public strategySymbol;
 
+    bool public canInspectTransientVariables = false;
+
     modifier onlyIfWithdrawRequestManager() {
         vm.skip(address(manager) == address(0));
         _;
     }
+
+    function checkTransientsCleared() internal {
+        if (!canInspectTransientVariables) return;
+
+        (address currentAccount, address currentLendingRouter, address allowTransferTo, uint256 allowTransferAmount) = MockYieldStrategy(address(y)).transientVariables();
+        assertEq(currentAccount, address(0), "Current account should be cleared");
+        assertEq(currentLendingRouter, address(0), "Current lending router should be cleared");
+        assertEq(allowTransferTo, address(0), "Allow transfer to should be cleared");
+        assertEq(allowTransferAmount, 0, "Allow transfer amount should be cleared");
+    }
+
 
     function deployAddressRegistry() public {
         address deployer = makeAddr("deployer");

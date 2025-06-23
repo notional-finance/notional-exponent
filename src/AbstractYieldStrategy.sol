@@ -216,7 +216,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
     }
 
-    function allowTransfer(address to, uint256 amount) external onlyLendingRouter {
+    function allowTransfer(address to, uint256 amount, bool setCurrent) external onlyLendingRouter {
+        if (setCurrent) t_CurrentAccount = to;
+
         // Sets the transient variables to allow the lending market to transfer shares on exit position
         // or liquidation.
         t_AllowTransfer_To = to;
