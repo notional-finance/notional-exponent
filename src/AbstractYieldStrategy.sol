@@ -267,7 +267,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesToRedeem,
         bytes memory redeemData
     ) external override nonReentrant returns (uint256 assetsWithdrawn) {
-        assetsWithdrawn = _burnShares(sharesToRedeem, balanceOf(msg.sender), redeemData, msg.sender);
+        uint256 sharesHeld = balanceOf(msg.sender);
+        if (sharesHeld == 0) revert InsufficientSharesHeld();
+
+        assetsWithdrawn = _burnShares(sharesToRedeem, sharesHeld, redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
     }
 
