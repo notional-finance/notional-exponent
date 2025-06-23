@@ -5,6 +5,7 @@ import {IRewardManager} from "../interfaces/IRewardManager.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
+import {CannotLiquidateZeroShares} from "../interfaces/Errors.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
@@ -47,6 +48,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
     ) internal override returns (bool didTokenize) {
         // Total supply does not change during liquidation
         uint256 effectiveSupplyBefore = effectiveSupply();
+        if (sharesToLiquidator == 0) revert CannotLiquidateZeroShares();
 
         didTokenize = __postLiquidation(liquidator, liquidateAccount, sharesToLiquidator);
 

@@ -323,6 +323,14 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
+    function test_liquidate_RevertsIf_SharesToLiquidateIsZero() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        vm.startPrank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(CannotLiquidateZeroShares.selector));
+        lendingRouter.liquidate(msg.sender, address(y), 0, 0);
+        vm.stopPrank();
+    }
+
     function test_liquidate() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();

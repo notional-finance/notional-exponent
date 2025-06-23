@@ -10,7 +10,9 @@ import {
     InvalidLendingRouter,
     NoExistingPosition,
     LiquidatorHasPosition,
-    CannotEnterPosition
+    CannotEnterPosition,
+    CannotLiquidateZeroShares,
+    InsufficientSharesHeld
 } from "../interfaces/Errors.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -134,6 +136,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToLiquidate,
         uint256 debtToRepay
     ) external override returns (uint256 sharesToLiquidator) {
+        if (sharesToLiquidate == 0) revert CannotLiquidateZeroShares();
+
         address liquidator = msg.sender;
         VaultPosition memory position = ADDRESS_REGISTRY.getVaultPosition(liquidator, vault);
         // If the liquidator has a position then they cannot liquidate or they will have
@@ -141,6 +145,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         if (position.lendingRouter != address(0)) revert LiquidatorHasPosition();
 
         uint256 balanceBefore = balanceOfCollateral(liquidateAccount, vault);
+        if (balanceBefore == 0) revert InsufficientSharesHeld();
 
         // Runs any checks on the vault to ensure that the liquidation can proceed, whitelists the lending platform
         // to transfer collateral to the lending router. The current account is set in this method.
