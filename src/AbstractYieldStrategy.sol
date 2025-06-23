@@ -293,6 +293,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     function _withdraw(address account, uint256 sharesHeld, bytes memory data) internal returns (uint256 requestId) {
+        if (sharesHeld == 0) revert InsufficientSharesHeld();
+
         // Accrue fees before initiating a withdraw since it will change the effective supply
         _accrueFees();
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);

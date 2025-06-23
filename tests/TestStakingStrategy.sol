@@ -8,6 +8,20 @@ import "../src/interfaces/ITradingModule.sol";
 
 abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
+    function test_initiateWithdraw_RevertsIf_NoSharesHeld() public onlyIfWithdrawRequestManager {
+        vm.startPrank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(InsufficientSharesHeld.selector));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, 0));
+        vm.stopPrank();
+    }
+
+    function test_initiateWithdrawNative_RevertsIf_NoSharesHeld() public onlyIfWithdrawRequestManager {
+        vm.startPrank(msg.sender);
+        vm.expectRevert(abi.encodeWithSelector(InsufficientSharesHeld.selector));
+        y.initiateWithdrawNative(getWithdrawRequestData(msg.sender, 0));
+        vm.stopPrank();
+    }
+
     function test_initiateWithdraw_RevertsIf_NotAuthorized() public onlyIfWithdrawRequestManager {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         address operator = makeAddr("operator");
