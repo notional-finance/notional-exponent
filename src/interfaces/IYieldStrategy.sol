@@ -145,9 +145,9 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      *
      * @param to The address to allow the transfer to.
      * @param amount The amount of shares to allow the transfer of.
-     * @param setCurrent Whether to set the current account to the to address.
+     * @param currentAccount The address of the current account.
      */
-    function allowTransfer(address to, uint256 amount, bool setCurrent) external;
+    function allowTransfer(address to, uint256 amount, address currentAccount) external;
 
     /**
      * @notice Pre-liquidation function.

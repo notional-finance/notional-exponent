@@ -156,7 +156,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         MarketParams memory m = marketParams(vault, asset);
 
         // Allows the transfer from the lending market to the Morpho contract
-        IYieldStrategy(vault).allowTransfer({to: address(MORPHO), amount: sharesReceived, setCurrent: false});
+        IYieldStrategy(vault).allowTransfer(address(MORPHO), sharesReceived, onBehalf);
 
         // We should receive shares in return
         ERC20(vault).approve(address(MORPHO), sharesReceived);
