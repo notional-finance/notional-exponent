@@ -301,9 +301,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _accrueFees();
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
-        // _initiateWithdraw is expected to revert if a withdraw is not successfully initiated but
-        // check again here to ensure the requestId is not 0.
-        require(requestId > 0);
         // Escrow the shares after the withdraw since it will change the effective supply
         // during reward claims when using the RewardManagerMixin.
         s_escrowedShares += sharesHeld;
