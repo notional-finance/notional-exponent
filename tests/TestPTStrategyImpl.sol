@@ -24,6 +24,9 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     bytes internal defaultRedeemExchangeData;
     bytes internal defaultWithdrawRequestExchangeData;
 
+    IPRouter.FillOrderParams[] internal depositFills;
+    IPRouter.FillOrderParams[] internal redeemFills;
+
     function getDepositData(
         address /* user */,
         uint256 /* depositAmount */
@@ -156,33 +159,15 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     }
 
     function test_enterPosition_usingLimitOrder() public {
+        vm.skip(depositFills.length == 0);
         vm.startPrank(msg.sender);
-        MORPHO.setAuthorization(address(y), true);
-        asset.approve(address(y), defaultDeposit);
-        IPRouter.FillOrderParams[] memory normalFills = new IPRouter.FillOrderParams[](1);
-        normalFills[0] = IPRouter.FillOrderParams({
-            order: IPRouter.Order({
-                salt: 1272298264258536272942376644425766518232160717710904308615777799358817600096,
-                expiry: 1745853785,
-                nonce: 0,
-                orderType: IPRouter.OrderType.YT_FOR_SY,
-                token: 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497,
-                YT: 0x1de6Ff19FDA7496DdC12f2161f6ad6427c52aBBe,
-                maker: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
-                receiver: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
-                makingAmount: 20083061612967988565283,
-                lnImpliedRate: 74913576139103066,
-                failSafeRate: 900000000000000000,
-                permit: bytes("")
-            }),
-            signature: hex"56929fa970eead4bcbb454fb2e837d31d138aef4021409eb42a31c95cd83d860577abbcc5e1233882ebe3d53d7281d4e9880181df8b8ca3360fabf67a84f1c1e1c",
-            makingAmount: 20083061612967988565283
-        });
+        MORPHO.setAuthorization(address(lendingRouter), true);
+        asset.approve(address(lendingRouter), defaultDeposit);
 
         IPRouter.LimitOrderData memory limitOrderData = IPRouter.LimitOrderData({
             limitRouter: 0x000000000000c9B3E2C3Ec88B1B4c0cD853f4321,
             epsSkipMarket: 0,
-            normalFills: normalFills,
+            normalFills: depositFills,
             flashFills: new IPRouter.FillOrderParams[](0),
             optData: bytes("")
         });
@@ -210,7 +195,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         emit OrderFilledV2(
             bytes32(0),
             IPRouter.OrderType.SY_FOR_PT,
-            0x708dD9B344dDc7842f44C7b90492CF0e1E3eb868,
+            address(0), // This is the YT address
             address(tokenIn),
             0,
             0,
@@ -222,6 +207,11 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
 
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
+    }
+
+    function test_exitPosition_usingLimitOrder() public {
+        vm.skip(redeemFills.length == 0);
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow    );
     }
 }
 
@@ -290,6 +280,25 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         vm.startPrank(owner);
         TRADING_MODULE.setPriceOracle(address(tokenOut), AggregatorV2V3Interface(address(withdrawTokenOracle)));
         vm.stopPrank();
+
+        depositFills.push(IPRouter.FillOrderParams({
+            order: IPRouter.Order({
+                salt: 1272298264258536272942376644425766518232160717710904308615777799358817600096,
+                expiry: 1745853785,
+                nonce: 0,
+                orderType: IPRouter.OrderType.YT_FOR_SY,
+                token: 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497,
+                YT: 0x1de6Ff19FDA7496DdC12f2161f6ad6427c52aBBe,
+                maker: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
+                receiver: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
+                makingAmount: 20083061612967988565283,
+                lnImpliedRate: 74913576139103066,
+                failSafeRate: 900000000000000000,
+                permit: bytes("")
+            }),
+            signature: hex"56929fa970eead4bcbb454fb2e837d31d138aef4021409eb42a31c95cd83d860577abbcc5e1233882ebe3d53d7281d4e9880181df8b8ca3360fabf67a84f1c1e1c",
+            makingAmount: 20083061612967988565283
+        }));
     }
 
     function getWithdrawRequestData(
@@ -299,5 +308,75 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         // Warp to expiry
         vm.warp(1748476800 + 1);
         return bytes("");
+    }
+
+}
+
+
+contract TestStakingStrategy_PT_eUSDe_13AUG2025 is TestStakingStrategy_PT {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 22790709;
+    }
+
+    function setMarketVariables() internal override {
+        market = 0xE93B4A93e80BD3065B290394264af5d82422ee70;
+        tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        tokenOut = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        ptToken = 0x14Bdc3A3AE09f5518b923b69489CBcAfB238e617;
+        defaultDexId = uint8(DexId.CURVE_V2);
+        defaultDepositExchangeData = abi.encode(CurveV2SingleData({
+            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+            fromIndex: 1,
+            toIndex: 0
+        }));
+        defaultRedeemExchangeData = abi.encode(CurveV2SingleData({
+            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+            fromIndex: 0,
+            toIndex: 1
+        }));
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+
+        // LimitOrderType: 3, YT_FOR_SY or YT_FOR_TOKEN
+        depositFills.push(IPRouter.FillOrderParams({
+            order: IPRouter.Order({
+                salt: 7976209603608691259510522740202114089739545406106745663613802393604058421028,
+                expiry: 1751256720,
+                nonce: 0,
+                orderType: IPRouter.OrderType.YT_FOR_SY,
+                token: 0x90D2af7d622ca3141efA4d8f1F24d86E5974Cc8F,
+                YT: 0xe8eF806c8aaDc541408dcAd36107c7d26a391712,
+                maker: 0x32332308Ad4761d6fEF9DfD98224Aa722c09e269,
+                receiver: 0x32332308Ad4761d6fEF9DfD98224Aa722c09e269,
+                makingAmount: 100000000000000000000000,
+                lnImpliedRate: 85076172355119263,
+                failSafeRate: 900000000000000000,
+                permit: bytes("")
+            }),
+            signature: hex"035e3285d87ea09f56bdc0970604d249394ad576d6559e9a2129d311cab47f7b01df4b4b6d1e0d837ce0baa523391b21d858917ecff523bd42adfb26c053da8e1c",
+            // Does not have the full making amount here, but this is enough for the test
+            makingAmount: 26044106227207729924039
+        }));
+
+        redeemFills.push(IPRouter.FillOrderParams({
+            order: IPRouter.Order({
+                salt: 1272298264258536272942376644425766518232160717710904308615777799358817600096,
+                expiry: 1745853785,
+                nonce: 0,
+                orderType: IPRouter.OrderType.YT_FOR_SY,
+                token: 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497,
+                YT: 0x1de6Ff19FDA7496DdC12f2161f6ad6427c52aBBe,
+                maker: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
+                receiver: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
+                makingAmount: 20083061612967988565283,
+                lnImpliedRate: 74913576139103066,
+                failSafeRate: 900000000000000000,
+                permit: bytes("")
+            }),
+            signature: hex"56929fa970eead4bcbb454fb2e837d31d138aef4021409eb42a31c95cd83d860577abbcc5e1233882ebe3d53d7281d4e9880181df8b8ca3360fabf67a84f1c1e1c",
+            makingAmount: 20083061612967988565283
+        }));
     }
 }
