@@ -104,6 +104,9 @@ abstract contract TestEnvironment is Test {
         );
         y = IYieldStrategy(address(proxy));
 
+        vm.prank(ADDRESS_REGISTRY.upgradeAdmin());
+        ADDRESS_REGISTRY.setWhitelistedVault(address(y), true);
+
         asset = ERC20(y.asset());
         // Set default fee token, this changes for Convex staked tokens
         if (address(feeToken) == address(0)) feeToken = w;
