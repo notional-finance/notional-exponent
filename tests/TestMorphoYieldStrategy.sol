@@ -92,6 +92,18 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(l.balanceOfCollateral(user, address(y)), y.balanceOf(address(MORPHO)));
     }
 
+    function test_enterPosition_RevertsIf_InvalidVault() public {
+        vm.prank(owner);
+        ADDRESS_REGISTRY.setWhitelistedVault(address(y), false);
+        vm.startPrank(msg.sender);
+        if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        asset.approve(address(lendingRouter), defaultDeposit);
+        vm.expectRevert(abi.encodeWithSelector(InvalidVault.selector, address(y)));
+        bytes memory data = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
+        lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, data);
+        vm.stopPrank();
+    }
+
     function test_enterPosition() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         postEntryAssertions(msg.sender, lendingRouter);

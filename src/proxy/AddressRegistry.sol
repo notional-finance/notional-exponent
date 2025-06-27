@@ -104,7 +104,7 @@ contract AddressRegistry is Initializable {
     }
 
     function setWhitelistedVault(address vault, bool isWhitelisted) external onlyUpgradeAdmin {
-        whitelistedVaults[vault] = true;
+        whitelistedVaults[vault] = isWhitelisted;
         emit WhitelistedVault(vault, isWhitelisted);
     }
 
