@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {Unauthorized, CannotEnterPosition} from "../interfaces/Errors.sol";
+import {Unauthorized, CannotEnterPosition, InvalidVault} from "../interfaces/Errors.sol";
 import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
 import {VaultPosition} from "../interfaces/ILendingRouter.sol";
 import {Initializable} from "./Initializable.sol";
@@ -17,6 +17,7 @@ contract AddressRegistry is Initializable {
     event LendingRouterSet(address indexed lendingRouter);
     event AccountPositionCreated(address indexed account, address indexed vault, address indexed lendingRouter);
     event AccountPositionCleared(address indexed account, address indexed vault, address indexed lendingRouter);
+    event WhitelistedVault(address indexed vault, bool isWhitelisted);
 
     /// @notice Address of the admin that is allowed to:
     /// - Upgrade TimelockUpgradeableProxy contracts given a 7 day timelock
@@ -43,6 +44,9 @@ contract AddressRegistry is Initializable {
 
     /// @notice Mapping of lending router to boolean indicating if it is whitelisted
     mapping(address lendingRouter => bool isLendingRouter) public lendingRouters;
+
+    /// @notice Mapping to whitelisted vaults
+    mapping(address vault => bool isWhitelisted) public whitelistedVaults;
 
     /// @notice Mapping of accounts to their existing position on a given vault
     mapping(address account => mapping(address vault => VaultPosition)) internal accountPositions;
@@ -99,6 +103,11 @@ contract AddressRegistry is Initializable {
         emit WithdrawRequestManagerSet(yieldToken, withdrawRequestManager);
     }
 
+    function setWhitelistedVault(address vault, bool isWhitelisted) external onlyUpgradeAdmin {
+        whitelistedVaults[vault] = true;
+        emit WhitelistedVault(vault, isWhitelisted);
+    }
+
     function getWithdrawRequestManager(address yieldToken) external view returns (IWithdrawRequestManager) {
         return IWithdrawRequestManager(withdrawRequestManagers[yieldToken]);
     }
@@ -123,6 +132,10 @@ contract AddressRegistry is Initializable {
 
         if (position.lendingRouter == address(0)) position.lendingRouter = msg.sender;
         else if (position.lendingRouter != msg.sender) revert CannotEnterPosition();
+
+        // Lending routers may be used to enter positions on any vault, including a malicious vault
+        // so this ensures that only whitelisted vaults can be used to enter positions
+        if (!whitelistedVaults[vault]) revert InvalidVault(vault);
 
         position.lastEntryTime = uint32(block.timestamp);
         emit AccountPositionCreated(account, vault, msg.sender);

@@ -12,6 +12,7 @@ error Paused();
 error CannotExitPositionWithinCooldownPeriod();
 error CannotTokenizeWithdrawRequest();
 error CurrentAccountAlreadySet();
+error InvalidVault(address vault);
 
 error WithdrawRequestNotFinalized(uint256 requestId);
 error CannotInitiateWithdraw(address account);
