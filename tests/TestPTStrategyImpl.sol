@@ -211,7 +211,47 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
 
     function test_exitPosition_usingLimitOrder() public {
         vm.skip(redeemFills.length == 0);
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow    );
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        IPRouter.LimitOrderData memory limitOrderData = IPRouter.LimitOrderData({
+            limitRouter: 0x000000000000c9B3E2C3Ec88B1B4c0cD853f4321,
+            epsSkipMarket: 0,
+            normalFills: new IPRouter.FillOrderParams[](0),
+            flashFills: redeemFills,
+            optData: bytes("")
+        });
+
+        PendleRedeemParams memory d = PendleRedeemParams({
+            dexId: defaultDexId,
+            minPurchaseAmount: 0,
+            exchangeData: defaultRedeemExchangeData,
+            limitOrderData: abi.encode(limitOrderData)
+        });
+        bytes memory redeemData = abi.encode(d);
+
+        uint256 sharesToExit = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 debtToRepay = type(uint256).max;
+
+        vm.startPrank(msg.sender);
+        vm.expectEmit(false, false, false, false, 0x000000000000c9B3E2C3Ec88B1B4c0cD853f4321);
+        emit OrderFilledV2(
+            bytes32(0),
+            IPRouter.OrderType.PT_FOR_SY,
+            address(0), // This is the YT address
+            address(tokenOut),
+            0,
+            0,
+            0,
+            0,
+            msg.sender,
+            msg.sender
+        );
+        lendingRouter.exitPosition(
+            msg.sender, address(y), msg.sender, sharesToExit, debtToRepay, redeemData
+        );
+        vm.stopPrank();
     }
 }
 
@@ -315,7 +355,7 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
 
 contract TestStakingStrategy_PT_eUSDe_13AUG2025 is TestStakingStrategy_PT {
     function overrideForkBlock() internal override {
-        FORK_BLOCK = 22790709;
+        FORK_BLOCK = 22792979;
     }
 
     function setMarketVariables() internal override {
@@ -360,23 +400,28 @@ contract TestStakingStrategy_PT_eUSDe_13AUG2025 is TestStakingStrategy_PT {
             makingAmount: 26044106227207729924039
         }));
 
+        // NOTE: use this API
+        /* https://api-v2.pendle.finance/core/v1/sdk/1/markets/{market}/swap
+            ?receiver=xxx&slippage=0.01&enableAggregator=false&tokenIn={tokenIn}&tokenOut={tokenOut}&amountIn={amountIn}
+        */
+
         redeemFills.push(IPRouter.FillOrderParams({
             order: IPRouter.Order({
-                salt: 1272298264258536272942376644425766518232160717710904308615777799358817600096,
-                expiry: 1745853785,
-                nonce: 0,
+                salt: 15649304437678776201695093386247113070979384594550464093058576137381267332971,
+                expiry: 1751598305,
+                nonce: 8,
                 orderType: IPRouter.OrderType.YT_FOR_SY,
-                token: 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497,
-                YT: 0x1de6Ff19FDA7496DdC12f2161f6ad6427c52aBBe,
-                maker: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
-                receiver: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
-                makingAmount: 20083061612967988565283,
-                lnImpliedRate: 74913576139103066,
+                token: 0x90D2af7d622ca3141efA4d8f1F24d86E5974Cc8F,
+                YT: 0xe8eF806c8aaDc541408dcAd36107c7d26a391712,
+                maker: 0x5EBe5223831523823528Ef0a7EdF67D288B1B070,
+                receiver: 0x5EBe5223831523823528Ef0a7EdF67D288B1B070,
+                makingAmount: 21572000000000000000000,
+                lnImpliedRate: 71203759006332065,
                 failSafeRate: 900000000000000000,
                 permit: bytes("")
             }),
-            signature: hex"56929fa970eead4bcbb454fb2e837d31d138aef4021409eb42a31c95cd83d860577abbcc5e1233882ebe3d53d7281d4e9880181df8b8ca3360fabf67a84f1c1e1c",
-            makingAmount: 20083061612967988565283
+            signature: hex"ab4530393a915a8e7101afcd399f2f1487a773997221f474ec1e36b131c5f3a946579838b46fb20d288d1e1a44ceec2224e9e85e33e9ca0c6ba1fa394316e4bb1c",
+            makingAmount: 21572000000000000000000
         }));
     }
 }
