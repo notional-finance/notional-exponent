@@ -100,32 +100,32 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
     }
 }
 
-contract TestStakingStrategy_apxETH is TestStakingStrategy {
-    function getRedeemData(
-        address /* user */,
-        uint256 /* shares */
-    ) internal override returns (bytes memory redeemData) {
-        vm.skip(true);
-        // No way to trade out of this position
-        return bytes("");
-    }
+// contract TestStakingStrategy_apxETH is TestStakingStrategy {
+//     function getRedeemData(
+//         address /* user */,
+//         uint256 /* shares */
+//     ) internal override returns (bytes memory redeemData) {
+//         vm.skip(true);
+//         // No way to trade out of this position
+//         return bytes("");
+//     }
 
-    function deployYieldStrategy() internal override {
-        setupWithdrawRequestManager(address(new DineroWithdrawRequestManager(address(apxETH))));
-        y = new StakingStrategy(address(WETH), address(apxETH), 0.0010e18);
-        w = ERC20(y.yieldToken());
-        (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
-        o = new MockOracle(oracle.latestAnswer());
+//     function deployYieldStrategy() internal override {
+//         setupWithdrawRequestManager(address(new DineroWithdrawRequestManager(address(apxETH))));
+//         y = new StakingStrategy(address(WETH), address(apxETH), 0.0010e18);
+//         w = ERC20(y.yieldToken());
+//         (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
+//         o = new MockOracle(oracle.latestAnswer());
 
-        defaultDeposit = 10e18;
-        defaultBorrow = 90e18;
-        maxEntryValuationSlippage = 0.0050e18;
-        maxExitValuationSlippage = 0.0050e18;
+//         defaultDeposit = 10e18;
+//         defaultBorrow = 90e18;
+//         maxEntryValuationSlippage = 0.0050e18;
+//         maxExitValuationSlippage = 0.0050e18;
 
-        withdrawRequest = new TestDinero_apxETH_WithdrawRequest();
+//         withdrawRequest = new TestDinero_apxETH_WithdrawRequest();
 
-        // TODO: need apxETH oracle price this is to ETH, so combine with the
-        // ETH/USD price
-        // 0x19219BC90F48DeE4d5cF202E09c438FAacFd8Bea
-    }
-}
+//         // TODO: need apxETH oracle price this is to ETH, so combine with the
+//         // ETH/USD price
+//         // 0x19219BC90F48DeE4d5cF202E09c438FAacFd8Bea
+//     }
+// }
