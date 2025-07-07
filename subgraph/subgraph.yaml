@@ -16,19 +16,19 @@ dataSources:
       apiVersion: 0.0.9
       language: wasm/assemblyscript
       entities:
-        - AccountPositionCleared
-        - AccountPositionCreated
-        - FeeReceiverTransferred
-        - LendingRouterSet
-        - PauseAdminTransferred
-        - PendingPauseAdminSet
-        - PendingUpgradeAdminSet
-        - UpgradeAdminTransferred
-        - WhitelistedVault
-        - WithdrawRequestManagerSet
+        - Account
+        - LendingRouter
+        - VaultConfiguration
+        - WithdrawRequestManager
       abis:
         - name: AddressRegistry
           file: ./abis/AddressRegistry.json
+        - name: IYieldStrategy
+          file: ./abis/IYieldStrategy.json
+        - name: IERC20Metadata
+          file: ./abis/IERC20Metadata.json
+        - name: IWithdrawRequestManager
+          file: ./abis/IWithdrawRequestManager.json
       eventHandlers:
         - event: AccountPositionCleared(indexed address,indexed address,indexed address)
           handler: handleAccountPositionCleared
