@@ -1,6 +1,407 @@
-type ExampleEntity @entity(immutable: true) {
-  id: Bytes!
-  count: BigInt!
-  account: Bytes! # address
-  vault: Bytes! # address
+enum TokenType {
+  Underlying,
+  VaultShare,
+  VaultDebt,
+  Fiat
+}
+
+enum SystemAccount {
+  None,
+  ZeroAddress,
+  LendingRouter,
+  Vault,
+  NOTE
+}
+
+enum TokenInterface {
+  ERC20,
+  ERC1155,
+  "Used to designate off chain fiat currencies like USD, JPY, etc"
+  FIAT
+}
+
+enum TransferType {
+  Mint,
+  Burn,
+  Transfer
+}
+
+type Token @entity(immutable: false) {
+  """ID space varies by token type:
+    - ERC20: token address
+    - ERC1155: `emitter address:tokenId`
+  """
+  id: ID!
+
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes
+
+  tokenType: TokenType!
+  tokenInterface: TokenInterface!
+  "A link to the underlying token if this token is not underlying itself"
+  underlying: Token
+  
+  name: String!
+  symbol: String!
+  decimals: Int!
+  precision: BigInt!
+  "Only updated for Notional entities"
+  totalSupply: BigInt
+  "Set to true for underlying tokens that have a transfer fee"
+  hasTransferFee: Boolean!
+
+  "Maturities are only set for some token types"
+  maturity: BigInt
+  "Vault address is set for vault token types"
+  vaultAddress: Bytes
+
+  "Set to the ERC20 address or Notional Proxy for ERC1155 addresses"
+  tokenAddress: Bytes!
+
+  balanceOf: [Balance!] @derivedFrom(field: "token")
+  transfers: [Transfer!] @derivedFrom(field: "token")
+  oracles: [Oracle!] @derivedFrom(field: "quote")
+}
+
+type Transfer @entity(immutable: true) {
+  "Transaction Hash:Log Index"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transactionHash: Transaction!
+  logIndex: Int!
+
+  from: Account!
+  to: Account!
+  "Operator is logged for ERC1155 transfer events"
+  operator: Account
+  "Categorizes the transfer as a mint, burn or transfer"
+  transferType: TransferType!
+  fromSystemAccount: SystemAccount!
+  toSystemAccount: SystemAccount!
+
+  value: BigInt!
+  "Value of the transfer in underlying terms at the time of transfer"
+  valueInUnderlying: BigInt
+
+  "Link to the token entity for this transfer"
+  token: Token!
+  tokenType: TokenType!
+  underlying: Token!
+  "Only set for some transfer types"
+  maturity: BigInt
+}
+
+type TransferBundle @entity(immutable: true) {
+  "Transaction Hash:Start Log Index:End Log Index:Bundle Name"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transactionHash: Transaction!
+
+  bundleName: String!
+  startLogIndex: Int!
+  endLogIndex: Int!
+  transfers: [Transfer!]!
+
+  profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "bundle")
+}
+
+type ProfitLossLineItem @entity(immutable: true) {
+  "Bundle ID:Index"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transactionHash: Transaction!
+
+  bundle: TransferBundle!
+  balanceSnapshot: BalanceSnapshot!
+
+  account: Account!
+  tokenAmount: BigInt!
+  token: Token!
+
+  underlyingAmountRealized: BigInt!
+  underlyingAmountSpot: BigInt!
+  underlyingToken: Token!
+
+  realizedPrice: BigInt!
+  spotPrice: BigInt!
+  impliedFixedRate: BigInt
+  "Set to true for line items that do not materially change the balance at the end of the txn"
+  isTransientLineItem: Boolean!
+
+  "Set to a value that points to the token that generated an incentive payment"
+  incentivizedToken: Token
+
+  "Set to the amount of fees paid, if applicable"
+  feesPaid: BigInt
+}
+
+type Transaction @entity(immutable: true) {
+  "Transaction Hash"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transactionHash: Bytes!
+
+  _transfers: [Transfer!]!
+  _transferBundles: [TransferBundle!]!
+  "Internal index of the next index in _transfer to start scanning at"
+  _nextStartIndex: Int!
+
+  transfers: [Transfer!] @derivedFrom(field: "transactionHash")
+  transferBundles: [TransferBundle!] @derivedFrom(field: "transactionHash")
+  profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "transactionHash")
+}
+
+type Account @entity(immutable: false) {
+  "Address of Account"
+  id: ID!
+
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+  systemAccountType: SystemAccount!
+
+  "All current balances linked to this account"
+  balances: [Balance!] @derivedFrom(field: "account")
+  "All historical token transfers linked to this account"
+  transfersFrom: [Transfer!] @derivedFrom(field: "from")
+  transfersTo: [Transfer!] @derivedFrom(field: "to")
+  profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "account")
+}
+
+### Exchange Rates ###
+
+enum OracleType {
+  Chainlink,
+  VaultShareOracleRate,
+  VaultShareInterestAccrued,
+}
+
+type OracleRegistry @entity(immutable: false) {
+  "ID is hardcoded to zero"
+  id: ID!
+  lastRefreshBlockNumber: BigInt!
+  lastRefreshTimestamp: Int!
+
+  chainlinkOracles: [Oracle!]!
+  "Vault Addresses"
+  listedVaults: [Bytes!]!
+}
+
+type Oracle @entity(immutable: false) {
+  "Base Token Id:Quote Token Id:Oracle Type"
+  id: ID!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  "Some oracles are updated via block handlers and do not have a txn hash for updates"
+  lastUpdateTransaction: Transaction
+
+  base: Token!
+  quote: Token!
+  decimals: Int!
+  ratePrecision: BigInt!
+  oracleAddress: Bytes!
+  oracleType: OracleType!
+  mustInvert: Boolean!
+  latestRate: BigInt
+  matured: Boolean!
+
+  historicalRates: [ExchangeRate!] @derivedFrom(field: "oracle")
+}
+
+type ExchangeRate @entity(immutable: true) {
+  "External Oracle ID:Block Number:Transaction Hash"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transaction: Transaction
+  oracle: Oracle!
+
+  rate: BigInt!
+  totalSupply: BigInt
+}
+
+### Configuration ###
+
+type VaultConfiguration @entity(immutable: false) {
+  "ID is the address of the vault"
+  id: ID!
+  lastUpdateBlockHash: Bytes!
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+  "Address of the strategy vault"
+  vaultAddress: Bytes!
+  "Symbol of the vault"
+  symbol: String!
+  "Name of the vault"
+  name: String!
+  "Primary currency the vault borrows in"
+  primaryBorrowCurrency: Token!
+}
+
+type LendingRouter @entity(immutable: false) {
+  id: ID!
+  lastUpdateBlockHash: Bytes!
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+}
+
+type WithdrawRequestManager @entity(immutable: false) {
+  id: ID!
+  lastUpdateBlockHash: Bytes!
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+}
+
+### Balances ###
+
+type Balance @entity(immutable: false) {
+  "Account:Token ID"
+  id: ID!
+  "Link back to the token"
+  token: Token!
+  "Address of the account that holds this balance"
+  account: Account!
+
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+  
+  current: BalanceSnapshot!
+  snapshots: [BalanceSnapshot!] @derivedFrom(field: "balance")
+}
+
+type BalanceSnapshot @entity(immutable: true) {
+  "Address of Account:ID of Token:Block Number"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transaction: Transaction!
+
+  "Link to previous snapshot, if it exists"
+  previousSnapshot: BalanceSnapshot
+
+  "Link to the balance entity for this token"
+  balance: Balance!
+
+  "Current balance of the token at this block"
+  currentBalance: BigInt!
+  "Balance before this snapshot"
+  previousBalance: BigInt!
+
+  "Adjusted cost basis at this snapshot for the token"
+  adjustedCostBasis: BigInt!
+  "Current profit and loss at the snapshot"
+  currentProfitAndLossAtSnapshot: BigInt!
+  "Total profit or loss at the snapshot since balance inception"
+  totalProfitAndLossAtSnapshot: BigInt!
+  "Portion of the PnL due to market movements in price"
+  totalILAndFeesAtSnapshot: BigInt!
+  "Portion of the PnL due to interest accrual"
+  totalInterestAccrualAtSnapshot: BigInt!
+  "Implied Fixed Rate for fCash balances"
+  impliedFixedRate: BigInt
+  
+  "Cumulative balance used for internal PnL calculations"
+  _accumulatedBalance: BigInt!
+  "Cumulative realized cost for internal PnL calculations"
+  _accumulatedCostRealized: BigInt!
+  "Internal interest accumulator"
+  _lastInterestAccumulator: BigInt!
+
+  profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "balanceSnapshot")
+  "Snapshots of the secondary incentives"
+  incentives: [IncentiveSnapshot!] @derivedFrom(field: "balanceSnapshot")
+
+  "Link to a withdraw request, if it exists"
+  withdrawRequest: WithdrawRequest
+}
+
+type WithdrawRequest @entity(immutable: false) {
+  "Account:Token ID"
+  id: ID!
+  account: Account!
+  token: Token!
+  amount: BigInt!
+}
+
+type IncentiveSnapshot @entity(immutable: true) {
+  "Balance Snapshot ID:Reward Token"
+  id: ID!
+  blockNumber: BigInt!
+  timestamp: Int!
+  transaction: Transaction!
+
+  "Link back to the balance snapshot for this secondary incentive"
+  balanceSnapshot: BalanceSnapshot!
+
+  "Reward token associated with this snapshot"
+  rewardToken: Token!
+
+  "Current account incentive debt for reward"
+  currentIncentiveDebt: BigInt!
+  "Previous account incentive debt for reward"
+  previousIncentiveDebt: BigInt!
+
+  "Total reward accrued over the lifetime of this balance"
+  totalClaimed: BigInt!
+  "Reward earnings adjusted for balance changes"
+  adjustedClaimed: BigInt!
+}
+
+### Trading Module ###
+
+enum DEX {
+  _UNUSED,
+  UNISWAP_V2,
+  UNISWAP_V3,
+  ZERO_EX,
+  BALANCER_V2,
+  CURVE,
+  NOTIONAL_VAULT,
+  CURVE_V2
+}
+
+enum TradeType {
+  EXACT_IN_SINGLE,
+  EXACT_OUT_SINGLE,
+  EXACT_IN_BATCH,
+  EXACT_OUT_BATCH
+}
+
+type TradingModulePermission @entity(immutable: false) {
+  id: ID!
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+
+  sender: Account!
+  token: Token
+  tokenAddress: Bytes!
+  name: String!
+  symbol: String!
+
+  allowedDexes: [DEX!]!
+  allowSell: Boolean!
+  allowedTradeTypes: [TradeType!]!
 }
