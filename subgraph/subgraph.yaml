@@ -34,18 +34,18 @@ dataSources:
           handler: handleAccountPositionCleared
         - event: AccountPositionCreated(indexed address,indexed address,indexed address)
           handler: handleAccountPositionCreated
-        - event: FeeReceiverTransferred(indexed address)
-          handler: handleFeeReceiverTransferred
+        # - event: FeeReceiverTransferred(indexed address)
+        #   handler: handleFeeReceiverTransferred
         - event: LendingRouterSet(indexed address)
           handler: handleLendingRouterSet
-        - event: PauseAdminTransferred(indexed address)
-          handler: handlePauseAdminTransferred
-        - event: PendingPauseAdminSet(indexed address)
-          handler: handlePendingPauseAdminSet
-        - event: PendingUpgradeAdminSet(indexed address)
-          handler: handlePendingUpgradeAdminSet
-        - event: UpgradeAdminTransferred(indexed address)
-          handler: handleUpgradeAdminTransferred
+        # - event: PauseAdminTransferred(indexed address)
+        #   handler: handlePauseAdminTransferred
+        # - event: PendingPauseAdminSet(indexed address)
+        #   handler: handlePendingPauseAdminSet
+        # - event: PendingUpgradeAdminSet(indexed address)
+        #   handler: handlePendingUpgradeAdminSet
+        # - event: UpgradeAdminTransferred(indexed address)
+        #   handler: handleUpgradeAdminTransferred
         - event: WhitelistedVault(indexed address,bool)
           handler: handleWhitelistedVault
         - event: WithdrawRequestManagerSet(indexed address,indexed address)
