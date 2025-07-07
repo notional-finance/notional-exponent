@@ -7,14 +7,13 @@ import {
   afterAll
 } from "matchstick-as/assembly/index"
 import { Address } from "@graphprotocol/graph-ts"
-import { Account } from "../generated/schema"
-import { handleAccountPositionCreated } from "../src/address-registry"
-import { createAccountPositionCreatedEvent } from "./address-registry-utils"
+import { handleAccountPositionCreated, handleLendingRouterSet } from "../src/address-registry"
+import { createAccountPositionCreatedEvent, createLendingRouterSetEvent } from "./address-registry-utils"
 
 // Tests structure (matchstick-as >=0.5.0)
 // https://thegraph.com/docs/en/subgraphs/developing/creating/unit-testing-framework/#tests-structure
 
-describe("Describe entity assertions", () => {
+describe("Create account assertions", () => {
   beforeAll(() => {
     let account = Address.fromString(
       "0x0000000000000000000000000000000000000001"
@@ -51,5 +50,31 @@ describe("Describe entity assertions", () => {
 
     // More assert options:
     // https://thegraph.com/docs/en/subgraphs/developing/creating/unit-testing-framework/#asserts
+  })
+})
+
+describe("Whitelist lending router assertions", () => {
+  beforeAll(() => {
+    let vault = Address.fromString("0x0000000000000000000000000000000000000001")
+    let lendingRouter = Address.fromString(
+      "0x0000000000000000000000000000000000000001"
+    )
+    let newLendingRouterSetEvent = createLendingRouterSetEvent(lendingRouter)
+    handleLendingRouterSet(newLendingRouterSetEvent)
+  })
+
+  afterAll(() => {
+    clearStore()
+  })
+
+  test("Lending router created and stored", () => {
+    assert.entityCount("LendingRouter", 1)
+
+    assert.fieldEquals(
+      "LendingRouter",
+      "0x0000000000000000000000000000000000000001",
+      "id",
+      "0x0000000000000000000000000000000000000001"
+    )
   })
 })
