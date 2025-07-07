@@ -55,6 +55,7 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
   vault.lastUpdateTransactionHash = event.transaction.hash;
 
   let yieldStrategy = IYieldStrategy.bind(event.params.vault);
+  // TODO: all of these can go into the eth_call
   vault.feeRate = yieldStrategy.feeRate();
   vault.yieldToken = createToken(yieldStrategy.yieldToken().toHexString());
   vault.asset = createToken(yieldStrategy.asset().toHexString());
@@ -80,6 +81,8 @@ export function handleWithdrawRequestManagerSet(
   withdrawRequestManager.lastUpdateBlockNumber = event.block.number;
   withdrawRequestManager.lastUpdateTimestamp = event.block.timestamp.toI32();
   withdrawRequestManager.lastUpdateTransactionHash = event.transaction.hash;
+
+  // TODO: all of these can go into the eth_call
   let w = IWithdrawRequestManager.bind(event.params.withdrawRequestManager);
   withdrawRequestManager.yieldToken = createToken(w.YIELD_TOKEN().toHexString());
   withdrawRequestManager.withdrawToken = createToken(w.WITHDRAW_TOKEN().toHexString());
