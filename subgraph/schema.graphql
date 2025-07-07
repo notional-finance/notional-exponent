@@ -236,25 +236,37 @@ type ExchangeRate @entity(immutable: true) {
 
 ### Configuration ###
 
-type VaultConfiguration @entity(immutable: false) {
+type Vault @entity(immutable: false) {
   "ID is the address of the vault"
   id: ID!
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
   lastUpdateBlockHash: Bytes!
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
-  "Address of the strategy vault"
-  vaultAddress: Bytes!
-  "Symbol of the vault"
-  symbol: String!
-  "Name of the vault"
-  name: String!
-  "Primary currency the vault borrows in"
-  primaryBorrowCurrency: Token!
+  "Token that the vault borrows in"
+  asset: Token!
+  "Token that the vault yields"
+  yieldToken: Token!
+  "Token that represents the vault"
+  vaultToken: Token!
+
+  "Fee rate of the vault"
+  feeRate: BigInt!
+
+  withdrawRequestManagers: [WithdrawRequestManager!]!
+  withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "vault")
 }
 
 type LendingRouter @entity(immutable: false) {
   id: ID!
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
   lastUpdateBlockHash: Bytes!
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
@@ -263,10 +275,22 @@ type LendingRouter @entity(immutable: false) {
 
 type WithdrawRequestManager @entity(immutable: false) {
   id: ID!
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
   lastUpdateBlockHash: Bytes!
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
+
+  yieldToken: Token!
+  withdrawToken: Token!
+  stakingToken: Token!
+
+  approvedVaults: [Vault!] @derivedFrom(field: "withdrawRequestManagers")
+  withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "withdrawRequestManager")
+  tokenizedWithdrawRequests: [TokenizedWithdrawRequest!] @derivedFrom(field: "withdrawRequestManager")
 }
 
 ### Balances ###
@@ -338,11 +362,38 @@ type BalanceSnapshot @entity(immutable: true) {
 }
 
 type WithdrawRequest @entity(immutable: false) {
-  "Account:Token ID"
+  "Withdraw Request Manager:Vault:Account"
   id: ID!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+
+  withdrawRequestManager: WithdrawRequestManager!
   account: Account!
-  token: Token!
-  amount: BigInt!
+  vault: Vault!
+
+  requestId: BigInt!
+  yieldTokenAmount: BigInt!
+  sharesAmount: BigInt!
+
+  tokenizedWithdrawRequest: TokenizedWithdrawRequest
+}
+
+type TokenizedWithdrawRequest @entity(immutable: false) {
+  "Withdraw Request Manager:Request ID"
+  id: ID!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+
+  withdrawRequestManager: WithdrawRequestManager!
+  totalYieldTokenAmount: BigInt!
+  totalWithdraw: BigInt!
+  finalized: Boolean!
+
+  withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "tokenizedWithdrawRequest")
 }
 
 type IncentiveSnapshot @entity(immutable: true) {
