@@ -51,3 +51,60 @@ dataSources:
         - event: WithdrawRequestManagerSet(indexed address,indexed address)
           handler: handleWithdrawRequestManagerSet
       file: ./src/address-registry.ts
+templates:
+  # - name: LendingRouter
+  #   kind: ethereum/contract
+  #   network: mainnet
+  #   source:
+  #     abi: ILendingRouter
+  #   mapping:
+  #     kind: ethereum/events
+  #     apiVersion: 0.0.9
+  #     language: wasm/assemblyscript
+  #     file: ./src/lending-router.ts
+  #     entities:
+  #       - LendingRouter
+  #     eventHandlers:
+  #       # TODO: add approval handler
+  - name: WithdrawRequestManager
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      abi: IWithdrawRequestManager
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/withdraw-request-manager.ts
+      abis:
+        - name: IWithdrawRequestManager
+          file: ./abis/IWithdrawRequestManager.json
+      entities:
+        - WithdrawRequestManager
+      eventHandlers:
+        - event: ApprovedVault(indexed address,indexed bool)
+          handler: handleApprovedVault
+        - event: InitiateWithdrawRequest(indexed address,indexed address,uint256,uint256,uint256)
+          handler: handleInitiateWithdrawRequest
+        - event: WithdrawRequestTokenized(indexed address,indexed address,indexed uint256,uint256)
+          handler: handleWithdrawRequestTokenized
+  - name: Vault
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      abi: IYieldStrategy
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/vault.ts
+      abis:
+        - name: IYieldStrategy
+          file: ./abis/IYieldStrategy.json
+        - name: IERC20Metadata
+          file: ./abis/IERC20Metadata.json
+      entities:
+        - Vault
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
