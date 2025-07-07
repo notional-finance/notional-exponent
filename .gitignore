@@ -3,6 +3,7 @@ cache
 coverage
 node_modules
 out
+subgraph/tests/.bin
 
 # files
 *.env
@@ -18,3 +19,4 @@ yarn.lock
 !broadcast
 broadcast/*
 broadcast/*/31337/
+

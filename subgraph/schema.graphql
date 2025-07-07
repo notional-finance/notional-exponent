@@ -243,7 +243,6 @@ type Vault @entity(immutable: false) {
   firstUpdateTimestamp: Int!
   firstUpdateTransactionHash: Bytes!
 
-  lastUpdateBlockHash: Bytes!
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
@@ -267,7 +266,6 @@ type LendingRouter @entity(immutable: false) {
   firstUpdateTimestamp: Int!
   firstUpdateTransactionHash: Bytes!
 
-  lastUpdateBlockHash: Bytes!
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
@@ -279,7 +277,6 @@ type WithdrawRequestManager @entity(immutable: false) {
   firstUpdateTimestamp: Int!
   firstUpdateTransactionHash: Bytes!
 
-  lastUpdateBlockHash: Bytes!
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
