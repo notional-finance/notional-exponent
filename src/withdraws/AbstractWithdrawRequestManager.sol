@@ -199,7 +199,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             s_withdraw.sharesAmount = (s_withdraw.sharesAmount - sharesAmount).toUint120();
         }
 
-        emit WithdrawRequestTokenized(_from, _to, requestId, sharesAmount);
+        emit WithdrawRequestTokenized(_from, _to, msg.sender, requestId, sharesAmount);
         return true;
     }
 

@@ -5,82 +5,106 @@ import {
   clearStore,
   beforeAll,
   afterAll,
-  createMockedFunction
+  createMockedFunction,
+  newMockEvent
 } from "matchstick-as/assembly/index"
 import { Address, BigInt, ethereum } from "@graphprotocol/graph-ts"
-import { handleAccountPositionCreated, handleLendingRouterSet, handleWhitelistedVault, handleWithdrawRequestManagerSet } from "../src/address-registry"
-import { createAccountPositionCreatedEvent, createLendingRouterSetEvent, createWhitelistedVaultEvent, createWithdrawRequestManagerSetEvent } from "./address-registry-utils"
+import { handleLendingRouterSet, handleWhitelistedVault, handleWithdrawRequestManagerSet } from "../src/address-registry"
+import { LendingRouterSet, WhitelistedVault, WithdrawRequestManagerSet } from "../generated/AddressRegistry/AddressRegistry"
 
 // Tests structure (matchstick-as >=0.5.0)
 // https://thegraph.com/docs/en/subgraphs/developing/creating/unit-testing-framework/#tests-structure
 
+export function createLendingRouterSetEvent(
+  lendingRouter: Address
+): LendingRouterSet {
+  let lendingRouterSetEvent = changetype<LendingRouterSet>(newMockEvent())
+
+  lendingRouterSetEvent.parameters = new Array()
+
+  lendingRouterSetEvent.parameters.push(
+    new ethereum.EventParam(
+      "lendingRouter",
+      ethereum.Value.fromAddress(lendingRouter)
+    )
+  )
+
+  return lendingRouterSetEvent
+}
+
+export function createWhitelistedVaultEvent(
+  vault: Address,
+  isWhitelisted: boolean
+): WhitelistedVault {
+  let whitelistedVaultEvent = changetype<WhitelistedVault>(newMockEvent())
+
+  whitelistedVaultEvent.parameters = new Array()
+
+  whitelistedVaultEvent.parameters.push(
+    new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault))
+  )
+  whitelistedVaultEvent.parameters.push(
+    new ethereum.EventParam(
+      "isWhitelisted",
+      ethereum.Value.fromBoolean(isWhitelisted)
+    )
+  )
+
+  return whitelistedVaultEvent
+}
+
+export function createWithdrawRequestManagerSetEvent(
+  yieldToken: Address,
+  withdrawRequestManager: Address
+): WithdrawRequestManagerSet {
+  let withdrawRequestManagerSetEvent =
+    changetype<WithdrawRequestManagerSet>(newMockEvent())
+
+  withdrawRequestManagerSetEvent.parameters = new Array()
+
+  withdrawRequestManagerSetEvent.parameters.push(
+    new ethereum.EventParam(
+      "yieldToken",
+      ethereum.Value.fromAddress(yieldToken)
+    )
+  )
+  withdrawRequestManagerSetEvent.parameters.push(
+    new ethereum.EventParam(
+      "withdrawRequestManager",
+      ethereum.Value.fromAddress(withdrawRequestManager)
+    )
+  )
+
+  return withdrawRequestManagerSetEvent
+}
+
+
 function assertTokenFields(token: string, name: string, symbol: string, tokenType: string): void {
-    assert.fieldEquals(
-      "Token",
-      token,
-      "name",
-      name
-    )
-    assert.fieldEquals(
-      "Token",
-      token,
-      "symbol",
-      symbol
-    )
-    assert.fieldEquals(
-      "Token",
-      token,
-      "decimals",
-      "18"
-    )
-    assert.fieldEquals(
-      "Token",
-      token,
-      "tokenType",
-      tokenType
-    )
-  }
-
-
-describe("Create account assertions", () => {
-  beforeAll(() => {
-    let account = Address.fromString(
-      "0x0000000000000000000000000000000000000001"
-    )
-    let vault = Address.fromString("0x0000000000000000000000000000000000000001")
-    let lendingRouter = Address.fromString(
-      "0x0000000000000000000000000000000000000001"
-    )
-    let newAccountPositionCreatedEvent = createAccountPositionCreatedEvent(
-      account,
-      vault,
-      lendingRouter
-    )
-    handleAccountPositionCreated(newAccountPositionCreatedEvent)
-  })
-
-  afterAll(() => {
-    clearStore()
-  })
-
-  // For more test scenarios, see:
-  // https://thegraph.com/docs/en/subgraphs/developing/creating/unit-testing-framework/#write-a-unit-test
-
-  test("Account created and stored", () => {
-    assert.entityCount("Account", 1)
-
-    // 0xa16081f360e3847006db660bae1c6d1b2e17ec2a is the default address used in newMockEvent() function
-    assert.fieldEquals(
-      "Account",
-      "0x0000000000000000000000000000000000000001",
-      "systemAccountType",
-      "None"
-    )
-
-    // More assert options:
-    // https://thegraph.com/docs/en/subgraphs/developing/creating/unit-testing-framework/#asserts
-  })
-})
+  assert.fieldEquals(
+    "Token",
+    token,
+    "name",
+    name
+  )
+  assert.fieldEquals(
+    "Token",
+    token,
+    "symbol",
+    symbol
+  )
+  assert.fieldEquals(
+    "Token",
+    token,
+    "decimals",
+    "18"
+  )
+  assert.fieldEquals(
+    "Token",
+    token,
+    "tokenType",
+    tokenType
+  )
+}
 
 describe("Whitelist lending router assertions", () => {
   beforeAll(() => {

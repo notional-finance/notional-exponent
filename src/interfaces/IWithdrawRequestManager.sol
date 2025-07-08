@@ -40,7 +40,8 @@ interface IWithdrawRequestManager {
     event WithdrawRequestTokenized(
         address indexed from,
         address indexed to,
-        uint256 indexed requestId,
+        address indexed vault,
+        uint256 requestId,
         uint256 sharesAmount
     );
 

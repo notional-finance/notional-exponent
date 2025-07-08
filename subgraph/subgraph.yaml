@@ -90,7 +90,7 @@ templates:
           handler: handleApprovedVault
         - event: InitiateWithdrawRequest(indexed address,indexed address,uint256,uint256,uint256)
           handler: handleInitiateWithdrawRequest
-        - event: WithdrawRequestTokenized(indexed address,indexed address,indexed uint256,uint256)
+        - event: WithdrawRequestTokenized(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleWithdrawRequestTokenized
   - name: Vault
     kind: ethereum/contract
