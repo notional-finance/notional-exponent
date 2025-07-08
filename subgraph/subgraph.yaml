@@ -52,20 +52,24 @@ dataSources:
           handler: handleWithdrawRequestManagerSet
       file: ./src/address-registry.ts
 templates:
-  # - name: LendingRouter
-  #   kind: ethereum/contract
-  #   network: mainnet
-  #   source:
-  #     abi: ILendingRouter
-  #   mapping:
-  #     kind: ethereum/events
-  #     apiVersion: 0.0.9
-  #     language: wasm/assemblyscript
-  #     file: ./src/lending-router.ts
-  #     entities:
-  #       - LendingRouter
-  #     eventHandlers:
-  #       # TODO: add approval handler
+  - name: LendingRouter
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      abi: ILendingRouter
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/lending-router.ts
+      abis:
+        - name: ILendingRouter
+          file: ./abis/ILendingRouter.json
+      entities:
+        - LendingRouter
+      # TODO: add approval handler
+      blockHandlers:
+        - handler: handleBlock
   - name: WithdrawRequestManager
     kind: ethereum/contract
     network: mainnet
