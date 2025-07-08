@@ -55,7 +55,7 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
 
   // Update the from address
   // TODO: we do not know the vault address here
-  let fromW = m.getWithdrawRequest(event.params.from);
+  // let fromW = m.getWithdrawRequest(event.params.from);
 
 
   twr.save();

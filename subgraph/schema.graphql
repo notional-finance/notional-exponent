@@ -52,8 +52,6 @@ type Token @entity(immutable: false) {
   precision: BigInt!
   "Only updated for Notional entities"
   totalSupply: BigInt
-  "Set to true for underlying tokens that have a transfer fee"
-  hasTransferFee: Boolean!
 
   "Maturities are only set for some token types"
   maturity: BigInt
@@ -245,6 +243,8 @@ type Vault @entity(immutable: false) {
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
+
+  isWhitelisted: Boolean!
   "Token that the vault borrows in"
   asset: Token!
   "Token that the vault yields"

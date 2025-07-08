@@ -8,8 +8,9 @@ import {
 import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy"
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager"
 import { LendingRouter, Vault, WithdrawRequestManager } from "../generated/schema"
-import { createToken } from "./entities/token"
+import { createERC20TokenAsset } from "./entities/token"
 import { createAccount } from "./entities/account"
+import { UNDERLYING, VAULT_SHARE } from "./constants"
 
 export function handleAccountPositionCleared(
   event: AccountPositionCleared
@@ -50,16 +51,22 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
     vault.firstUpdateTransactionHash = event.transaction.hash;
   }
 
+  vault.isWhitelisted = event.params.isWhitelisted;
   vault.lastUpdateBlockNumber = event.block.number;
   vault.lastUpdateTimestamp = event.block.timestamp.toI32();
   vault.lastUpdateTransactionHash = event.transaction.hash;
 
   let yieldStrategy = IYieldStrategy.bind(event.params.vault);
-  // TODO: all of these can go into the eth_call
   vault.feeRate = yieldStrategy.feeRate();
-  vault.yieldToken = createToken(yieldStrategy.yieldToken().toHexString());
-  vault.asset = createToken(yieldStrategy.asset().toHexString());
-  vault.vaultToken = createToken(event.params.vault.toHexString());
+  vault.yieldToken = createERC20TokenAsset(yieldStrategy.yieldToken(), event, UNDERLYING).id;
+  vault.asset = createERC20TokenAsset(yieldStrategy.asset(), event, UNDERLYING).id;
+
+  let vaultToken = createERC20TokenAsset(event.params.vault, event, VAULT_SHARE);
+  vault.vaultToken = vaultToken.id;
+  vaultToken.vaultAddress = event.params.vault;
+  vaultToken.underlying = vault.asset;
+  vaultToken.save();
+
   // These will be listed on approval
   vault.withdrawRequestManagers = [];
 
@@ -82,11 +89,10 @@ export function handleWithdrawRequestManagerSet(
   withdrawRequestManager.lastUpdateTimestamp = event.block.timestamp.toI32();
   withdrawRequestManager.lastUpdateTransactionHash = event.transaction.hash;
 
-  // TODO: all of these can go into the eth_call
   let w = IWithdrawRequestManager.bind(event.params.withdrawRequestManager);
-  withdrawRequestManager.yieldToken = createToken(w.YIELD_TOKEN().toHexString());
-  withdrawRequestManager.withdrawToken = createToken(w.WITHDRAW_TOKEN().toHexString());
-  withdrawRequestManager.stakingToken = createToken(w.STAKING_TOKEN().toHexString());
+  withdrawRequestManager.yieldToken = createERC20TokenAsset(w.YIELD_TOKEN(), event, UNDERLYING).id;
+  withdrawRequestManager.withdrawToken = createERC20TokenAsset(w.WITHDRAW_TOKEN(), event, UNDERLYING).id;
+  withdrawRequestManager.stakingToken = createERC20TokenAsset(w.STAKING_TOKEN(), event, UNDERLYING).id;
 
   withdrawRequestManager.save();
 }
