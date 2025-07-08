@@ -104,6 +104,8 @@ describe("Whitelist lending router assertions", () => {
       "id",
       "0x0000000000000000000000000000000000000001"
     )
+
+    assert.dataSourceExists("LendingRouter", "0x0000000000000000000000000000000000000001")
   })
 })
 
@@ -222,6 +224,8 @@ describe("Whitelist vault assertions", () => {
       "VAULT",
       "VaultShare"
     )
+
+    assert.dataSourceExists("Vault", "0x0000000000000000000000000000000000000001")
   })
 
   afterAll(() => {
@@ -314,5 +318,7 @@ describe("Whitelist withdraw request manager assertions", () => {
       "STAKING",
       "Underlying"
     )
+
+    assert.dataSourceExists("WithdrawRequestManager", "0x0000000000000000000000000000000000000001")
   })
 })

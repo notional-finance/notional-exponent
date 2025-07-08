@@ -11,6 +11,11 @@ import { LendingRouter, Vault, WithdrawRequestManager } from "../generated/schem
 import { createERC20TokenAsset } from "./entities/token"
 import { createAccount } from "./entities/account"
 import { UNDERLYING, VAULT_SHARE } from "./constants"
+import { 
+  Vault as VaultTemplate,
+  WithdrawRequestManager as WithdrawRequestManagerTemplate,
+  LendingRouter as LendingRouterTemplate
+} from "../generated/templates"
 
 export function handleAccountPositionCleared(
   event: AccountPositionCleared
@@ -39,6 +44,8 @@ export function handleLendingRouterSet(event: LendingRouterSet): void {
   lendingRouter.lastUpdateTimestamp = event.block.timestamp.toI32();
   lendingRouter.lastUpdateTransactionHash = event.transaction.hash;
   lendingRouter.save();
+
+  LendingRouterTemplate.create(event.params.lendingRouter);
 }
 
 export function handleWhitelistedVault(event: WhitelistedVault): void {
@@ -71,6 +78,8 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
   vault.withdrawRequestManagers = [];
 
   vault.save();
+
+  VaultTemplate.create(event.params.vault);
 }
 
 export function handleWithdrawRequestManagerSet(
@@ -95,6 +104,8 @@ export function handleWithdrawRequestManagerSet(
   withdrawRequestManager.stakingToken = createERC20TokenAsset(w.STAKING_TOKEN(), event, UNDERLYING).id;
 
   withdrawRequestManager.save();
+
+  WithdrawRequestManagerTemplate.create(event.params.withdrawRequestManager);
 }
 
 
