@@ -23,6 +23,14 @@ export function getTokenNameAndSymbol(erc20: IERC20Metadata): string[] {
   return [name, symbol];
 }
 
+export function getToken(id: string): Token {
+  let entity = Token.load(id);
+  if (entity == null) {
+    entity = new Token(id);
+  }
+  return entity as Token;
+}
+
 export function createERC20TokenAsset(
   tokenAddress: Address,
   event: ethereum.Event,
