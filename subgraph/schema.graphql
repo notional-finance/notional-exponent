@@ -308,6 +308,7 @@ type Balance @entity(immutable: false) {
   lastUpdateTransactionHash: Bytes!
   
   current: BalanceSnapshot!
+  withdrawRequest: WithdrawRequest @derivedFrom(field: "balance")
   snapshots: [BalanceSnapshot!] @derivedFrom(field: "balance")
 }
 
@@ -353,8 +354,6 @@ type BalanceSnapshot @entity(immutable: true) {
   "Snapshots of the secondary incentives"
   incentives: [IncentiveSnapshot!] @derivedFrom(field: "balanceSnapshot")
 
-  "Link to a withdraw request, if it exists"
-  withdrawRequest: WithdrawRequest
 }
 
 type WithdrawRequest @entity(immutable: false) {
@@ -365,14 +364,23 @@ type WithdrawRequest @entity(immutable: false) {
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
 
+  "Link to the withdraw request manager"
   withdrawRequestManager: WithdrawRequestManager!
+  "Link to the account that requested the withdraw"
   account: Account!
+  "Link to the vault that the withdraw request is for"
   vault: Vault!
+  "Link to the vault share balance that the withdraw request is for"
+  balance: Balance!
 
+  "Request identifier for the withdraw request"
   requestId: BigInt!
+  "Amount of yield tokens requested"
   yieldTokenAmount: BigInt!
+  "Amount of vault shares requested"
   sharesAmount: BigInt!
 
+  "Link to a tokenized withdraw request, if it exists"
   tokenizedWithdrawRequest: TokenizedWithdrawRequest
 }
 
@@ -384,9 +392,13 @@ type TokenizedWithdrawRequest @entity(immutable: false) {
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
 
+  "Link to the withdraw request manager"
   withdrawRequestManager: WithdrawRequestManager!
+  "Total amount of yield tokens requested"
   totalYieldTokenAmount: BigInt!
+  "Total amount of withdraw tokens requested"
   totalWithdraw: BigInt!
+  "True when finalized"
   finalized: Boolean!
 
   withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "tokenizedWithdrawRequest")

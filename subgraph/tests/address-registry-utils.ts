@@ -4,13 +4,10 @@ import {
   AccountPositionCleared,
   AccountPositionCreated,
   FeeReceiverTransferred,
-  LendingRouterSet,
   PauseAdminTransferred,
   PendingPauseAdminSet,
   PendingUpgradeAdminSet,
   UpgradeAdminTransferred,
-  WhitelistedVault,
-  WithdrawRequestManagerSet
 } from "../generated/AddressRegistry/AddressRegistry"
 
 export function createAccountPositionClearedEvent(
@@ -83,23 +80,6 @@ export function createFeeReceiverTransferredEvent(
   return feeReceiverTransferredEvent
 }
 
-export function createLendingRouterSetEvent(
-  lendingRouter: Address
-): LendingRouterSet {
-  let lendingRouterSetEvent = changetype<LendingRouterSet>(newMockEvent())
-
-  lendingRouterSetEvent.parameters = new Array()
-
-  lendingRouterSetEvent.parameters.push(
-    new ethereum.EventParam(
-      "lendingRouter",
-      ethereum.Value.fromAddress(lendingRouter)
-    )
-  )
-
-  return lendingRouterSetEvent
-}
-
 export function createPauseAdminTransferredEvent(
   newPauseAdmin: Address
 ): PauseAdminTransferred {
@@ -170,50 +150,4 @@ export function createUpgradeAdminTransferredEvent(
   )
 
   return upgradeAdminTransferredEvent
-}
-
-export function createWhitelistedVaultEvent(
-  vault: Address,
-  isWhitelisted: boolean
-): WhitelistedVault {
-  let whitelistedVaultEvent = changetype<WhitelistedVault>(newMockEvent())
-
-  whitelistedVaultEvent.parameters = new Array()
-
-  whitelistedVaultEvent.parameters.push(
-    new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault))
-  )
-  whitelistedVaultEvent.parameters.push(
-    new ethereum.EventParam(
-      "isWhitelisted",
-      ethereum.Value.fromBoolean(isWhitelisted)
-    )
-  )
-
-  return whitelistedVaultEvent
-}
-
-export function createWithdrawRequestManagerSetEvent(
-  yieldToken: Address,
-  withdrawRequestManager: Address
-): WithdrawRequestManagerSet {
-  let withdrawRequestManagerSetEvent =
-    changetype<WithdrawRequestManagerSet>(newMockEvent())
-
-  withdrawRequestManagerSetEvent.parameters = new Array()
-
-  withdrawRequestManagerSetEvent.parameters.push(
-    new ethereum.EventParam(
-      "yieldToken",
-      ethereum.Value.fromAddress(yieldToken)
-    )
-  )
-  withdrawRequestManagerSetEvent.parameters.push(
-    new ethereum.EventParam(
-      "withdrawRequestManager",
-      ethereum.Value.fromAddress(withdrawRequestManager)
-    )
-  )
-
-  return withdrawRequestManagerSetEvent
 }
