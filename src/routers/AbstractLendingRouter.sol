@@ -45,6 +45,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     function setApproval(address operator, bool approved) external override {
         if (operator == msg.sender) revert NotAuthorized(msg.sender, operator);
         s_isApproved[msg.sender][operator] = approved;
+        emit ApprovalUpdated(msg.sender, operator, approved);
     }
 
     /// @inheritdoc ILendingRouter
@@ -93,15 +94,19 @@ abstract contract AbstractLendingRouter is ILendingRouter {
             ERC20(asset).safeTransferFrom(msg.sender, address(this), depositAssetAmount);
         }
 
+        uint256 borrowShares;
+        uint256 vaultSharesReceived;
         if (borrowAmount > 0) {
             _flashBorrowAndEnter(
                 onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateFrom
             );
         } else {
-            _enterOrMigrate(onBehalf, vault, asset, depositAssetAmount, depositData, migrateFrom);
+            vaultSharesReceived = _enterOrMigrate(onBehalf, vault, asset, depositAssetAmount, depositData, migrateFrom);
         }
 
         ADDRESS_REGISTRY.setPosition(onBehalf, vault);
+
+        emit EnterPosition(onBehalf, vault, depositAssetAmount, borrowShares, vaultSharesReceived, migrateFrom != address(0));
     }
 
     /// @inheritdoc ILendingRouter
@@ -116,9 +121,11 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         _checkExit(onBehalf, vault);
 
         address asset = IYieldStrategy(vault).asset();
+        uint256 borrowSharesRepaid;
         if (0 < assetToRepay) {
-            _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
+            borrowSharesRepaid = _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
         } else {
+            // TODO: on migrate assetToRepay is always set to uint256.max so we can remove this call
             address migrateTo = _isMigrate(receiver) ? receiver : address(0);
             uint256 assetsWithdrawn = _redeemShares(onBehalf, vault, asset, migrateTo, sharesToRedeem, redeemData);
             if (0 < assetsWithdrawn) ERC20(asset).safeTransfer(receiver, assetsWithdrawn);
@@ -127,6 +134,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         if (balanceOfCollateral(onBehalf, vault) == 0) {
             ADDRESS_REGISTRY.clearPosition(onBehalf, vault);
         }
+
+        emit ExitPosition(onBehalf, vault, borrowSharesRepaid, sharesToRedeem);
     }
 
     /// @inheritdoc ILendingRouter
@@ -152,7 +161,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         IYieldStrategy(vault).preLiquidation(liquidator, liquidateAccount, sharesToLiquidate, balanceBefore);
 
         // After this call, address(this) will have the liquidated shares
-        sharesToLiquidator = _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);
+        uint256 borrowSharesRepaid;
+        (sharesToLiquidator, borrowSharesRepaid) = _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);
 
         // Transfers the shares to the liquidator from the lending router and does any post liquidation logic. The
         // current account is cleared in this method.
@@ -167,6 +177,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         // lending router. If they do create a new position on an insolvent account their old debt may
         // be applied to their new position.
         if (sharesToLiquidator == balanceBefore) ADDRESS_REGISTRY.clearPosition(liquidateAccount, vault);
+
+        emit LiquidatePosition(liquidator, liquidateAccount, borrowSharesRepaid, sharesToLiquidator);
     }
 
     /// @inheritdoc ILendingRouter
@@ -290,7 +302,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 borrowAmount,
         bytes memory depositData,
         address migrateFrom
-    ) internal virtual;
+    ) internal virtual returns (uint256 vaultSharesReceived, uint256 borrowShares);
 
     /// @dev Supplies collateral in the amount of shares received to the lending market
     function _supplyCollateral(
@@ -313,7 +325,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address liquidateAccount,
         uint256 sharesToLiquidate,
         uint256 debtToRepay
-    ) internal virtual returns (uint256 sharesToLiquidator);
+    ) internal virtual returns (uint256 sharesToLiquidator, uint256 borrowSharesRepaid);
 
     /// @dev Exits a position with a debt repayment
     function _exitWithRepay(
@@ -324,6 +336,6 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) internal virtual;
+    ) internal virtual returns (uint256 borrowSharesRepaid);
 
 }

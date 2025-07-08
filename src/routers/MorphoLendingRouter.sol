@@ -36,6 +36,8 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     using TokenUtils for ERC20;
 
     mapping(address vault => MorphoParams params) private s_morphoParams;
+    uint256 private transient t_vaultSharesReceived;
+    uint256 private transient t_borrowShares;
 
     function initializeMarket(address vault, address irm, uint256 lltv) external {
         require(ADDRESS_REGISTRY.upgradeAdmin() == msg.sender);
@@ -116,13 +118,18 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         uint256 borrowAmount,
         bytes memory depositData,
         address migrateFrom
-    ) internal override {
+    ) internal override returns (uint256 vaultSharesReceived, uint256 borrowShares) {
         // At this point we will flash borrow funds from the lending market and then
         // receive control in a different function on a callback.
         bytes memory flashLoanData = abi.encode(
             onBehalf, vault, asset, depositAssetAmount, depositData, migrateFrom
         );
         MORPHO.flashLoan(asset, borrowAmount, flashLoanData);
+
+        // These are only used to get these values back from the flash loan callback
+        // so that we can emit the event with the correct values
+        vaultSharesReceived = t_vaultSharesReceived;
+        borrowShares = t_borrowShares;
     }
 
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external override {
@@ -137,11 +144,13 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             address migrateFrom
         ) = abi.decode(data, (address, address, address, uint256, bytes, address));
 
-        _enterOrMigrate(onBehalf, vault, asset, assets + depositAssetAmount, depositData, migrateFrom);
+        t_vaultSharesReceived = _enterOrMigrate(
+            onBehalf, vault, asset, assets + depositAssetAmount, depositData, migrateFrom
+        );
 
         MarketParams memory m = marketParams(vault, asset);
         // Borrow the assets in order to repay the flash loan
-        MORPHO.borrow(m, assets, 0, onBehalf, address(this));
+        (/* */, t_borrowShares) = MORPHO.borrow(m, assets, 0, onBehalf, address(this));
 
         // Allow for flash loan to be repaid
         ERC20(asset).checkApprove(address(MORPHO), assets);
@@ -182,14 +191,12 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) internal override {
-        MarketParams memory m = marketParams(vault, asset);
-
+    ) internal override returns (uint256) {
         uint256 sharesToRepay;
         if (assetToRepay == type(uint256).max) {
             // If assetToRepay is uint256.max then get the morpho borrow shares amount to
             // get a full exit.
-            sharesToRepay = MORPHO.position(morphoId(m), onBehalf).borrowShares;
+            sharesToRepay = balanceOfBorrowShares(onBehalf, vault);
             assetToRepay = 0;
         }
 
@@ -198,7 +205,19 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         );
 
         // Will trigger a callback to onMorphoRepay
-        MORPHO.repay(m, assetToRepay, sharesToRepay, onBehalf, repayData);
+        return _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
+    }
+
+    function _repay(
+        address vault,
+        address asset,
+        uint256 assetToRepay,
+        uint256 sharesToRepay,
+        address onBehalf,
+        bytes memory repayData
+    ) internal returns (uint256 borrowSharesRepaid) {
+        MarketParams memory m = marketParams(vault, asset);
+        (/* */, borrowSharesRepaid) = MORPHO.repay(m, assetToRepay, sharesToRepay, onBehalf, repayData);
     }
 
     function onMorphoRepay(uint256 assetToRepay, bytes calldata data) external override {
@@ -247,11 +266,14 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address liquidateAccount,
         uint256 sharesToLiquidate,
         uint256 debtToRepay
-    ) internal override returns (uint256 sharesToLiquidator) {
+    ) internal override returns (uint256 sharesToLiquidator, uint256 borrowSharesRepaid) {
         MarketParams memory m = marketParams(vault);
+        uint256 borrowSharesBefore = balanceOfBorrowShares(liquidateAccount, vault);
+        // This does not return borrow shares repaid so we have to calculate it manually
         (sharesToLiquidator, /* */) = MORPHO.liquidate(
             m, liquidateAccount, sharesToLiquidate, debtToRepay, abi.encode(m.loanToken, liquidator)
         );
+        borrowSharesRepaid = borrowSharesBefore - balanceOfBorrowShares(liquidateAccount, vault);
     }
 
     function onMorphoLiquidate(uint256 repaidAssets, bytes calldata data) external override {
@@ -265,6 +287,11 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     function balanceOfCollateral(address account, address vault) public view override returns (uint256 collateralBalance) {
         MarketParams memory m = marketParams(vault);
         collateralBalance = MORPHO.position(morphoId(m), account).collateral;
+    }
+
+    function balanceOfBorrowShares(address account, address vault) public view override returns (uint256 borrowShares) {
+        MarketParams memory m = marketParams(vault);
+        borrowShares = MORPHO.position(morphoId(m), account).borrowShares;
     }
 
     function healthFactor(address borrower, address vault) public override returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {

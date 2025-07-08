@@ -8,6 +8,31 @@ struct VaultPosition {
 
 interface ILendingRouter {
 
+    event ApprovalUpdated(address indexed user, address indexed operator, bool approved);
+
+    event EnterPosition(
+        address indexed user,
+        address indexed vault,
+        uint256 depositAssets,
+        uint256 borrowShares,
+        uint256 vaultSharesReceived,
+        bool wasMigrated
+    );
+
+    event ExitPosition(
+        address indexed user,
+        address indexed vault,
+        uint256 borrowSharesRepaid,
+        uint256 vaultSharesBurned
+    );
+
+    event LiquidatePosition(
+        address indexed liquidator,
+        address indexed user,
+        uint256 borrowSharesRepaid,
+        uint256 vaultSharesToLiquidator
+    );
+
     /**
      * @dev Authorizes an address to manage a user's position.
      *
@@ -115,6 +140,16 @@ interface ILendingRouter {
      * @return collateralBalance The balance of collateral.
      */
     function balanceOfCollateral(address account, address vault) external view returns (uint256 collateralBalance);
+
+    /**
+     * @dev Returns the balance of borrow shares of a user for a given vault.
+     *
+     * @param account The address of the account.
+     * @param vault The address of the vault.
+     *
+     * @return borrowShares The balance of borrow shares.
+     */
+    function balanceOfBorrowShares(address account, address vault) external view returns (uint256 borrowShares);
 
     /**
      * @dev Initiates a withdraw request for a user for a given vault.
