@@ -23,6 +23,10 @@ import {IMorphoLiquidateCallback, IMorphoFlashLoanCallback} from "./Morpho/IMorp
 interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     event VaultCreated(address indexed vault);
 
+    // These can be emitted by the reward manager
+    event VaultRewardTransfer(address indexed token, address indexed account, uint256 amount);
+    event VaultRewardUpdate(address indexed rewardToken, uint128 emissionRatePerYear, uint32 endTime);
+
     /**
      * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
      *

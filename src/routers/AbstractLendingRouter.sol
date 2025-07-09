@@ -122,20 +122,21 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         address asset = IYieldStrategy(vault).asset();
         uint256 borrowSharesRepaid;
+        uint256 profitsWithdrawn;
         if (0 < assetToRepay) {
-            borrowSharesRepaid = _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
+            (borrowSharesRepaid, profitsWithdrawn) = _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
         } else {
             // TODO: on migrate assetToRepay is always set to uint256.max so we can remove this call
             address migrateTo = _isMigrate(receiver) ? receiver : address(0);
-            uint256 assetsWithdrawn = _redeemShares(onBehalf, vault, asset, migrateTo, sharesToRedeem, redeemData);
-            if (0 < assetsWithdrawn) ERC20(asset).safeTransfer(receiver, assetsWithdrawn);
+            profitsWithdrawn = _redeemShares(onBehalf, vault, asset, migrateTo, sharesToRedeem, redeemData);
+            if (0 < profitsWithdrawn) ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
         }
 
         if (balanceOfCollateral(onBehalf, vault) == 0) {
             ADDRESS_REGISTRY.clearPosition(onBehalf, vault);
         }
 
-        emit ExitPosition(onBehalf, vault, borrowSharesRepaid, sharesToRedeem);
+        emit ExitPosition(onBehalf, vault, borrowSharesRepaid, sharesToRedeem, profitsWithdrawn);
     }
 
     /// @inheritdoc ILendingRouter
@@ -178,7 +179,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         // be applied to their new position.
         if (sharesToLiquidator == balanceBefore) ADDRESS_REGISTRY.clearPosition(liquidateAccount, vault);
 
-        emit LiquidatePosition(liquidator, liquidateAccount, borrowSharesRepaid, sharesToLiquidator);
+        emit LiquidatePosition(liquidator, liquidateAccount, vault, borrowSharesRepaid, sharesToLiquidator);
     }
 
     /// @inheritdoc ILendingRouter
@@ -335,7 +336,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address receiver,
         uint256 sharesToRedeem,
         uint256 assetToRepay,
-        bytes calldata redeemData
-    ) internal virtual returns (uint256 borrowSharesRepaid);
+        bytes memory redeemData
+    ) internal virtual returns (uint256 borrowSharesRepaid, uint256 profitsWithdrawn);
 
 }

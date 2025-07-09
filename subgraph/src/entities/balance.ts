@@ -1,6 +1,6 @@
 import { ethereum, BigInt, log, Address } from "@graphprotocol/graph-ts";
-import { Account, Balance, BalanceSnapshot, Token } from "../../generated/schema";
-import { VAULT_DEBT, VAULT_SHARE, ZERO_ADDRESS } from "../constants";
+import { Account, Balance, BalanceSnapshot, ProfitLossLineItem, Token } from "../../generated/schema";
+import { DEFAULT_PRECISION, VAULT_DEBT, VAULT_SHARE, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/templates/LendingRouter/ILendingRouter";
 import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
 
@@ -13,15 +13,13 @@ export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): Bal
     snapshot.balance = balance.id;
     snapshot.blockNumber = event.block.number;
     snapshot.timestamp = event.block.timestamp.toI32();
-    snapshot.transaction = event.transaction.hash.toHexString();
+    snapshot.transactionHash = event.transaction.hash;
 
     // These features are calculated at each update to the snapshot
     snapshot.currentBalance = BigInt.zero();
     snapshot.previousBalance = BigInt.zero();
     snapshot.adjustedCostBasis = BigInt.zero();
     snapshot.currentProfitAndLossAtSnapshot = BigInt.zero();
-    snapshot.totalProfitAndLossAtSnapshot = BigInt.zero();
-    snapshot.totalILAndFeesAtSnapshot = BigInt.zero();
     snapshot.totalInterestAccrualAtSnapshot = BigInt.zero();
     snapshot._accumulatedBalance = BigInt.zero();
     snapshot._accumulatedCostRealized = BigInt.zero();
@@ -35,13 +33,11 @@ export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): Bal
         log.error("Previous snapshot not found", []);
       } else if (prevSnapshot.currentBalance.isZero()) {
         // Reset these to zero if the previous balance is zero
-        snapshot.totalILAndFeesAtSnapshot = BigInt.zero();
         snapshot._accumulatedBalance = BigInt.zero();
         snapshot._accumulatedCostRealized = BigInt.zero();
         snapshot._lastInterestAccumulator = BigInt.zero();
         snapshot.impliedFixedRate = null;
       } else {
-        snapshot.totalILAndFeesAtSnapshot = prevSnapshot.totalILAndFeesAtSnapshot;
         snapshot._accumulatedBalance = prevSnapshot._accumulatedBalance;
         snapshot._accumulatedCostRealized = prevSnapshot._accumulatedCostRealized;
         snapshot._lastInterestAccumulator = prevSnapshot._lastInterestAccumulator;
@@ -50,7 +46,6 @@ export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): Bal
 
       if (prevSnapshot) {
         // These values are always copied from the previous snapshot
-        snapshot.totalProfitAndLossAtSnapshot = prevSnapshot.totalProfitAndLossAtSnapshot;
         snapshot.previousBalance = prevSnapshot.currentBalance;
         snapshot.adjustedCostBasis = prevSnapshot.adjustedCostBasis;
         snapshot.previousSnapshot = prevSnapshot.id;
@@ -84,12 +79,55 @@ export function getBalance(account: Account, token: Token, event: ethereum.Event
   return entity as Balance;
 }
 
-function _saveBalance(balance: Balance, snapshot: BalanceSnapshot): void {
-  balance.save();
-  snapshot.save();
+export function setProfitLossLineItem(
+  account: Account,
+  token: Token,
+  underlyingToken: Token,
+  tokenAmount: BigInt,
+  underlyingAmountRealized: BigInt,
+  oraclePrice: BigInt,
+  lineItemType: string,
+  event: ethereum.Event
+): void {
+  let id = event.transaction.hash.toHex() + ":" +
+    event.logIndex.toString() + ":" + token.id;
+
+  let lineItem = new ProfitLossLineItem(id);
+  lineItem.blockNumber = event.block.number;
+  lineItem.timestamp = event.block.timestamp.toI32();
+  lineItem.transactionHash = event.transaction.hash;
+  lineItem.token = token.id;
+  lineItem.account = account.id;
+  lineItem.underlyingToken = underlyingToken.id;
+
+  lineItem.tokenAmount = tokenAmount;
+  lineItem.underlyingAmountRealized = underlyingAmountRealized;
+  // Oracle price for the underlying token
+  lineItem.underlyingAmountSpot = tokenAmount
+    .times(oraclePrice)
+    .times(underlyingToken.precision)
+    .div(token.precision)
+    .div(DEFAULT_PRECISION);
+  lineItem.spotPrice = oraclePrice;
+
+  if (tokenAmount.gt(BigInt.zero())) {
+    lineItem.realizedPrice = underlyingAmountRealized
+        .times(token.precision).div(tokenAmount);
+  } else {
+    lineItem.realizedPrice = BigInt.zero();
+  }
+
+  lineItem.lineItemType = lineItemType;
+
+  let snapshot = updateBalance(token, account, event.address, event);
+  lineItem.balanceSnapshot = snapshot.id;
+
+  lineItem.save();
+
+  updateSnapshotMetrics(token, snapshot, lineItem);
 }
 
-export function updateAccount(
+function updateBalance(
   token: Token,
   account: Account,
   lendingRouter: Address,
@@ -101,62 +139,102 @@ export function updateAccount(
 
   if (
     token.tokenType == VAULT_SHARE &&
-    token.vaultAddress != null
+    token.vaultAddress !== null
   ) {
     if (lendingRouter == ZERO_ADDRESS) {
       // Get the balance using the native balance on the vault
-      let v = IERC20Metadata.bind(token.vaultAddress);
+      let v = IERC20Metadata.bind(token.vaultAddress as Address);
       snapshot.currentBalance = v.balanceOf(accountAddress);
     } else {
       let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfCollateral(accountAddress, token.vaultAddress);
+      snapshot.currentBalance = l.balanceOfCollateral(accountAddress, token.vaultAddress as Address);
     }
-  } else if (token.tokenType == VAULT_DEBT && token.vaultAddress != null) {
+  } else if (token.tokenType == VAULT_DEBT && token.vaultAddress !== null) {
     if (lendingRouter == ZERO_ADDRESS) {
       snapshot.currentBalance = BigInt.zero();
     } else {
       let l = ILendingRouter.bind(lendingRouter);
-      // TODO: this is not the share value....
-      snapshot.currentBalance = l.healthFactor(accountAddress, token.vaultAddress).getBorrowed();
+      snapshot.currentBalance = l.balanceOfBorrowShares(accountAddress, token.vaultAddress as Address);
     }
   }
 
-  _saveBalance(balance, snapshot);
+  balance.save();
+  return snapshot;
+}
 
-  // TODO: need to update these factors:
-  // snapshot._accumulatedBalance = BigInt.zero();
-  //  = _accumulatedBalance + tokenAmount
+function updateSnapshotMetrics(
+  token: Token,
+  snapshot: BalanceSnapshot,
+  lineItem: ProfitLossLineItem
+): void {
+  // We use accumulated balance to calculate the inter-transaction balance
+  // in case there are multiple balance changes in the same transaction.
+  snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(lineItem.tokenAmount);
 
-  // snapshot._accumulatedCostRealized = BigInt.zero();
-  //  = _accumulatedCostRealized + underlyingAmountRealized
+  // This is the total realized cost of the balance in the underlying (i.e. asset token)
+  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(lineItem.underlyingAmountRealized);
 
-  // snapshot.adjustedCostBasis = BigInt.zero();
-  //  = _accumulatedCostRealized / _accumulatedBalance
+  // This is the average cost basis of the balance in the underlying token precision
+  snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized.times(token.precision).div(snapshot._accumulatedBalance);
 
-  // * Can be aggregate
-  // snapshot.currentProfitAndLossAtSnapshot = BigInt.zero();
-  //  =  (_accumulatedBalance * oraclePrice) - (adjustedCostBasis * _accumulatedBalance)
+  // This is the current profit and loss of the balance at the snapshot using
+  // the oracle price of the token balance.
+  // (_accumulatedBalance * oraclePrice) - _accumulatedCostRealized
+  snapshot.currentProfitAndLossAtSnapshot = snapshot._accumulatedBalance
+    .times(lineItem.spotPrice)
+    .div(DEFAULT_PRECISION) // oracle rate is in default precision
+    .minus(snapshot._accumulatedCostRealized);
 
-  // * Can be aggregate
-  // snapshot.totalProfitAndLossAtSnapshot = BigInt.zero();
-  //  = (_accumulatedBalance * oraclePrice) - _accumulatedCostRealized
+  if (token.tokenType == VAULT_SHARE) {
+    // TODO: Get real values here
+    let interestAccumulator = BigInt.zero();
+    let vaultFeeAccumulator = BigInt.zero();
 
-  // * Can be aggregate (maybe?)
-  // snapshot.totalInterestAccrualAtSnapshot = BigInt.zero();
-  //  += (latestRate - _lastInterestAccumulator) * currentBalance / prevBalance (vault share decrease)
-  //  += (latestRate - _lastInterestAccumulator) * prevBalance (vault share increase)
-  //  += _lastInterestAccumulator * (currentSnapshot.timestamp - previousSnapshot.timestamp) (fixed debt)
-  //  = currentProfitAndLossAtSnapshot (variable debt)
+    if (lineItem.tokenAmount.gt(BigInt.zero())) {
+      // vault share increase
+      snapshot.totalInterestAccrualAtSnapshot = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
+        .times(snapshot._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
+      snapshot.totalVaultFeesAtSnapshot = (vaultFeeAccumulator.minus(snapshot._lastVaultFeeAccumulator))
+        .times(snapshot._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
+    } else {
+      // We cannot have a vault share decrease without a previous snapshot
+      let prevSnapshot: BalanceSnapshot | null = null;
+      if (snapshot.previousSnapshot === null) log.error("Previous snapshot not found", []);
+      else {
+        prevSnapshot = BalanceSnapshot.load(snapshot.previousSnapshot as string);
+      }
+      if (prevSnapshot === null) log.error("Previous snapshot not found", []);
 
-  // * Can be aggregate (maybe?)
-  // snapshot.totalVaultFeesAtSnapshot = BigInt.zero();
-  //  += (latestRate - _lastInterestAccumulator) * currentBalance / prevBalance (vault share decrease)
-  //  += (latestRate - _lastInterestAccumulator) * prevBalance (vault share increase)
-  // (latestRate is the vault share to yield token rate)
+      // vault share decrease
+      snapshot.totalInterestAccrualAtSnapshot = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
+        .times(snapshot._accumulatedBalance)
+        .times(token.precision)
+        .div(prevSnapshot!._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
 
-  // snapshot._lastInterestAccumulator = BigInt.zero();
-  //   = lastOracleValue (vault shares)
-  //   = _lastInterestAccumulator + (impliedFixedRate  * underlyingAmountRealized / RATE_PRECISION) (fixed debt)
+      snapshot.totalVaultFeesAtSnapshot = (vaultFeeAccumulator.minus(snapshot._lastVaultFeeAccumulator))
+        .times(snapshot._accumulatedBalance)
+        .times(token.precision)
+        .div(prevSnapshot!._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
+    }
+
+    // set the new accumulators
+    snapshot._lastInterestAccumulator = interestAccumulator;
+    snapshot._lastVaultFeeAccumulator = vaultFeeAccumulator;
+  } else if (token.tokenType == VAULT_DEBT) {
+    if (token.maturity === null) {
+      // Variable debt
+      snapshot.totalInterestAccrualAtSnapshot = snapshot.currentProfitAndLossAtSnapshot;
+    } else {
+      // Fixed debt
+      //  += _lastInterestAccumulator * (currentSnapshot.timestamp - previousSnapshot.timestamp) (fixed debt)
+      // Set the new interest accumulator
+      //  = _lastInterestAccumulator + (impliedFixedRate  * underlyingAmountRealized / RATE_PRECISION) (fixed debt)
+    }
+  }
 
   // snapshot.impliedFixedRate = null
   //   = (prevImpliedFixedRate * _accumulatedBalance + tokenAmount * (impliedFixedRate - prevImpliedFixedRate))
@@ -168,7 +246,7 @@ export function updateAccount(
 
   // on vault share decrease apply this adjustment after the above line
   // adjustedClaimed = adjustedClaimed - (prevBalance - currentBalance) * adjustedClaimed / prevBalance
+  // fxAdjustedClaimed += adjustedClaimed * oracleRate
 
-  return snapshot;
+  snapshot.save();
 }
-

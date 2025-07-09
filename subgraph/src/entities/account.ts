@@ -1,7 +1,7 @@
 import { ethereum } from "@graphprotocol/graph-ts";
 import { Account } from "../../generated/schema";
 
-export function createAccount(id: string, event: ethereum.Event): void {
+export function loadAccount(id: string, event: ethereum.Event): Account {
   let account = Account.load(id);
   if (!account) {
     account = new Account(id);
@@ -16,4 +16,5 @@ export function createAccount(id: string, event: ethereum.Event): void {
   account.systemAccountType = 'None';
 
   account.save();
+  return account;
 }

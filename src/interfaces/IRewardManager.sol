@@ -32,8 +32,8 @@ struct RewardPoolStorage {
 /// of staked tokens.
 interface IRewardManager {
 
-    event VaultRewardTransfer(address token, address account, uint256 amount);
-    event VaultRewardUpdate(address rewardToken, uint128 emissionRatePerYear, uint32 endTime);
+    event VaultRewardTransfer(address indexed token, address indexed account, uint256 amount);
+    event VaultRewardUpdate(address indexed rewardToken, uint128 emissionRatePerYear, uint32 endTime);
 
     /// @notice Returns the current reward claim method and reward state
     /// @return rewardStates Array of vault reward states

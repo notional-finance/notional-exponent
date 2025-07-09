@@ -9,7 +9,7 @@ import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy"
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager"
 import { LendingRouter, Vault, WithdrawRequestManager } from "../generated/schema"
 import { createERC20TokenAsset } from "./entities/token"
-import { createAccount } from "./entities/account"
+import { loadAccount } from "./entities/account"
 import { UNDERLYING, VAULT_SHARE } from "./constants"
 import { 
   Vault as VaultTemplate,
@@ -27,7 +27,7 @@ export function handleAccountPositionCreated(
   event: AccountPositionCreated
 ): void {
   const id = event.params.account.toHexString();
-  createAccount(id, event);
+  loadAccount(id, event);
 }
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {

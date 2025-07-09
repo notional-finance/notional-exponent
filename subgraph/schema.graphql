@@ -20,10 +20,14 @@ enum TokenInterface {
   FIAT
 }
 
-enum TransferType {
-  Mint,
-  Burn,
-  Transfer
+enum LineItemType {
+  EnterPosition,
+  ExitPosition,
+  LiquidatePosition,
+  MigratePosition,
+  WithdrawRequestInitiated,
+  WithdrawRequestTokenized,
+  WithdrawRequestFinalized
 }
 
 type Token @entity(immutable: false) {
@@ -62,100 +66,29 @@ type Token @entity(immutable: false) {
   tokenAddress: Bytes!
 
   balanceOf: [Balance!] @derivedFrom(field: "token")
-  transfers: [Transfer!] @derivedFrom(field: "token")
   oracles: [Oracle!] @derivedFrom(field: "quote")
 }
 
-type Transfer @entity(immutable: true) {
-  "Transaction Hash:Log Index"
-  id: ID!
-  blockNumber: BigInt!
-  timestamp: Int!
-  transactionHash: Transaction!
-  logIndex: Int!
-
-  from: Account!
-  to: Account!
-  "Operator is logged for ERC1155 transfer events"
-  operator: Account
-  "Categorizes the transfer as a mint, burn or transfer"
-  transferType: TransferType!
-  fromSystemAccount: SystemAccount!
-  toSystemAccount: SystemAccount!
-
-  value: BigInt!
-  "Value of the transfer in underlying terms at the time of transfer"
-  valueInUnderlying: BigInt
-
-  "Link to the token entity for this transfer"
-  token: Token!
-  tokenType: TokenType!
-  underlying: Token!
-  "Only set for some transfer types"
-  maturity: BigInt
-}
-
-type TransferBundle @entity(immutable: true) {
-  "Transaction Hash:Start Log Index:End Log Index:Bundle Name"
-  id: ID!
-  blockNumber: BigInt!
-  timestamp: Int!
-  transactionHash: Transaction!
-
-  bundleName: String!
-  startLogIndex: Int!
-  endLogIndex: Int!
-  transfers: [Transfer!]!
-
-  profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "bundle")
-}
-
 type ProfitLossLineItem @entity(immutable: true) {
-  "Bundle ID:Index"
-  id: ID!
-  blockNumber: BigInt!
-  timestamp: Int!
-  transactionHash: Transaction!
-
-  bundle: TransferBundle!
-  balanceSnapshot: BalanceSnapshot!
-
-  account: Account!
-  tokenAmount: BigInt!
-  token: Token!
-
-  underlyingAmountRealized: BigInt!
-  underlyingAmountSpot: BigInt!
-  underlyingToken: Token!
-
-  realizedPrice: BigInt!
-  spotPrice: BigInt!
-  impliedFixedRate: BigInt
-  "Set to true for line items that do not materially change the balance at the end of the txn"
-  isTransientLineItem: Boolean!
-
-  "Set to a value that points to the token that generated an incentive payment"
-  incentivizedToken: Token
-
-  "Set to the amount of fees paid, if applicable"
-  feesPaid: BigInt
-}
-
-type Transaction @entity(immutable: true) {
-  "Transaction Hash"
+  "Transaction Hash:Index:Token ID"
   id: ID!
   blockNumber: BigInt!
   timestamp: Int!
   transactionHash: Bytes!
 
-  _transfers: [Transfer!]!
-  _transferBundles: [TransferBundle!]!
-  "Internal index of the next index in _transfer to start scanning at"
-  _nextStartIndex: Int!
+  account: Account!
+  token: Token!
+  balanceSnapshot: BalanceSnapshot!
+  underlyingToken: Token!
+  lineItemType: LineItemType!
 
-  transfers: [Transfer!] @derivedFrom(field: "transactionHash")
-  transferBundles: [TransferBundle!] @derivedFrom(field: "transactionHash")
-  profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "transactionHash")
+  tokenAmount: BigInt!
+  underlyingAmountRealized: BigInt!
+  underlyingAmountSpot: BigInt!
+
+  realizedPrice: BigInt!
+  spotPrice: BigInt!
+  impliedFixedRate: BigInt
 }
 
 type Account @entity(immutable: false) {
@@ -173,9 +106,6 @@ type Account @entity(immutable: false) {
 
   "All current balances linked to this account"
   balances: [Balance!] @derivedFrom(field: "account")
-  "All historical token transfers linked to this account"
-  transfersFrom: [Transfer!] @derivedFrom(field: "from")
-  transfersTo: [Transfer!] @derivedFrom(field: "to")
   profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "account")
 }
 
@@ -204,8 +134,7 @@ type Oracle @entity(immutable: false) {
 
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
-  "Some oracles are updated via block handlers and do not have a txn hash for updates"
-  lastUpdateTransaction: Transaction
+  lastUpdateTransactionHash: Bytes
 
   base: Token!
   quote: Token!
@@ -317,7 +246,7 @@ type BalanceSnapshot @entity(immutable: true) {
   id: ID!
   blockNumber: BigInt!
   timestamp: Int!
-  transaction: Transaction!
+  transactionHash: Bytes!
 
   "Link to previous snapshot, if it exists"
   previousSnapshot: BalanceSnapshot
@@ -334,12 +263,10 @@ type BalanceSnapshot @entity(immutable: true) {
   adjustedCostBasis: BigInt!
   "Current profit and loss at the snapshot"
   currentProfitAndLossAtSnapshot: BigInt!
-  "Total profit or loss at the snapshot since balance inception"
-  totalProfitAndLossAtSnapshot: BigInt!
-  "Portion of the PnL due to market movements in price"
-  totalILAndFeesAtSnapshot: BigInt!
   "Portion of the PnL due to interest accrual"
   totalInterestAccrualAtSnapshot: BigInt!
+  "Portion of the PnL due to fees"
+  totalVaultFeesAtSnapshot: BigInt!
   "Implied Fixed Rate for fCash balances"
   impliedFixedRate: BigInt
   
@@ -349,6 +276,8 @@ type BalanceSnapshot @entity(immutable: true) {
   _accumulatedCostRealized: BigInt!
   "Internal interest accumulator"
   _lastInterestAccumulator: BigInt!
+  "Internal vault fee accumulator"
+  _lastVaultFeeAccumulator: BigInt!
 
   profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "balanceSnapshot")
   "Snapshots of the secondary incentives"
@@ -409,7 +338,7 @@ type IncentiveSnapshot @entity(immutable: true) {
   id: ID!
   blockNumber: BigInt!
   timestamp: Int!
-  transaction: Transaction!
+  transactionHash: Bytes!
 
   "Link back to the balance snapshot for this secondary incentive"
   balanceSnapshot: BalanceSnapshot!

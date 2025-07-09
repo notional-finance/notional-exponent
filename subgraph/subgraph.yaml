@@ -65,11 +65,19 @@ templates:
       abis:
         - name: ILendingRouter
           file: ./abis/ILendingRouter.json
+        - name: IYieldStrategy
+          file: ./abis/IYieldStrategy.json
+        - name: IERC20Metadata
+          file: ./abis/IERC20Metadata.json
       entities:
         - LendingRouter
-      # TODO: add approval handler
-      blockHandlers:
-        - handler: handleBlock
+      eventHandlers:
+        - event: EnterPosition(indexed address,indexed address,uint256,uint256,uint256,bool)
+          handler: handleEnterPosition
+        - event: ExitPosition(indexed address,indexed address,uint256,uint256,uint256)
+          handler: handleExitPosition
+        - event: LiquidatePosition(indexed address,indexed address,indexed address,uint256,uint256)
+          handler: handleLiquidatePosition
   - name: WithdrawRequestManager
     kind: ethereum/contract
     network: mainnet
