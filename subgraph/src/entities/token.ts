@@ -73,3 +73,32 @@ export function createERC20TokenAsset(
 
   return token;
 }
+
+export function getBorrowShare(vault: Address, lendingRouter: Address, event: ethereum.Event): Token {
+  let id = vault.toHexString() + "-" + lendingRouter.toHexString();
+  let borrowShare = Token.load(id);
+  if (borrowShare) return borrowShare;
+
+  // TODO: need to fill this out for real
+  borrowShare = new Token(id);
+  borrowShare.name = "Borrow Share";
+  borrowShare.symbol = "Borrow Share";
+  borrowShare.decimals = 18;
+  borrowShare.precision = BigInt.fromI32(10).pow(18);
+  borrowShare.tokenInterface = "ERC20";
+  borrowShare.tokenAddress = lendingRouter;
+  borrowShare.vaultAddress = vault;
+  borrowShare.tokenType = "VaultDebt";
+
+  borrowShare.lastUpdateBlockNumber = event.block.number;
+  borrowShare.lastUpdateTimestamp = event.block.timestamp.toI32();
+  borrowShare.lastUpdateTransactionHash = event.transaction.hash;
+
+  borrowShare.firstUpdateBlockNumber = event.block.number;
+  borrowShare.firstUpdateTimestamp = event.block.timestamp.toI32();
+  borrowShare.firstUpdateTransactionHash = event.transaction.hash;
+
+  borrowShare.save();
+
+  return borrowShare;
+}

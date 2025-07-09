@@ -23,12 +23,14 @@ interface ILendingRouter {
         address indexed user,
         address indexed vault,
         uint256 borrowSharesRepaid,
-        uint256 vaultSharesBurned
+        uint256 vaultSharesBurned,
+        uint256 profitsWithdrawn
     );
 
     event LiquidatePosition(
         address indexed liquidator,
         address indexed user,
+        address indexed vault,
         uint256 borrowSharesRepaid,
         uint256 vaultSharesToLiquidator
     );

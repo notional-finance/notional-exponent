@@ -38,6 +38,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     mapping(address vault => MorphoParams params) private s_morphoParams;
     uint256 private transient t_vaultSharesReceived;
     uint256 private transient t_borrowShares;
+    uint256 private transient t_profitsWithdrawn;
 
     function initializeMarket(address vault, address irm, uint256 lltv) external {
         require(ADDRESS_REGISTRY.upgradeAdmin() == msg.sender);
@@ -190,8 +191,8 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address receiver,
         uint256 sharesToRedeem,
         uint256 assetToRepay,
-        bytes calldata redeemData
-    ) internal override returns (uint256) {
+        bytes memory redeemData
+    ) internal override returns (uint256 borrowSharesRepaid, uint256 profitsWithdrawn) {
         uint256 sharesToRepay;
         if (assetToRepay == type(uint256).max) {
             // If assetToRepay is uint256.max then get the morpho borrow shares amount to
@@ -205,7 +206,8 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         );
 
         // Will trigger a callback to onMorphoRepay
-        return _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
+        borrowSharesRepaid = _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
+        profitsWithdrawn = t_profitsWithdrawn;
     }
 
     function _repay(
@@ -258,6 +260,9 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
 
         // Allow morpho to repay the debt
         ERC20(asset).checkApprove(address(MORPHO), assetToRepay);
+
+        // Set the transient variable to be used for later event emission
+        t_profitsWithdrawn = profitsWithdrawn;
     }
 
     function _liquidate(
