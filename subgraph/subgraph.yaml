@@ -74,10 +74,17 @@ templates:
       eventHandlers:
         - event: EnterPosition(indexed address,indexed address,uint256,uint256,uint256,bool)
           handler: handleEnterPosition
+          receipt: true
         - event: ExitPosition(indexed address,indexed address,uint256,uint256,uint256)
           handler: handleExitPosition
+          receipt: true
         - event: LiquidatePosition(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleLiquidatePosition
+          receipt: true
+      # callHandlers:
+      #   - function: claimRewards(address)
+      #     handler: handleClaimRewards
+      #     receipt: true
   - name: WithdrawRequestManager
     kind: ethereum/contract
     network: mainnet
@@ -118,5 +125,5 @@ templates:
       entities:
         - Vault
       eventHandlers:
-        - event: Transfer(indexed address,indexed address,uint256)
-          handler: handleTransfer
+        - event: VaultRewardUpdate(indexed address,uint128,uint32)
+          handler: handleVaultRewardUpdate
