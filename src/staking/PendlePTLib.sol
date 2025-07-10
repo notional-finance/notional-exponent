@@ -18,9 +18,12 @@ library PendlePTLib {
     using SafeERC20 for ERC20;
     using TokenUtils for ERC20;
 
+    event TradeExecuted(address indexed sellToken, address indexed buyToken, uint256 sellAmount, uint256 buyAmount);
+
     function swapExactTokenForPt(
         address tokenInSy,
         address market,
+        address pt,
         uint256 tokenInAmount,
         bytes calldata pendleData
     ) external {
@@ -36,7 +39,7 @@ library PendlePTLib {
         // empty data. This means that the vault must hold the underlying sy
         // token when we begin the execution.
 
-        PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
+        (uint256 netPtOut, , ) = PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
             address(this),
             address(market),
             data.minPtOut,
@@ -44,6 +47,7 @@ library PendlePTLib {
             tokenInput,
             data.limitOrderData
         );
+        emit TradeExecuted(tokenInSy, pt, tokenInAmount, netPtOut);
     }
 
     function swapExactPtForToken(
@@ -72,6 +76,7 @@ library PendlePTLib {
             tokenOutput,
             limitOrderData
         );
+        emit TradeExecuted(address(pt), tokenOutSy, netPtIn, netTokenOut);
     }
 
     function redeemExpiredPT(
@@ -85,5 +90,6 @@ library PendlePTLib {
         pt.transfer(address(yt), netPtIn);
         uint256 netSyOut = yt.redeemPY(address(sy));
         netTokenOut = sy.redeem(address(this), netSyOut, tokenOutSy, 0, true);
+        emit TradeExecuted(address(pt), tokenOutSy, netPtIn, netTokenOut);
     }
 }
