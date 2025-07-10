@@ -27,7 +27,8 @@ enum LineItemType {
   MigratePosition,
   WithdrawRequestInitiated,
   WithdrawRequestTokenized,
-  WithdrawRequestFinalized
+  WithdrawRequestFinalized,
+  TradeExecuted
 }
 
 type Token @entity(immutable: false) {
