@@ -28,7 +28,7 @@ enum LineItemType {
   WithdrawRequestInitiated,
   WithdrawRequestTokenized,
   WithdrawRequestFinalized,
-  TradeExecuted
+  TradeExecution
 }
 
 type Token @entity(immutable: false) {
@@ -346,11 +346,6 @@ type IncentiveSnapshot @entity(immutable: true) {
 
   "Reward token associated with this snapshot"
   rewardToken: Token!
-
-  "Current account incentive debt for reward"
-  currentIncentiveDebt: BigInt!
-  "Previous account incentive debt for reward"
-  previousIncentiveDebt: BigInt!
 
   "Total reward accrued over the lifetime of this balance"
   totalClaimed: BigInt!

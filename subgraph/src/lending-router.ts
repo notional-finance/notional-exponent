@@ -1,9 +1,10 @@
-import { BigInt } from "@graphprotocol/graph-ts";
+import { Address, BigInt, ByteArray, crypto, ethereum } from "@graphprotocol/graph-ts";
 import { EnterPosition, ExitPosition, ILendingRouter, LiquidatePosition } from "../generated/templates/LendingRouter/ILendingRouter";
-import { getBorrowShare, getToken } from "./entities/token";
+import { createERC20TokenAsset, getBorrowShare, getToken } from "./entities/token";
 import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrategy";
-import { setProfitLossLineItem } from "./entities/balance";
+import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
 import { loadAccount } from "./entities/account";
+import { Account } from "../generated/schema";
 
 export function handleEnterPosition(event: EnterPosition): void {
   let l = ILendingRouter.bind(event.address);
@@ -29,6 +30,7 @@ export function handleEnterPosition(event: EnterPosition): void {
 
   if (event.params.borrowShares.gt(BigInt.zero())) {
     let borrowShare = getBorrowShare(event.params.vault, event.address, event);
+    // TODO: get the real value here.
     let borrowSharePrice = BigInt.zero();
     let borrowAsset = event.params.borrowShares.times(borrowSharePrice).div(borrowShare.precision);
 
@@ -43,6 +45,8 @@ export function handleEnterPosition(event: EnterPosition): void {
       event
     );
   }
+
+  parseVaultEvents(account, event.params.vault, event);
 }
 
 export function handleExitPosition(event: ExitPosition): void {
@@ -54,6 +58,7 @@ export function handleExitPosition(event: ExitPosition): void {
 
   if (event.params.borrowSharesRepaid.gt(BigInt.zero())) {
     let borrowShare = getBorrowShare(event.params.vault, event.address, event);
+    // TODO: get the real value here.
     let borrowSharePrice = BigInt.zero();
     borrowAssetsRepaid = event.params.borrowSharesRepaid.times(borrowSharePrice).div(borrowShare.precision);
 
@@ -86,6 +91,8 @@ export function handleExitPosition(event: ExitPosition): void {
       event
     );
   }
+
+  parseVaultEvents(account, event.params.vault, event);
 }
 
 export function handleLiquidatePosition(event: LiquidatePosition): void {
@@ -94,9 +101,11 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
   let underlyingToken = getToken(v.asset().toHexString());
   let vaultShare = getToken(event.params.vault.toHexString());
   let account = loadAccount(event.params.user.toHexString(), event);
+  let liquidator = loadAccount(event.params.liquidator.toHexString(), event);
   let borrowShare = getBorrowShare(event.params.vault, event.address, event);
+  // TODO: get the real value here.
   let borrowSharePrice = BigInt.zero();
-  let vaultSharePrice = BigInt.zero();
+  let vaultSharePrice = v.price1(event.params.user);
   let borrowAssetsRepaid = event.params.borrowSharesRepaid.times(borrowSharePrice).div(borrowShare.precision);
 
   // Remove the borrow share from the account
@@ -125,7 +134,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
 
   // Add the vault shares to the liquidator
   setProfitLossLineItem(
-    account,
+    liquidator,
     vaultShare,
     underlyingToken,
     event.params.vaultSharesToLiquidator,
@@ -135,4 +144,44 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     event
   );
 
+  parseVaultEvents(account, event.params.vault, event);
+}
+
+
+function parseVaultEvents(account: Account, vaultAddress: Address, event: ethereum.Event): void {
+  if (event.receipt === null) return;
+
+  for (let i = 0; i < event.receipt!.logs.length; i++) {
+    let log = event.receipt!.logs[i];
+    if (log.address.toHexString() != vaultAddress.toHexString()) continue;
+
+    if (log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
+      // We do this here because we don't know the current lending router in order
+      // to get the proper balance snapshot so these need to be done after the balance
+      // snapshots are updated.
+      let rewardToken = Address.fromBytes(log.topics[1]);
+      let account = Address.fromBytes(log.topics[2]);
+      let amount = BigInt.fromByteArray(log.data);
+      createSnapshotForIncentives(
+        loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event
+      );
+    } else if (log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
+      // NOTE: the account is the one doing the trade here.
+      let sellToken = Address.fromBytes(log.topics[1]);
+      let buyToken = Address.fromBytes(log.topics[2]);
+      let sellAmount = BigInt.fromByteArray(log.data.slice(0, 32) as ByteArray);
+      let buyAmount = BigInt.fromByteArray(log.data.slice(32) as ByteArray);
+
+      createTradeExecutionLineItem(
+        account,
+        vaultAddress,
+        createERC20TokenAsset(sellToken, event, "VaultShare"),
+        createERC20TokenAsset(buyToken, event, "VaultShare"),
+        sellAmount,
+        buyAmount,
+        BigInt.fromI32(i),
+        event
+      );
+    }
+  }
 }

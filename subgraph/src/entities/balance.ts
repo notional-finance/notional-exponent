@@ -1,5 +1,5 @@
 import { ethereum, BigInt, log, Address } from "@graphprotocol/graph-ts";
-import { Account, Balance, BalanceSnapshot, ProfitLossLineItem, Token } from "../../generated/schema";
+import { Account, Balance, BalanceSnapshot, IncentiveSnapshot, ProfitLossLineItem, Token } from "../../generated/schema";
 import { DEFAULT_PRECISION, VAULT_DEBT, VAULT_SHARE, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/templates/LendingRouter/ILendingRouter";
 import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
@@ -80,6 +80,99 @@ export function getBalance(account: Account, token: Token, event: ethereum.Event
   return entity as Balance;
 }
 
+export function createSnapshotForIncentives(
+  account: Account,
+  vaultAddress: Address,
+  rewardToken: Address,
+  amount: BigInt,
+  event: ethereum.Event
+): void {
+  let balanceId = account.id + ":" + vaultAddress.toHexString();
+  let balance = Balance.load(balanceId);
+  if (balance === null) return;
+
+  let snapshot = getBalanceSnapshot(balance, event);
+  let id = snapshot.id + ":" + rewardToken.toHexString();
+
+  let incentiveSnapshot = new IncentiveSnapshot(id);
+  incentiveSnapshot.blockNumber = snapshot.blockNumber;
+  incentiveSnapshot.timestamp = snapshot.timestamp;
+  incentiveSnapshot.transactionHash = snapshot.transactionHash;
+  incentiveSnapshot.balanceSnapshot = snapshot.id;
+  incentiveSnapshot.rewardToken = rewardToken.toHexString();
+
+  incentiveSnapshot.totalClaimed = BigInt.zero();
+  incentiveSnapshot.adjustedClaimed = BigInt.zero();
+
+  if (snapshot.previousSnapshot) {
+    let prevSnapshot = IncentiveSnapshot.load(
+      (snapshot.previousSnapshot as string) + ":" + rewardToken.toHexString()
+    );
+
+    if (prevSnapshot) {
+      incentiveSnapshot.totalClaimed = prevSnapshot.totalClaimed;
+      incentiveSnapshot.adjustedClaimed = prevSnapshot.adjustedClaimed;
+    }
+  }
+
+  incentiveSnapshot.totalClaimed = incentiveSnapshot.totalClaimed.plus(amount);
+  incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.plus(amount);
+  if (snapshot.currentBalance.lt(snapshot.previousBalance)) {
+    // On vault share decrease apply this adjustment after the above line
+    // adjustedClaimed = adjustedClaimed - (prevBalance - currentBalance) * adjustedClaimed / prevBalance
+    incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.minus(
+      snapshot.previousBalance.minus(snapshot.currentBalance)
+      .times(incentiveSnapshot.adjustedClaimed).div(snapshot.previousBalance)
+    );
+  }
+
+  incentiveSnapshot.save();
+}
+
+export function createTradeExecutionLineItem(
+  account: Account,
+  vaultAddress: Address,
+  sellToken: Token,
+  buyToken: Token,
+  sellAmount: BigInt,
+  buyAmount: BigInt,
+  logIndex: BigInt,
+  event: ethereum.Event
+): void {
+  let id = event.transaction.hash.toHex() + ":" + logIndex.toString() + ":" + sellToken.id;
+
+  let lineItem = new ProfitLossLineItem(id);
+  lineItem.blockNumber = event.block.number;
+  lineItem.timestamp = event.block.timestamp.toI32();
+  lineItem.transactionHash = event.transaction.hash;
+  lineItem.token = sellToken.id;
+  lineItem.account = account.id;
+  lineItem.underlyingToken = buyToken.id;
+
+  lineItem.tokenAmount = sellAmount;
+  lineItem.underlyingAmountRealized = buyAmount;
+  // Spot prices are not known on chain for trades
+  lineItem.underlyingAmountSpot = BigInt.zero();
+  lineItem.spotPrice = BigInt.zero();
+
+  if (sellAmount.gt(BigInt.zero())) {
+    lineItem.realizedPrice = buyAmount
+        .times(sellToken.precision).div(sellAmount);
+  } else {
+    lineItem.realizedPrice = BigInt.zero();
+  }
+
+  lineItem.lineItemType = "TradeExecution";
+
+  let balanceId = account.id + ":" + vaultAddress.toHexString();
+  let balance = Balance.load(balanceId);
+  if (balance === null) return;
+
+  let snapshot = getBalanceSnapshot(balance, event);
+  lineItem.balanceSnapshot = snapshot.id;
+  lineItem.save();
+}
+
 export function setProfitLossLineItem(
   account: Account,
   token: Token,
@@ -126,6 +219,7 @@ export function setProfitLossLineItem(
   lineItem.save();
 
   updateSnapshotMetrics(token, snapshot, lineItem);
+  snapshot.save();
 }
 
 function updateBalance(
@@ -160,6 +254,8 @@ function updateBalance(
   }
 
   balance.save();
+  snapshot.save();
+
   return snapshot;
 }
 
@@ -190,6 +286,13 @@ function updateSnapshotMetrics(
     let v = IYieldStrategy.bind(token.vaultAddress as Address);
 
     // This is the value of one vault share in the underlying token.
+    // the problem is that this includes both interest accrued as well as some
+    // aspects of mark to market pnl.
+    // For staking tokens we use the withdraw request manager to get the exchange rate
+    // For Pendle PT we use the PT accounting asset to get the exchange rate and the
+    // token in amount to set the implied fixed rate
+    // For LP tokens we just default to convertToAssets to get the interest accrual but
+    // we will need to do it some other way off chain.
     let interestAccumulator = v.convertToAssets(DEFAULT_PRECISION);
 
     // This is the number of yield tokens per vault share, it is decreasing over time.
@@ -208,6 +311,7 @@ function updateSnapshotMetrics(
     let interestAccrued: BigInt;
     let vaultFeesAccrued: BigInt;
     if (lineItem.tokenAmount.gt(BigInt.zero())) {
+      // TODO: this should be done on the previous balance
       // vault share increase
       interestAccrued = interestAccumulator.minus(snapshot._lastInterestAccumulator)
           .times(snapshot._accumulatedBalance)
@@ -223,6 +327,10 @@ function updateSnapshotMetrics(
         prevSnapshot = BalanceSnapshot.load(snapshot.previousSnapshot as string);
       }
       if (prevSnapshot === null) log.error("Previous snapshot not found", []);
+      // TODO: the entire interest accrual should be proportionally decreased
+      // TODO: on withdraw request set the interest and vault fee accrual to zero but we
+      // still need to decrease the total interest accrual proportionally to the 
+      // decrease in the balance.
 
       // vault share decrease
       interestAccrued = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
@@ -261,13 +369,4 @@ function updateSnapshotMetrics(
   //   = (prevImpliedFixedRate * _accumulatedBalance + tokenAmount * (impliedFixedRate - prevImpliedFixedRate))
   //      / _accumulatedBalance
 
-  // snapshot.incentiveSnapshots = []
-  // totalClaimed += incentivesClaimed
-  // adjustedClaimed += incentivesClaimed (vault share increase)
-
-  // on vault share decrease apply this adjustment after the above line
-  // adjustedClaimed = adjustedClaimed - (prevBalance - currentBalance) * adjustedClaimed / prevBalance
-  // fxAdjustedClaimed += adjustedClaimed * oracleRate
-
-  snapshot.save();
 }

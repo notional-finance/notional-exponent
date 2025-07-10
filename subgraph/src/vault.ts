@@ -1,4 +1,7 @@
-import { Transfer } from "../generated/templates/Vault/IYieldStrategy";
+import { VaultRewardUpdate } from "../generated/templates/Vault/IYieldStrategy";
+import { UNDERLYING } from "./constants";
+import { createERC20TokenAsset } from "./entities/token";
 
-export function handleTransfer(event: Transfer): void {
+export function handleVaultRewardUpdate(event: VaultRewardUpdate): void {
+  createERC20TokenAsset(event.params.rewardToken, event, UNDERLYING);
 }
