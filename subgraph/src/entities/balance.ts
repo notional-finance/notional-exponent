@@ -3,6 +3,7 @@ import { Account, Balance, BalanceSnapshot, ProfitLossLineItem, Token } from "..
 import { DEFAULT_PRECISION, VAULT_DEBT, VAULT_SHARE, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/templates/LendingRouter/ILendingRouter";
 import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
+import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
 
 export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): BalanceSnapshot {
   let id = balance.id + ":" + event.block.number.toString();
@@ -85,7 +86,7 @@ export function setProfitLossLineItem(
   underlyingToken: Token,
   tokenAmount: BigInt,
   underlyingAmountRealized: BigInt,
-  oraclePrice: BigInt,
+  spotPrice: BigInt,
   lineItemType: string,
   event: ethereum.Event
 ): void {
@@ -104,11 +105,11 @@ export function setProfitLossLineItem(
   lineItem.underlyingAmountRealized = underlyingAmountRealized;
   // Oracle price for the underlying token
   lineItem.underlyingAmountSpot = tokenAmount
-    .times(oraclePrice)
+    .times(spotPrice)
     .times(underlyingToken.precision)
     .div(token.precision)
     .div(DEFAULT_PRECISION);
-  lineItem.spotPrice = oraclePrice;
+  lineItem.spotPrice = spotPrice;
 
   if (tokenAmount.gt(BigInt.zero())) {
     lineItem.realizedPrice = underlyingAmountRealized
@@ -186,16 +187,32 @@ function updateSnapshotMetrics(
     .minus(snapshot._accumulatedCostRealized);
 
   if (token.tokenType == VAULT_SHARE) {
-    // TODO: Get real values here
-    let interestAccumulator = BigInt.zero();
-    let vaultFeeAccumulator = BigInt.zero();
+    let v = IYieldStrategy.bind(token.vaultAddress as Address);
 
+    // This is the value of one vault share in the underlying token.
+    let interestAccumulator = v.convertToAssets(DEFAULT_PRECISION);
+
+    // This is the number of yield tokens per vault share, it is decreasing over time.
+    let yieldTokensPerVaultShare = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+    // Converts the number of yield tokens paid in fees per vault share to a vault share
+    // basis so that we have a consistent value to compare to the previous snapshot.
+    let vaultSharesPaidInFees = v.try_convertYieldTokenToShares(
+      snapshot._lastVaultFeeAccumulator.minus(yieldTokensPerVaultShare)
+    );
+    let vaultFeeAccumulator = BigInt.zero();
+    if (!vaultSharesPaidInFees.reverted) {
+      // This can revert on zero yield token balance held
+      vaultFeeAccumulator = vaultSharesPaidInFees.value;
+    }
+
+    let interestAccrued: BigInt;
+    let vaultFeesAccrued: BigInt;
     if (lineItem.tokenAmount.gt(BigInt.zero())) {
       // vault share increase
-      snapshot.totalInterestAccrualAtSnapshot = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
-        .times(snapshot._accumulatedBalance)
-        .div(DEFAULT_PRECISION);
-      snapshot.totalVaultFeesAtSnapshot = (vaultFeeAccumulator.minus(snapshot._lastVaultFeeAccumulator))
+      interestAccrued = interestAccumulator.minus(snapshot._lastInterestAccumulator)
+          .times(snapshot._accumulatedBalance)
+          .div(DEFAULT_PRECISION);
+      vaultFeesAccrued = vaultFeeAccumulator
         .times(snapshot._accumulatedBalance)
         .div(DEFAULT_PRECISION);
     } else {
@@ -208,25 +225,29 @@ function updateSnapshotMetrics(
       if (prevSnapshot === null) log.error("Previous snapshot not found", []);
 
       // vault share decrease
-      snapshot.totalInterestAccrualAtSnapshot = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
+      interestAccrued = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
         .times(snapshot._accumulatedBalance)
         .times(token.precision)
         .div(prevSnapshot!._accumulatedBalance)
         .div(DEFAULT_PRECISION);
 
-      snapshot.totalVaultFeesAtSnapshot = (vaultFeeAccumulator.minus(snapshot._lastVaultFeeAccumulator))
+      vaultFeesAccrued = (vaultFeeAccumulator.minus(snapshot._lastVaultFeeAccumulator))
         .times(snapshot._accumulatedBalance)
         .times(token.precision)
         .div(prevSnapshot!._accumulatedBalance)
         .div(DEFAULT_PRECISION);
     }
 
-    // set the new accumulators
+    // This accumulator is in the underlying basis.
+    snapshot.totalInterestAccrualAtSnapshot = snapshot.totalInterestAccrualAtSnapshot.plus(interestAccrued);
+    // This accumulator is in a vault share basis.
+    snapshot.totalVaultFeesAtSnapshot = snapshot.totalVaultFeesAtSnapshot.plus(vaultFeesAccrued);
     snapshot._lastInterestAccumulator = interestAccumulator;
     snapshot._lastVaultFeeAccumulator = vaultFeeAccumulator;
   } else if (token.tokenType == VAULT_DEBT) {
     if (token.maturity === null) {
       // Variable debt
+      // This accumulator is in the underlying basis.
       snapshot.totalInterestAccrualAtSnapshot = snapshot.currentProfitAndLossAtSnapshot;
     } else {
       // Fixed debt
