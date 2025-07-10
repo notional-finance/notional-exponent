@@ -26,6 +26,7 @@ contract PendlePT is AbstractStakingStrategy {
     IPMarket public immutable MARKET;
     address public immutable TOKEN_OUT_SY;
 
+    // TODO: add a value for PT accounting asset
     address public immutable TOKEN_IN_SY;
     IStandardizedYield immutable SY;
     IPPrincipalToken immutable PT;
@@ -61,6 +62,7 @@ contract PendlePT is AbstractStakingStrategy {
         bytes memory data
     ) internal override {
         require(!PT.isExpired(), "Expired");
+        // TODO: need to handle WETH inside here somehow
 
         PendleDepositParams memory params = abi.decode(data, (PendleDepositParams));
         uint256 tokenInAmount;
@@ -83,7 +85,9 @@ contract PendlePT is AbstractStakingStrategy {
             tokenInAmount = assets;
         }
 
-        PendlePTLib.swapExactTokenForPt(TOKEN_IN_SY, address(MARKET), tokenInAmount, params.pendleData);
+        PendlePTLib.swapExactTokenForPt(
+            TOKEN_IN_SY, address(MARKET), address(PT), tokenInAmount, params.pendleData
+        );
     }
 
     /// @notice Handles PT redemption whether it is expired or not

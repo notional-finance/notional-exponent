@@ -364,6 +364,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
             IWithdrawRequestManager wrm = ADDRESS_REGISTRY.getWithdrawRequestManager(trade.buyToken);
             ERC20(trade.sellToken).checkApprove(address(wrm), trade.amount);
             amountBought = wrm.stakeTokens(trade.sellToken, trade.amount, trade.exchangeData);
+            emit TradeExecuted(trade.sellToken, trade.buyToken, trade.amount, amountBought);
+
             return (trade.amount, amountBought);
         } else {
             address implementation = nProxy(payable(address(TRADING_MODULE))).getImplementation();

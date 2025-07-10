@@ -49,6 +49,7 @@ contract PendlePT_sUSDe is PendlePT {
 
         // Unwraps the sDAI to DAI
         uint256 daiAmount = sDAI.redeem(sDAIAmount, address(this), address(this));
+        emit TradeExecuted(address(sDAI), address(DAI), sDAIAmount, daiAmount);
         
         if (asset != address(DAI)) {
             Trade memory trade = Trade({

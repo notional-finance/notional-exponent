@@ -27,6 +27,9 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     event VaultRewardTransfer(address indexed token, address indexed account, uint256 amount);
     event VaultRewardUpdate(address indexed rewardToken, uint128 emissionRatePerYear, uint32 endTime);
 
+    // This is emitted by the trading module
+    event TradeExecuted(address indexed sellToken, address indexed buyToken, uint256 sellAmount, uint256 buyAmount);
+
     /**
      * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
      *
