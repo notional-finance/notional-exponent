@@ -7,7 +7,7 @@ import {
 } from "../generated/AddressRegistry/AddressRegistry"
 import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy"
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager"
-import { LendingRouter, Vault, WithdrawRequestManager } from "../generated/schema"
+import { LendingRouter, Oracle, Vault, WithdrawRequestManager } from "../generated/schema"
 import { createERC20TokenAsset } from "./entities/token"
 import { loadAccount } from "./entities/account"
 import { UNDERLYING, VAULT_SHARE } from "./constants"
@@ -16,19 +16,8 @@ import {
   WithdrawRequestManager as WithdrawRequestManagerTemplate,
   LendingRouter as LendingRouterTemplate
 } from "../generated/templates"
-
-export function handleAccountPositionCleared(
-  event: AccountPositionCleared
-): void { 
-  // TODO: delete balances
-}
-
-export function handleAccountPositionCreated(
-  event: AccountPositionCreated
-): void {
-  const id = event.params.account.toHexString();
-  loadAccount(id, event);
-}
+import { getOracleRegistry, updateChainlinkOracle, updateVaultOracles } from "./entities/oracles"
+import { Address, ethereum } from "@graphprotocol/graph-ts"
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {
   const id = event.params.lendingRouter.toHexString();
@@ -46,6 +35,12 @@ export function handleLendingRouterSet(event: LendingRouterSet): void {
   lendingRouter.save();
 
   LendingRouterTemplate.create(event.params.lendingRouter);
+
+  let r = getOracleRegistry()
+  let l = r.lendingRouters
+  l.push(event.params.lendingRouter);
+  r.lendingRouters = l;
+  r.save();
 }
 
 export function handleWhitelistedVault(event: WhitelistedVault): void {
@@ -80,6 +75,12 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
   vault.save();
 
   VaultTemplate.create(event.params.vault);
+
+  let r = getOracleRegistry()
+  let l = r.listedVaults
+  l.push(event.params.vault);
+  r.listedVaults = l;
+  r.save();
 }
 
 export function handleWithdrawRequestManagerSet(
@@ -106,8 +107,34 @@ export function handleWithdrawRequestManagerSet(
   withdrawRequestManager.save();
 
   WithdrawRequestManagerTemplate.create(event.params.withdrawRequestManager);
+
+  let r = getOracleRegistry()
+  let wrm = r.withdrawRequestManager
+  wrm.push(event.params.withdrawRequestManager);
+  r.withdrawRequestManager = wrm;
+  r.save();
 }
 
+export function handleBlockOracleUpdate(block: ethereum.Block): void {
+  let registry = getOracleRegistry();
+  registry.lastRefreshBlockNumber = block.number;
+  registry.lastRefreshTimestamp = block.timestamp.toI32();
+  registry.save();
+
+  // Aggregate the same oracle types with each other.
+  for (let i = 0; i < registry.chainlinkOracles.length; i++) {
+    let oracle = Oracle.load(registry.chainlinkOracles[i]) as Oracle;
+    updateChainlinkOracle(oracle, block);
+  }
+
+  for (let i = 0; i < registry.listedVaults.length; i++) {
+    updateVaultOracles(Address.fromBytes(registry.listedVaults[i]), block, registry.lendingRouters);
+  }
+
+  // for (let i = 0; i < registry.withdrawRequestManager.length; i++) {
+  //   updateWithdrawRequestManagerOracles(Address.fromBytes(registry.withdrawRequestManager[i]), block);
+  // }
+}
 
 // export function handleFeeReceiverTransferred(
 //   event: FeeReceiverTransferred

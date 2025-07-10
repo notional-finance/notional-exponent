@@ -127,6 +127,8 @@ type OracleRegistry @entity(immutable: false) {
   chainlinkOracles: [Oracle!]!
   "Vault Addresses"
   listedVaults: [Bytes!]!
+  lendingRouters: [Bytes!]!
+  withdrawRequestManager: [Bytes!]!
 }
 
 type Oracle @entity(immutable: false) {

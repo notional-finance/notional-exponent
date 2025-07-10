@@ -29,11 +29,15 @@ dataSources:
           file: ./abis/IERC20Metadata.json
         - name: IWithdrawRequestManager
           file: ./abis/IWithdrawRequestManager.json
+        - name: Aggregator
+          file: ./abis/AggregatorV2V3Interface.json
+        - name: ILendingRouter
+          file: ./abis/ILendingRouter.json
       eventHandlers:
-        - event: AccountPositionCleared(indexed address,indexed address,indexed address)
-          handler: handleAccountPositionCleared
-        - event: AccountPositionCreated(indexed address,indexed address,indexed address)
-          handler: handleAccountPositionCreated
+        # - event: AccountPositionCleared(indexed address,indexed address,indexed address)
+        #   handler: handleAccountPositionCleared
+        # - event: AccountPositionCreated(indexed address,indexed address,indexed address)
+        #   handler: handleAccountPositionCreated
         # - event: FeeReceiverTransferred(indexed address)
         #   handler: handleFeeReceiverTransferred
         - event: LendingRouterSet(indexed address)
@@ -50,6 +54,8 @@ dataSources:
           handler: handleWhitelistedVault
         - event: WithdrawRequestManagerSet(indexed address,indexed address)
           handler: handleWithdrawRequestManagerSet
+      blockHandlers:
+        - handler: handleBlockOracleUpdate
       file: ./src/address-registry.ts
 templates:
   - name: LendingRouter
