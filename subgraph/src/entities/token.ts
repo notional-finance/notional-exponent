@@ -2,6 +2,7 @@ import { Address, BigInt, ethereum } from "@graphprotocol/graph-ts";
 import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
 import { Token } from "../../generated/schema";
 import { ZERO_ADDRESS } from "../constants";
+import { ILendingRouter } from "../../generated/templates/LendingRouter/ILendingRouter";
 
 export function getTokenNameAndSymbol(erc20: IERC20Metadata): string[] {
   let nameResult = erc20.try_name();
@@ -75,17 +76,19 @@ export function createERC20TokenAsset(
 }
 
 export function getBorrowShare(vault: Address, lendingRouter: Address, event: ethereum.Event): Token {
-  let id = vault.toHexString() + "-" + lendingRouter.toHexString();
+  let id = vault.toHexString() + ":" + lendingRouter.toHexString();
   let borrowShare = Token.load(id);
   if (borrowShare) return borrowShare;
+  let l = ILendingRouter.bind(lendingRouter);
+  let name = l.name();
+  let decimals = l.borrowShareDecimals();
 
-  // TODO: need to fill this out for real
   borrowShare = new Token(id);
-  borrowShare.name = "Borrow Share";
-  borrowShare.symbol = "Borrow Share";
-  borrowShare.decimals = 18;
-  borrowShare.precision = BigInt.fromI32(10).pow(18);
-  borrowShare.tokenInterface = "ERC20";
+  borrowShare.name = name + ":" + vault.toHexString();
+  borrowShare.symbol = name + ":" + vault.toHexString();
+  borrowShare.decimals = decimals;
+  borrowShare.precision = BigInt.fromI32(10).pow(decimals as u8);
+  borrowShare.tokenInterface = "ERC1155";
   borrowShare.tokenAddress = lendingRouter;
   borrowShare.vaultAddress = vault;
   borrowShare.tokenType = "VaultDebt";

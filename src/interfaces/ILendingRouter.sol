@@ -36,6 +36,20 @@ interface ILendingRouter {
     );
 
     /**
+     * @dev Returns the name of the lending router.
+     *
+     * @return The name of the lending router.
+     */
+    function name() external view returns (string memory);
+
+    /**
+     * @dev Returns the decimals of the borrow share.
+     *
+     * @return The decimals of the borrow share.
+     */
+    function borrowShareDecimals() external view returns (uint8);
+
+    /**
      * @dev Authorizes an address to manage a user's position.
      *
      * @param operator The address to authorize.
@@ -152,6 +166,16 @@ interface ILendingRouter {
      * @return borrowShares The balance of borrow shares.
      */
     function balanceOfBorrowShares(address account, address vault) external view returns (uint256 borrowShares);
+
+    /**
+     * @dev Converts borrow shares to assets. Used off chain to calculate the value of borrow shares.
+     *
+     * @param vault The address of the vault.
+     * @param shares The amount of borrow shares to convert.
+     *
+     * @return assets The amount of assets the borrow shares are worth.
+     */
+    function convertBorrowSharesToAssets(address vault, uint256 shares) external returns (uint256 assets);
 
     /**
      * @dev Initiates a withdraw request for a user for a given vault.

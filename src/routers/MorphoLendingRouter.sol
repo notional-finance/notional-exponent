@@ -40,6 +40,14 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     uint256 private transient t_borrowShares;
     uint256 private transient t_profitsWithdrawn;
 
+    function name() external view override returns (string memory) {
+        return "Morpho";
+    }
+
+    function borrowShareDecimals() external view override returns (uint8) {
+        return 18;
+    }
+
     function initializeMarket(address vault, address irm, uint256 lltv) external {
         require(ADDRESS_REGISTRY.upgradeAdmin() == msg.sender);
         // Cannot override parameters once they are set
@@ -297,6 +305,13 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     function balanceOfBorrowShares(address account, address vault) public view override returns (uint256 borrowShares) {
         MarketParams memory m = marketParams(vault);
         borrowShares = MORPHO.position(morphoId(m), account).borrowShares;
+    }
+
+    function convertBorrowSharesToAssets(address vault, uint256 borrowShares) external override returns (uint256 assets) {
+        MarketParams memory m = marketParams(vault);
+        MORPHO.accrueInterest(m);
+        Market memory market = MORPHO.market(morphoId(m));
+        return (borrowShares * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
     }
 
     function healthFactor(address borrower, address vault) public override returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {

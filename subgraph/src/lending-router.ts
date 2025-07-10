@@ -4,7 +4,21 @@ import { createERC20TokenAsset, getBorrowShare, getToken } from "./entities/toke
 import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrategy";
 import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
 import { loadAccount } from "./entities/account";
-import { Account } from "../generated/schema";
+import { Account, Token } from "../generated/schema";
+import { DEFAULT_PRECISION } from "./constants";
+
+function getBorrowSharePrice(
+  borrowAssetsRepaid: BigInt,
+  borrowShares: BigInt,
+  underlyingToken: Token,
+  borrowShare: Token
+): BigInt {
+  return borrowShares
+    .times(DEFAULT_PRECISION)
+    .times(underlyingToken.precision)
+    .div(borrowAssetsRepaid)
+    .div(borrowShare.precision);
+}
 
 export function handleEnterPosition(event: EnterPosition): void {
   let l = ILendingRouter.bind(event.address);
@@ -54,14 +68,13 @@ export function handleExitPosition(event: ExitPosition): void {
   let v = IYieldStrategy.bind(event.params.vault);
   let underlyingToken = getToken(v.asset().toHexString());
   let account = loadAccount(event.params.user.toHexString(), event);
-  let borrowAssetsRepaid = BigInt.zero();
+  let borrowShare = getBorrowShare(event.params.vault, event.address, event);
+  let borrowAssetsRepaid = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowSharesRepaid)
+  let borrowSharePrice = getBorrowSharePrice(
+    borrowAssetsRepaid, event.params.borrowSharesRepaid, underlyingToken, borrowShare
+  )
 
   if (event.params.borrowSharesRepaid.gt(BigInt.zero())) {
-    let borrowShare = getBorrowShare(event.params.vault, event.address, event);
-    // TODO: get the real value here.
-    let borrowSharePrice = BigInt.zero();
-    borrowAssetsRepaid = event.params.borrowSharesRepaid.times(borrowSharePrice).div(borrowShare.precision);
-
     setProfitLossLineItem(
       account,
       borrowShare,
@@ -103,10 +116,12 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
   let account = loadAccount(event.params.user.toHexString(), event);
   let liquidator = loadAccount(event.params.liquidator.toHexString(), event);
   let borrowShare = getBorrowShare(event.params.vault, event.address, event);
-  // TODO: get the real value here.
-  let borrowSharePrice = BigInt.zero();
+
+  let borrowAssetsRepaid = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowSharesRepaid);
+  let borrowSharePrice = getBorrowSharePrice(
+    borrowAssetsRepaid, event.params.borrowSharesRepaid, underlyingToken, borrowShare
+  )
   let vaultSharePrice = v.price1(event.params.user);
-  let borrowAssetsRepaid = event.params.borrowSharesRepaid.times(borrowSharePrice).div(borrowShare.precision);
 
   // Remove the borrow share from the account
   setProfitLossLineItem(
