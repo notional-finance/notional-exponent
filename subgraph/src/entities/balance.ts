@@ -264,23 +264,6 @@ function updateSnapshotMetrics(
   snapshot: BalanceSnapshot,
   lineItem: ProfitLossLineItem
 ): void {
-  // We use accumulated balance to calculate the inter-transaction balance
-  // in case there are multiple balance changes in the same transaction.
-  snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(lineItem.tokenAmount);
-
-  // This is the total realized cost of the balance in the underlying (i.e. asset token)
-  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(lineItem.underlyingAmountRealized);
-
-  // This is the average cost basis of the balance in the underlying token precision
-  snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized.times(token.precision).div(snapshot._accumulatedBalance);
-
-  // This is the current profit and loss of the balance at the snapshot using
-  // the oracle price of the token balance.
-  // (_accumulatedBalance * oraclePrice) - _accumulatedCostRealized
-  snapshot.currentProfitAndLossAtSnapshot = snapshot._accumulatedBalance
-    .times(lineItem.spotPrice)
-    .div(DEFAULT_PRECISION) // oracle rate is in default precision
-    .minus(snapshot._accumulatedCostRealized);
 
   if (token.tokenType == VAULT_SHARE) {
     let v = IYieldStrategy.bind(token.vaultAddress as Address);
@@ -288,6 +271,7 @@ function updateSnapshotMetrics(
     // This is the value of one vault share in the underlying token.
     // the problem is that this includes both interest accrued as well as some
     // aspects of mark to market pnl.
+    // TODO: fix the below
     // For staking tokens we use the withdraw request manager to get the exchange rate
     // For Pendle PT we use the PT accounting asset to get the exchange rate and the
     // token in amount to set the implied fixed rate
@@ -308,50 +292,36 @@ function updateSnapshotMetrics(
       vaultFeeAccumulator = vaultSharesPaidInFees.value;
     }
 
-    let interestAccrued: BigInt;
-    let vaultFeesAccrued: BigInt;
-    if (lineItem.tokenAmount.gt(BigInt.zero())) {
-      // TODO: this should be done on the previous balance
-      // vault share increase
-      interestAccrued = interestAccumulator.minus(snapshot._lastInterestAccumulator)
+    // This accumulator is in the underlying basis.
+    let interestAccruedSinceLastSnapshot = interestAccumulator.minus(snapshot._lastInterestAccumulator)
           .times(snapshot._accumulatedBalance)
           .div(DEFAULT_PRECISION);
-      vaultFeesAccrued = vaultFeeAccumulator
-        .times(snapshot._accumulatedBalance)
-        .div(DEFAULT_PRECISION);
-    } else {
-      // We cannot have a vault share decrease without a previous snapshot
-      let prevSnapshot: BalanceSnapshot | null = null;
-      if (snapshot.previousSnapshot === null) log.error("Previous snapshot not found", []);
-      else {
-        prevSnapshot = BalanceSnapshot.load(snapshot.previousSnapshot as string);
-      }
-      if (prevSnapshot === null) log.error("Previous snapshot not found", []);
-      // TODO: the entire interest accrual should be proportionally decreased
-      // TODO: on withdraw request set the interest and vault fee accrual to zero but we
-      // still need to decrease the total interest accrual proportionally to the 
-      // decrease in the balance.
-
-      // vault share decrease
-      interestAccrued = (interestAccumulator.minus(snapshot._lastInterestAccumulator))
-        .times(snapshot._accumulatedBalance)
-        .times(token.precision)
-        .div(prevSnapshot!._accumulatedBalance)
-        .div(DEFAULT_PRECISION);
-
-      vaultFeesAccrued = (vaultFeeAccumulator.minus(snapshot._lastVaultFeeAccumulator))
-        .times(snapshot._accumulatedBalance)
-        .times(token.precision)
-        .div(prevSnapshot!._accumulatedBalance)
-        .div(DEFAULT_PRECISION);
-    }
-
-    // This accumulator is in the underlying basis.
-    snapshot.totalInterestAccrualAtSnapshot = snapshot.totalInterestAccrualAtSnapshot.plus(interestAccrued);
     // This accumulator is in a vault share basis.
-    snapshot.totalVaultFeesAtSnapshot = snapshot.totalVaultFeesAtSnapshot.plus(vaultFeesAccrued);
+    let vaultFeesAccruedSinceLastSnapshot = vaultFeeAccumulator
+        .times(snapshot._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
+
+    snapshot.totalInterestAccrualAtSnapshot = snapshot.totalInterestAccrualAtSnapshot
+      .plus(interestAccruedSinceLastSnapshot);
+    snapshot.totalVaultFeesAtSnapshot = snapshot.totalVaultFeesAtSnapshot
+      .plus(vaultFeesAccruedSinceLastSnapshot);
     snapshot._lastInterestAccumulator = interestAccumulator;
     snapshot._lastVaultFeeAccumulator = vaultFeeAccumulator;
+
+    // It shouldn't be possible to have a vault share decrease without a previous balance
+    if (lineItem.tokenAmount.lt(BigInt.zero()) && snapshot.previousBalance.gt(BigInt.zero())) {
+      // Calculate an adjustment to the total interest accrued that is proportional
+      // to the remaining balance. Use the current and previous balances to get the final
+      // balance after the transaction.
+      snapshot.totalInterestAccrualAtSnapshot = snapshot.totalInterestAccrualAtSnapshot
+        .times(snapshot.currentBalance)
+        .div(snapshot.previousBalance)
+     
+      snapshot.totalVaultFeesAtSnapshot = snapshot.totalVaultFeesAtSnapshot
+        .times(snapshot.currentBalance)
+        .div(snapshot.previousBalance)
+    }
+
   } else if (token.tokenType == VAULT_DEBT) {
     if (token.maturity === null) {
       // Variable debt
@@ -369,4 +339,23 @@ function updateSnapshotMetrics(
   //   = (prevImpliedFixedRate * _accumulatedBalance + tokenAmount * (impliedFixedRate - prevImpliedFixedRate))
   //      / _accumulatedBalance
 
+  // Update all these accumulators after the interest accrual is calculated
+
+  // We use accumulated balance to calculate the inter-transaction balance
+  // in case there are multiple balance changes in the same transaction.
+  snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(lineItem.tokenAmount);
+
+  // This is the total realized cost of the balance in the underlying (i.e. asset token)
+  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(lineItem.underlyingAmountRealized);
+
+  // This is the average cost basis of the balance in the underlying token precision
+  snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized.times(token.precision).div(snapshot._accumulatedBalance);
+
+  // This is the current profit and loss of the balance at the snapshot using
+  // the oracle price of the token balance.
+  // (_accumulatedBalance * oraclePrice) - _accumulatedCostRealized
+  snapshot.currentProfitAndLossAtSnapshot = snapshot._accumulatedBalance
+    .times(lineItem.spotPrice)
+    .div(DEFAULT_PRECISION) // oracle rate is in default precision
+    .minus(snapshot._accumulatedCostRealized);
 }

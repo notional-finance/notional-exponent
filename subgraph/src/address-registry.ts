@@ -1,6 +1,4 @@
 import {
-  AccountPositionCleared,
-  AccountPositionCreated,
   LendingRouterSet,
   WhitelistedVault,
   WithdrawRequestManagerSet
@@ -9,7 +7,6 @@ import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy"
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager"
 import { LendingRouter, Oracle, Vault, WithdrawRequestManager } from "../generated/schema"
 import { createERC20TokenAsset } from "./entities/token"
-import { loadAccount } from "./entities/account"
 import { UNDERLYING, VAULT_SHARE } from "./constants"
 import { 
   Vault as VaultTemplate,
