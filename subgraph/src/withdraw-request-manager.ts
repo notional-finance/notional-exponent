@@ -48,6 +48,8 @@ export function handleInitiateWithdrawRequest(event: InitiateWithdrawRequest): v
   withdrawRequest.sharesAmount = event.params.sharesAmount;
 
   withdrawRequest.save();
+
+  // todo: clear interest accrual on balance snapshot
 }
 
 export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized): void {
