@@ -1,4 +1,4 @@
-import { Address, BigInt, ethereum } from "@graphprotocol/graph-ts";
+import { Address, BigInt, ethereum, log } from "@graphprotocol/graph-ts";
 import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
 import { Token } from "../../generated/schema";
 import { ZERO_ADDRESS } from "../constants";
@@ -26,9 +26,7 @@ export function getTokenNameAndSymbol(erc20: IERC20Metadata): string[] {
 
 export function getToken(id: string): Token {
   let entity = Token.load(id);
-  if (entity == null) {
-    entity = new Token(id);
-  }
+  if (entity == null) log.error("Token not found: {}", [id])
   return entity as Token;
 }
 

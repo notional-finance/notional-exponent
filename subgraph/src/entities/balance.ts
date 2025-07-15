@@ -22,9 +22,11 @@ export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): Bal
     snapshot.adjustedCostBasis = BigInt.zero();
     snapshot.currentProfitAndLossAtSnapshot = BigInt.zero();
     snapshot.totalInterestAccrualAtSnapshot = BigInt.zero();
+    snapshot.totalVaultFeesAtSnapshot = BigInt.zero();
     snapshot._accumulatedBalance = BigInt.zero();
     snapshot._accumulatedCostRealized = BigInt.zero();
     snapshot._lastInterestAccumulator = BigInt.zero();
+    snapshot._lastVaultFeeAccumulator = BigInt.zero();
 
     // These features are accumulated over the lifetime of the balance, as long
     // as it is not zero.
@@ -37,11 +39,13 @@ export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): Bal
         snapshot._accumulatedBalance = BigInt.zero();
         snapshot._accumulatedCostRealized = BigInt.zero();
         snapshot._lastInterestAccumulator = BigInt.zero();
+        snapshot._lastVaultFeeAccumulator = BigInt.zero();
         snapshot.impliedFixedRate = null;
       } else {
         snapshot._accumulatedBalance = prevSnapshot._accumulatedBalance;
         snapshot._accumulatedCostRealized = prevSnapshot._accumulatedCostRealized;
         snapshot._lastInterestAccumulator = prevSnapshot._lastInterestAccumulator;
+        snapshot._lastVaultFeeAccumulator = prevSnapshot._lastVaultFeeAccumulator;
         snapshot.impliedFixedRate = prevSnapshot.impliedFixedRate;
       }
 
@@ -238,18 +242,18 @@ function updateBalance(
   ) {
     if (lendingRouter == ZERO_ADDRESS) {
       // Get the balance using the native balance on the vault
-      let v = IERC20Metadata.bind(token.vaultAddress as Address);
+      let v = IERC20Metadata.bind(Address.fromBytes(token.vaultAddress!));
       snapshot.currentBalance = v.balanceOf(accountAddress);
     } else {
       let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfCollateral(accountAddress, token.vaultAddress as Address);
+      snapshot.currentBalance = l.balanceOfCollateral(accountAddress, Address.fromBytes(token.vaultAddress!));
     }
   } else if (token.tokenType == VAULT_DEBT && token.vaultAddress !== null) {
     if (lendingRouter == ZERO_ADDRESS) {
       snapshot.currentBalance = BigInt.zero();
     } else {
       let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfBorrowShares(accountAddress, token.vaultAddress as Address);
+      snapshot.currentBalance = l.balanceOfBorrowShares(accountAddress, Address.fromBytes(token.vaultAddress!));
     }
   }
 
@@ -266,7 +270,7 @@ function updateSnapshotMetrics(
 ): void {
 
   if (token.tokenType == VAULT_SHARE) {
-    let v = IYieldStrategy.bind(token.vaultAddress as Address);
+    let v = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
 
     // This is the value of one vault share in the underlying token.
     // the problem is that this includes both interest accrued as well as some
@@ -281,15 +285,18 @@ function updateSnapshotMetrics(
 
     // This is the number of yield tokens per vault share, it is decreasing over time.
     let yieldTokensPerVaultShare = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+    let vaultFeeAccumulator = BigInt.zero();
     // Converts the number of yield tokens paid in fees per vault share to a vault share
     // basis so that we have a consistent value to compare to the previous snapshot.
-    let vaultSharesPaidInFees = v.try_convertYieldTokenToShares(
-      snapshot._lastVaultFeeAccumulator.minus(yieldTokensPerVaultShare)
-    );
-    let vaultFeeAccumulator = BigInt.zero();
-    if (!vaultSharesPaidInFees.reverted) {
-      // This can revert on zero yield token balance held
-      vaultFeeAccumulator = vaultSharesPaidInFees.value;
+    if (snapshot._lastVaultFeeAccumulator.gt(BigInt.fromI32(0))) {
+      let vaultSharesPaidInFees = v.try_convertYieldTokenToShares(
+        // TODO: this goes negative on zero
+        snapshot._lastVaultFeeAccumulator.minus(yieldTokensPerVaultShare)
+      );
+      if (!vaultSharesPaidInFees.reverted) {
+        // This can revert on zero yield token balance held
+        vaultFeeAccumulator = vaultSharesPaidInFees.value;
+      }
     }
 
     // This accumulator is in the underlying basis.
@@ -325,6 +332,7 @@ function updateSnapshotMetrics(
   } else if (token.tokenType == VAULT_DEBT) {
     if (token.maturity === null) {
       // Variable debt
+      // TODO: move this lower....
       // This accumulator is in the underlying basis.
       snapshot.totalInterestAccrualAtSnapshot = snapshot.currentProfitAndLossAtSnapshot;
     } else {

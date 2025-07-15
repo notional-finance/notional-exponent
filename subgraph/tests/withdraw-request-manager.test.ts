@@ -2,7 +2,7 @@ import { assert, describe, test, afterAll, beforeEach, clearStore, newMockEvent,
 import { Address, BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts";
 import { ApprovedVault, InitiateWithdrawRequest, WithdrawRequestTokenized } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { handleApprovedVault, handleInitiateWithdrawRequest, handleWithdrawRequestTokenized } from "../src/withdraw-request-manager";
-import { TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
+import { Token, TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
 
 function createApprovedVaultEvent(
   manager: Address,
@@ -57,7 +57,7 @@ function createInitiateWithdrawRequestEvent(
   return initiateWithdrawRequestEvent
 }
 
-function createVault(vault: Address): Vault {
+export function createVault(vault: Address): Vault {
   let v = new Vault(vault.toHexString())
   v.firstUpdateBlockNumber = BigInt.fromI32(1)
   v.firstUpdateTimestamp = 1
@@ -66,12 +66,47 @@ function createVault(vault: Address): Vault {
   v.lastUpdateTimestamp = 1
   v.lastUpdateTransactionHash = Bytes.fromI32(1)
   v.isWhitelisted = true
-  v.asset = "0x0000000000000000000000000000000000000001"
-  v.yieldToken = "0x0000000000000000000000000000000000000001"
-  v.vaultToken = "0x0000000000000000000000000000000000000001"
+  v.asset = "0x00000000000000000000000000000000000000ff"
+  v.yieldToken = "0x00000000000000000000000000000000000000ee"
+  v.vaultToken = vault.toHexString()
   v.feeRate = BigInt.fromI32(1000)
   v.withdrawRequestManagers = []
   v.save()
+
+  let vaultShare = new Token(vault.toHexString())
+  vaultShare.firstUpdateBlockNumber = BigInt.fromI32(1)
+  vaultShare.firstUpdateTimestamp = 1
+  vaultShare.firstUpdateTransactionHash = Bytes.fromI32(1)
+  vaultShare.lastUpdateBlockNumber = BigInt.fromI32(1)
+  vaultShare.lastUpdateTimestamp = 1
+  vaultShare.lastUpdateTransactionHash = Bytes.fromI32(1)
+  vaultShare.tokenType = "VaultShare"
+  vaultShare.tokenInterface = "ERC20"
+  vaultShare.underlying = v.asset
+  vaultShare.name = "Vault Share"
+  vaultShare.symbol = "VSH"
+  vaultShare.decimals = 18
+  vaultShare.precision = BigInt.fromI32(10).pow(18)
+  vaultShare.vaultAddress = vault
+  vaultShare.tokenAddress = vault
+  vaultShare.save()
+
+  let asset = new Token(v.asset)
+  asset.firstUpdateBlockNumber = BigInt.fromI32(1)
+  asset.firstUpdateTimestamp = 1
+  asset.firstUpdateTransactionHash = Bytes.fromI32(1)
+  asset.lastUpdateBlockNumber = BigInt.fromI32(1)
+  asset.lastUpdateTimestamp = 1
+  asset.lastUpdateTransactionHash = Bytes.fromI32(1)
+  asset.tokenType = "Underlying"
+  asset.tokenInterface = "ERC20"
+  asset.name = "Asset"
+  asset.symbol = "ASSET"
+  asset.decimals = 18
+  asset.precision = BigInt.fromI32(10).pow(18)
+  asset.tokenAddress = Bytes.fromHexString(v.asset)
+  asset.save()
+
   return v
 }
 
