@@ -1,5 +1,5 @@
 import { describe, test, beforeAll, createMockedFunction, newMockEvent, logStore, newLog } from "matchstick-as";
-import { Address, ethereum, BigInt } from "@graphprotocol/graph-ts";
+import { Address, ethereum, BigInt, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
 import { createVault } from "./withdraw-request-manager.test";
 import { DEFAULT_PRECISION } from "../src/constants";
 import { EnterPosition } from "../generated/templates/LendingRouter/ILendingRouter";
@@ -168,14 +168,33 @@ describe("enter position with borrow shares", () => {
     )
 
     // Add TradeExecuted log
-    enterPositionEvent.receipt!.logs = [
-      newLog()
+    let tradeExecutedLog = newLog()
+    tradeExecutedLog.address = vault
+    tradeExecutedLog.topics = [
+      Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
+      Bytes.fromHexString("0x00000000000000000000000000000000000000ff"),
+      Bytes.fromHexString("0x00000000000000000000000000000000000000ff"),
     ]
+    tradeExecutedLog.data = Bytes.fromByteArray(ByteArray.fromBigInt(DEFAULT_PRECISION).concat(
+      ByteArray.fromBigInt(DEFAULT_PRECISION)
+    ));
+
+    let incentiveTransferLog = newLog()
+    incentiveTransferLog.address = vault
+    incentiveTransferLog.topics = [
+      Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
+      Bytes.fromHexString("0x00000000000000000000000000000000000000ff"),
+      Bytes.fromHexString(account.toHexString())
+    ]
+    incentiveTransferLog.data = Bytes.fromByteArray(ByteArray.fromBigInt(DEFAULT_PRECISION));
+
+    enterPositionEvent.receipt!.logs = [tradeExecutedLog, incentiveTransferLog]
 
     handleEnterPosition(enterPositionEvent)
   })
 
   test("has profit loss line item", () => {
+    logStore()
   });
   test("has vault share balance", () => {
   });

@@ -181,7 +181,7 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
       // snapshots are updated.
       let rewardToken = Address.fromBytes(log.topics[1]);
       let account = Address.fromBytes(log.topics[2]);
-      let amount = BigInt.fromByteArray(log.data);
+      let amount = BigInt.fromByteArray(changetype<ByteArray>(log.data));
       createSnapshotForIncentives(
         loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event
       );
@@ -189,8 +189,8 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
       // NOTE: the account is the one doing the trade here.
       let sellToken = Address.fromBytes(log.topics[1]);
       let buyToken = Address.fromBytes(log.topics[2]);
-      let sellAmount = BigInt.fromByteArray(log.data.slice(0, 32) as ByteArray);
-      let buyAmount = BigInt.fromByteArray(log.data.slice(32) as ByteArray);
+      let sellAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(0, 32)));
+      let buyAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(32)));
 
       createTradeExecutionLineItem(
         account,
