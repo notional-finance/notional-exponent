@@ -8,7 +8,7 @@ import { Account, Token } from "../generated/schema";
 import { DEFAULT_PRECISION } from "./constants";
 
 function getBorrowSharePrice(
-  borrowAssetsRepaid: BigInt,
+  borrowAssets: BigInt,
   borrowShares: BigInt,
   underlyingToken: Token,
   borrowShare: Token
@@ -16,7 +16,7 @@ function getBorrowSharePrice(
   return borrowShares
     .times(DEFAULT_PRECISION)
     .times(underlyingToken.precision)
-    .div(borrowAssetsRepaid)
+    .div(borrowAssets)
     .div(borrowShare.precision);
 }
 
@@ -44,8 +44,13 @@ export function handleEnterPosition(event: EnterPosition): void {
 
   if (event.params.borrowShares.gt(BigInt.zero())) {
     let borrowShare = getBorrowShare(event.params.vault, event.address, event);
-    // TODO: get the real value here.
-    let borrowSharePrice = BigInt.zero();
+    let borrowAssets = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowShares)
+    let borrowSharePrice = getBorrowSharePrice(
+      borrowAssets,
+      event.params.borrowShares,
+      underlyingToken,
+      borrowShare
+    )
     let borrowAsset = event.params.borrowShares.times(borrowSharePrice).div(borrowShare.precision);
 
     setProfitLossLineItem(
