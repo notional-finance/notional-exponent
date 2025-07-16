@@ -1,9 +1,11 @@
-import { ethereum, BigInt, log, Address } from "@graphprotocol/graph-ts";
+import { ethereum, BigInt, log, Address, ByteArray, crypto } from "@graphprotocol/graph-ts";
 import { Account, Balance, BalanceSnapshot, IncentiveSnapshot, ProfitLossLineItem, Token } from "../../generated/schema";
-import { DEFAULT_PRECISION, VAULT_DEBT, VAULT_SHARE, ZERO_ADDRESS } from "../constants";
+import { DEFAULT_PRECISION, RATE_PRECISION, SECONDS_IN_YEAR, TRADING_MODULE, VAULT_DEBT, VAULT_SHARE, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/templates/LendingRouter/ILendingRouter";
 import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
 import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
+import { ITradingModule } from "../../generated/AddressRegistry/ITradingModule";
+import { IPPrincipalToken } from "../../generated/AddressRegistry/IPPrincipalToken";
 
 export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): BalanceSnapshot {
   let id = balance.id + ":" + event.block.number.toString();
@@ -222,7 +224,7 @@ export function setProfitLossLineItem(
 
   lineItem.save();
 
-  updateSnapshotMetrics(token, snapshot, lineItem);
+  updateSnapshotMetrics(token, snapshot, lineItem, event);
   snapshot.save();
 }
 
@@ -263,10 +265,73 @@ function updateBalance(
   return snapshot;
 }
 
+function findPendleTokenInAmount(
+  vaultAddress: Address,
+  tokenInSy: Address,
+  ptToken: Address,
+  event: ethereum.Event
+): BigInt {
+  if (event.receipt === null) return BigInt.zero();
+
+  for (let i = 0; i < event.receipt!.logs.length; i++) {
+    let log = event.receipt!.logs[i];
+    if (log.address.toHexString() != vaultAddress.toHexString()) continue;
+
+    if (log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
+      let sellToken = Address.fromBytes(log.topics[1]);
+      let buyToken = Address.fromBytes(log.topics[2]);
+      let sellAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(0, 32)));
+      let buyAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(32)));
+
+      if (sellToken == tokenInSy && buyToken == ptToken) {
+        return sellAmount
+      } else if (sellToken == ptToken && buyToken == tokenInSy) {
+        return buyAmount
+      }
+    }
+  }
+
+  return BigInt.zero()
+}
+
+function getInterestAccumulator(
+  v: IYieldStrategy,
+  tokenAmount: BigInt,
+  _lastInterestAccumulator: BigInt,
+  event: ethereum.Event
+): BigInt {
+  let strategy = v.strategy();
+  let yieldToken = v.yieldToken();
+  let accountingAsset = v.accountingAsset();
+  let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
+
+  if (strategy == "Staking") {
+    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
+  } else if (strategy == "PendlePT") {
+    let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
+    let expiry = pt.expiry();
+    let timeToExpiry = expiry.minus(event.block.timestamp);
+    let x: f64 = 
+      (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
+      (SECONDS_IN_YEAR.toI64() as f64);
+    
+    let discountFactor = BigInt.fromI64(
+      Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64
+    );
+    let marginalPtAtMaturity = tokenAmount.times(discountFactor).div(RATE_PRECISION);
+    let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, yieldToken, event);
+    let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmount);
+    return _lastInterestAccumulator.plus(marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry));
+  } else {
+    return v.convertToAssets(DEFAULT_PRECISION);
+  }
+}
+
 function updateSnapshotMetrics(
   token: Token,
   snapshot: BalanceSnapshot,
-  lineItem: ProfitLossLineItem
+  lineItem: ProfitLossLineItem,
+  event: ethereum.Event
 ): void {
 
   if (token.tokenType == VAULT_SHARE) {
@@ -275,13 +340,9 @@ function updateSnapshotMetrics(
     // This is the value of one vault share in the underlying token.
     // the problem is that this includes both interest accrued as well as some
     // aspects of mark to market pnl.
-    // TODO: fix the below
-    // For staking tokens we use the withdraw request manager to get the exchange rate
-    // For Pendle PT we use the PT accounting asset to get the exchange rate and the
-    // token in amount to set the implied fixed rate
-    // For LP tokens we just default to convertToAssets to get the interest accrual but
-    // we will need to do it some other way off chain.
-    let interestAccumulator = v.convertToAssets(DEFAULT_PRECISION);
+    let interestAccumulator = getInterestAccumulator(
+      v, lineItem.tokenAmount, snapshot._lastInterestAccumulator, event
+    );
 
     // This is the number of yield tokens per vault share, it is decreasing over time.
     let yieldTokensPerVaultShare = v.convertSharesToYieldToken(DEFAULT_PRECISION);
@@ -328,26 +389,7 @@ function updateSnapshotMetrics(
         .times(snapshot.currentBalance)
         .div(snapshot.previousBalance)
     }
-
-  } else if (token.tokenType == VAULT_DEBT) {
-    if (token.maturity === null) {
-      // Variable debt
-      // TODO: move this lower....
-      // This accumulator is in the underlying basis.
-      snapshot.totalInterestAccrualAtSnapshot = snapshot.currentProfitAndLossAtSnapshot;
-    } else {
-      // Fixed debt
-      //  += _lastInterestAccumulator * (currentSnapshot.timestamp - previousSnapshot.timestamp) (fixed debt)
-      // Set the new interest accumulator
-      //  = _lastInterestAccumulator + (impliedFixedRate  * underlyingAmountRealized / RATE_PRECISION) (fixed debt)
-    }
-  }
-
-  // snapshot.impliedFixedRate = null
-  //   = (prevImpliedFixedRate * _accumulatedBalance + tokenAmount * (impliedFixedRate - prevImpliedFixedRate))
-  //      / _accumulatedBalance
-
-  // Update all these accumulators after the interest accrual is calculated
+  } 
 
   // We use accumulated balance to calculate the inter-transaction balance
   // in case there are multiple balance changes in the same transaction.
@@ -366,4 +408,17 @@ function updateSnapshotMetrics(
     .times(lineItem.spotPrice)
     .div(DEFAULT_PRECISION) // oracle rate is in default precision
     .minus(snapshot._accumulatedCostRealized);
+
+  if (token.tokenType == VAULT_DEBT) {
+    if (token.maturity === null) {
+      // Variable debt
+      // This accumulator is in the underlying basis.
+      snapshot.totalInterestAccrualAtSnapshot = snapshot.currentProfitAndLossAtSnapshot;
+    } else {
+      // Fixed debt
+      //  += _lastInterestAccumulator * (currentSnapshot.timestamp - previousSnapshot.timestamp) (fixed debt)
+      // Set the new interest accumulator
+      //  = _lastInterestAccumulator + (impliedFixedRate  * underlyingAmountRealized / RATE_PRECISION) (fixed debt)
+    }
+  }
 }

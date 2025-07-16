@@ -33,6 +33,10 @@ dataSources:
           file: ./abis/AggregatorV2V3Interface.json
         - name: ILendingRouter
           file: ./abis/ILendingRouter.json
+        - name: ITradingModule
+          file: ./abis/ITradingModule.json
+        - name: IPPrincipalToken
+          file: ./abis/IPPrincipalToken.json
       eventHandlers:
         # - event: AccountPositionCleared(indexed address,indexed address,indexed address)
         #   handler: handleAccountPositionCleared
@@ -75,6 +79,10 @@ templates:
           file: ./abis/IYieldStrategy.json
         - name: IERC20Metadata
           file: ./abis/IERC20Metadata.json
+        - name: ITradingModule
+          file: ./abis/ITradingModule.json
+        - name: IPPrincipalToken
+          file: ./abis/IPPrincipalToken.json
       entities:
         - LendingRouter
       eventHandlers:
