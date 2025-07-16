@@ -31,27 +31,12 @@ export function handleEnterPosition(event: EnterPosition): void {
   let underlyingToken = getToken(v.asset().toHexString());
   let account = loadAccount(event.params.user.toHexString(), event);
 
-  if (event.params.vaultSharesReceived.gt(BigInt.zero())) {
-    let vaultShare = getToken(event.params.vault.toHexString());
-    let oraclePrice = v.price1(event.params.user);
-
-    setProfitLossLineItem(
-      account,
-      vaultShare,
-      underlyingToken,
-      event.params.vaultSharesReceived,
-      event.params.borrowShares,
-      oraclePrice,
-      event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
-      event,
-    );
-  }
-
+  let borrowAsset = BigInt.zero();
   if (event.params.borrowShares.gt(BigInt.zero())) {
     let borrowShare = getBorrowShare(event.params.vault, event.address, event);
     let borrowAssets = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowShares);
     let borrowSharePrice = getBorrowSharePrice(borrowAssets, event.params.borrowShares, underlyingToken, borrowShare);
-    let borrowAsset = event.params.borrowShares.times(borrowSharePrice).div(borrowShare.precision);
+    borrowAsset = event.params.borrowShares.times(borrowSharePrice).div(borrowShare.precision);
 
     setProfitLossLineItem(
       account,
@@ -60,6 +45,23 @@ export function handleEnterPosition(event: EnterPosition): void {
       event.params.borrowShares,
       borrowAsset,
       borrowSharePrice,
+      event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
+      event,
+    );
+  }
+
+  if (event.params.vaultSharesReceived.gt(BigInt.zero())) {
+    let vaultShare = getToken(event.params.vault.toHexString());
+    let oraclePrice = v.price1(event.params.user);
+    let underlyingAmountRealized = borrowAsset.plus(event.params.depositAssets);
+
+    setProfitLossLineItem(
+      account,
+      vaultShare,
+      underlyingToken,
+      event.params.vaultSharesReceived,
+      underlyingAmountRealized,
+      oraclePrice,
       event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
       event,
     );
