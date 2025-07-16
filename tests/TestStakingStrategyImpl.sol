@@ -98,6 +98,10 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         ));
         vm.stopPrank();
     }
+
+    function test_accountingAsset() public {
+        assertEq(y.accountingAsset(), address(WETH));
+    }
 }
 
 // contract TestStakingStrategy_apxETH is TestStakingStrategy {

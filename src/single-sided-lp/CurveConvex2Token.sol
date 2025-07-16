@@ -65,6 +65,10 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         LP_LIB = address(new CurveConvexLib(TOKEN_1, TOKEN_2, _asset, _PRIMARY_INDEX, params));
     }
 
+    function strategy() public pure override returns (string memory) {
+        return "CurveConvex2Token";
+    }
+
     function _rewriteAltETH(address token) private pure returns (address) {
         return token == address(ALT_ETH_ADDRESS) ? ETH_ADDRESS : address(token);
     }

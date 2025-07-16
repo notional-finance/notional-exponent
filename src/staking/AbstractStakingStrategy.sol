@@ -43,7 +43,16 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         // For Pendle PT the yield token does not define the withdraw request manager,
         // it is the token out sy
         withdrawRequestManager = _withdrawRequestManager;
-        withdrawToken = address(withdrawRequestManager) != address(0) ? withdrawRequestManager.WITHDRAW_TOKEN() : address(0);
+
+        if (address(withdrawRequestManager) != address(0)) {
+            accountingAsset = withdrawRequestManager.STAKING_TOKEN();
+            withdrawToken = withdrawRequestManager.WITHDRAW_TOKEN();
+        } else {
+            withdrawToken = address(0);
+            // Accounting asset will be set to the asset itself if no withdraw
+            // request manager is set. For Pendle PT strategies this will be
+            // set to the token in sy.
+        }
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
