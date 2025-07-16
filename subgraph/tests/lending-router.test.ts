@@ -72,15 +72,11 @@ function baseMockFunctions(strategy: string): void {
 function mockVaultSharePrice(vaultShares: BigInt, price: BigInt): void {
   createMockedFunction(vault, "price", "price(address):(uint256)")
     .withArgs([ethereum.Value.fromAddress(account)])
-    .returns([
-      ethereum.Value.fromUnsignedBigInt(
-        DEFAULT_PRECISION.times(DEFAULT_PRECISION).times(BigInt.fromI32(99)).div(BigInt.fromI32(100)),
-      ),
-    ]);
+    .returns([ethereum.Value.fromUnsignedBigInt(price.times(DEFAULT_PRECISION).div(USDC_PRECISION))]);
 
   createMockedFunction(vault, "convertToAssets", "convertToAssets(uint256):(uint256)")
     .withArgs([ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION)])
-    .returns([ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(99)).div(BigInt.fromI32(100)))]);
+    .returns([ethereum.Value.fromUnsignedBigInt(price)]);
 
   createMockedFunction(lendingRouter, "balanceOfCollateral", "balanceOfCollateral(address,address):(uint256)")
     .withArgs([ethereum.Value.fromAddress(account), ethereum.Value.fromAddress(vault)])
@@ -115,13 +111,15 @@ function mockBorrowSharePrice(borrowShares: BigInt, borrowAssets: BigInt): void 
 
 let vaultSharesMinted = DEFAULT_PRECISION.times(BigInt.fromI32(1000));
 let borrowSharesMinted = DEFAULT_PRECISION.times(BigInt.fromI32(900));
+// 0.99e18
+let vaultSharePrice = DEFAULT_PRECISION.times(BigInt.fromI32(99)).div(BigInt.fromI32(100));
 
 describe("enter position with borrow shares", () => {
   beforeAll(() => {
     createVault(vault);
     baseMockFunctions("CurveConvex2Token");
 
-    mockVaultSharePrice(vaultSharesMinted, DEFAULT_PRECISION.times(BigInt.fromI32(99)));
+    mockVaultSharePrice(vaultSharesMinted, vaultSharePrice);
     mockBorrowSharePrice(
       borrowSharesMinted,
       borrowSharesMinted
@@ -174,10 +172,49 @@ describe("enter position with borrow shares", () => {
     assert.fieldEquals("ProfitLossLineItem", id, "token", vault.toHexString());
     assert.fieldEquals("ProfitLossLineItem", id, "underlyingToken", asset.toHexString());
     assert.fieldEquals("ProfitLossLineItem", id, "tokenAmount", vaultSharesMinted.toString());
-    assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountRealized", vaultSharesMinted.toString());
-    assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountSpot", vaultSharesMinted.toString());
-    assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", DEFAULT_PRECISION.toString());
-    assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", DEFAULT_PRECISION.toString());
+    assert.fieldEquals(
+      "ProfitLossLineItem",
+      id,
+      "underlyingAmountRealized",
+      // 1009e6
+      BigInt.fromI32(1009).times(USDC_PRECISION).toString(),
+    );
+    assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", "1009000000000000000");
+    assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", vaultSharePrice.toString());
+    assert.fieldEquals(
+      "ProfitLossLineItem",
+      id,
+      "underlyingAmountSpot",
+      // 990e6
+      BigInt.fromI32(990).times(USDC_PRECISION).toString(),
+    );
+  });
+
+  test("has borrow share profit loss line item", () => {
+    let borrowShareToken = vault.toHexString() + ":" + lendingRouter.toHexString();
+    let id = hash.toHexString() + ":" + BigInt.fromI32(3).toString() + ":" + borrowShareToken;
+    assert.fieldEquals("ProfitLossLineItem", id, "lineItemType", "EnterPosition");
+    assert.fieldEquals("ProfitLossLineItem", id, "account", account.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "token", borrowShareToken);
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingToken", asset.toHexString());
+
+    assert.fieldEquals("ProfitLossLineItem", id, "tokenAmount", borrowSharesMinted.toString());
+    assert.fieldEquals(
+      "ProfitLossLineItem",
+      id,
+      "underlyingAmountRealized",
+      BigInt.fromI32(909).times(USDC_PRECISION).toString(),
+    );
+
+    assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", "1010000000000000000");
+    assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", "1010000000000000000");
+
+    assert.fieldEquals(
+      "ProfitLossLineItem",
+      id,
+      "underlyingAmountSpot",
+      BigInt.fromI32(909).times(USDC_PRECISION).toString(),
+    );
   });
 
   test("has vault share balance", () => {});

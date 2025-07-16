@@ -18,11 +18,15 @@ function getBorrowSharePrice(
   underlyingToken: Token,
   borrowShare: Token,
 ): BigInt {
-  return borrowShares
+  return borrowAssets
     .times(DEFAULT_PRECISION)
-    .times(underlyingToken.precision)
-    .div(borrowAssets)
-    .div(borrowShare.precision);
+    .times(borrowShare.precision)
+    .div(borrowShares)
+    .div(underlyingToken.precision);
+}
+
+function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
+  return price.times(underlyingToken.precision).div(DEFAULT_PRECISION);
 }
 
 export function handleEnterPosition(event: EnterPosition): void {
@@ -31,19 +35,18 @@ export function handleEnterPosition(event: EnterPosition): void {
   let underlyingToken = getToken(v.asset().toHexString());
   let account = loadAccount(event.params.user.toHexString(), event);
 
-  let borrowAsset = BigInt.zero();
+  let borrowAssets = BigInt.zero();
   if (event.params.borrowShares.gt(BigInt.zero())) {
     let borrowShare = getBorrowShare(event.params.vault, event.address, event);
-    let borrowAssets = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowShares);
+    borrowAssets = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowShares);
     let borrowSharePrice = getBorrowSharePrice(borrowAssets, event.params.borrowShares, underlyingToken, borrowShare);
-    borrowAsset = event.params.borrowShares.times(borrowSharePrice).div(borrowShare.precision);
 
     setProfitLossLineItem(
       account,
       borrowShare,
       underlyingToken,
       event.params.borrowShares,
-      borrowAsset,
+      borrowAssets,
       borrowSharePrice,
       event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
       event,
@@ -52,8 +55,9 @@ export function handleEnterPosition(event: EnterPosition): void {
 
   if (event.params.vaultSharesReceived.gt(BigInt.zero())) {
     let vaultShare = getToken(event.params.vault.toHexString());
-    let oraclePrice = v.price1(event.params.user);
-    let underlyingAmountRealized = borrowAsset.plus(event.params.depositAssets);
+    // This comes in as 1e36 so divide it by 1e18 to get the price in the correct precision
+    let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
+    let underlyingAmountRealized = borrowAssets.plus(event.params.depositAssets);
 
     setProfitLossLineItem(
       account,
@@ -100,7 +104,7 @@ export function handleExitPosition(event: ExitPosition): void {
 
   if (event.params.vaultSharesBurned.gt(BigInt.zero())) {
     let vaultShare = getToken(event.params.vault.toHexString());
-    let oraclePrice = v.price1(event.params.user);
+    let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
 
     setProfitLossLineItem(
       account,
@@ -134,7 +138,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     underlyingToken,
     borrowShare,
   );
-  let vaultSharePrice = v.price1(event.params.user);
+  let vaultSharePrice = convertPrice(v.price1(event.params.user), underlyingToken);
 
   // Remove the borrow share from the account
   setProfitLossLineItem(

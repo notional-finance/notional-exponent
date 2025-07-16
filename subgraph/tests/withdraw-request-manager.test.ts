@@ -107,8 +107,8 @@ export function createVault(vault: Address): Vault {
   asset.tokenInterface = "ERC20";
   asset.name = "Asset";
   asset.symbol = "ASSET";
-  asset.decimals = 18;
-  asset.precision = BigInt.fromI32(10).pow(18);
+  asset.decimals = 6;
+  asset.precision = BigInt.fromI32(10).pow(6);
   asset.tokenAddress = Bytes.fromHexString(v.asset);
   asset.save();
 

@@ -219,12 +219,17 @@ export function setProfitLossLineItem(
   lineItem.underlyingAmountSpot = tokenAmount
     .times(spotPrice)
     .times(underlyingToken.precision)
-    .div(token.precision)
-    .div(DEFAULT_PRECISION);
+    .div(DEFAULT_PRECISION)
+    .div(token.precision);
   lineItem.spotPrice = spotPrice;
 
   if (tokenAmount.gt(BigInt.zero())) {
-    lineItem.realizedPrice = underlyingAmountRealized.times(token.precision).div(tokenAmount);
+    // This is reported in DEFAULT_PRECISION
+    lineItem.realizedPrice = underlyingAmountRealized
+      .times(DEFAULT_PRECISION)
+      .times(token.precision)
+      .div(tokenAmount)
+      .div(underlyingToken.precision);
   } else {
     lineItem.realizedPrice = BigInt.zero();
   }
