@@ -1,4 +1,4 @@
-import { describe, test, beforeAll, createMockedFunction, newMockEvent, logStore, newLog } from "matchstick-as";
+import { describe, test, beforeAll, createMockedFunction, newMockEvent, logStore, newLog, assert } from "matchstick-as";
 import { Address, ethereum, BigInt, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
 import { createVault } from "./withdraw-request-manager.test";
 import { DEFAULT_PRECISION } from "../src/constants";
@@ -11,6 +11,8 @@ let account = Address.fromString("0x0000000000000000000000000000000000000AAA");
 let accountingAsset = Address.fromString("0x00000000000000000000000000000000000000bb");
 let asset = Address.fromString("0x00000000000000000000000000000000000000ff");
 let yieldToken = Address.fromString("0x00000000000000000000000000000000000000ee");
+let hash = Bytes.fromHexString("0x0000000000000000000000000000000000000000000000000000000000000009");
+let USDC_PRECISION = BigInt.fromI32(10).pow(6);
 
 function createEnterPositionEvent(
   user: Address,
@@ -43,6 +45,8 @@ function createEnterPositionEvent(
   enterPositionEvent.parameters.push(new ethereum.EventParam("wasMigrated", ethereum.Value.fromBoolean(wasMigrated)));
 
   enterPositionEvent.address = lendingRouter;
+  enterPositionEvent.transaction.hash = hash;
+  enterPositionEvent.logIndex = BigInt.fromI32(3);
 
   return enterPositionEvent;
 }
@@ -109,21 +113,31 @@ function mockBorrowSharePrice(borrowShares: BigInt, borrowAssets: BigInt): void 
     .returns([ethereum.Value.fromUnsignedBigInt(borrowAssets)]);
 }
 
+let vaultSharesMinted = DEFAULT_PRECISION.times(BigInt.fromI32(1000));
+let borrowSharesMinted = DEFAULT_PRECISION.times(BigInt.fromI32(900));
+
 describe("enter position with borrow shares", () => {
   beforeAll(() => {
     createVault(vault);
     baseMockFunctions("CurveConvex2Token");
 
-    mockVaultSharePrice(DEFAULT_PRECISION.times(BigInt.fromI32(1000)), DEFAULT_PRECISION.times(BigInt.fromI32(99)));
-    mockBorrowSharePrice(DEFAULT_PRECISION.times(BigInt.fromI32(1000)), DEFAULT_PRECISION.times(BigInt.fromI32(99)));
+    mockVaultSharePrice(vaultSharesMinted, DEFAULT_PRECISION.times(BigInt.fromI32(99)));
+    mockBorrowSharePrice(
+      borrowSharesMinted,
+      borrowSharesMinted
+        .times(USDC_PRECISION)
+        .times(BigInt.fromI32(101))
+        .div(BigInt.fromI32(100))
+        .div(DEFAULT_PRECISION),
+    );
     mockVaultFeePrice();
 
     let enterPositionEvent = createEnterPositionEvent(
       account,
       vault,
-      DEFAULT_PRECISION.times(BigInt.fromI32(1000)),
-      DEFAULT_PRECISION.times(BigInt.fromI32(1000)),
-      DEFAULT_PRECISION.times(BigInt.fromI32(1000)),
+      BigInt.fromI32(100).times(USDC_PRECISION),
+      borrowSharesMinted,
+      vaultSharesMinted,
       false,
     );
 
@@ -153,9 +167,19 @@ describe("enter position with borrow shares", () => {
     handleEnterPosition(enterPositionEvent);
   });
 
-  test("has profit loss line item", () => {
-    logStore();
+  test("has vault share profit loss line item", () => {
+    let id = hash.toHexString() + ":" + BigInt.fromI32(3).toString() + ":" + vault.toHexString();
+    assert.fieldEquals("ProfitLossLineItem", id, "lineItemType", "EnterPosition");
+    assert.fieldEquals("ProfitLossLineItem", id, "account", account.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "token", vault.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingToken", asset.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "tokenAmount", vaultSharesMinted.toString());
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountRealized", vaultSharesMinted.toString());
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountSpot", vaultSharesMinted.toString());
+    assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", DEFAULT_PRECISION.toString());
+    assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", DEFAULT_PRECISION.toString());
   });
+
   test("has vault share balance", () => {});
   test("has borrow share balance", () => {});
   test("has trade execution line items", () => {});
