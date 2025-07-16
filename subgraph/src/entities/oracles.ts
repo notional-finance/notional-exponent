@@ -25,7 +25,6 @@ export function getOracleRegistry(): OracleRegistry {
   return registry as OracleRegistry;
 }
 
-
 export function updateChainlinkOracle(oracle: Oracle, block: ethereum.Block): void {
   let aggregator = Aggregator.bind(Address.fromBytes(oracle.oracleAddress));
   let latestRate = aggregator.try_latestAnswer();
@@ -81,11 +80,7 @@ function getOracle(base: Token, quote: Token, oracleType: string): Oracle {
   return oracle as Oracle;
 }
 
-function updateExchangeRate(
-  oracle: Oracle,
-  rate: BigInt,
-  block: ethereum.Block
-): void {
+function updateExchangeRate(oracle: Oracle, rate: BigInt, block: ethereum.Block): void {
   let ts = block.timestamp.minus(block.timestamp.mod(SIX_HOURS));
   let id = oracle.id + ":" + ts.toString();
 

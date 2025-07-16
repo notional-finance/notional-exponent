@@ -1,20 +1,20 @@
 import {
   LendingRouterSet,
   WhitelistedVault,
-  WithdrawRequestManagerSet
-} from "../generated/AddressRegistry/AddressRegistry"
-import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy"
-import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager"
-import { LendingRouter, Oracle, Vault, WithdrawRequestManager } from "../generated/schema"
-import { createERC20TokenAsset } from "./entities/token"
-import { UNDERLYING, VAULT_SHARE } from "./constants"
-import { 
+  WithdrawRequestManagerSet,
+} from "../generated/AddressRegistry/AddressRegistry";
+import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy";
+import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager";
+import { LendingRouter, Oracle, Vault, WithdrawRequestManager } from "../generated/schema";
+import { createERC20TokenAsset } from "./entities/token";
+import { UNDERLYING, VAULT_SHARE } from "./constants";
+import {
   Vault as VaultTemplate,
   WithdrawRequestManager as WithdrawRequestManagerTemplate,
-  LendingRouter as LendingRouterTemplate
-} from "../generated/templates"
-import { getOracleRegistry, updateChainlinkOracle, updateVaultOracles } from "./entities/oracles"
-import { Address, ethereum } from "@graphprotocol/graph-ts"
+  LendingRouter as LendingRouterTemplate,
+} from "../generated/templates";
+import { getOracleRegistry, updateChainlinkOracle, updateVaultOracles } from "./entities/oracles";
+import { Address, ethereum } from "@graphprotocol/graph-ts";
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {
   const id = event.params.lendingRouter.toHexString();
@@ -33,8 +33,8 @@ export function handleLendingRouterSet(event: LendingRouterSet): void {
 
   LendingRouterTemplate.create(event.params.lendingRouter);
 
-  let r = getOracleRegistry()
-  let l = r.lendingRouters
+  let r = getOracleRegistry();
+  let l = r.lendingRouters;
   l.push(event.params.lendingRouter);
   r.lendingRouters = l;
   r.save();
@@ -73,16 +73,14 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
 
   VaultTemplate.create(event.params.vault);
 
-  let r = getOracleRegistry()
-  let l = r.listedVaults
+  let r = getOracleRegistry();
+  let l = r.listedVaults;
   l.push(event.params.vault);
   r.listedVaults = l;
   r.save();
 }
 
-export function handleWithdrawRequestManagerSet(
-  event: WithdrawRequestManagerSet
-): void {
+export function handleWithdrawRequestManagerSet(event: WithdrawRequestManagerSet): void {
   const id = event.params.withdrawRequestManager.toHexString();
   let withdrawRequestManager = WithdrawRequestManager.load(id);
   if (!withdrawRequestManager) {
@@ -105,8 +103,8 @@ export function handleWithdrawRequestManagerSet(
 
   WithdrawRequestManagerTemplate.create(event.params.withdrawRequestManager);
 
-  let r = getOracleRegistry()
-  let wrm = r.withdrawRequestManager
+  let r = getOracleRegistry();
+  let wrm = r.withdrawRequestManager;
   wrm.push(event.params.withdrawRequestManager);
   r.withdrawRequestManager = wrm;
   r.save();

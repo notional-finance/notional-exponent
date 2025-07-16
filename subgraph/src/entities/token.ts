@@ -26,15 +26,11 @@ export function getTokenNameAndSymbol(erc20: IERC20Metadata): string[] {
 
 export function getToken(id: string): Token {
   let entity = Token.load(id);
-  if (entity == null) log.error("Token not found: {}", [id])
+  if (entity == null) log.error("Token not found: {}", [id]);
   return entity as Token;
 }
 
-export function createERC20TokenAsset(
-  tokenAddress: Address,
-  event: ethereum.Event,
-  tokenType: string
-): Token {
+export function createERC20TokenAsset(tokenAddress: Address, event: ethereum.Event, tokenType: string): Token {
   let token = Token.load(tokenAddress.toHexString());
   if (token) return token;
 
