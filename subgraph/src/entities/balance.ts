@@ -241,7 +241,7 @@ export function setProfitLossLineItem(
 
   lineItem.save();
 
-  updateSnapshotMetrics(token, snapshot, lineItem, event);
+  updateSnapshotMetrics(token, underlyingToken, snapshot, lineItem, event);
   snapshot.save();
 }
 
@@ -315,7 +315,7 @@ function getInterestAccumulator(
   let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
 
   if (strategy == "Staking") {
-    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
+    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer().minus(_lastInterestAccumulator);
   } else if (strategy == "PendlePT") {
     let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
     let expiry = pt.expiry();
@@ -330,12 +330,13 @@ function getInterestAccumulator(
     let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmount);
     return _lastInterestAccumulator.plus(marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry));
   } else {
-    return v.convertToAssets(DEFAULT_PRECISION);
+    return v.convertToAssets(DEFAULT_PRECISION).minus(_lastInterestAccumulator);
   }
 }
 
 function updateSnapshotMetrics(
   token: Token,
+  underlyingToken: Token,
   snapshot: BalanceSnapshot,
   lineItem: ProfitLossLineItem,
   event: ethereum.Event,
@@ -349,28 +350,17 @@ function updateSnapshotMetrics(
     let interestAccumulator = getInterestAccumulator(v, lineItem.tokenAmount, snapshot._lastInterestAccumulator, event);
 
     // This is the number of yield tokens per vault share, it is decreasing over time.
-    let yieldTokensPerVaultShare = v.convertSharesToYieldToken(DEFAULT_PRECISION);
-    let vaultFeeAccumulator = BigInt.zero();
-    // Converts the number of yield tokens paid in fees per vault share to a vault share
-    // basis so that we have a consistent value to compare to the previous snapshot.
-    if (snapshot._lastVaultFeeAccumulator.gt(BigInt.fromI32(0))) {
-      let vaultSharesPaidInFees = v.try_convertYieldTokenToShares(
-        // TODO: this goes negative on zero
-        snapshot._lastVaultFeeAccumulator.minus(yieldTokensPerVaultShare),
-      );
-      if (!vaultSharesPaidInFees.reverted) {
-        // This can revert on zero yield token balance held
-        vaultFeeAccumulator = vaultSharesPaidInFees.value;
-      }
-    }
+    // TODO: need to know the yield token decimals to do this correctly
+    let vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION);
 
     // This accumulator is in the underlying basis.
     let interestAccruedSinceLastSnapshot = interestAccumulator
       .minus(snapshot._lastInterestAccumulator)
       .times(snapshot._accumulatedBalance)
       .div(DEFAULT_PRECISION);
-    // This accumulator is in a vault share basis.
-    let vaultFeesAccruedSinceLastSnapshot = vaultFeeAccumulator
+    // This accumulator is in a yield token basis.
+    let vaultFeesAccruedSinceLastSnapshot = snapshot._lastVaultFeeAccumulator
+      .minus(vaultFeeAccumulator)
       .times(snapshot._accumulatedBalance)
       .div(DEFAULT_PRECISION);
 
@@ -409,11 +399,13 @@ function updateSnapshotMetrics(
     .div(snapshot._accumulatedBalance);
 
   // This is the current profit and loss of the balance at the snapshot using
-  // the oracle price of the token balance.
+  // the oracle price of the token balance in the underlying token precision.
   // (_accumulatedBalance * oraclePrice) - _accumulatedCostRealized
   snapshot.currentProfitAndLossAtSnapshot = snapshot._accumulatedBalance
+    .times(underlyingToken.precision)
     .times(lineItem.spotPrice)
-    .div(DEFAULT_PRECISION) // oracle rate is in default precision
+    .div(DEFAULT_PRECISION)
+    .div(token.precision)
     .minus(snapshot._accumulatedCostRealized);
 
   if (token.tokenType == VAULT_DEBT) {
