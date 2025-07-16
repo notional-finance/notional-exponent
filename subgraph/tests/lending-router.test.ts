@@ -64,6 +64,22 @@ describe("enter position with borrow shares", () => {
 
     createMockedFunction(
       vault,
+      "accountingAsset",
+      "accountingAsset():(address)"
+    ).returns([
+      ethereum.Value.fromAddress(Address.fromString("0x00000000000000000000000000000000000000ff"))
+    ])
+
+    createMockedFunction(
+      vault,
+      "yieldToken",
+      "yieldToken():(address)"
+    ).returns([
+      ethereum.Value.fromAddress(Address.fromString("0x00000000000000000000000000000000000000ff"))
+    ])
+
+    createMockedFunction(
+      vault,
       "price",
       "price(address):(uint256)"
     ).withArgs([
@@ -95,6 +111,14 @@ describe("enter position with borrow shares", () => {
     ]).returns([
       ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION
         .times(BigInt.fromI32(95)).div(BigInt.fromI32(100)))
+    ])
+
+    createMockedFunction(
+      vault,
+      "strategy",
+      "strategy():(string)"
+    ).returns([
+      ethereum.Value.fromString("CurveConvex2Token")
     ])
 
     createMockedFunction(
