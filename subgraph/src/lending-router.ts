@@ -1,5 +1,10 @@
 import { Address, BigInt, ByteArray, crypto, ethereum } from "@graphprotocol/graph-ts";
-import { EnterPosition, ExitPosition, ILendingRouter, LiquidatePosition } from "../generated/templates/LendingRouter/ILendingRouter";
+import {
+  EnterPosition,
+  ExitPosition,
+  ILendingRouter,
+  LiquidatePosition,
+} from "../generated/templates/LendingRouter/ILendingRouter";
 import { createERC20TokenAsset, getBorrowShare, getToken } from "./entities/token";
 import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrategy";
 import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
@@ -11,7 +16,7 @@ function getBorrowSharePrice(
   borrowAssets: BigInt,
   borrowShares: BigInt,
   underlyingToken: Token,
-  borrowShare: Token
+  borrowShare: Token,
 ): BigInt {
   return borrowShares
     .times(DEFAULT_PRECISION)
@@ -38,19 +43,14 @@ export function handleEnterPosition(event: EnterPosition): void {
       event.params.borrowShares,
       oraclePrice,
       event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
-      event
+      event,
     );
   }
 
   if (event.params.borrowShares.gt(BigInt.zero())) {
     let borrowShare = getBorrowShare(event.params.vault, event.address, event);
-    let borrowAssets = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowShares)
-    let borrowSharePrice = getBorrowSharePrice(
-      borrowAssets,
-      event.params.borrowShares,
-      underlyingToken,
-      borrowShare
-    )
+    let borrowAssets = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowShares);
+    let borrowSharePrice = getBorrowSharePrice(borrowAssets, event.params.borrowShares, underlyingToken, borrowShare);
     let borrowAsset = event.params.borrowShares.times(borrowSharePrice).div(borrowShare.precision);
 
     setProfitLossLineItem(
@@ -61,7 +61,7 @@ export function handleEnterPosition(event: EnterPosition): void {
       borrowAsset,
       borrowSharePrice,
       event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
-      event
+      event,
     );
   }
 
@@ -74,10 +74,13 @@ export function handleExitPosition(event: ExitPosition): void {
   let underlyingToken = getToken(v.asset().toHexString());
   let account = loadAccount(event.params.user.toHexString(), event);
   let borrowShare = getBorrowShare(event.params.vault, event.address, event);
-  let borrowAssetsRepaid = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowSharesRepaid)
+  let borrowAssetsRepaid = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowSharesRepaid);
   let borrowSharePrice = getBorrowSharePrice(
-    borrowAssetsRepaid, event.params.borrowSharesRepaid, underlyingToken, borrowShare
-  )
+    borrowAssetsRepaid,
+    event.params.borrowSharesRepaid,
+    underlyingToken,
+    borrowShare,
+  );
 
   if (event.params.borrowSharesRepaid.gt(BigInt.zero())) {
     setProfitLossLineItem(
@@ -89,7 +92,7 @@ export function handleExitPosition(event: ExitPosition): void {
       borrowAssetsRepaid.neg(),
       borrowSharePrice,
       "ExitPosition",
-      event
+      event,
     );
   }
 
@@ -106,7 +109,7 @@ export function handleExitPosition(event: ExitPosition): void {
       event.params.profitsWithdrawn.plus(borrowAssetsRepaid).neg(),
       oraclePrice,
       "ExitPosition",
-      event
+      event,
     );
   }
 
@@ -124,8 +127,11 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
 
   let borrowAssetsRepaid = l.convertBorrowSharesToAssets(event.params.vault, event.params.borrowSharesRepaid);
   let borrowSharePrice = getBorrowSharePrice(
-    borrowAssetsRepaid, event.params.borrowSharesRepaid, underlyingToken, borrowShare
-  )
+    borrowAssetsRepaid,
+    event.params.borrowSharesRepaid,
+    underlyingToken,
+    borrowShare,
+  );
   let vaultSharePrice = v.price1(event.params.user);
 
   // Remove the borrow share from the account
@@ -137,7 +143,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     borrowAssetsRepaid.neg(),
     borrowSharePrice,
     "LiquidatePosition",
-    event
+    event,
   );
 
   // Remove the vault shares from the account
@@ -149,7 +155,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     borrowAssetsRepaid.neg(),
     vaultSharePrice,
     "LiquidatePosition",
-    event
+    event,
   );
 
   // Add the vault shares to the liquidator
@@ -161,12 +167,11 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     borrowAssetsRepaid,
     vaultSharePrice,
     "LiquidatePosition",
-    event
+    event,
   );
 
   parseVaultEvents(account, event.params.vault, event);
 }
-
 
 function parseVaultEvents(account: Account, vaultAddress: Address, event: ethereum.Event): void {
   if (event.receipt === null) return;
@@ -182,10 +187,10 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
       let rewardToken = Address.fromBytes(log.topics[1]);
       let account = Address.fromBytes(log.topics[2]);
       let amount = BigInt.fromByteArray(changetype<ByteArray>(log.data));
-      createSnapshotForIncentives(
-        loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event
-      );
-    } else if (log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
+      createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
+    } else if (
+      log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))
+    ) {
       // NOTE: the account is the one doing the trade here.
       let sellToken = Address.fromBytes(log.topics[1]);
       let buyToken = Address.fromBytes(log.topics[2]);
@@ -200,7 +205,7 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
         sellAmount,
         buyAmount,
         BigInt.fromI32(i),
-        event
+        event,
       );
     }
   }

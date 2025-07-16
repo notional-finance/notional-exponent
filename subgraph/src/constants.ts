@@ -6,6 +6,6 @@ export const VAULT_SHARE = "VaultShare";
 export const VAULT_DEBT = "VaultDebt";
 export const FIAT = "Fiat";
 export const DEFAULT_PRECISION = BigInt.fromI32(10).pow(18);
-export const TRADING_MODULE = Address.fromHexString('0x594734c7e06C3D483466ADBCe401C6Bd269746C8');
+export const TRADING_MODULE = Address.fromHexString("0x594734c7e06C3D483466ADBCe401C6Bd269746C8");
 export const SECONDS_IN_YEAR = BigInt.fromI32(31536000);
 export const RATE_PRECISION = BigInt.fromI32(10).pow(9);

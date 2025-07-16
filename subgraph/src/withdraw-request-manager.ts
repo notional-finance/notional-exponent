@@ -1,13 +1,19 @@
 import { ethereum, store, Address } from "@graphprotocol/graph-ts";
-import { ApprovedVault, InitiateWithdrawRequest, IWithdrawRequestManager, WithdrawRequestTokenized } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
+import {
+  ApprovedVault,
+  InitiateWithdrawRequest,
+  IWithdrawRequestManager,
+  WithdrawRequestTokenized,
+} from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
 
 function getWithdrawRequest(
   withdrawRequestManager: Address,
-  vault: Address, account: Address,
-  event: ethereum.Event
+  vault: Address,
+  account: Address,
+  event: ethereum.Event,
 ): WithdrawRequest {
-  let id  = withdrawRequestManager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString();
+  let id = withdrawRequestManager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString();
   let withdrawRequest = WithdrawRequest.load(id);
   if (!withdrawRequest) {
     withdrawRequest = new WithdrawRequest(id);
@@ -38,7 +44,6 @@ export function handleApprovedVault(event: ApprovedVault): void {
   }
   vault.withdrawRequestManagers = managers;
   vault.save();
-
 }
 
 export function handleInitiateWithdrawRequest(event: InitiateWithdrawRequest): void {

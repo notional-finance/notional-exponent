@@ -13,7 +13,7 @@ export function loadAccount(id: string, event: ethereum.Event): Account {
   account.lastUpdateBlockNumber = event.block.number;
   account.lastUpdateTimestamp = event.block.timestamp.toI32();
   account.lastUpdateTransactionHash = event.transaction.hash;
-  account.systemAccountType = 'None';
+  account.systemAccountType = "None";
 
   account.save();
   return account;
