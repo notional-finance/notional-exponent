@@ -41,6 +41,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     address public immutable override yieldToken;
     /// @inheritdoc IYieldStrategy
     uint256 public immutable override feeRate;
+    /// @inheritdoc IYieldStrategy
+    address public immutable override accountingAsset;
 
     IWithdrawRequestManager internal immutable withdrawRequestManager;
 
@@ -82,6 +84,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // do have to pass in the decimals as a parameter.
         _yieldTokenDecimals = __yieldTokenDecimals;
         _assetDecimals = TokenUtils.getDecimals(_asset);
+        accountingAsset = address(_asset);
     }
 
     function name() public view override(ERC20, IERC20Metadata) returns (string memory) {

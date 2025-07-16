@@ -39,6 +39,18 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function asset() external view returns (address assetTokenAddress);
 
     /**
+     * @dev Returns the address of the accounting asset used for the
+     * to mark the price of the yield token excluding any market profit and loss.
+     * This is only used for off chain accounting.
+     */
+    function accountingAsset() external view returns (address accountingAssetAddress);
+
+    /**
+     * @dev Returns the name of the strategy.
+     */
+    function strategy() external view returns (string memory strategyName);
+
+    /**
      * @dev Returns the address of the yield token held by the vault. Does not equal the share token,
      * which represents each user's share of the yield tokens held by the vault.
      *

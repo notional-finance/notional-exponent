@@ -26,7 +26,6 @@ contract PendlePT is AbstractStakingStrategy {
     IPMarket public immutable MARKET;
     address public immutable TOKEN_OUT_SY;
 
-    // TODO: add a value for PT accounting asset
     address public immutable TOKEN_IN_SY;
     IStandardizedYield immutable SY;
     IPPrincipalToken immutable PT;
@@ -54,6 +53,16 @@ contract PendlePT is AbstractStakingStrategy {
 
         TOKEN_IN_SY = tokenInSY;
         TOKEN_OUT_SY = tokenOutSY;
+
+        if (address(withdrawRequestManager) == address(0)) {
+            // If no withdraw request manager is set then use the token in sy
+            // as the accounting asset.
+            accountingAsset = tokenInSY;
+        }
+    }
+
+    function strategy() public pure override returns (string memory) {
+        return "PendlePT";
     }
 
     function _mintYieldTokens(

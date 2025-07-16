@@ -79,6 +79,10 @@ contract MockYieldStrategy is AbstractYieldStrategy {
     function transientVariables() external view returns (address, address, address, uint256) {
         return (t_CurrentAccount, t_CurrentLendingRouter, t_AllowTransfer_To, t_AllowTransfer_Amount);
     }
+
+    function strategy() public pure override returns (string memory) {
+        return "MockYieldStrategy";
+    }
 }
 
 contract MockERC20 is ERC20 {
@@ -140,6 +144,10 @@ contract MockRewardVault is RewardManagerMixin {
         address _rewardManager
     ) RewardManagerMixin(_asset, _yieldToken, _feeRate, _rewardManager, ERC20(_yieldToken).decimals()) {
         withdrawRequestManager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(_yieldToken));
+    }
+
+    function strategy() public pure override returns (string memory) {
+        return "MockRewardVault";
     }
 
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory /* depositData */) internal override {
