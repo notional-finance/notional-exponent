@@ -238,18 +238,33 @@ export function setProfitLossLineItem(
 
   lineItem.lineItemType = lineItemType;
 
-  let snapshot = updateBalance(token, account, event.address, event);
+  let balance = getBalance(account, token, event);
+  let snapshot = updateBalance(balance, token, account, event.address, event);
   lineItem.balanceSnapshot = snapshot.id;
 
   lineItem.save();
 
-  updateSnapshotMetrics(token, underlyingToken, snapshot, lineItem, event);
+  updateSnapshotMetrics(
+    token,
+    underlyingToken,
+    snapshot,
+    lineItem.tokenAmount,
+    lineItem.underlyingAmountRealized,
+    lineItem.spotPrice,
+    balance,
+    event,
+  );
   snapshot.save();
 }
 
-function updateBalance(token: Token, account: Account, lendingRouter: Address, event: ethereum.Event): BalanceSnapshot {
+function updateBalance(
+  balance: Balance,
+  token: Token,
+  account: Account,
+  lendingRouter: Address,
+  event: ethereum.Event,
+): BalanceSnapshot {
   let accountAddress = Address.fromBytes(Address.fromHexString(account.id));
-  let balance = getBalance(account, token, event);
   let snapshot = getBalanceSnapshot(balance, event);
 
   if (token.tokenType == VAULT_SHARE && token.vaultAddress !== null) {
@@ -337,24 +352,35 @@ function getInterestAccumulator(
   }
 }
 
-function updateSnapshotMetrics(
+export function updateSnapshotMetrics(
   token: Token,
   underlyingToken: Token,
   snapshot: BalanceSnapshot,
-  lineItem: ProfitLossLineItem,
+  tokenAmount: BigInt,
+  underlyingAmountRealized: BigInt,
+  spotPrice: BigInt,
+  balance: Balance,
   event: ethereum.Event,
 ): void {
   if (token.tokenType == VAULT_SHARE) {
     let v = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
 
-    // This is the value of one vault share in the underlying token.
-    // the problem is that this includes both interest accrued as well as some
-    // aspects of mark to market pnl.
-    let interestAccumulator = getInterestAccumulator(v, lineItem.tokenAmount, snapshot._lastInterestAccumulator, event);
+    let interestAccumulator: BigInt;
+    let vaultFeeAccumulator: BigInt;
+    if (balance.withdrawRequest === null) {
+      // This is the value of one vault share in the underlying token.
+      // the problem is that this includes both interest accrued as well as some
+      // aspects of mark to market pnl.
+      interestAccumulator = getInterestAccumulator(v, tokenAmount, snapshot._lastInterestAccumulator, event);
 
-    // This is the number of yield tokens per vault share, it is decreasing over time.
-    // TODO: need to know the yield token decimals to do this correctly
-    let vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+      // This is the number of yield tokens per vault share, it is decreasing over time.
+      // TODO: need to know the yield token decimals to do this correctly
+      vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+    } else {
+      // Pause the interest accrual and vault fees accrual during a withdraw request
+      interestAccumulator = snapshot._lastInterestAccumulator;
+      vaultFeeAccumulator = snapshot._lastVaultFeeAccumulator;
+    }
 
     // This accumulator is in the underlying basis.
     let interestAccruedSinceLastSnapshot = interestAccumulator
@@ -375,7 +401,7 @@ function updateSnapshotMetrics(
     snapshot._lastVaultFeeAccumulator = vaultFeeAccumulator;
 
     // It shouldn't be possible to have a vault share decrease without a previous balance
-    if (lineItem.tokenAmount.lt(BigInt.zero()) && snapshot.previousBalance.gt(BigInt.zero())) {
+    if (tokenAmount.lt(BigInt.zero()) && snapshot.previousBalance.gt(BigInt.zero())) {
       // Calculate an adjustment to the total interest accrued that is proportional
       // to the remaining balance. Use the current and previous balances to get the final
       // balance after the transaction.
@@ -391,10 +417,10 @@ function updateSnapshotMetrics(
 
   // We use accumulated balance to calculate the inter-transaction balance
   // in case there are multiple balance changes in the same transaction.
-  snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(lineItem.tokenAmount);
+  snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(tokenAmount);
 
   // This is the total realized cost of the balance in the underlying (i.e. asset token)
-  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(lineItem.underlyingAmountRealized);
+  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(underlyingAmountRealized);
 
   // This is the average cost basis of the balance in the underlying token precision
   snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized
@@ -406,7 +432,7 @@ function updateSnapshotMetrics(
   // (_accumulatedBalance * oraclePrice) - _accumulatedCostRealized
   snapshot.currentProfitAndLossAtSnapshot = snapshot._accumulatedBalance
     .times(underlyingToken.precision)
-    .times(lineItem.spotPrice)
+    .times(spotPrice)
     .div(DEFAULT_PRECISION)
     .div(token.precision)
     .minus(snapshot._accumulatedCostRealized);

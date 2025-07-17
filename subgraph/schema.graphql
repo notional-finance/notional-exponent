@@ -1,40 +1,41 @@
 enum TokenType {
-  Underlying,
-  VaultShare,
-  VaultDebt,
+  Underlying
+  VaultShare
+  VaultDebt
   Fiat
 }
 
 enum SystemAccount {
-  None,
-  ZeroAddress,
-  LendingRouter,
-  Vault,
+  None
+  ZeroAddress
+  LendingRouter
+  Vault
   NOTE
 }
 
 enum TokenInterface {
-  ERC20,
-  ERC1155,
+  ERC20
+  ERC1155
   "Used to designate off chain fiat currencies like USD, JPY, etc"
   FIAT
 }
 
 enum LineItemType {
-  EnterPosition,
-  ExitPosition,
-  LiquidatePosition,
-  MigratePosition,
-  WithdrawRequestInitiated,
-  WithdrawRequestTokenized,
-  WithdrawRequestFinalized,
+  EnterPosition
+  ExitPosition
+  LiquidatePosition
+  MigratePosition
+  WithdrawRequestInitiated
+  WithdrawRequestTokenized
+  WithdrawRequestFinalized
   TradeExecution
 }
 
 type Token @entity(immutable: false) {
-  """ID space varies by token type:
-    - ERC20: token address
-    - ERC1155: `emitter address:tokenId`
+  """
+  ID space varies by token type:
+  - ERC20: token address
+  - ERC1155: `emitter address:tokenId`
   """
   id: ID!
 
@@ -50,7 +51,7 @@ type Token @entity(immutable: false) {
   tokenInterface: TokenInterface!
   "A link to the underlying token if this token is not underlying itself"
   underlying: Token
-  
+
   name: String!
   symbol: String!
   decimals: Int!
@@ -113,9 +114,9 @@ type Account @entity(immutable: false) {
 ### Exchange Rates ###
 
 enum OracleType {
-  Chainlink,
-  VaultShareOracleRate,
-  VaultShareInterestAccrued,
+  Chainlink
+  VaultShareOracleRate
+  VaultShareInterestAccrued
 }
 
 type OracleRegistry @entity(immutable: false) {
@@ -238,9 +239,10 @@ type Balance @entity(immutable: false) {
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
-  
+
   current: BalanceSnapshot!
-  withdrawRequest: WithdrawRequest @derivedFrom(field: "balance")
+  "Link to the withdraw request that this balance is associated with"
+  withdrawRequest: WithdrawRequest
   snapshots: [BalanceSnapshot!] @derivedFrom(field: "balance")
 }
 
@@ -272,7 +274,7 @@ type BalanceSnapshot @entity(immutable: true) {
   totalVaultFeesAtSnapshot: BigInt!
   "Implied Fixed Rate for fCash balances"
   impliedFixedRate: BigInt
-  
+
   "Cumulative balance used for internal PnL calculations"
   _accumulatedBalance: BigInt!
   "Cumulative realized cost for internal PnL calculations"
@@ -285,7 +287,6 @@ type BalanceSnapshot @entity(immutable: true) {
   profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "balanceSnapshot")
   "Snapshots of the secondary incentives"
   incentives: [IncentiveSnapshot!] @derivedFrom(field: "balanceSnapshot")
-
 }
 
 type WithdrawRequest @entity(immutable: false) {
@@ -358,20 +359,20 @@ type IncentiveSnapshot @entity(immutable: true) {
 ### Trading Module ###
 
 enum DEX {
-  _UNUSED,
-  UNISWAP_V2,
-  UNISWAP_V3,
-  ZERO_EX,
-  BALANCER_V2,
-  CURVE,
-  NOTIONAL_VAULT,
+  _UNUSED
+  UNISWAP_V2
+  UNISWAP_V3
+  ZERO_EX
+  BALANCER_V2
+  CURVE
+  NOTIONAL_VAULT
   CURVE_V2
 }
 
 enum TradeType {
-  EXACT_IN_SINGLE,
-  EXACT_OUT_SINGLE,
-  EXACT_IN_BATCH,
+  EXACT_IN_SINGLE
+  EXACT_OUT_SINGLE
+  EXACT_IN_BATCH
   EXACT_OUT_BATCH
 }
 

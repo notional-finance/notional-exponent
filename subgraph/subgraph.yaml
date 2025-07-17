@@ -112,6 +112,8 @@ templates:
       abis:
         - name: IWithdrawRequestManager
           file: ./abis/IWithdrawRequestManager.json
+        - name: IYieldStrategy
+          file: ./abis/IYieldStrategy.json
       entities:
         - WithdrawRequestManager
       eventHandlers:

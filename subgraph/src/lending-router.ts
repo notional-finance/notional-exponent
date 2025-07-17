@@ -25,7 +25,7 @@ function getBorrowSharePrice(
     .div(underlyingToken.precision);
 }
 
-function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
+export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
   return price.times(underlyingToken.precision).div(DEFAULT_PRECISION);
 }
 
