@@ -5,6 +5,7 @@ import { DEFAULT_PRECISION } from "../src/constants";
 import { EnterPosition } from "../generated/templates/LendingRouter/ILendingRouter";
 import { handleEnterPosition } from "../src/lending-router";
 import { BalanceSnapshot } from "../generated/schema";
+import { log } from "@graphprotocol/graph-ts";
 
 let vault = Address.fromString("0x0000000000000000000000000000000000000001");
 let lendingRouter = Address.fromString("0x00000000000000000000000000000000000000AA");
@@ -82,6 +83,12 @@ function mockVaultSharePrice(vaultShares: BigInt, price: BigInt): void {
   createMockedFunction(lendingRouter, "balanceOfCollateral", "balanceOfCollateral(address,address):(uint256)")
     .withArgs([ethereum.Value.fromAddress(account), ethereum.Value.fromAddress(vault)])
     .returns([ethereum.Value.fromUnsignedBigInt(vaultShares)]);
+
+  createMockedFunction(yieldToken, "name", "name():(string)").returns([ethereum.Value.fromString("Yield Token")]);
+  createMockedFunction(yieldToken, "symbol", "symbol():(string)").returns([ethereum.Value.fromString("YT")]);
+  createMockedFunction(yieldToken, "decimals", "decimals():(uint8)").returns([
+    ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(18)),
+  ]);
 }
 
 function mockVaultFeePrice(): void {
@@ -141,18 +148,23 @@ describe("enter position with borrow shares", () => {
     tradeExecutedLog.address = vault;
     tradeExecutedLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
-      Bytes.fromHexString("0x00000000000000000000000000000000000000ff"),
-      Bytes.fromHexString("0x00000000000000000000000000000000000000ff"),
+      Bytes.fromHexString(asset.toHexString()),
+      Bytes.fromHexString(yieldToken.toHexString()),
     ];
-    tradeExecutedLog.data = Bytes.fromByteArray(
-      ByteArray.fromBigInt(DEFAULT_PRECISION).concat(ByteArray.fromBigInt(DEFAULT_PRECISION)),
-    );
+    tradeExecutedLog.data = ethereum.encode(
+      ethereum.Value.fromTuple(
+        changetype<ethereum.Tuple>([
+          ethereum.Value.fromUnsignedBigInt(USDC_PRECISION.times(BigInt.fromI32(10))),
+          ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(9))),
+        ]),
+      ),
+    )!;
 
     let incentiveTransferLog = newLog();
     incentiveTransferLog.address = vault;
     incentiveTransferLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-      Bytes.fromHexString("0x00000000000000000000000000000000000000ff"),
+      Bytes.fromHexString(asset.toHexString()),
       Bytes.fromHexString(account.toHexString()),
     ];
     incentiveTransferLog.data = Bytes.fromByteArray(ByteArray.fromBigInt(DEFAULT_PRECISION));
@@ -284,8 +296,33 @@ describe("enter position with borrow shares", () => {
     assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", BigInt.zero().toString());
   });
 
-  test("has trade execution line items", () => {});
-  test("incentive snapshot line items", () => {});
+  test("has trade execution line items", () => {
+    let id = hash.toHexString() + ":" + BigInt.fromI32(0).toString() + ":" + asset.toHexString();
+    assert.fieldEquals("ProfitLossLineItem", id, "lineItemType", "TradeExecution");
+    assert.fieldEquals("ProfitLossLineItem", id, "account", account.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "token", asset.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingToken", yieldToken.toHexString());
+    assert.fieldEquals("ProfitLossLineItem", id, "tokenAmount", USDC_PRECISION.times(BigInt.fromI32(10)).toString());
+    log.info("underlying amount realized {}", [DEFAULT_PRECISION.times(BigInt.fromI32(9)).toString()]);
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountRealized", "9000000000000000000");
+    assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", "900000000000000000");
+    assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", BigInt.zero().toString());
+    assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountSpot", BigInt.zero().toString());
+  });
+
+  test("incentive snapshot line items", () => {
+    let id =
+      account.toHexString() +
+      ":" +
+      vault.toHexString() +
+      ":" +
+      BigInt.fromI32(1).toString() +
+      ":" +
+      asset.toHexString();
+    assert.fieldEquals("IncentiveSnapshot", id, "rewardToken", asset.toHexString());
+    assert.fieldEquals("IncentiveSnapshot", id, "totalClaimed", DEFAULT_PRECISION.toString());
+    assert.fieldEquals("IncentiveSnapshot", id, "adjustedClaimed", DEFAULT_PRECISION.toString());
+  });
 
   test("vault share fees paid and interest accrued", () => {});
 

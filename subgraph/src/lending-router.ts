@@ -183,25 +183,25 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
   if (event.receipt === null) return;
 
   for (let i = 0; i < event.receipt!.logs.length; i++) {
-    let log = event.receipt!.logs[i];
-    if (log.address.toHexString() != vaultAddress.toHexString()) continue;
+    let _log = event.receipt!.logs[i];
+    if (_log.address.toHexString() != vaultAddress.toHexString()) continue;
 
-    if (log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
+    if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
       // We do this here because we don't know the current lending router in order
       // to get the proper balance snapshot so these need to be done after the balance
       // snapshots are updated.
-      let rewardToken = Address.fromBytes(log.topics[1]);
-      let account = Address.fromBytes(log.topics[2]);
-      let amount = BigInt.fromByteArray(changetype<ByteArray>(log.data));
+      let rewardToken = Address.fromBytes(_log.topics[1]);
+      let account = Address.fromBytes(_log.topics[2]);
+      let amount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.reverse()));
       createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
     } else if (
-      log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))
+      _log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))
     ) {
       // NOTE: the account is the one doing the trade here.
-      let sellToken = Address.fromBytes(log.topics[1]);
-      let buyToken = Address.fromBytes(log.topics[2]);
-      let sellAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(0, 32)));
-      let buyAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(32)));
+      let sellToken = Address.fromBytes(_log.topics[1]);
+      let buyToken = Address.fromBytes(_log.topics[2]);
+      let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
+      let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 
       createTradeExecutionLineItem(
         account,

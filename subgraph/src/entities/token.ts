@@ -45,7 +45,15 @@ export function createERC20TokenAsset(tokenAddress: Address, event: ethereum.Eve
   } else {
     let erc20 = IERC20Metadata.bind(tokenAddress);
     let symbolAndName = getTokenNameAndSymbol(erc20);
-    let decimals = erc20.decimals();
+    let decimalsResult = erc20.try_decimals();
+    let decimals: i32;
+    if (decimalsResult.reverted) {
+      // This only happens for convex yield tokens, but they are known to be 18 decimals
+      decimals = 18;
+    } else {
+      decimals = decimalsResult.value;
+    }
+
     token.name = symbolAndName[0];
     token.symbol = symbolAndName[1];
     token.decimals = decimals;
