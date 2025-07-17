@@ -315,7 +315,7 @@ function getInterestAccumulator(
   let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
 
   if (strategy == "Staking") {
-    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer().minus(_lastInterestAccumulator);
+    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
   } else if (strategy == "PendlePT") {
     let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
     let expiry = pt.expiry();
@@ -330,7 +330,8 @@ function getInterestAccumulator(
     let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmount);
     return _lastInterestAccumulator.plus(marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry));
   } else {
-    return v.convertToAssets(DEFAULT_PRECISION).minus(_lastInterestAccumulator);
+    // NOTE: this can go negative if the price goes down.
+    return v.convertToAssets(DEFAULT_PRECISION);
   }
 }
 
