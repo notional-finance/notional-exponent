@@ -9,117 +9,15 @@ import {
   createMockedFunction,
 } from "matchstick-as/assembly/index";
 import { Address, BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts";
-import {
-  ApprovedVault,
-  InitiateWithdrawRequest,
-  WithdrawRequestTokenized,
-} from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
+import { WithdrawRequestTokenized } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import {
   handleApprovedVault,
   handleInitiateWithdrawRequest,
   handleWithdrawRequestTokenized,
 } from "../src/withdraw-request-manager";
-import { Token, TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
-
-function createApprovedVaultEvent(manager: Address, vault: Address, isApproved: boolean): ApprovedVault {
-  let approvedVaultEvent = changetype<ApprovedVault>(newMockEvent());
-
-  approvedVaultEvent.parameters = new Array();
-
-  approvedVaultEvent.parameters.push(new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault)));
-  approvedVaultEvent.parameters.push(new ethereum.EventParam("isApproved", ethereum.Value.fromBoolean(isApproved)));
-
-  approvedVaultEvent.address = manager;
-
-  return approvedVaultEvent;
-}
-
-function createInitiateWithdrawRequestEvent(
-  manager: Address,
-  vault: Address,
-  account: Address,
-  yieldTokenAmount: BigInt,
-  sharesAmount: BigInt,
-): InitiateWithdrawRequest {
-  let initiateWithdrawRequestEvent = changetype<InitiateWithdrawRequest>(newMockEvent());
-
-  initiateWithdrawRequestEvent.parameters = new Array();
-
-  initiateWithdrawRequestEvent.parameters.push(new ethereum.EventParam("account", ethereum.Value.fromAddress(account)));
-  initiateWithdrawRequestEvent.parameters.push(new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault)));
-  initiateWithdrawRequestEvent.parameters.push(
-    new ethereum.EventParam("yieldTokenAmount", ethereum.Value.fromUnsignedBigInt(yieldTokenAmount)),
-  );
-  initiateWithdrawRequestEvent.parameters.push(
-    new ethereum.EventParam("sharesAmount", ethereum.Value.fromUnsignedBigInt(sharesAmount)),
-  );
-  initiateWithdrawRequestEvent.parameters.push(
-    new ethereum.EventParam("requestId", ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1))),
-  );
-
-  initiateWithdrawRequestEvent.address = manager;
-
-  return initiateWithdrawRequestEvent;
-}
-
-export function createVault(vault: Address): Vault {
-  let v = new Vault(vault.toHexString());
-  v.firstUpdateBlockNumber = BigInt.fromI32(1);
-  v.firstUpdateTimestamp = 1;
-  v.firstUpdateTransactionHash = Bytes.fromI32(1);
-  v.lastUpdateBlockNumber = BigInt.fromI32(1);
-  v.lastUpdateTimestamp = 1;
-  v.lastUpdateTransactionHash = Bytes.fromI32(1);
-  v.isWhitelisted = true;
-  v.asset = "0x00000000000000000000000000000000000000ff";
-  v.yieldToken = "0x00000000000000000000000000000000000000ee";
-  v.vaultToken = vault.toHexString();
-  v.feeRate = BigInt.fromI32(1000);
-  v.withdrawRequestManagers = [];
-  v.save();
-
-  let vaultShare = new Token(vault.toHexString());
-  vaultShare.firstUpdateBlockNumber = BigInt.fromI32(1);
-  vaultShare.firstUpdateTimestamp = 1;
-  vaultShare.firstUpdateTransactionHash = Bytes.fromI32(1);
-  vaultShare.lastUpdateBlockNumber = BigInt.fromI32(1);
-  vaultShare.lastUpdateTimestamp = 1;
-  vaultShare.lastUpdateTransactionHash = Bytes.fromI32(1);
-  vaultShare.tokenType = "VaultShare";
-  vaultShare.tokenInterface = "ERC20";
-  vaultShare.underlying = v.asset;
-  vaultShare.name = "Vault Share";
-  vaultShare.symbol = "VSH";
-  vaultShare.decimals = 18;
-  vaultShare.precision = BigInt.fromI32(10).pow(18);
-  vaultShare.vaultAddress = vault;
-  vaultShare.tokenAddress = vault;
-  vaultShare.save();
-
-  let asset = new Token(v.asset);
-  asset.firstUpdateBlockNumber = BigInt.fromI32(1);
-  asset.firstUpdateTimestamp = 1;
-  asset.firstUpdateTransactionHash = Bytes.fromI32(1);
-  asset.lastUpdateBlockNumber = BigInt.fromI32(1);
-  asset.lastUpdateTimestamp = 1;
-  asset.lastUpdateTransactionHash = Bytes.fromI32(1);
-  asset.tokenType = "Underlying";
-  asset.tokenInterface = "ERC20";
-  asset.name = "Asset";
-  asset.symbol = "ASSET";
-  asset.decimals = 6;
-  asset.precision = BigInt.fromI32(10).pow(6);
-  asset.tokenAddress = Bytes.fromHexString(v.asset);
-  asset.save();
-
-  return v;
-}
-
-function listManager(vault: Address, manager: Address): void {
-  let isApproved = true;
-  let newApprovedVaultEvent = createApprovedVaultEvent(manager, vault, isApproved);
-  handleApprovedVault(newApprovedVaultEvent);
-}
+import { Balance, BalanceSnapshot, TokenizedWithdrawRequest, WithdrawRequest } from "../generated/schema";
+import { DEFAULT_PRECISION } from "../src/constants";
+import { createApprovedVaultEvent, createInitiateWithdrawRequestEvent, createVault, listManager } from "./common";
 
 function createWithdrawRequestTokenizedEvent(
   manager: Address,
@@ -146,6 +44,54 @@ function createWithdrawRequestTokenizedEvent(
   withdrawRequestTokenizedEvent.address = manager;
 
   return withdrawRequestTokenizedEvent;
+}
+
+function setupBalanceSnapshot(vault: Address, account: Address): void {
+  let balance = new Balance(account.toHexString() + ":" + vault.toHexString());
+  let balanceSnapshot = new BalanceSnapshot(account.toHexString() + ":" + vault.toHexString() + ":0");
+  balanceSnapshot.currentBalance = BigInt.fromI32(1000).times(DEFAULT_PRECISION);
+  balanceSnapshot.previousBalance = BigInt.zero();
+  balanceSnapshot.currentProfitAndLossAtSnapshot = BigInt.zero();
+  balanceSnapshot.totalVaultFeesAtSnapshot = BigInt.zero();
+  balanceSnapshot.totalInterestAccrualAtSnapshot = BigInt.zero();
+  balanceSnapshot.adjustedCostBasis = BigInt.zero();
+  balanceSnapshot._lastInterestAccumulator = BigInt.zero();
+  balanceSnapshot._lastVaultFeeAccumulator = BigInt.zero();
+  balanceSnapshot._accumulatedBalance = BigInt.fromI32(1000).times(DEFAULT_PRECISION);
+  balanceSnapshot._accumulatedCostRealized = BigInt.zero();
+  balanceSnapshot.balance = balance.id;
+  balanceSnapshot.previousSnapshot = null;
+  balanceSnapshot.blockNumber = BigInt.fromI32(1);
+  balanceSnapshot.timestamp = 1;
+  balanceSnapshot.transactionHash = Bytes.fromI32(1);
+  balanceSnapshot.save();
+  balance.current = balanceSnapshot.id;
+  balance.token = vault.toHexString();
+  balance.account = account.toHexString();
+  balance.firstUpdateBlockNumber = BigInt.fromI32(1);
+  balance.firstUpdateTimestamp = 1;
+  balance.firstUpdateTransactionHash = Bytes.fromI32(1);
+  balance.lastUpdateBlockNumber = BigInt.fromI32(1);
+  balance.lastUpdateTimestamp = 1;
+  balance.lastUpdateTransactionHash = Bytes.fromI32(1);
+  balance.save();
+
+  createMockedFunction(vault, "price", "price(address):(uint256)")
+    .withArgs([ethereum.Value.fromAddress(account)])
+    .returns([ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1000))]);
+  createMockedFunction(vault, "strategy", "strategy():(string)").returns([ethereum.Value.fromString("Other")]);
+  createMockedFunction(vault, "yieldToken", "yieldToken():(address)").returns([
+    ethereum.Value.fromAddress(Address.fromString("0x00000000000000000000000000000000000000ee")),
+  ]);
+  createMockedFunction(vault, "accountingAsset", "accountingAsset():(address)").returns([
+    ethereum.Value.fromAddress(Address.fromString("0x00000000000000000000000000000000000000ff")),
+  ]);
+  createMockedFunction(vault, "convertToAssets", "convertToAssets(uint256):(uint256)")
+    .withArgs([ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION)])
+    .returns([ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION)]);
+  createMockedFunction(vault, "convertSharesToYieldToken", "convertSharesToYieldToken(uint256):(uint256)")
+    .withArgs([ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION)])
+    .returns([ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION)]);
 }
 
 describe("Approve withdraw request manager lists on vault", () => {
@@ -208,6 +154,7 @@ describe("Initiate withdraw request", () => {
       yieldTokenAmount,
       sharesAmount,
     );
+    setupBalanceSnapshot(vault, account);
     handleInitiateWithdrawRequest(newInitiateWithdrawRequestEvent);
   });
 
@@ -248,6 +195,7 @@ describe("Initiate withdraw request", () => {
       requestId,
       sharesAmount,
     );
+    setupBalanceSnapshot(vault, to);
     createMockedFunction(
       manager,
       "getWithdrawRequest",
@@ -339,6 +287,8 @@ describe("Initiate withdraw request", () => {
       requestId,
       sharesAmount,
     );
+    setupBalanceSnapshot(vault, from);
+    setupBalanceSnapshot(vault, to);
 
     let twr = new TokenizedWithdrawRequest(manager.toHexString() + ":" + requestId.toString());
     twr.lastUpdateBlockNumber = BigInt.fromI32(1);
@@ -499,6 +449,7 @@ describe("Initiate withdraw request", () => {
         ),
       ]);
 
+    setupBalanceSnapshot(vault, to);
     handleWithdrawRequestTokenized(newWithdrawRequestTokenizedEvent);
     let id = manager.toHexString() + ":" + requestId.toString();
     let id1 = manager.toHexString() + ":" + vault.toHexString() + ":" + from.toHexString();

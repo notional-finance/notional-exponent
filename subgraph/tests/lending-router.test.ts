@@ -1,11 +1,11 @@
 import { describe, test, beforeAll, createMockedFunction, newMockEvent, logStore, newLog, assert } from "matchstick-as";
 import { Address, ethereum, BigInt, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
-import { createVault } from "./withdraw-request-manager.test";
+import { createVault, createInitiateWithdrawRequestEvent, listManager } from "./common";
 import { DEFAULT_PRECISION } from "../src/constants";
 import { EnterPosition, ExitPosition } from "../generated/templates/LendingRouter/ILendingRouter";
 import { handleEnterPosition, handleExitPosition } from "../src/lending-router";
 import { BalanceSnapshot } from "../generated/schema";
-import { log } from "@graphprotocol/graph-ts";
+import { handleInitiateWithdrawRequest } from "../src/withdraw-request-manager";
 
 let vault = Address.fromString("0x0000000000000000000000000000000000000001");
 let lendingRouter = Address.fromString("0x00000000000000000000000000000000000000AA");
@@ -609,11 +609,32 @@ describe("enter position with borrow shares", () => {
     });
   });
 
-  describe("test exit position with assets repaid", () => {});
-});
+  describe("initiate withdraw request", () => {
+    beforeAll(() => {
+      let manager = Address.fromString("0x00000000000000000000000000000000000000DD");
+      listManager(vault, manager);
 
-describe("initiate withdraw request", () => {
-  // todo: need to pause interest accrual and vault fees
-});
+      let initiateWithdrawRequestEvent = createInitiateWithdrawRequestEvent(
+        manager,
+        vault,
+        account,
+        BigInt.fromI32(100).times(USDC_PRECISION),
+        BigInt.fromI32(100).times(DEFAULT_PRECISION),
+      );
 
-describe("liquidate position", () => {});
+      handleInitiateWithdrawRequest(initiateWithdrawRequestEvent);
+    });
+
+    test("interest has been accrued and withdraw manager is set", () => {});
+  });
+
+  describe("liquidate position", () => {
+    test("no interest accrued since last snapshot", () => {});
+  });
+
+  describe("full exit position withdraw request", () => {
+    beforeAll(() => {});
+
+    test("no interest accrued since last snapshot", () => {});
+  });
+});

@@ -1,4 +1,4 @@
-import { ethereum, store, Address } from "@graphprotocol/graph-ts";
+import { ethereum, store, Address, BigInt } from "@graphprotocol/graph-ts";
 import {
   ApprovedVault,
   InitiateWithdrawRequest,
@@ -6,6 +6,11 @@ import {
   WithdrawRequestTokenized,
 } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
+import { getBalance, getBalanceSnapshot, updateSnapshotMetrics } from "./entities/balance";
+import { getToken } from "./entities/token";
+import { loadAccount } from "./entities/account";
+import { convertPrice } from "./lending-router";
+import { IYieldStrategy } from "../generated/templates/WithdrawRequestManager/IYieldStrategy";
 
 function getWithdrawRequest(
   withdrawRequestManager: Address,
@@ -46,15 +51,35 @@ export function handleApprovedVault(event: ApprovedVault): void {
   vault.save();
 }
 
+function updateBalanceSnapshotForWithdrawRequest(w: WithdrawRequest, event: ethereum.Event): void {
+  let vaultShare = getToken(w.vault);
+  let account = loadAccount(w.account, event);
+  let balance = getBalance(account, vaultShare, event);
+  let snapshot = getBalanceSnapshot(balance, event);
+  snapshot.previousBalance = snapshot.currentBalance;
+  snapshot.save();
+
+  let underlying = getToken(vaultShare.underlying!);
+  let price = convertPrice(
+    IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
+    underlying,
+  );
+  updateSnapshotMetrics(vaultShare, underlying, snapshot, BigInt.zero(), BigInt.zero(), price, balance, event);
+  snapshot.save();
+
+  // Set this at the end to stop any further interest accruals
+  balance.withdrawRequest = w.id;
+  balance.save();
+}
+
 export function handleInitiateWithdrawRequest(event: InitiateWithdrawRequest): void {
   let withdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.account, event);
   withdrawRequest.requestId = event.params.requestId;
   withdrawRequest.yieldTokenAmount = event.params.yieldTokenAmount;
   withdrawRequest.sharesAmount = event.params.sharesAmount;
-
   withdrawRequest.save();
 
-  // todo: clear interest accrual on balance snapshot
+  updateBalanceSnapshotForWithdrawRequest(withdrawRequest, event);
 }
 
 export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized): void {
@@ -76,7 +101,6 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   twr.totalYieldTokenAmount = toW.getS().totalYieldTokenAmount;
   twr.totalWithdraw = toW.getS().totalWithdraw;
   twr.finalized = toW.getS().finalized;
-
   twr.save();
 
   // Update the withdraw requests
@@ -86,6 +110,7 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   toWithdrawRequest.sharesAmount = toW.getW().sharesAmount;
   toWithdrawRequest.tokenizedWithdrawRequest = twr.id;
   toWithdrawRequest.save();
+  updateBalanceSnapshotForWithdrawRequest(toWithdrawRequest, event);
 
   // Update the from withdraw request
   let fromWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.from, event);
@@ -93,6 +118,12 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   if (fromW.getW().requestId.isZero()) {
     // delete the from withdraw request
     store.remove("WithdrawRequest", fromWithdrawRequest.id);
+    let account = loadAccount(event.params.from.toHexString(), event);
+    let vaultShare = getToken(event.params.vault.toHexString());
+    let balance = getBalance(account, vaultShare, event);
+    // Clear the withdraw request if it is removed
+    balance.withdrawRequest = null;
+    balance.save();
   } else {
     fromWithdrawRequest.requestId = event.params.requestId;
     fromWithdrawRequest.yieldTokenAmount = fromW.getW().yieldTokenAmount;
