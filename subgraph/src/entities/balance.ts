@@ -283,14 +283,14 @@ function findPendleTokenInAmount(
   if (event.receipt === null) return BigInt.zero();
 
   for (let i = 0; i < event.receipt!.logs.length; i++) {
-    let log = event.receipt!.logs[i];
-    if (log.address.toHexString() != vaultAddress.toHexString()) continue;
+    let _log = event.receipt!.logs[i];
+    if (_log.address.toHexString() != vaultAddress.toHexString()) continue;
 
-    if (log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
-      let sellToken = Address.fromBytes(log.topics[1]);
-      let buyToken = Address.fromBytes(log.topics[2]);
-      let sellAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(0, 32)));
-      let buyAmount = BigInt.fromByteArray(changetype<ByteArray>(log.data.slice(32)));
+    if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
+      let sellToken = Address.fromBytes(_log.topics[1]);
+      let buyToken = Address.fromBytes(_log.topics[2]);
+      let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
+      let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 
       if (sellToken == tokenInSy && buyToken == ptToken) {
         return sellAmount;
