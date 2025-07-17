@@ -64,6 +64,8 @@ export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): Bal
         snapshot._lastInterestAccumulator = prevSnapshot._lastInterestAccumulator;
         snapshot._lastVaultFeeAccumulator = prevSnapshot._lastVaultFeeAccumulator;
         snapshot.impliedFixedRate = prevSnapshot.impliedFixedRate;
+        snapshot.totalInterestAccrualAtSnapshot = prevSnapshot.totalInterestAccrualAtSnapshot;
+        snapshot.totalVaultFeesAtSnapshot = prevSnapshot.totalVaultFeesAtSnapshot;
       }
 
       if (prevSnapshot) {
@@ -223,7 +225,7 @@ export function setProfitLossLineItem(
     .div(token.precision);
   lineItem.spotPrice = spotPrice;
 
-  if (tokenAmount.gt(BigInt.zero())) {
+  if (tokenAmount.notEqual(BigInt.zero())) {
     // This is reported in DEFAULT_PRECISION
     lineItem.realizedPrice = underlyingAmountRealized
       .times(DEFAULT_PRECISION)

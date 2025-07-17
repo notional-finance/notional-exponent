@@ -539,7 +539,46 @@ describe("enter position with borrow shares", () => {
       handleExitPosition(exitPositionEvent);
     });
 
-    test("has profit loss line item after exit position", () => {});
+    test("has profit loss line item after exit position", () => {
+      let id = hash3.toHexString() + ":" + BigInt.fromI32(3).toString() + ":" + vault.toHexString();
+      let vaultSharePrice2 = vaultSharePrice.plus(BigInt.fromI32(10).pow(16));
+      let vaultSharesBurned = BigInt.fromI32(100).times(DEFAULT_PRECISION);
+
+      assert.fieldEquals("ProfitLossLineItem", id, "lineItemType", "ExitPosition");
+      assert.fieldEquals("ProfitLossLineItem", id, "account", account.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", id, "token", vault.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", id, "underlyingToken", asset.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", id, "tokenAmount", vaultSharesBurned.neg().toString());
+      assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountRealized", "-101800000");
+      assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", vaultSharePrice2.toString());
+      assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", "1018000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountSpot", "-100000000");
+    });
+
+    test("incentive snapshot line items", () => {
+      let id =
+        account.toHexString() +
+        ":" +
+        vault.toHexString() +
+        ":" +
+        BigInt.fromI32(3).toString() +
+        ":" +
+        asset.toHexString();
+      assert.fieldEquals("IncentiveSnapshot", id, "rewardToken", asset.toHexString());
+      assert.fieldEquals(
+        "IncentiveSnapshot",
+        id,
+        "totalClaimed",
+        DEFAULT_PRECISION.times(BigInt.fromI32(5)).toString(),
+      );
+      assert.fieldEquals(
+        "IncentiveSnapshot",
+        id,
+        "adjustedClaimed",
+        // Adjusted down from 5e18 to 4.54 due to the prev / current balance
+        "4545040946314831666",
+      );
+    });
 
     test("has vault share balance after exit position", () => {
       let id = account.toHexString() + ":" + vault.toHexString();
@@ -547,6 +586,26 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("Balance", id, "account", account.toHexString());
 
       let snapshotId = id + ":" + BigInt.fromI32(3).toString();
+      let snapshot = BalanceSnapshot.load(snapshotId);
+      if (snapshot === null) assert.assertTrue(false, "snapshot is null");
+      assert.assertTrue((snapshot as BalanceSnapshot).previousSnapshot !== null);
+      let previousBalance = BigInt.fromI32(1099).times(DEFAULT_PRECISION);
+      let currentBalance = BigInt.fromI32(999).times(DEFAULT_PRECISION);
+      let vaultSharePrice2 = vaultSharePrice.plus(BigInt.fromI32(10).pow(16));
+
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1007200000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008208");
+      // Negative PnL includes loss from the initial deposit
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "-8200000");
+
+      // These both get adjusted downwards because of the redemption
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "9090081892629663330");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", "909008189262966333");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastInterestAccumulator", vaultSharePrice2.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", "999000000000000000");
     });
   });
 
