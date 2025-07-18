@@ -21,6 +21,7 @@ import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
 import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
 import { ITradingModule } from "../../generated/AddressRegistry/ITradingModule";
 import { IPPrincipalToken } from "../../generated/AddressRegistry/IPPrincipalToken";
+import { getToken } from "./token";
 
 export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): BalanceSnapshot {
   let id = balance.id + ":" + event.block.number.toString();
@@ -365,6 +366,7 @@ export function updateSnapshotMetrics(
 ): void {
   if (token.tokenType == VAULT_SHARE) {
     let v = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
+    let y = getToken(v.yieldToken().toHexString());
 
     let interestAccumulator: BigInt;
     let vaultFeeAccumulator: BigInt;
@@ -374,9 +376,9 @@ export function updateSnapshotMetrics(
       // aspects of mark to market pnl.
       interestAccumulator = getInterestAccumulator(v, tokenAmount, snapshot._lastInterestAccumulator, event);
 
-      // This is the number of yield tokens per vault share, it is decreasing over time.
-      // TODO: need to know the yield token decimals to do this correctly
-      vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+      // This is the number of yield tokens per vault share, it is decreasing over time. Convert this
+      // to default precision
+      vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION).times(DEFAULT_PRECISION).div(y.precision);
     } else {
       // Pause the interest accrual and vault fees accrual during a withdraw request
       interestAccumulator = snapshot._lastInterestAccumulator;
