@@ -56,7 +56,7 @@ function updateBalanceSnapshotForWithdrawRequest(w: WithdrawRequest, event: ethe
   let account = loadAccount(w.account, event);
   let balance = getBalance(account, vaultShare, event);
   let snapshot = getBalanceSnapshot(balance, event);
-  snapshot.previousBalance = snapshot.currentBalance;
+  snapshot.currentBalance = snapshot.previousBalance;
   snapshot.save();
 
   let underlying = getToken(vaultShare.underlying!);
