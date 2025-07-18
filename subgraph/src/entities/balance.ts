@@ -162,7 +162,7 @@ export function createTradeExecutionLineItem(
   logIndex: BigInt,
   event: ethereum.Event,
 ): void {
-  let id = event.transaction.hash.toHex() + ":" + logIndex.toString() + ":" + sellToken.id;
+  let id = event.transaction.hash.toHex() + ":" + logIndex.toString() + ":" + account.id + ":" + sellToken.id;
 
   let lineItem = new ProfitLossLineItem(id);
   lineItem.blockNumber = event.block.number;
@@ -205,7 +205,7 @@ export function setProfitLossLineItem(
   lineItemType: string,
   event: ethereum.Event,
 ): void {
-  let id = event.transaction.hash.toHex() + ":" + event.logIndex.toString() + ":" + token.id;
+  let id = event.transaction.hash.toHex() + ":" + event.logIndex.toString() + ":" + account.id + ":" + token.id;
 
   let lineItem = new ProfitLossLineItem(id);
   lineItem.blockNumber = event.block.number;
