@@ -86,6 +86,22 @@ export function createVault(vault: Address): Vault {
   asset.tokenAddress = Bytes.fromHexString(v.asset);
   asset.save();
 
+  let yieldToken = new Token(v.yieldToken);
+  yieldToken.firstUpdateBlockNumber = BigInt.fromI32(1);
+  yieldToken.firstUpdateTimestamp = 1;
+  yieldToken.firstUpdateTransactionHash = Bytes.fromI32(1);
+  yieldToken.lastUpdateBlockNumber = BigInt.fromI32(1);
+  yieldToken.lastUpdateTimestamp = 1;
+  yieldToken.lastUpdateTransactionHash = Bytes.fromI32(1);
+  yieldToken.tokenType = "Underlying";
+  yieldToken.tokenInterface = "ERC20";
+  yieldToken.name = "Yield";
+  yieldToken.symbol = "YIELD";
+  yieldToken.decimals = 18;
+  yieldToken.precision = BigInt.fromI32(10).pow(18);
+  yieldToken.tokenAddress = Bytes.fromHexString(v.yieldToken);
+  yieldToken.save();
+
   return v;
 }
 
