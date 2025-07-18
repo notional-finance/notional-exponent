@@ -203,6 +203,7 @@ export function setProfitLossLineItem(
   underlyingAmountRealized: BigInt,
   spotPrice: BigInt,
   lineItemType: string,
+  lendingRouter: Address,
   event: ethereum.Event,
 ): void {
   let id = event.transaction.hash.toHex() + ":" + event.logIndex.toString() + ":" + account.id + ":" + token.id;
@@ -239,7 +240,7 @@ export function setProfitLossLineItem(
   lineItem.lineItemType = lineItemType;
 
   let balance = getBalance(account, token, event);
-  let snapshot = updateBalance(balance, token, account, event.address, event);
+  let snapshot = updateBalance(balance, token, account, lendingRouter, event);
   lineItem.balanceSnapshot = snapshot.id;
 
   lineItem.save();

@@ -2,6 +2,7 @@ import { Address, BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts";
 import {
   ApprovedVault,
   InitiateWithdrawRequest,
+  WithdrawRequestTokenized,
 } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { newMockEvent } from "matchstick-as";
 import { Token, Vault } from "../generated/schema";
@@ -105,4 +106,31 @@ export function createApprovedVaultEvent(manager: Address, vault: Address, isApp
   approvedVaultEvent.address = manager;
 
   return approvedVaultEvent;
+}
+
+export function createWithdrawRequestTokenizedEvent(
+  manager: Address,
+  from: Address,
+  to: Address,
+  vault: Address,
+  requestId: BigInt,
+  sharesAmount: BigInt,
+): WithdrawRequestTokenized {
+  let withdrawRequestTokenizedEvent = changetype<WithdrawRequestTokenized>(newMockEvent());
+
+  withdrawRequestTokenizedEvent.parameters = new Array();
+
+  withdrawRequestTokenizedEvent.parameters.push(new ethereum.EventParam("from", ethereum.Value.fromAddress(from)));
+  withdrawRequestTokenizedEvent.parameters.push(new ethereum.EventParam("to", ethereum.Value.fromAddress(to)));
+  withdrawRequestTokenizedEvent.parameters.push(new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault)));
+  withdrawRequestTokenizedEvent.parameters.push(
+    new ethereum.EventParam("requestId", ethereum.Value.fromUnsignedBigInt(requestId)),
+  );
+  withdrawRequestTokenizedEvent.parameters.push(
+    new ethereum.EventParam("sharesAmount", ethereum.Value.fromUnsignedBigInt(sharesAmount)),
+  );
+
+  withdrawRequestTokenizedEvent.address = manager;
+
+  return withdrawRequestTokenizedEvent;
 }

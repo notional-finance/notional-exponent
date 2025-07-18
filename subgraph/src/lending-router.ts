@@ -10,7 +10,7 @@ import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrat
 import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
 import { loadAccount } from "./entities/account";
 import { Account, Token } from "../generated/schema";
-import { DEFAULT_PRECISION } from "./constants";
+import { DEFAULT_PRECISION, ZERO_ADDRESS } from "./constants";
 
 function getBorrowSharePrice(
   borrowAssets: BigInt,
@@ -49,6 +49,7 @@ export function handleEnterPosition(event: EnterPosition): void {
       borrowAssets,
       borrowSharePrice,
       event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
+      event.address,
       event,
     );
   }
@@ -67,6 +68,7 @@ export function handleEnterPosition(event: EnterPosition): void {
       underlyingAmountRealized,
       oraclePrice,
       event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
+      event.address,
       event,
     );
   }
@@ -98,6 +100,7 @@ export function handleExitPosition(event: ExitPosition): void {
       borrowAssetsRepaid.neg(),
       borrowSharePrice,
       "ExitPosition",
+      event.address,
       event,
     );
   }
@@ -115,6 +118,7 @@ export function handleExitPosition(event: ExitPosition): void {
       event.params.profitsWithdrawn.plus(borrowAssetsRepaid).neg(),
       oraclePrice,
       "ExitPosition",
+      event.address,
       event,
     );
   }
@@ -149,6 +153,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     borrowAssetsRepaid.neg(),
     borrowSharePrice,
     "LiquidatePosition",
+    event.address,
     event,
   );
 
@@ -161,6 +166,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     borrowAssetsRepaid.neg(),
     vaultSharePrice,
     "LiquidatePosition",
+    event.address,
     event,
   );
 
@@ -173,6 +179,7 @@ export function handleLiquidatePosition(event: LiquidatePosition): void {
     borrowAssetsRepaid,
     vaultSharePrice,
     "LiquidatePosition",
+    ZERO_ADDRESS, // The liquidator holds the position natively
     event,
   );
 

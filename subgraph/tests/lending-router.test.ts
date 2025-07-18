@@ -10,12 +10,17 @@ import {
   log,
 } from "matchstick-as";
 import { Address, ethereum, BigInt, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
-import { createVault, createInitiateWithdrawRequestEvent, listManager } from "./common";
+import {
+  createVault,
+  createInitiateWithdrawRequestEvent,
+  listManager,
+  createWithdrawRequestTokenizedEvent,
+} from "./common";
 import { DEFAULT_PRECISION } from "../src/constants";
 import { EnterPosition, ExitPosition, LiquidatePosition } from "../generated/templates/LendingRouter/ILendingRouter";
 import { handleEnterPosition, handleExitPosition, handleLiquidatePosition } from "../src/lending-router";
 import { BalanceSnapshot } from "../generated/schema";
-import { handleInitiateWithdrawRequest } from "../src/withdraw-request-manager";
+import { handleInitiateWithdrawRequest, handleWithdrawRequestTokenized } from "../src/withdraw-request-manager";
 
 let vault = Address.fromString("0x0000000000000000000000000000000000000001");
 let lendingRouter = Address.fromString("0x00000000000000000000000000000000000000AA");
@@ -29,6 +34,7 @@ let hash3 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000
 let hash4 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000C");
 let hash5 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000D");
 let liquidator = Address.fromString("0x0000000000000000000000000000000000000bbb");
+let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
 let USDC_PRECISION = BigInt.fromI32(10).pow(6);
 
 function createEnterPositionEvent(
@@ -166,10 +172,6 @@ function mockVaultSharePrice(vaultShares: BigInt, price: BigInt): void {
 
   createMockedFunction(lendingRouter, "balanceOfCollateral", "balanceOfCollateral(address,address):(uint256)")
     .withArgs([ethereum.Value.fromAddress(account), ethereum.Value.fromAddress(vault)])
-    .returns([ethereum.Value.fromUnsignedBigInt(vaultShares)]);
-
-  createMockedFunction(lendingRouter, "balanceOfCollateral", "balanceOfCollateral(address,address):(uint256)")
-    .withArgs([ethereum.Value.fromAddress(liquidator), ethereum.Value.fromAddress(vault)])
     .returns([ethereum.Value.fromUnsignedBigInt(vaultShares)]);
 
   createMockedFunction(yieldToken, "name", "name():(string)").returns([ethereum.Value.fromString("Yield Token")]);
@@ -786,20 +788,84 @@ describe("enter position with borrow shares", () => {
 
   describe("liquidate position", () => {
     beforeAll(() => {
-      let liquidator = Address.fromString("0x0000000000000000000000000000000000000bbb");
       let borrowSharesRepaid = BigInt.fromI32(90).times(DEFAULT_PRECISION);
+      let vaultSharesToLiquidator = BigInt.fromI32(99).times(DEFAULT_PRECISION);
       let liquidatePositionEvent = createLiquidatePositionEvent(
         liquidator,
         account,
         vault,
         borrowSharesRepaid,
-        BigInt.fromI32(99).times(DEFAULT_PRECISION),
+        vaultSharesToLiquidator,
       );
+
+      let tokenizedWithdraw = createWithdrawRequestTokenizedEvent(
+        manager,
+        account,
+        liquidator,
+        vault,
+        BigInt.fromI32(1),
+        vaultSharesToLiquidator,
+      );
+      tokenizedWithdraw.block.number = BigInt.fromI32(5);
+      tokenizedWithdraw.block.timestamp = tokenizedWithdraw.block.timestamp.plus(BigInt.fromI32(3600));
+      tokenizedWithdraw.transaction.hash = hash5;
+      tokenizedWithdraw.transactionLogIndex = BigInt.fromI32(0);
+
       liquidatePositionEvent.block.number = BigInt.fromI32(5);
       liquidatePositionEvent.block.timestamp = liquidatePositionEvent.block.timestamp.plus(BigInt.fromI32(3600));
       liquidatePositionEvent.transaction.hash = hash5;
 
+      let requestId = BigInt.fromI32(1);
       let vaultShareBalance = BigInt.fromI32(900).times(DEFAULT_PRECISION);
+      createMockedFunction(
+        manager,
+        "getWithdrawRequest",
+        "getWithdrawRequest(address,address):((uint256,uint120,uint120),(uint120,uint120,bool))",
+      )
+        .withArgs([ethereum.Value.fromAddress(vault), ethereum.Value.fromAddress(account)])
+        .returns([
+          ethereum.Value.fromTuple(
+            changetype<ethereum.Tuple>([
+              ethereum.Value.fromUnsignedBigInt(requestId),
+              ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromUnsignedBigInt(vaultShareBalance),
+            ]),
+          ),
+          ethereum.Value.fromTuple(
+            changetype<ethereum.Tuple>([
+              ethereum.Value.fromSignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromSignedBigInt(BigInt.fromI32(0)),
+              ethereum.Value.fromBoolean(false),
+            ]),
+          ),
+        ]);
+
+      createMockedFunction(
+        manager,
+        "getWithdrawRequest",
+        "getWithdrawRequest(address,address):((uint256,uint120,uint120),(uint120,uint120,bool))",
+      )
+        .withArgs([ethereum.Value.fromAddress(vault), ethereum.Value.fromAddress(liquidator)])
+        .returns([
+          ethereum.Value.fromTuple(
+            changetype<ethereum.Tuple>([
+              ethereum.Value.fromUnsignedBigInt(requestId),
+              ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromUnsignedBigInt(vaultSharesToLiquidator),
+            ]),
+          ),
+          ethereum.Value.fromTuple(
+            changetype<ethereum.Tuple>([
+              ethereum.Value.fromSignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromSignedBigInt(BigInt.fromI32(0)),
+              ethereum.Value.fromBoolean(false),
+            ]),
+          ),
+        ]);
+
+      createMockedFunction(vault, "balanceOf", "balanceOf(address):(uint256)")
+        .withArgs([ethereum.Value.fromAddress(liquidator)])
+        .returns([ethereum.Value.fromUnsignedBigInt(vaultSharesToLiquidator)]);
 
       mockVaultSharePrice(vaultShareBalance, vaultSharePrice.plus(BigInt.fromI32(10).pow(16).times(BigInt.fromI32(5))));
       mockVaultFeePrice(BigInt.fromI32(30));
@@ -814,6 +880,8 @@ describe("enter position with borrow shares", () => {
           .div(DEFAULT_PRECISION),
       );
 
+      // This event fires before liquidation in the stack
+      handleWithdrawRequestTokenized(tokenizedWithdraw);
       handleLiquidatePosition(liquidatePositionEvent);
     });
 
@@ -929,6 +997,33 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastInterestAccumulator", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", BigInt.zero().toString());
+    });
+
+    test("liquidator has vault share balance and pnl", () => {
+      let vaultShare = vault.toHexString();
+      let id =
+        hash5.toHexString() + ":" + BigInt.fromI32(3).toString() + ":" + liquidator.toHexString() + ":" + vaultShare;
+      assert.fieldEquals("ProfitLossLineItem", id, "lineItemType", "LiquidatePosition");
+      assert.fieldEquals("ProfitLossLineItem", id, "account", liquidator.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", id, "token", vaultShare);
+      assert.fieldEquals("ProfitLossLineItem", id, "underlyingToken", asset.toHexString());
+
+      assert.fieldEquals(
+        "ProfitLossLineItem",
+        id,
+        "tokenAmount",
+        DEFAULT_PRECISION.times(BigInt.fromI32(99)).toString(),
+      );
+      assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountRealized", "94500000");
+      assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", "954545454545454545");
+      assert.fieldEquals("ProfitLossLineItem", id, "spotPrice", "1040000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountSpot", "102960000");
+    });
+
+    test("liquidator has no borrow share balance", () => {
+      let borrowShareToken = vault.toHexString() + ":" + lendingRouter.toHexString();
+      let id = liquidator.toHexString() + ":" + borrowShareToken;
+      assert.notInStore("Balance", id);
     });
   });
 

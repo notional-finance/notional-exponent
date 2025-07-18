@@ -56,16 +56,22 @@ function updateBalanceSnapshotForWithdrawRequest(w: WithdrawRequest, event: ethe
   let account = loadAccount(w.account, event);
   let balance = getBalance(account, vaultShare, event);
   let snapshot = getBalanceSnapshot(balance, event);
-  snapshot.currentBalance = snapshot.previousBalance;
-  snapshot.save();
 
-  let underlying = getToken(vaultShare.underlying!);
-  let price = convertPrice(
-    IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
-    underlying,
-  );
-  updateSnapshotMetrics(vaultShare, underlying, snapshot, BigInt.zero(), BigInt.zero(), price, balance, event);
-  snapshot.save();
+  // If the accumulated balance is zero then we will get divide by zero errors when we go to update
+  // the snapshot metrics. This can occur when liquidating and receiving a tokenized withdraw request
+  // for the first time.
+  if (snapshot._accumulatedBalance.notEqual(BigInt.fromI32(0))) {
+    snapshot.currentBalance = snapshot.previousBalance;
+    snapshot.save();
+
+    let underlying = getToken(vaultShare.underlying!);
+    let price = convertPrice(
+      IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
+      underlying,
+    );
+    updateSnapshotMetrics(vaultShare, underlying, snapshot, BigInt.zero(), BigInt.zero(), price, balance, event);
+    snapshot.save();
+  }
 
   // Set this at the end to stop any further interest accruals
   balance.withdrawRequest = w.id;

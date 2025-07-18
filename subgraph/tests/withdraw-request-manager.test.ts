@@ -4,12 +4,10 @@ import {
   test,
   beforeEach,
   clearStore,
-  newMockEvent,
   afterEach,
   createMockedFunction,
 } from "matchstick-as/assembly/index";
 import { Address, BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts";
-import { WithdrawRequestTokenized } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import {
   handleApprovedVault,
   handleInitiateWithdrawRequest,
@@ -17,34 +15,13 @@ import {
 } from "../src/withdraw-request-manager";
 import { Balance, BalanceSnapshot, TokenizedWithdrawRequest, WithdrawRequest } from "../generated/schema";
 import { DEFAULT_PRECISION } from "../src/constants";
-import { createApprovedVaultEvent, createInitiateWithdrawRequestEvent, createVault, listManager } from "./common";
-
-function createWithdrawRequestTokenizedEvent(
-  manager: Address,
-  from: Address,
-  to: Address,
-  vault: Address,
-  requestId: BigInt,
-  sharesAmount: BigInt,
-): WithdrawRequestTokenized {
-  let withdrawRequestTokenizedEvent = changetype<WithdrawRequestTokenized>(newMockEvent());
-
-  withdrawRequestTokenizedEvent.parameters = new Array();
-
-  withdrawRequestTokenizedEvent.parameters.push(new ethereum.EventParam("from", ethereum.Value.fromAddress(from)));
-  withdrawRequestTokenizedEvent.parameters.push(new ethereum.EventParam("to", ethereum.Value.fromAddress(to)));
-  withdrawRequestTokenizedEvent.parameters.push(new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault)));
-  withdrawRequestTokenizedEvent.parameters.push(
-    new ethereum.EventParam("requestId", ethereum.Value.fromUnsignedBigInt(requestId)),
-  );
-  withdrawRequestTokenizedEvent.parameters.push(
-    new ethereum.EventParam("sharesAmount", ethereum.Value.fromUnsignedBigInt(sharesAmount)),
-  );
-
-  withdrawRequestTokenizedEvent.address = manager;
-
-  return withdrawRequestTokenizedEvent;
-}
+import {
+  createApprovedVaultEvent,
+  createInitiateWithdrawRequestEvent,
+  createVault,
+  listManager,
+  createWithdrawRequestTokenizedEvent,
+} from "./common";
 
 function setupBalanceSnapshot(vault: Address, account: Address): void {
   let balance = new Balance(account.toHexString() + ":" + vault.toHexString());
