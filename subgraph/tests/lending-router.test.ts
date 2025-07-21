@@ -19,7 +19,7 @@ import {
 import { DEFAULT_PRECISION, SECONDS_IN_YEAR } from "../src/constants";
 import { EnterPosition, ExitPosition, LiquidatePosition } from "../generated/templates/LendingRouter/ILendingRouter";
 import { handleEnterPosition, handleExitPosition, handleLiquidatePosition } from "../src/lending-router";
-import { BalanceSnapshot } from "../generated/schema";
+import { BalanceSnapshot, Token } from "../generated/schema";
 import { handleInitiateWithdrawRequest, handleWithdrawRequestTokenized } from "../src/withdraw-request-manager";
 
 let vault = Address.fromString("0x0000000000000000000000000000000000000001");
@@ -1117,6 +1117,25 @@ describe("enter pendle pt position interest accrual", () => {
     createMockedFunction(accountingAsset, "decimals", "decimals():(uint8)").returns([
       ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(6)),
     ]);
+    createMockedFunction(vault, "convertSharesToYieldToken", "convertSharesToYieldToken(uint256):(uint256)")
+      .withArgs([ethereum.Value.fromUnsignedBigInt(vaultSharesMinted)])
+      .returns([ethereum.Value.fromUnsignedBigInt(vaultSharesMinted)]);
+
+    let asset = new Token(accountingAsset.toHexString());
+    asset.firstUpdateBlockNumber = BigInt.fromI32(1);
+    asset.firstUpdateTimestamp = 1;
+    asset.firstUpdateTransactionHash = Bytes.fromI32(1);
+    asset.lastUpdateBlockNumber = BigInt.fromI32(1);
+    asset.lastUpdateTimestamp = 1;
+    asset.lastUpdateTransactionHash = Bytes.fromI32(1);
+    asset.tokenType = "Underlying";
+    asset.tokenInterface = "ERC20";
+    asset.name = "Asset";
+    asset.symbol = "ASSET";
+    asset.decimals = 6;
+    asset.precision = BigInt.fromI32(10).pow(6);
+    asset.tokenAddress = Bytes.fromHexString(accountingAsset.toHexString());
+    asset.save();
 
     mockVaultSharePrice(vaultSharesMinted, vaultSharePrice);
     mockBorrowSharePrice(
