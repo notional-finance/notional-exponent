@@ -40,12 +40,8 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     uint256 private transient t_borrowShares;
     uint256 private transient t_profitsWithdrawn;
 
-    function name() external view override returns (string memory) {
+    function name() external pure override returns (string memory) {
         return "Morpho";
-    }
-
-    function borrowShareDecimals() external view override returns (uint8) {
-        return 18;
     }
 
     function initializeMarket(address vault, address irm, uint256 lltv) external {

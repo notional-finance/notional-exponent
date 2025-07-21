@@ -43,13 +43,6 @@ interface ILendingRouter {
     function name() external view returns (string memory);
 
     /**
-     * @dev Returns the decimals of the borrow share.
-     *
-     * @return The decimals of the borrow share.
-     */
-    function borrowShareDecimals() external view returns (uint8);
-
-    /**
      * @dev Authorizes an address to manage a user's position.
      *
      * @param operator The address to authorize.

@@ -26,6 +26,7 @@ enum LineItemType {
   LiquidatePosition
   MigratePosition
   WithdrawRequest
+  WithdrawRequestFinalized
   TradeExecution
 }
 
@@ -322,6 +323,10 @@ type TokenizedWithdrawRequest @entity(immutable: false) {
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
+
+  finalizedBlockNumber: BigInt
+  finalizedTimestamp: Int
+  finalizedTransactionHash: Bytes
 
   "Link to the withdraw request manager"
   withdrawRequestManager: WithdrawRequestManager!

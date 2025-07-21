@@ -278,7 +278,7 @@ contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy_PT {
         defaultBorrow = 90_000e6;
     }
 
-    function test_accountingAsset() public {
+    function test_accountingAsset() public view {
         assertEq(y.accountingAsset(), address(USDe));
     }
 }
@@ -354,7 +354,7 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         return bytes("");
     }
 
-    function test_accountingAsset() public {
+    function test_accountingAsset() public view {
         assertEq(y.accountingAsset(), address(USDe));
     }
 }
@@ -432,7 +432,7 @@ contract TestStakingStrategy_PT_eUSDe_13AUG2025 is TestStakingStrategy_PT {
         }));
     }
 
-    function test_accountingAsset() public {
+    function test_accountingAsset() public view {
         assertEq(y.accountingAsset(), address(USDe));
     }
 }

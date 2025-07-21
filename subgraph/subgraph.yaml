@@ -123,6 +123,8 @@ templates:
           handler: handleInitiateWithdrawRequest
         - event: WithdrawRequestTokenized(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleWithdrawRequestTokenized
+        - event: WithdrawRequestFinalized(indexed address,indexed address,uint256,uint256)
+          handler: handleWithdrawRequestFinalized
   - name: Vault
     kind: ethereum/contract
     network: mainnet

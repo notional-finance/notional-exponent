@@ -128,7 +128,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][account];
         if (s_withdraw.requestId == 0) return (0, false);
 
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, s_withdraw);
+        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, msg.sender, s_withdraw);
 
         if (finalized) {
             // Allows for partial withdrawal of yield tokens
@@ -155,7 +155,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
         // Do not transfer any tokens off of this method here. Withdrawn tokens will be held in the
         // tokenized withdraw request until the vault calls this contract to withdraw the tokens.
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, s_withdraw);
+        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, vault, s_withdraw);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -214,6 +214,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     /// tokens the account has a claim over.
     function _finalizeWithdraw(
         address account,
+        address vault,
         WithdrawRequest memory w
     ) internal returns (uint256 tokensWithdrawn, bool finalized) {
         TokenizedWithdrawRequest storage s = s_tokenizedWithdrawRequest[w.requestId];
@@ -238,6 +239,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             s.finalized = true;
 
             tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
+            emit WithdrawRequestFinalized(vault, account, w.requestId, s.totalWithdraw);
         } else {
             // No tokens claimed if not finalized
             require(tokensWithdrawn == 0);
