@@ -399,7 +399,7 @@ function getInterestAccumulator(
     log.info("x: {}", [x.toString()]);
 
     let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
-    let marginalPtAtMaturity = ptTokens.times(discountFactor).div(RATE_PRECISION);
+    let marginalPtAtMaturity = ptTokens.times(RATE_PRECISION).div(discountFactor);
     let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, yieldToken, event);
     log.info("discountFactor: {}", [discountFactor.toString()]);
     log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
@@ -408,6 +408,7 @@ function getInterestAccumulator(
     let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmountScaled);
     log.info("tokenInAmountScaled: {}", [tokenInAmountScaled.toString()]);
     log.info("marginalRemainingInterest: {}", [marginalRemainingInterest.toString()]);
+    // TODO: is the ratio upside down?
     let acc = marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry);
     log.info("acc: {}", [acc.toString()]);
     return acc;
