@@ -1169,8 +1169,8 @@ describe("enter pendle pt position interest accrual", () => {
     tradeExecutedLog.data = ethereum.encode(
       ethereum.Value.fromTuple(
         changetype<ethereum.Tuple>([
-          ethereum.Value.fromUnsignedBigInt(USDC_PRECISION.times(BigInt.fromI32(10))),
-          ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(9))),
+          ethereum.Value.fromUnsignedBigInt(USDC_PRECISION.times(BigInt.fromI32(998))),
+          ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(1000))),
         ]),
       ),
     )!;
