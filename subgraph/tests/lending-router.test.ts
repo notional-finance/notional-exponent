@@ -36,6 +36,7 @@ let hash5 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000
 let liquidator = Address.fromString("0x0000000000000000000000000000000000000bbb");
 let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
 let USDC_PRECISION = BigInt.fromI32(10).pow(6);
+let BORROW_SHARE_PRECISION = BigInt.fromI32(10).pow(12);
 
 function createEnterPositionEvent(
   user: Address,
@@ -206,7 +207,7 @@ function mockBorrowSharePrice(totalBorrowShares: BigInt, borrowShares: BigInt, b
 }
 
 let vaultSharesMinted = DEFAULT_PRECISION.times(BigInt.fromI32(1000));
-let borrowSharesMinted = DEFAULT_PRECISION.times(BigInt.fromI32(900));
+let borrowSharesMinted = BORROW_SHARE_PRECISION.times(BigInt.fromI32(900));
 // 0.99e18
 let vaultSharePrice = DEFAULT_PRECISION.times(BigInt.fromI32(99)).div(BigInt.fromI32(100));
 
@@ -223,7 +224,7 @@ describe("enter position with borrow shares", () => {
         .times(USDC_PRECISION)
         .times(BigInt.fromI32(101))
         .div(BigInt.fromI32(100))
-        .div(DEFAULT_PRECISION),
+        .div(BORROW_SHARE_PRECISION),
     );
     mockVaultFeePrice(BigInt.fromI32(0));
 
@@ -572,7 +573,7 @@ describe("enter position with borrow shares", () => {
       let vaultSharesBurned = BigInt.fromI32(100).times(DEFAULT_PRECISION);
       let vaultSharePrice2 = vaultSharePrice.plus(BigInt.fromI32(10).pow(16));
       let profitsWithdrawn = BigInt.fromI32(10).times(USDC_PRECISION);
-      let borrowSharesRepaid = BigInt.fromI32(90).times(DEFAULT_PRECISION);
+      let borrowSharesRepaid = BigInt.fromI32(90).times(BORROW_SHARE_PRECISION);
 
       let exitPositionEvent = createExitPositionEvent(
         account,
@@ -591,7 +592,7 @@ describe("enter position with borrow shares", () => {
           .times(USDC_PRECISION)
           .times(BigInt.fromI32(102))
           .div(BigInt.fromI32(100))
-          .div(DEFAULT_PRECISION),
+          .div(BORROW_SHARE_PRECISION),
       );
 
       let incentiveTransferLog = newLog();
@@ -704,7 +705,7 @@ describe("enter position with borrow shares", () => {
       let snapshot = BalanceSnapshot.load(snapshotId);
       if (snapshot === null) assert.assertTrue(false, "snapshot is null");
       assert.assertTrue((snapshot as BalanceSnapshot).previousSnapshot !== null);
-      let borrowSharesRepaid = BigInt.fromI32(90).times(DEFAULT_PRECISION);
+      let borrowSharesRepaid = BigInt.fromI32(90).times(BORROW_SHARE_PRECISION);
       let currentBalance = borrowSharesMinted.minus(borrowSharesRepaid);
 
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
@@ -811,7 +812,7 @@ describe("enter position with borrow shares", () => {
 
   describe("liquidate position", () => {
     beforeAll(() => {
-      let borrowSharesRepaid = BigInt.fromI32(90).times(DEFAULT_PRECISION);
+      let borrowSharesRepaid = BigInt.fromI32(90).times(BORROW_SHARE_PRECISION);
       let vaultSharesToLiquidator = BigInt.fromI32(99).times(DEFAULT_PRECISION);
       let liquidatePositionEvent = createLiquidatePositionEvent(
         liquidator,
@@ -903,7 +904,7 @@ describe("enter position with borrow shares", () => {
           .times(USDC_PRECISION)
           .times(BigInt.fromI32(105))
           .div(BigInt.fromI32(100))
-          .div(DEFAULT_PRECISION),
+          .div(BORROW_SHARE_PRECISION),
       );
 
       // This event fires before liquidation in the stack
@@ -986,7 +987,7 @@ describe("enter position with borrow shares", () => {
         "ProfitLossLineItem",
         id,
         "tokenAmount",
-        DEFAULT_PRECISION.times(BigInt.fromI32(90)).neg().toString(),
+        BORROW_SHARE_PRECISION.times(BigInt.fromI32(90)).neg().toString(),
       );
       assert.fieldEquals("ProfitLossLineItem", id, "underlyingAmountRealized", "-94500000");
       assert.fieldEquals("ProfitLossLineItem", id, "realizedPrice", "1050000000000000000");
@@ -1004,7 +1005,7 @@ describe("enter position with borrow shares", () => {
       let snapshot = BalanceSnapshot.load(snapshotId);
       if (snapshot === null) assert.assertTrue(false, "snapshot is null");
       assert.assertTrue((snapshot as BalanceSnapshot).previousSnapshot !== null);
-      let borrowSharesRepaid = BigInt.fromI32(90).times(DEFAULT_PRECISION);
+      let borrowSharesRepaid = BigInt.fromI32(90).times(BORROW_SHARE_PRECISION);
       let currentBalance = borrowSharesMinted.minus(borrowSharesRepaid).minus(borrowSharesRepaid);
 
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
@@ -1145,7 +1146,7 @@ describe("enter pendle pt position interest accrual", () => {
         .times(USDC_PRECISION)
         .times(BigInt.fromI32(101))
         .div(BigInt.fromI32(100))
-        .div(DEFAULT_PRECISION),
+        .div(BORROW_SHARE_PRECISION),
     );
     mockVaultFeePrice(BigInt.fromI32(0));
 

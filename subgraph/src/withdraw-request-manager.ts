@@ -3,19 +3,22 @@ import {
   ApprovedVault,
   InitiateWithdrawRequest,
   IWithdrawRequestManager,
+  WithdrawRequestFinalized,
   WithdrawRequestTokenized,
 } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
 import {
+  createWithdrawRequestFinalizedLineItem,
   createWithdrawRequestLineItem,
   getBalance,
   getBalanceSnapshot,
   updateSnapshotMetrics,
 } from "./entities/balance";
-import { getToken } from "./entities/token";
+import { createERC20TokenAsset, getToken } from "./entities/token";
 import { loadAccount } from "./entities/account";
 import { convertPrice } from "./lending-router";
 import { IYieldStrategy } from "../generated/templates/WithdrawRequestManager/IYieldStrategy";
+import { UNDERLYING } from "./constants";
 
 function getWithdrawRequest(
   withdrawRequestManager: Address,
@@ -102,6 +105,48 @@ function updateBalanceSnapshotForWithdrawRequest(
   balance.save();
 }
 
+function updateBalanceSnapshotForFinalized(
+  w: WithdrawRequest,
+  yieldTokenAmount: BigInt,
+  withdrawTokenAmount: BigInt,
+  event: ethereum.Event,
+): void {
+  let vaultShare = getToken(w.vault);
+  let account = loadAccount(w.account, event);
+  let balance = getBalance(account, vaultShare, event);
+  let snapshot = getBalanceSnapshot(balance, event);
+  let m = IWithdrawRequestManager.bind(event.address);
+  let withdrawToken = createERC20TokenAsset(m.WITHDRAW_TOKEN(), event, UNDERLYING);
+
+  snapshot.currentBalance = snapshot.previousBalance;
+  snapshot.save();
+
+  createWithdrawRequestFinalizedLineItem(
+    account,
+    Address.fromString(w.vault),
+    yieldTokenAmount,
+    withdrawTokenAmount,
+    withdrawToken,
+    snapshot.id,
+    event,
+  );
+
+  // If the accumulated balance is zero then we will get divide by zero errors when we go to update
+  // the snapshot metrics. This can occur when liquidating and receiving a tokenized withdraw request
+  // for the first time.
+  if (snapshot._accumulatedBalance.notEqual(BigInt.fromI32(0))) {
+    let underlying = getToken(vaultShare.underlying!);
+    let price = convertPrice(
+      IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
+      underlying,
+    );
+    updateSnapshotMetrics(vaultShare, underlying, snapshot, BigInt.zero(), BigInt.zero(), price, balance, event);
+    snapshot.save();
+  }
+
+  balance.save();
+}
+
 export function handleInitiateWithdrawRequest(event: InitiateWithdrawRequest): void {
   let withdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.account, event);
   withdrawRequest.requestId = event.params.requestId;
@@ -170,4 +215,28 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
     // Remove the withdraw request if the requestId is zero
     store.remove("WithdrawRequest", fromWithdrawRequest.id);
   }
+}
+
+export function handleWithdrawRequestFinalized(event: WithdrawRequestFinalized): void {
+  let id = event.address.toHexString() + ":" + event.params.requestId.toString();
+  let twr = TokenizedWithdrawRequest.load(id);
+  let w = getWithdrawRequest(event.address, event.params.vault, event.params.account, event);
+
+  let withdrawTokenAmount = event.params.totalWithdraw;
+  if (twr) {
+    twr.totalWithdraw = event.params.totalWithdraw;
+    twr.finalized = true;
+    twr.finalizedBlockNumber = event.block.number;
+    twr.finalizedTimestamp = event.block.timestamp.toI32();
+    twr.finalizedTransactionHash = event.transaction.hash;
+    twr.save();
+
+    // Scale this down if there is a partial withdrawal
+    withdrawTokenAmount = w.yieldTokenAmount.times(twr.totalWithdraw).div(twr.totalYieldTokenAmount);
+  }
+
+  // We only update the balance snapshot for the account that finalized the withdraw request,
+  // if there are other accounts with a tokenized withdraw request they will not get the
+  // finalized event.
+  updateBalanceSnapshotForFinalized(w, w.yieldTokenAmount, withdrawTokenAmount, event);
 }

@@ -99,7 +99,7 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         vm.stopPrank();
     }
 
-    function test_accountingAsset() public {
+    function test_accountingAsset() public view {
         assertEq(y.accountingAsset(), address(WETH));
     }
 }

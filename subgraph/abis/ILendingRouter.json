@@ -49,19 +49,6 @@
   },
   {
     "type": "function",
-    "name": "borrowShareDecimals",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "claimRewards",
     "inputs": [
       {

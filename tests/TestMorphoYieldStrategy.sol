@@ -112,6 +112,8 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             y.convertToAssets(lendingRouter.balanceOfCollateral(msg.sender, address(y))),
             maxEntryValuationSlippage
         );
+        console.log("default borrow", defaultBorrow);
+        console.log("balance of borrow shares", lendingRouter.balanceOfBorrowShares(msg.sender, address(y)));
         checkTransientsCleared();
     }
 

@@ -244,6 +244,51 @@ export function createWithdrawRequestLineItem(
   lineItem.save();
 }
 
+export function createWithdrawRequestFinalizedLineItem(
+  account: Account,
+  vaultAddress: Address,
+  yieldTokenAmount: BigInt,
+  withdrawTokenAmount: BigInt,
+  withdrawToken: Token,
+  balanceSnapshotId: string,
+  event: ethereum.Event,
+): void {
+  let id =
+    event.transaction.hash.toHex() +
+    ":" +
+    event.logIndex.toString() +
+    ":" +
+    account.id +
+    ":" +
+    vaultAddress.toHexString();
+
+  let v = IYieldStrategy.bind(Address.fromBytes(vaultAddress));
+  let y = getToken(v.yieldToken().toHexString());
+
+  let lineItem = new ProfitLossLineItem(id);
+  lineItem.blockNumber = event.block.number;
+  lineItem.timestamp = event.block.timestamp.toI32();
+  lineItem.transactionHash = event.transaction.hash;
+  lineItem.token = y.id;
+  lineItem.account = account.id;
+  lineItem.underlyingToken = withdrawToken.id;
+
+  lineItem.tokenAmount = yieldTokenAmount;
+  lineItem.underlyingAmountRealized = withdrawTokenAmount;
+  lineItem.realizedPrice = yieldTokenAmount
+    .times(DEFAULT_PRECISION)
+    .times(DEFAULT_PRECISION)
+    .div(withdrawTokenAmount)
+    .div(y.precision);
+  lineItem.spotPrice = BigInt.zero();
+  lineItem.underlyingAmountSpot = BigInt.zero();
+
+  lineItem.lineItemType = "WithdrawRequestFinalized";
+  lineItem.balanceSnapshot = balanceSnapshotId;
+
+  lineItem.save();
+}
+
 export function setProfitLossLineItem(
   account: Account,
   token: Token,

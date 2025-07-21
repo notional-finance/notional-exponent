@@ -3,6 +3,7 @@ import { IERC20Metadata } from "../../generated/AddressRegistry/IERC20Metadata";
 import { Token } from "../../generated/schema";
 import { ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/templates/LendingRouter/ILendingRouter";
+import { IYieldStrategy } from "../../generated/templates/LendingRouter/IYieldStrategy";
 
 export function getTokenNameAndSymbol(erc20: IERC20Metadata): string[] {
   let nameResult = erc20.try_name();
@@ -83,7 +84,14 @@ export function getBorrowShare(vault: Address, lendingRouter: Address, event: et
   if (borrowShare) return borrowShare;
   let l = ILendingRouter.bind(lendingRouter);
   let name = l.name();
-  let decimals = l.borrowShareDecimals();
+  let decimals = 18;
+  if (name == "Morpho") {
+    let v = IYieldStrategy.bind(Address.fromBytes(vault));
+    let asset = getToken(v.asset().toHexString());
+    // Morpho borrow shares are 6 decimals more than the asset to account
+    // for the virtual shares.
+    decimals = asset.decimals + 6;
+  }
 
   borrowShare = new Token(id);
   borrowShare.name = name + ":" + vault.toHexString();
