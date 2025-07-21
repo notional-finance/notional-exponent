@@ -2,6 +2,7 @@ import { Address, BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts";
 import {
   ApprovedVault,
   InitiateWithdrawRequest,
+  WithdrawRequestFinalized,
   WithdrawRequestTokenized,
 } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { newMockEvent } from "matchstick-as";
@@ -149,4 +150,31 @@ export function createWithdrawRequestTokenizedEvent(
   withdrawRequestTokenizedEvent.address = manager;
 
   return withdrawRequestTokenizedEvent;
+}
+
+export function createWithdrawRequestFinalizedEvent(
+  manager: Address,
+  account: Address,
+  vault: Address,
+  requestId: BigInt,
+  totalWithdraw: BigInt,
+): WithdrawRequestFinalized {
+  let withdrawRequestFinalizedEvent = changetype<WithdrawRequestFinalized>(newMockEvent());
+
+  withdrawRequestFinalizedEvent.parameters = new Array();
+
+  withdrawRequestFinalizedEvent.parameters.push(new ethereum.EventParam("vault", ethereum.Value.fromAddress(vault)));
+  withdrawRequestFinalizedEvent.parameters.push(
+    new ethereum.EventParam("account", ethereum.Value.fromAddress(account)),
+  );
+  withdrawRequestFinalizedEvent.parameters.push(
+    new ethereum.EventParam("requestId", ethereum.Value.fromUnsignedBigInt(requestId)),
+  );
+  withdrawRequestFinalizedEvent.parameters.push(
+    new ethereum.EventParam("totalWithdraw", ethereum.Value.fromUnsignedBigInt(totalWithdraw)),
+  );
+
+  withdrawRequestFinalizedEvent.address = manager;
+
+  return withdrawRequestFinalizedEvent;
 }
