@@ -6,7 +6,12 @@ import {
   WithdrawRequestTokenized,
 } from "../generated/templates/WithdrawRequestManager/IWithdrawRequestManager";
 import { TokenizedWithdrawRequest, Vault, WithdrawRequest } from "../generated/schema";
-import { getBalance, getBalanceSnapshot, updateSnapshotMetrics } from "./entities/balance";
+import {
+  createWithdrawRequestLineItem,
+  getBalance,
+  getBalanceSnapshot,
+  updateSnapshotMetrics,
+} from "./entities/balance";
 import { getToken } from "./entities/token";
 import { loadAccount } from "./entities/account";
 import { convertPrice } from "./lending-router";
@@ -51,19 +56,33 @@ export function handleApprovedVault(event: ApprovedVault): void {
   vault.save();
 }
 
-function updateBalanceSnapshotForWithdrawRequest(w: WithdrawRequest, event: ethereum.Event): void {
+function updateBalanceSnapshotForWithdrawRequest(
+  w: WithdrawRequest,
+  sharesAmount: BigInt,
+  yieldTokenAmount: BigInt,
+  event: ethereum.Event,
+): void {
   let vaultShare = getToken(w.vault);
   let account = loadAccount(w.account, event);
   let balance = getBalance(account, vaultShare, event);
   let snapshot = getBalanceSnapshot(balance, event);
 
+  snapshot.currentBalance = snapshot.previousBalance;
+  snapshot.save();
+
+  createWithdrawRequestLineItem(
+    account,
+    Address.fromBytes(vaultShare.vaultAddress!),
+    sharesAmount,
+    yieldTokenAmount,
+    snapshot.id,
+    event,
+  );
+
   // If the accumulated balance is zero then we will get divide by zero errors when we go to update
   // the snapshot metrics. This can occur when liquidating and receiving a tokenized withdraw request
   // for the first time.
   if (snapshot._accumulatedBalance.notEqual(BigInt.fromI32(0))) {
-    snapshot.currentBalance = snapshot.previousBalance;
-    snapshot.save();
-
     let underlying = getToken(vaultShare.underlying!);
     let price = convertPrice(
       IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
@@ -73,8 +92,13 @@ function updateBalanceSnapshotForWithdrawRequest(w: WithdrawRequest, event: ethe
     snapshot.save();
   }
 
-  // Set this at the end to stop any further interest accruals
-  balance.withdrawRequest = w.id;
+  if (w.requestId.isZero()) {
+    // Clear the withdraw request if it is removed
+    balance.withdrawRequest = null;
+  } else {
+    // Set this at the end to stop any further interest accruals
+    balance.withdrawRequest = w.id;
+  }
   balance.save();
 }
 
@@ -85,7 +109,12 @@ export function handleInitiateWithdrawRequest(event: InitiateWithdrawRequest): v
   withdrawRequest.sharesAmount = event.params.sharesAmount;
   withdrawRequest.save();
 
-  updateBalanceSnapshotForWithdrawRequest(withdrawRequest, event);
+  updateBalanceSnapshotForWithdrawRequest(
+    withdrawRequest,
+    event.params.sharesAmount,
+    event.params.yieldTokenAmount,
+    event,
+  );
 }
 
 export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized): void {
@@ -109,6 +138,8 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   twr.finalized = toW.getS().finalized;
   twr.save();
 
+  let yieldTokenAmount = twr.totalYieldTokenAmount.times(event.params.sharesAmount).div(toW.getW().sharesAmount);
+
   // Update the withdraw requests
   let toWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.to, event);
   toWithdrawRequest.requestId = event.params.requestId;
@@ -116,25 +147,27 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   toWithdrawRequest.sharesAmount = toW.getW().sharesAmount;
   toWithdrawRequest.tokenizedWithdrawRequest = twr.id;
   toWithdrawRequest.save();
-  updateBalanceSnapshotForWithdrawRequest(toWithdrawRequest, event);
+  updateBalanceSnapshotForWithdrawRequest(toWithdrawRequest, event.params.sharesAmount, yieldTokenAmount, event);
 
   // Update the from withdraw request
   let fromWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.from, event);
   let fromW = m.getWithdrawRequest(event.params.vault, event.params.from);
+  fromWithdrawRequest.requestId = event.params.requestId;
+  fromWithdrawRequest.yieldTokenAmount = fromW.getW().yieldTokenAmount;
+  fromWithdrawRequest.sharesAmount = fromW.getW().sharesAmount;
+  fromWithdrawRequest.tokenizedWithdrawRequest = twr.id;
+  fromWithdrawRequest.save();
+
+  // Negative shares and yield token amounts because they are being transferred
+  updateBalanceSnapshotForWithdrawRequest(
+    fromWithdrawRequest,
+    event.params.sharesAmount.neg(),
+    yieldTokenAmount.neg(),
+    event,
+  );
+
   if (fromW.getW().requestId.isZero()) {
-    // delete the from withdraw request
+    // Remove the withdraw request if the requestId is zero
     store.remove("WithdrawRequest", fromWithdrawRequest.id);
-    let account = loadAccount(event.params.from.toHexString(), event);
-    let vaultShare = getToken(event.params.vault.toHexString());
-    let balance = getBalance(account, vaultShare, event);
-    // Clear the withdraw request if it is removed
-    balance.withdrawRequest = null;
-    balance.save();
-  } else {
-    fromWithdrawRequest.requestId = event.params.requestId;
-    fromWithdrawRequest.yieldTokenAmount = fromW.getW().yieldTokenAmount;
-    fromWithdrawRequest.sharesAmount = fromW.getW().sharesAmount;
-    fromWithdrawRequest.tokenizedWithdrawRequest = twr.id;
-    fromWithdrawRequest.save();
   }
 }

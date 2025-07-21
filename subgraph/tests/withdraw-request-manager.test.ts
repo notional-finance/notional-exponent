@@ -23,6 +23,12 @@ import {
   createWithdrawRequestTokenizedEvent,
 } from "./common";
 
+let hash1 = Bytes.fromI32(1);
+let hash2 = Bytes.fromI32(2);
+let hash3 = Bytes.fromI32(3);
+let hash4 = Bytes.fromI32(4);
+let hash5 = Bytes.fromI32(5);
+
 function setupBalanceSnapshot(vault: Address, account: Address): void {
   let balance = new Balance(account.toHexString() + ":" + vault.toHexString());
   let balanceSnapshot = new BalanceSnapshot(account.toHexString() + ":" + vault.toHexString() + ":0");
@@ -131,7 +137,14 @@ describe("Initiate withdraw request", () => {
       yieldTokenAmount,
       sharesAmount,
     );
+    newInitiateWithdrawRequestEvent.transaction.hash = hash1;
     setupBalanceSnapshot(vault, account);
+    createMockedFunction(vault, "convertSharesToYieldToken", "convertSharesToYieldToken(uint256):(uint256)")
+      .withArgs([ethereum.Value.fromUnsignedBigInt(sharesAmount)])
+      .returns([ethereum.Value.fromUnsignedBigInt(yieldTokenAmount)]);
+    createMockedFunction(vault, "convertSharesToYieldToken", "convertSharesToYieldToken(uint256):(uint256)")
+      .withArgs([ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(500))])
+      .returns([ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(500))]);
     handleInitiateWithdrawRequest(newInitiateWithdrawRequestEvent);
   });
 
@@ -153,8 +166,6 @@ describe("Initiate withdraw request", () => {
     assert.fieldEquals("WithdrawRequest", id, "account", "0x0000000000000000000000000000000000000003");
     assert.fieldEquals("WithdrawRequest", id, "vault", "0x0000000000000000000000000000000000000001");
     assert.fieldEquals("WithdrawRequest", id, "withdrawRequestManager", "0x0000000000000000000000000000000000000002");
-
-    // TODO: test interest and fee accrual set to zero
   });
 
   test("tokenized withdraw request, split from and to", () => {
@@ -245,8 +256,6 @@ describe("Initiate withdraw request", () => {
     assert.fieldEquals("WithdrawRequest", id2, "vault", "0x0000000000000000000000000000000000000001");
     assert.fieldEquals("WithdrawRequest", id2, "account", "0x0000000000000000000000000000000000000004");
     assert.fieldEquals("WithdrawRequest", id2, "sharesAmount", "500");
-
-    // TODO: test interest and fee accrual set to zero
   });
 
   test("tokenized withdraw request, split from and to, existing to", () => {
