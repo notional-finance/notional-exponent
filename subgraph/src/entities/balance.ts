@@ -386,6 +386,10 @@ function getInterestAccumulator(
     let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
     let expiry = pt.expiry();
     let timeToExpiry = expiry.minus(event.block.timestamp);
+    let ptTokens = v.convertSharesToYieldToken(tokenAmount);
+    let y = getToken(yieldToken.toHexString());
+    let asset = getToken(accountingAsset.toHexString());
+
     log.info("timeToExpiry: {}", [timeToExpiry.toString()]);
     log.info("x: {}", [v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toString()]);
 
@@ -395,13 +399,14 @@ function getInterestAccumulator(
     log.info("x: {}", [x.toString()]);
 
     let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
-    let marginalPtAtMaturity = tokenAmount.times(discountFactor).div(RATE_PRECISION);
+    let marginalPtAtMaturity = ptTokens.times(discountFactor).div(RATE_PRECISION);
     let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, yieldToken, event);
     log.info("discountFactor: {}", [discountFactor.toString()]);
     log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
     log.info("tokenInAmount: {}", [tokenInAmount.toString()]);
-    // TODO: token in has to scale up to the asset token precision
-    let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmount);
+    let tokenInAmountScaled = tokenInAmount.times(y.precision).div(asset.precision);
+    let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmountScaled);
+    log.info("tokenInAmountScaled: {}", [tokenInAmountScaled.toString()]);
     log.info("marginalRemainingInterest: {}", [marginalRemainingInterest.toString()]);
     let acc = marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry);
     log.info("acc: {}", [acc.toString()]);
