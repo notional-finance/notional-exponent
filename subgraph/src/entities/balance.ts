@@ -275,11 +275,11 @@ export function createWithdrawRequestFinalizedLineItem(
 
   lineItem.tokenAmount = yieldTokenAmount;
   lineItem.underlyingAmountRealized = withdrawTokenAmount;
-  lineItem.realizedPrice = yieldTokenAmount
+  lineItem.realizedPrice = withdrawTokenAmount
     .times(DEFAULT_PRECISION)
-    .times(DEFAULT_PRECISION)
-    .div(withdrawTokenAmount)
-    .div(y.precision);
+    .times(y.precision)
+    .div(yieldTokenAmount)
+    .div(withdrawToken.precision);
   lineItem.spotPrice = BigInt.zero();
   lineItem.underlyingAmountSpot = BigInt.zero();
 

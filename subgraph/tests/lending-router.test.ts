@@ -15,12 +15,17 @@ import {
   createInitiateWithdrawRequestEvent,
   listManager,
   createWithdrawRequestTokenizedEvent,
+  createWithdrawRequestFinalizedEvent,
 } from "./common";
 import { DEFAULT_PRECISION, SECONDS_IN_YEAR } from "../src/constants";
 import { EnterPosition, ExitPosition, LiquidatePosition } from "../generated/templates/LendingRouter/ILendingRouter";
 import { handleEnterPosition, handleExitPosition, handleLiquidatePosition } from "../src/lending-router";
 import { BalanceSnapshot, Token } from "../generated/schema";
-import { handleInitiateWithdrawRequest, handleWithdrawRequestTokenized } from "../src/withdraw-request-manager";
+import {
+  handleInitiateWithdrawRequest,
+  handleWithdrawRequestFinalized,
+  handleWithdrawRequestTokenized,
+} from "../src/withdraw-request-manager";
 
 let vault = Address.fromString("0x0000000000000000000000000000000000000001");
 let lendingRouter = Address.fromString("0x00000000000000000000000000000000000000AA");
@@ -33,6 +38,7 @@ let hash2 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000
 let hash3 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000B");
 let hash4 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000C");
 let hash5 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000D");
+let hash6 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000E");
 let liquidator = Address.fromString("0x0000000000000000000000000000000000000bbb");
 let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
 let USDC_PRECISION = BigInt.fromI32(10).pow(6);
@@ -1085,6 +1091,84 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.neg().toString());
       assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+    });
+  });
+
+  describe("finalize withdraw request", () => {
+    beforeAll(() => {
+      let withdrawRequestFinalizedEvent = createWithdrawRequestFinalizedEvent(
+        manager,
+        account,
+        vault,
+        BigInt.fromI32(1),
+        BigInt.fromI32(100).times(USDC_PRECISION),
+      );
+      withdrawRequestFinalizedEvent.block.number = BigInt.fromI32(6);
+      withdrawRequestFinalizedEvent.block.timestamp = withdrawRequestFinalizedEvent.block.timestamp.plus(
+        BigInt.fromI32(3600),
+      );
+      withdrawRequestFinalizedEvent.transaction.hash = hash6;
+
+      createMockedFunction(manager, "WITHDRAW_TOKEN", "WITHDRAW_TOKEN():(address)").returns([
+        ethereum.Value.fromAddress(asset),
+      ]);
+
+      handleWithdrawRequestFinalized(withdrawRequestFinalizedEvent);
+    });
+
+    test("creates a withdraw request pnl line item", () => {
+      let pnlId =
+        hash6.toHex() + ":" + BigInt.fromI32(1).toString() + ":" + account.toHexString() + ":" + vault.toHexString();
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequestFinalized");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", yieldToken.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", account.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", asset.toHexString());
+
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", "900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "100000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "111111111111111111");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "0");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", "0");
+    });
+
+    test("no interest accrued since last snapshot", () => {
+      let id = account.toHexString() + ":" + vault.toHexString();
+      let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
+      assert.fieldEquals("Balance", id, "token", vault.toHexString());
+      assert.fieldEquals("Balance", id, "account", account.toHexString());
+      assert.fieldEquals(
+        "Balance",
+        id,
+        "withdrawRequest",
+        manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString(),
+      );
+
+      let snapshotId = id + ":" + BigInt.fromI32(6).toString();
+      let snapshot = BalanceSnapshot.load(snapshotId);
+      if (snapshot === null) assert.assertTrue(false, "snapshot is null");
+      assert.assertTrue((snapshot as BalanceSnapshot).previousSnapshot !== null);
+      let currentBalance = BigInt.fromI32(900).times(DEFAULT_PRECISION);
+      let vaultSharePrice2 = vaultSharePrice.plus(BigInt.fromI32(10).pow(16).times(BigInt.fromI32(2)));
+
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", currentBalance.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "912700000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1014111");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "23300000");
+
+      // These both get adjusted downwards because of the redemption
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "17189262");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", "1718926296633303002");
+
+      // These two accumulators have not changed.
+      assert.fieldEquals(
+        "BalanceSnapshot",
+        snapshotId,
+        "_lastInterestAccumulator",
+        vaultSharePrice2.times(USDC_PRECISION).div(DEFAULT_PRECISION).toString(),
+      );
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", "998000000000000000");
     });
   });
 
