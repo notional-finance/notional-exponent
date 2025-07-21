@@ -4,10 +4,10 @@ import {
   beforeAll,
   createMockedFunction,
   newMockEvent,
-  logStore,
+  afterAll,
   newLog,
   assert,
-  log,
+  clearStore,
 } from "matchstick-as";
 import { Address, ethereum, BigInt, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
 import {
@@ -16,7 +16,7 @@ import {
   listManager,
   createWithdrawRequestTokenizedEvent,
 } from "./common";
-import { DEFAULT_PRECISION } from "../src/constants";
+import { DEFAULT_PRECISION, SECONDS_IN_YEAR } from "../src/constants";
 import { EnterPosition, ExitPosition, LiquidatePosition } from "../generated/templates/LendingRouter/ILendingRouter";
 import { handleEnterPosition, handleExitPosition, handleLiquidatePosition } from "../src/lending-router";
 import { BalanceSnapshot } from "../generated/schema";
@@ -740,9 +740,14 @@ describe("enter position with borrow shares", () => {
         BigInt.fromI32(3600),
       );
       initiateWithdrawRequestEvent.transaction.hash = hash4;
+      initiateWithdrawRequestEvent.transactionLogIndex = BigInt.fromI32(0);
 
       mockVaultSharePrice(vaultShareBalance, vaultSharePrice.plus(BigInt.fromI32(10).pow(16).times(BigInt.fromI32(2))));
       mockVaultFeePrice(BigInt.fromI32(20));
+
+      createMockedFunction(vault, "convertSharesToYieldToken", "convertSharesToYieldToken(uint256):(uint256)")
+        .withArgs([ethereum.Value.fromUnsignedBigInt(vaultShareBalance)])
+        .returns([ethereum.Value.fromUnsignedBigInt(vaultShareBalance)]);
 
       handleInitiateWithdrawRequest(initiateWithdrawRequestEvent);
     });
@@ -784,6 +789,24 @@ describe("enter position with borrow shares", () => {
       );
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", "998000000000000000");
     });
+
+    test("withdraw request pnl line item", () => {
+      let pnlId =
+        hash4.toHex() + ":" + BigInt.fromI32(1).toString() + ":" + account.toHexString() + ":" + vault.toHexString();
+      let vaultShareBalance = BigInt.fromI32(999).times(DEFAULT_PRECISION);
+      let yieldTokenAmount = vaultShareBalance;
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", vault.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", account.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
+
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", yieldTokenAmount.toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "998000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "1000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+    });
   });
 
   describe("liquidate position", () => {
@@ -817,6 +840,9 @@ describe("enter position with borrow shares", () => {
 
       let requestId = BigInt.fromI32(1);
       let vaultShareBalance = BigInt.fromI32(900).times(DEFAULT_PRECISION);
+      createMockedFunction(vault, "convertSharesToYieldToken", "convertSharesToYieldToken(uint256):(uint256)")
+        .withArgs([ethereum.Value.fromUnsignedBigInt(vaultSharesToLiquidator)])
+        .returns([ethereum.Value.fromUnsignedBigInt(vaultSharesToLiquidator)]);
       createMockedFunction(
         manager,
         "getWithdrawRequest",
@@ -827,13 +853,13 @@ describe("enter position with borrow shares", () => {
           ethereum.Value.fromTuple(
             changetype<ethereum.Tuple>([
               ethereum.Value.fromUnsignedBigInt(requestId),
-              ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromUnsignedBigInt(vaultShareBalance),
               ethereum.Value.fromUnsignedBigInt(vaultShareBalance),
             ]),
           ),
           ethereum.Value.fromTuple(
             changetype<ethereum.Tuple>([
-              ethereum.Value.fromSignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromSignedBigInt(vaultShareBalance),
               ethereum.Value.fromSignedBigInt(BigInt.fromI32(0)),
               ethereum.Value.fromBoolean(false),
             ]),
@@ -850,13 +876,13 @@ describe("enter position with borrow shares", () => {
           ethereum.Value.fromTuple(
             changetype<ethereum.Tuple>([
               ethereum.Value.fromUnsignedBigInt(requestId),
-              ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromUnsignedBigInt(vaultSharesToLiquidator),
               ethereum.Value.fromUnsignedBigInt(vaultSharesToLiquidator),
             ]),
           ),
           ethereum.Value.fromTuple(
             changetype<ethereum.Tuple>([
-              ethereum.Value.fromSignedBigInt(BigInt.fromI32(1000)),
+              ethereum.Value.fromSignedBigInt(vaultShareBalance),
               ethereum.Value.fromSignedBigInt(BigInt.fromI32(0)),
               ethereum.Value.fromBoolean(false),
             ]),
@@ -887,7 +913,7 @@ describe("enter position with borrow shares", () => {
 
     test("no vault share interest accrued since last snapshot", () => {
       let id = account.toHexString() + ":" + vault.toHexString();
-      let manager = Address.fromString("0x00000000000000000000000000000000000000DD");
+      let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
       assert.fieldEquals("Balance", id, "token", vault.toHexString());
       assert.fieldEquals("Balance", id, "account", account.toHexString());
       assert.fieldEquals(
@@ -1025,11 +1051,121 @@ describe("enter position with borrow shares", () => {
       let id = liquidator.toHexString() + ":" + borrowShareToken;
       assert.notInStore("Balance", id);
     });
+
+    test("liquidator withdraw request pnl line item", () => {
+      let pnlId =
+        hash5.toHex() + ":" + BigInt.fromI32(1).toString() + ":" + liquidator.toHexString() + ":" + vault.toHexString();
+      let vaultShareBalance = BigInt.fromI32(99).times(DEFAULT_PRECISION);
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", vault.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", liquidator.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
+
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "997000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+    });
+
+    test("account withdraw request pnl line item", () => {
+      let pnlId =
+        hash5.toHex() + ":" + BigInt.fromI32(1).toString() + ":" + account.toHexString() + ":" + vault.toHexString();
+      let vaultShareBalance = BigInt.fromI32(99).times(DEFAULT_PRECISION);
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", vault.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", account.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
+
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.neg().toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "997000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.neg().toString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
+    });
   });
 
   describe("full exit position withdraw request", () => {
     beforeAll(() => {});
 
     test("no interest accrued since last snapshot", () => {});
+  });
+
+  afterAll(() => {
+    clearStore();
+  });
+});
+
+describe("enter pendle pt position interest accrual", () => {
+  beforeAll(() => {
+    createVault(vault);
+    baseMockFunctions("PendlePT");
+    createMockedFunction(yieldToken, "expiry", "expiry():(uint256)").returns([
+      ethereum.Value.fromUnsignedBigInt(SECONDS_IN_YEAR),
+    ]);
+
+    createMockedFunction(vault, "feeRate", "feeRate():(uint256)").returns([
+      ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(10).pow(14)),
+    ]);
+
+    createMockedFunction(accountingAsset, "name", "name():(string)").returns([
+      ethereum.Value.fromString("Accounting Asset"),
+    ]);
+    createMockedFunction(accountingAsset, "symbol", "symbol():(string)").returns([ethereum.Value.fromString("AA")]);
+    createMockedFunction(accountingAsset, "decimals", "decimals():(uint8)").returns([
+      ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(6)),
+    ]);
+
+    mockVaultSharePrice(vaultSharesMinted, vaultSharePrice);
+    mockBorrowSharePrice(
+      borrowSharesMinted,
+      borrowSharesMinted,
+      borrowSharesMinted
+        .times(USDC_PRECISION)
+        .times(BigInt.fromI32(101))
+        .div(BigInt.fromI32(100))
+        .div(DEFAULT_PRECISION),
+    );
+    mockVaultFeePrice(BigInt.fromI32(0));
+
+    let enterPositionEvent = createEnterPositionEvent(
+      account,
+      vault,
+      BigInt.fromI32(100).times(USDC_PRECISION),
+      borrowSharesMinted,
+      vaultSharesMinted,
+      false,
+    );
+
+    // Add TradeExecuted log
+    let tradeExecutedLog = newLog();
+    tradeExecutedLog.address = vault;
+    tradeExecutedLog.topics = [
+      Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
+      Bytes.fromHexString(accountingAsset.toHexString()),
+      Bytes.fromHexString(yieldToken.toHexString()),
+    ];
+    tradeExecutedLog.data = ethereum.encode(
+      ethereum.Value.fromTuple(
+        changetype<ethereum.Tuple>([
+          ethereum.Value.fromUnsignedBigInt(USDC_PRECISION.times(BigInt.fromI32(10))),
+          ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(9))),
+        ]),
+      ),
+    )!;
+
+    enterPositionEvent.receipt!.logs = [tradeExecutedLog];
+
+    handleEnterPosition(enterPositionEvent);
+  });
+
+  test("interest accrual is correct", () => {
+    let id = account.toHexString() + ":" + vault.toHexString();
+    let snapshotId = id + ":" + BigInt.fromI32(1).toString();
+    let snapshot = BalanceSnapshot.load(snapshotId);
+    if (snapshot === null) assert.assertTrue(false, "snapshot is null");
+    assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "0");
   });
 });

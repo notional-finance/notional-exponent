@@ -196,6 +196,54 @@ export function createTradeExecutionLineItem(
   lineItem.save();
 }
 
+export function createWithdrawRequestLineItem(
+  account: Account,
+  vaultAddress: Address,
+  vaultShares: BigInt,
+  yieldTokenAmount: BigInt,
+  balanceSnapshotId: string,
+  event: ethereum.Event,
+): void {
+  let id =
+    event.transaction.hash.toHex() +
+    ":" +
+    event.logIndex.toString() +
+    ":" +
+    account.id +
+    ":" +
+    vaultAddress.toHexString();
+  let v = IYieldStrategy.bind(Address.fromBytes(vaultAddress));
+  let y = getToken(v.yieldToken().toHexString());
+
+  let lineItem = new ProfitLossLineItem(id);
+  lineItem.blockNumber = event.block.number;
+  lineItem.timestamp = event.block.timestamp.toI32();
+  lineItem.transactionHash = event.transaction.hash;
+  lineItem.token = vaultAddress.toHexString();
+  lineItem.account = account.id;
+  lineItem.underlyingToken = y.id;
+
+  lineItem.tokenAmount = vaultShares;
+  lineItem.underlyingAmountRealized = yieldTokenAmount;
+  lineItem.spotPrice = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+  lineItem.underlyingAmountSpot = v.convertSharesToYieldToken(vaultShares.abs());
+
+  if (yieldTokenAmount.lt(BigInt.zero())) {
+    lineItem.underlyingAmountSpot = lineItem.underlyingAmountSpot.neg();
+  }
+
+  lineItem.realizedPrice = yieldTokenAmount
+    .times(DEFAULT_PRECISION)
+    .times(DEFAULT_PRECISION)
+    .div(vaultShares)
+    .div(y.precision);
+
+  lineItem.lineItemType = "WithdrawRequest";
+  lineItem.balanceSnapshot = balanceSnapshotId;
+
+  lineItem.save();
+}
+
 export function setProfitLossLineItem(
   account: Account,
   token: Token,
@@ -325,10 +373,9 @@ function findPendleTokenInAmount(
 function getInterestAccumulator(
   v: IYieldStrategy,
   tokenAmount: BigInt,
-  _lastInterestAccumulator: BigInt,
+  strategy: string,
   event: ethereum.Event,
 ): BigInt {
-  let strategy = v.strategy();
   let yieldToken = v.yieldToken();
   let accountingAsset = v.accountingAsset();
   let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
@@ -339,15 +386,26 @@ function getInterestAccumulator(
     let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
     let expiry = pt.expiry();
     let timeToExpiry = expiry.minus(event.block.timestamp);
+    log.info("timeToExpiry: {}", [timeToExpiry.toString()]);
+    log.info("x: {}", [v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toString()]);
+
     let x: f64 =
       (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
-      (SECONDS_IN_YEAR.toI64() as f64);
+      (SECONDS_IN_YEAR.times(RATE_PRECISION).toI64() as f64);
+    log.info("x: {}", [x.toString()]);
 
     let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
     let marginalPtAtMaturity = tokenAmount.times(discountFactor).div(RATE_PRECISION);
     let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, yieldToken, event);
+    log.info("discountFactor: {}", [discountFactor.toString()]);
+    log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
+    log.info("tokenInAmount: {}", [tokenInAmount.toString()]);
+    // TODO: token in has to scale up to the asset token precision
     let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmount);
-    return _lastInterestAccumulator.plus(marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry));
+    log.info("marginalRemainingInterest: {}", [marginalRemainingInterest.toString()]);
+    let acc = marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry);
+    log.info("acc: {}", [acc.toString()]);
+    return acc;
   } else {
     // NOTE: this can go negative if the price goes down.
     return v.convertToAssets(DEFAULT_PRECISION);
@@ -367,6 +425,7 @@ export function updateSnapshotMetrics(
   if (token.tokenType == VAULT_SHARE) {
     let v = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
     let y = getToken(v.yieldToken().toHexString());
+    let strategy = v.strategy();
 
     let interestAccumulator: BigInt;
     let vaultFeeAccumulator: BigInt;
@@ -374,7 +433,12 @@ export function updateSnapshotMetrics(
       // This is the value of one vault share in the underlying token.
       // the problem is that this includes both interest accrued as well as some
       // aspects of mark to market pnl.
-      interestAccumulator = getInterestAccumulator(v, tokenAmount, snapshot._lastInterestAccumulator, event);
+      interestAccumulator = getInterestAccumulator(v, tokenAmount, strategy, event);
+
+      if (strategy == "PendlePT") {
+        interestAccumulator = snapshot._lastInterestAccumulator.plus(interestAccumulator);
+        snapshot._lastInterestAccumulator = BigInt.zero();
+      }
 
       // This is the number of yield tokens per vault share, it is decreasing over time. Convert this
       // to default precision

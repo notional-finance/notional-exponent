@@ -25,9 +25,7 @@ enum LineItemType {
   ExitPosition
   LiquidatePosition
   MigratePosition
-  WithdrawRequestInitiated
-  WithdrawRequestTokenized
-  WithdrawRequestFinalized
+  WithdrawRequest
   TradeExecution
 }
 
