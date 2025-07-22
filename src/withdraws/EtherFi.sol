@@ -36,15 +36,11 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
-        finalized = canFinalizeWithdrawRequest(requestId);
-
-        if (finalized) {
-            uint256 balanceBefore = address(this).balance;
-            WithdrawRequestNFT.claimWithdraw(requestId);
-            tokensClaimed = address(this).balance - balanceBefore;
-            WETH.deposit{value: tokensClaimed}();
-        }
+    ) internal override returns (uint256 tokensClaimed) {
+        uint256 balanceBefore = address(this).balance;
+        WithdrawRequestNFT.claimWithdraw(requestId);
+        tokensClaimed = address(this).balance - balanceBefore;
+        WETH.deposit{value: tokensClaimed}();
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {

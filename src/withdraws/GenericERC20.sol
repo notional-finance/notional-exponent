@@ -30,10 +30,9 @@ contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
+    ) internal override returns (uint256 tokensClaimed) {
         tokensClaimed = s_withdrawRequestTokens[requestId];
         delete s_withdrawRequestTokens[requestId];
-        finalized = true;
     }
 
     function canFinalizeWithdrawRequest(uint256 /* requestId */) public pure override returns (bool) {
