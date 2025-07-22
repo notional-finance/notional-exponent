@@ -18,4 +18,17 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
         canInspectTransientVariables = true;
     }
 
+    function test_share_precision() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        (
+            uint256 borrowAmount,
+            uint256 collateralValue,
+            uint256 maxBorrow
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
+
+        assertApproxEqRel(collateralValue, 100_000e6, 0.001e18);
+        assertApproxEqRel(maxBorrow, 91_500e6, 0.001e18);
+    }
+
 }
