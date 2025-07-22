@@ -24,10 +24,6 @@ import {
 } from "./common";
 
 let hash1 = Bytes.fromI32(1);
-let hash2 = Bytes.fromI32(2);
-let hash3 = Bytes.fromI32(3);
-let hash4 = Bytes.fromI32(4);
-let hash5 = Bytes.fromI32(5);
 
 function setupBalanceSnapshot(vault: Address, account: Address): void {
   let balance = new Balance(account.toHexString() + ":" + vault.toHexString());
@@ -256,6 +252,8 @@ describe("Initiate withdraw request", () => {
     assert.fieldEquals("WithdrawRequest", id2, "vault", "0x0000000000000000000000000000000000000001");
     assert.fieldEquals("WithdrawRequest", id2, "account", "0x0000000000000000000000000000000000000004");
     assert.fieldEquals("WithdrawRequest", id2, "sharesAmount", "500");
+
+    assert.fieldEquals("TokenizedWithdrawRequest", id, "_holders", "[" + id2 + ", " + id1 + "]");
   });
 
   test("tokenized withdraw request, split from and to, existing to", () => {
@@ -276,6 +274,9 @@ describe("Initiate withdraw request", () => {
     setupBalanceSnapshot(vault, from);
     setupBalanceSnapshot(vault, to);
 
+    let idFrom = manager.toHexString() + ":" + vault.toHexString() + ":" + from.toHexString();
+    let idTo = manager.toHexString() + ":" + vault.toHexString() + ":" + to.toHexString();
+
     let twr = new TokenizedWithdrawRequest(manager.toHexString() + ":" + requestId.toString());
     twr.lastUpdateBlockNumber = BigInt.fromI32(1);
     twr.lastUpdateTimestamp = 1;
@@ -284,9 +285,10 @@ describe("Initiate withdraw request", () => {
     twr.totalYieldTokenAmount = BigInt.fromI32(1000);
     twr.totalWithdraw = BigInt.fromI32(0);
     twr.finalized = false;
+    twr._holders = [idTo, idFrom];
     twr.save();
 
-    let w = new WithdrawRequest(manager.toHexString() + ":" + vault.toHexString() + ":" + to.toHexString());
+    let w = new WithdrawRequest(idTo);
     w.tokenizedWithdrawRequest = twr.id;
     w.withdrawRequestManager = manager.toHexString();
     w.vault = vault.toHexString();
@@ -359,19 +361,24 @@ describe("Initiate withdraw request", () => {
     assert.fieldEquals("TokenizedWithdrawRequest", id, "totalWithdraw", "0");
     assert.fieldEquals("TokenizedWithdrawRequest", id, "finalized", "false");
 
-    let id1 = manager.toHexString() + ":" + vault.toHexString() + ":" + from.toHexString();
-    assert.fieldEquals("WithdrawRequest", id1, "tokenizedWithdrawRequest", id);
-    assert.fieldEquals("WithdrawRequest", id1, "withdrawRequestManager", "0x0000000000000000000000000000000000000002");
-    assert.fieldEquals("WithdrawRequest", id1, "vault", "0x0000000000000000000000000000000000000001");
-    assert.fieldEquals("WithdrawRequest", id1, "account", "0x0000000000000000000000000000000000000003");
-    assert.fieldEquals("WithdrawRequest", id1, "sharesAmount", "500");
+    assert.fieldEquals("WithdrawRequest", idFrom, "tokenizedWithdrawRequest", id);
+    assert.fieldEquals(
+      "WithdrawRequest",
+      idFrom,
+      "withdrawRequestManager",
+      "0x0000000000000000000000000000000000000002",
+    );
+    assert.fieldEquals("WithdrawRequest", idFrom, "vault", "0x0000000000000000000000000000000000000001");
+    assert.fieldEquals("WithdrawRequest", idFrom, "account", "0x0000000000000000000000000000000000000003");
+    assert.fieldEquals("WithdrawRequest", idFrom, "sharesAmount", "500");
 
-    let id2 = manager.toHexString() + ":" + vault.toHexString() + ":" + to.toHexString();
-    assert.fieldEquals("WithdrawRequest", id2, "tokenizedWithdrawRequest", id);
-    assert.fieldEquals("WithdrawRequest", id2, "withdrawRequestManager", "0x0000000000000000000000000000000000000002");
-    assert.fieldEquals("WithdrawRequest", id2, "vault", "0x0000000000000000000000000000000000000001");
-    assert.fieldEquals("WithdrawRequest", id2, "account", "0x0000000000000000000000000000000000000004");
-    assert.fieldEquals("WithdrawRequest", id2, "sharesAmount", "500");
+    assert.fieldEquals("WithdrawRequest", idTo, "tokenizedWithdrawRequest", id);
+    assert.fieldEquals("WithdrawRequest", idTo, "withdrawRequestManager", "0x0000000000000000000000000000000000000002");
+    assert.fieldEquals("WithdrawRequest", idTo, "vault", "0x0000000000000000000000000000000000000001");
+    assert.fieldEquals("WithdrawRequest", idTo, "account", "0x0000000000000000000000000000000000000004");
+    assert.fieldEquals("WithdrawRequest", idTo, "sharesAmount", "500");
+
+    assert.fieldEquals("TokenizedWithdrawRequest", id, "_holders", "[" + idTo + ", " + idFrom + "]");
   });
 
   test("tokenized withdraw request, delete from", () => {
@@ -439,6 +446,7 @@ describe("Initiate withdraw request", () => {
     handleWithdrawRequestTokenized(newWithdrawRequestTokenizedEvent);
     let id = manager.toHexString() + ":" + requestId.toString();
     let id1 = manager.toHexString() + ":" + vault.toHexString() + ":" + from.toHexString();
+    let id2 = manager.toHexString() + ":" + vault.toHexString() + ":" + to.toHexString();
 
     assert.notInStore("WithdrawRequest", id1);
 
@@ -451,8 +459,8 @@ describe("Initiate withdraw request", () => {
     assert.fieldEquals("TokenizedWithdrawRequest", id, "totalYieldTokenAmount", "1000");
     assert.fieldEquals("TokenizedWithdrawRequest", id, "totalWithdraw", "0");
     assert.fieldEquals("TokenizedWithdrawRequest", id, "finalized", "false");
+    assert.fieldEquals("TokenizedWithdrawRequest", id, "_holders", "[" + id2 + "]");
 
-    let id2 = manager.toHexString() + ":" + vault.toHexString() + ":" + to.toHexString();
     assert.fieldEquals("WithdrawRequest", id2, "tokenizedWithdrawRequest", id);
     assert.fieldEquals("WithdrawRequest", id2, "withdrawRequestManager", "0x0000000000000000000000000000000000000002");
     assert.fieldEquals("WithdrawRequest", id2, "vault", "0x0000000000000000000000000000000000000001");

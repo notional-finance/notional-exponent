@@ -167,7 +167,9 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   let twr = TokenizedWithdrawRequest.load(id);
   if (!twr) {
     twr = new TokenizedWithdrawRequest(id);
+    twr._holders = [];
   }
+  let holders = twr._holders;
   twr.lastUpdateBlockNumber = event.block.number;
   twr.lastUpdateTimestamp = event.block.timestamp.toI32();
   twr.lastUpdateTransactionHash = event.transaction.hash;
@@ -181,7 +183,6 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   twr.totalYieldTokenAmount = toW.getS().totalYieldTokenAmount;
   twr.totalWithdraw = toW.getS().totalWithdraw;
   twr.finalized = toW.getS().finalized;
-  twr.save();
 
   let yieldTokenAmount = twr.totalYieldTokenAmount.times(event.params.sharesAmount).div(toW.getW().sharesAmount);
 
@@ -192,6 +193,9 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   toWithdrawRequest.sharesAmount = toW.getW().sharesAmount;
   toWithdrawRequest.tokenizedWithdrawRequest = twr.id;
   toWithdrawRequest.save();
+  if (!holders.includes(toWithdrawRequest.id)) {
+    holders.push(toWithdrawRequest.id);
+  }
   updateBalanceSnapshotForWithdrawRequest(toWithdrawRequest, event.params.sharesAmount, yieldTokenAmount, event);
 
   // Update the from withdraw request
@@ -214,15 +218,21 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   if (fromW.getW().requestId.isZero()) {
     // Remove the withdraw request if the requestId is zero
     store.remove("WithdrawRequest", fromWithdrawRequest.id);
+    if (holders.includes(fromWithdrawRequest.id)) {
+      holders.splice(holders.indexOf(fromWithdrawRequest.id), 1);
+    }
+  } else if (!holders.includes(fromWithdrawRequest.id)) {
+    holders.push(fromWithdrawRequest.id);
   }
+
+  twr._holders = holders;
+  twr.save();
 }
 
 export function handleWithdrawRequestFinalized(event: WithdrawRequestFinalized): void {
   let id = event.address.toHexString() + ":" + event.params.requestId.toString();
   let twr = TokenizedWithdrawRequest.load(id);
-  let w = getWithdrawRequest(event.address, event.params.vault, event.params.account, event);
 
-  let withdrawTokenAmount = event.params.totalWithdraw;
   if (twr) {
     twr.totalWithdraw = event.params.totalWithdraw;
     twr.finalized = true;
@@ -231,12 +241,17 @@ export function handleWithdrawRequestFinalized(event: WithdrawRequestFinalized):
     twr.finalizedTransactionHash = event.transaction.hash;
     twr.save();
 
-    // Scale this down if there is a partial withdrawal
-    withdrawTokenAmount = w.yieldTokenAmount.times(twr.totalWithdraw).div(twr.totalYieldTokenAmount);
+    for (let i = 0; i < twr._holders.length; i++) {
+      let w = WithdrawRequest.load(twr._holders[i]);
+      if (w) {
+        // Update all the tokenized holders with the new total withdraw amount
+        let withdrawTokenAmount = w.yieldTokenAmount.times(twr.totalWithdraw).div(twr.totalYieldTokenAmount);
+        updateBalanceSnapshotForFinalized(w, w.yieldTokenAmount, withdrawTokenAmount, event);
+      }
+    }
+  } else {
+    // If there is no tokenized withdraw request, then just update the balance snapshot for the account
+    let w = getWithdrawRequest(event.address, event.params.vault, event.params.account, event);
+    updateBalanceSnapshotForFinalized(w, w.yieldTokenAmount, event.params.totalWithdraw, event);
   }
-
-  // We only update the balance snapshot for the account that finalized the withdraw request,
-  // if there are other accounts with a tokenized withdraw request they will not get the
-  // finalized event.
-  updateBalanceSnapshotForFinalized(w, w.yieldTokenAmount, withdrawTokenAmount, event);
 }

@@ -1015,7 +1015,6 @@ describe("enter position with borrow shares", () => {
       assert.assertTrue((snapshot as BalanceSnapshot).previousSnapshot !== null);
       let borrowSharesRepaid = BigInt.fromI32(90).times(BORROW_SHARE_PRECISION);
       let currentBalance = borrowSharesMinted.minus(borrowSharesRepaid).minus(borrowSharesRepaid);
-      log.info("borrow share balance: {}", [currentBalance.toString()]);
 
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals(
@@ -1129,6 +1128,26 @@ describe("enter position with borrow shares", () => {
 
       assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", "900000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "100000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "111111111111111111");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "0");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", "0");
+    });
+
+    test("creates a withdraw request pnl line item for liquidator", () => {
+      let pnlId =
+        hash6.toHex() + ":" + BigInt.fromI32(1).toString() + ":" + liquidator.toHexString() + ":" + vault.toHexString();
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequestFinalized");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", yieldToken.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", liquidator.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", asset.toHexString());
+
+      assert.fieldEquals(
+        "ProfitLossLineItem",
+        pnlId,
+        "tokenAmount",
+        DEFAULT_PRECISION.times(BigInt.fromI32(99)).toString(),
+      );
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "11000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "111111111111111111");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "0");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", "0");
