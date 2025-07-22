@@ -8,6 +8,7 @@ import {
   newLog,
   assert,
   clearStore,
+  log,
 } from "matchstick-as";
 import { Address, ethereum, BigInt, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
 import {
@@ -39,6 +40,7 @@ let hash3 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000
 let hash4 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000C");
 let hash5 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000D");
 let hash6 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000E");
+let hash7 = Bytes.fromHexString("0x000000000000000000000000000000000000000000000000000000000000000F");
 let liquidator = Address.fromString("0x0000000000000000000000000000000000000bbb");
 let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
 let USDC_PRECISION = BigInt.fromI32(10).pow(6);
@@ -1013,6 +1015,7 @@ describe("enter position with borrow shares", () => {
       assert.assertTrue((snapshot as BalanceSnapshot).previousSnapshot !== null);
       let borrowSharesRepaid = BigInt.fromI32(90).times(BORROW_SHARE_PRECISION);
       let currentBalance = borrowSharesMinted.minus(borrowSharesRepaid).minus(borrowSharesRepaid);
+      log.info("borrow share balance: {}", [currentBalance.toString()]);
 
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals(
@@ -1173,9 +1176,87 @@ describe("enter position with borrow shares", () => {
   });
 
   describe("full exit position withdraw request", () => {
-    beforeAll(() => {});
+    beforeAll(() => {
+      let vaultSharesRemaining = DEFAULT_PRECISION.times(BigInt.fromI32(900));
+      let borrowSharesRemaining = BORROW_SHARE_PRECISION.times(BigInt.fromI32(720));
+      let exitPositionEvent = createExitPositionEvent(
+        account,
+        vault,
+        borrowSharesRemaining,
+        vaultSharesRemaining,
+        BigInt.fromI32(100).times(USDC_PRECISION),
+      );
+      exitPositionEvent.block.number = BigInt.fromI32(7);
+      exitPositionEvent.block.timestamp = exitPositionEvent.block.timestamp.plus(BigInt.fromI32(3600));
+      exitPositionEvent.transaction.hash = hash7;
+      exitPositionEvent.transactionLogIndex = BigInt.fromI32(1);
 
-    test("no interest accrued since last snapshot", () => {});
+      mockVaultSharePrice(BigInt.zero(), vaultSharePrice);
+      mockBorrowSharePrice(
+        BigInt.zero(),
+        borrowSharesRemaining,
+        borrowSharesRemaining
+          .times(USDC_PRECISION)
+          .times(BigInt.fromI32(105))
+          .div(BigInt.fromI32(100))
+          .div(BORROW_SHARE_PRECISION),
+      );
+
+      handleExitPosition(exitPositionEvent);
+    });
+
+    test("creates a vault share pnl item", () => {
+      let pnlId =
+        hash7.toHex() + ":" + BigInt.fromI32(3).toString() + ":" + account.toHexString() + ":" + vault.toHexString();
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "ExitPosition");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", vault.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", account.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", asset.toHexString());
+
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", "-900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-856000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "990000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "951111111111111111");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", "-891000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "ExitPosition");
+    });
+
+    test("creates a borrow share pnl item", () => {
+      let borrowShareToken = vault.toHexString() + ":" + lendingRouter.toHexString();
+      let pnlId =
+        hash7.toHex() + ":" + BigInt.fromI32(3).toString() + ":" + account.toHexString() + ":" + borrowShareToken;
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "ExitPosition");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "token", borrowShareToken);
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "account", account.toHexString());
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", asset.toHexString());
+
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", "-720000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-756000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "1050000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "1050000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", "-756000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "ExitPosition");
+    });
+
+    test("updates vault share balance snapshot", () => {
+      let id = account.toHexString() + ":" + vault.toHexString();
+      let snapshotId = id + ":" + BigInt.fromI32(7).toString();
+      let snapshot = BalanceSnapshot.load(snapshotId);
+      if (snapshot === null) assert.assertTrue(false, "snapshot is null");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", "0");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", "0");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "0");
+    });
+
+    test("updates borrow share balance snapshot", () => {
+      let id = account.toHexString() + ":" + vault.toHexString();
+      let snapshotId = id + ":" + BigInt.fromI32(7).toString();
+      let snapshot = BalanceSnapshot.load(snapshotId);
+      if (snapshot === null) assert.assertTrue(false, "snapshot is null");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", "0");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", "0");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "0");
+    });
   });
 
   afterAll(() => {
