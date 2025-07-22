@@ -541,9 +541,13 @@ export function updateSnapshotMetrics(
   snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(underlyingAmountRealized);
 
   // This is the average cost basis of the balance in the underlying token precision
-  snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized
-    .times(token.precision)
-    .div(snapshot._accumulatedBalance);
+  if (snapshot._accumulatedBalance.gt(BigInt.zero())) {
+    snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized
+      .times(token.precision)
+      .div(snapshot._accumulatedBalance);
+  } else {
+    snapshot.adjustedCostBasis = BigInt.zero();
+  }
 
   // This is the current profit and loss of the balance at the snapshot using
   // the oracle price of the token balance in the underlying token precision.
