@@ -293,7 +293,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// native balance does not require a collateral check.
     function initiateWithdrawNative(
         bytes memory data
-    ) external override returns (uint256 requestId) {
+    ) external override nonReentrant returns (uint256 requestId) {
         requestId = _withdraw(msg.sender, balanceOf(msg.sender), data);
     }
 
