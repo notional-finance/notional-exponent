@@ -624,4 +624,43 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(lendingRouter.balanceOfCollateral(user, address(y)), 0);
         assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesBefore);
     }
+
+    function test_migrate_with_zeroBorrow() public {
+        address user = msg.sender;
+        _enterPosition(user, defaultDeposit, 0);
+        MorphoLendingRouter lendingRouter2 = MorphoLendingRouter(address(setupLendingRouter(0.98e18)));
+
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        lendingRouter.setApproval(address(lendingRouter2), true);
+
+        asset.approve(address(lendingRouter2), defaultDeposit);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        // Can migrate user position into second lending router
+        vm.startPrank(user);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
+        lendingRouter2.migratePosition(user, address(y), address(lendingRouter));
+        checkTransientsCleared();
+        vm.stopPrank();
+
+        (
+            uint256 borrowed1,
+            /* uint256 collateralValue1 */,
+            /* uint256 maxBorrow1 */
+        ) = lendingRouter.healthFactor(user, address(y));
+        (
+            uint256 borrowed2,
+            /* uint256 collateralValue2 */,
+            /* uint256 maxBorrow2 */
+        ) = lendingRouter2.healthFactor(user, address(y));
+
+        assertEq(borrowed1, 0);
+        assertEq(borrowed2, 0);
+
+        assertEq(lendingRouter.balanceOfCollateral(user, address(y)), 0);
+        assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesBefore);
+    }
 }
