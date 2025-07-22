@@ -337,6 +337,9 @@ type TokenizedWithdrawRequest @entity(immutable: false) {
   "True when finalized"
   finalized: Boolean!
 
+  "Used to finalize all the holders of the tokenized withdraw request"
+  _holders: [WithdrawRequest!]!
+
   withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "tokenizedWithdrawRequest")
 }
 
