@@ -10,7 +10,7 @@ abstract contract TestDilutionAttack is TestEnvironment {
 
     function deployYieldStrategy() internal override {
         setAsset();
-        w = new MockWrapperERC20(ERC20(asset));
+        w = new MockWrapperERC20(ERC20(asset), 18);
         if (asset == USDC) {
             o = new MockOracle(1e18);
         } else {

@@ -13,7 +13,7 @@ import "../src/proxy/Initializable.sol";
 contract TestMorphoYieldStrategy is TestEnvironment {
 
     function deployYieldStrategy() internal override virtual {
-        w = new MockWrapperERC20(ERC20(address(USDC)));
+        w = new MockWrapperERC20(ERC20(address(USDC)), 18);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             address(USDC),
