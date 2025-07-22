@@ -6,7 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {Unauthorized} from "../interfaces/Errors.sol";
-import {DEFAULT_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
+import {SHARE_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
 import {IEIP20NonStandard} from "../interfaces/IEIP20NonStandard.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -226,11 +226,11 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 accountSharesAfter,
         uint256 rewardsPerVaultShare
     ) internal returns (uint256 rewardToClaim) {
-        // Vault shares are always in DEFAULT_PRECISION
+        // Vault shares are always in SHARE_PRECISION
         uint256 rewardDebt = _getAccountRewardDebtSlot()[rewardToken][account];
-        rewardToClaim = ((accountSharesBefore * rewardsPerVaultShare) / DEFAULT_PRECISION) - rewardDebt;
+        rewardToClaim = ((accountSharesBefore * rewardsPerVaultShare) / SHARE_PRECISION) - rewardDebt;
         _getAccountRewardDebtSlot()[rewardToken][account] = (
-            (accountSharesAfter * rewardsPerVaultShare) / DEFAULT_PRECISION
+            (accountSharesAfter * rewardsPerVaultShare) / SHARE_PRECISION
         );
 
         if (0 < rewardToClaim) {
@@ -265,7 +265,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         if (tokensClaimed == 0) return;
 
         state.accumulatedRewardPerVaultShare += (
-            (tokensClaimed * DEFAULT_PRECISION) / effectiveSupplyBefore
+            (tokensClaimed * SHARE_PRECISION) / effectiveSupplyBefore
         ).toUint128();
 
         _getVaultRewardStateSlot()[index] = state;
@@ -301,12 +301,12 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             // Precision here is:
             //  timeSinceLastAccumulation (SECONDS)
             //  emissionRatePerYear (REWARD_TOKEN_PRECISION)
-            //  DEFAULT_PRECISION (1e18)
+            //  SHARE_PRECISION (1e24)
             // DIVIDE BY
             //  YEAR (SECONDS)
-            //  DEFAULT_PRECISION (1e18)
+            //  SHARE_PRECISION (1e24)
             // => Precision = REWARD_TOKEN_PRECISION
-            additionalIncentiveAccumulatedPerVaultShare = (timeSinceLastAccumulation * DEFAULT_PRECISION * state.emissionRatePerYear)
+            additionalIncentiveAccumulatedPerVaultShare = (timeSinceLastAccumulation * SHARE_PRECISION * state.emissionRatePerYear)
                 / (YEAR * effectiveSupplyBefore);
         }
 

@@ -761,29 +761,21 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
     }
 
-    function test_decimalIssueInClaimReward() public {  
-        address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;  
-        uint index = 1;  
-        vm.prank(owner);  
-        rm.updateRewardToken(index, usdc, 365_000e6, uint32(block.timestamp + 365 days));  
-        deal(usdc, address(rm), 365_000e6);  
+    function test_lowDecimalRewards_claimRewards(uint256 deposit) public {
+        vm.prank(owner);
+        rm.updateRewardToken(1, address(USDC), 365_000e6, uint32(block.timestamp + 365 days));
+        deal(address(USDC), address(rm), 365_000e6);
+
+        vm.assume(deposit < defaultDeposit);
+        vm.assume(deposit > 0);
   
-        defaultDeposit = 1_000e6;  
+        _enterPosition(msg.sender, deposit, 0);
   
-        _enterPosition(msg.sender, defaultDeposit, 0);  
+        vm.warp(block.timestamp + 1 days);
   
-        vm.warp(block.timestamp + 1 days);  
-  
-        vm.prank(msg.sender);  
-        uint[] memory rewards = lendingRouter.claimRewards(address(y));  
-  
-        uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));  
-        uint expectedShares = (defaultDeposit * 1e18)/10 ** asset.decimals();  
-  
-          
-        vm.assertTrue(expectedShares != shares);   
-        vm.assertEq((expectedShares * 1e6), shares); //shares is not in 1e18 as expected. it is rather in yieldToken decimal + 6. i.e if yield token decimal is 18, the shares decimal becones 24  
-        vm.assertEq(rewards[index], 0);  
+        vm.prank(msg.sender);
+        uint[] memory rewards = lendingRouter.claimRewards(address(y));
+        vm.assertApproxEqRel(rewards[1], 1_000e6, 0.001e18);
     }  
 
 }

@@ -27,6 +27,10 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
             uint256 maxBorrow
         ) = lendingRouter.healthFactor(msg.sender, address(y));
 
+        console.log("wrapped tokens", w.balanceOf(address(y)));
+        console.log("total supply", y.totalSupply());
+        console.log("effective supply", y.effectiveSupply());
+
         assertApproxEqRel(collateralValue, 100_000e6, 0.001e18);
         assertApproxEqRel(maxBorrow, 91_500e6, 0.001e18);
     }
