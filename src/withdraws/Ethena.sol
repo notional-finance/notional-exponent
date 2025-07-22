@@ -83,9 +83,11 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
+    ) internal override returns (uint256 tokensClaimed) {
         EthenaCooldownHolder holder = EthenaCooldownHolder(address(uint160(requestId)));
+        bool finalized;
         (tokensClaimed, finalized) = holder.finalizeCooldown();
+        require(finalized);
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {

@@ -390,11 +390,9 @@ abstract contract BaseLPLib is ILPLib {
             (w, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
 
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
-            bool finalized;
-            (exitBalances[i], finalized) = manager.finalizeAndRedeemWithdrawRequest({
+            exitBalances[i] = manager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            if (!finalized) revert WithdrawRequestNotFinalized(w.requestId);
             withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
         }
     }

@@ -124,38 +124,36 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         uint256 withdrawYieldTokenAmount,
         uint256 sharesToBurn
-    ) external override onlyApprovedVault returns (uint256 tokensWithdrawn, bool finalized) {
+    ) external override onlyApprovedVault returns (uint256 tokensWithdrawn) {
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][account];
-        if (s_withdraw.requestId == 0) return (0, false);
+        if (s_withdraw.requestId == 0) return 0;
 
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, msg.sender, s_withdraw);
+        tokensWithdrawn = _finalizeWithdraw(account, msg.sender, s_withdraw);
 
-        if (finalized) {
-            // Allows for partial withdrawal of yield tokens
-            if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
-                tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
-                s_withdraw.sharesAmount -= sharesToBurn.toUint120();
-                s_withdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
-            } else {
-                require(s_withdraw.yieldTokenAmount == withdrawYieldTokenAmount);
-                delete s_accountWithdrawRequest[msg.sender][account];
-            }
-
-            ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
+        // Allows for partial withdrawal of yield tokens
+        if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
+            tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
+            s_withdraw.sharesAmount -= sharesToBurn.toUint120();
+            s_withdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
+        } else {
+            require(s_withdraw.yieldTokenAmount == withdrawYieldTokenAmount);
+            delete s_accountWithdrawRequest[msg.sender][account];
         }
+
+        ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
     }
 
     /// @inheritdoc IWithdrawRequestManager
     function finalizeRequestManual(
         address vault,
         address account
-    ) external override returns (uint256 tokensWithdrawn, bool finalized) {
+    ) external override returns (uint256 tokensWithdrawn) {
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[vault][account];
         if (s_withdraw.requestId == 0) revert NoWithdrawRequest(vault, account);
 
         // Do not transfer any tokens off of this method here. Withdrawn tokens will be held in the
         // tokenized withdraw request until the vault calls this contract to withdraw the tokens.
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, vault, s_withdraw);
+        tokensWithdrawn = _finalizeWithdraw(account, vault, s_withdraw);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -216,34 +214,26 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         address vault,
         WithdrawRequest memory w
-    ) internal returns (uint256 tokensWithdrawn, bool finalized) {
+    ) internal returns (uint256 tokensWithdrawn) {
         TokenizedWithdrawRequest storage s = s_tokenizedWithdrawRequest[w.requestId];
 
         // If the tokenized request was already finalized in a different transaction
         // then return the values here and we can short circuit the withdraw impl
         if (s.finalized) {
-            return (
-                uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount),
-                true
-            );
+            return uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
         }
 
         // These values are the total tokens claimed from the withdraw request, does not
         // account for potential tokenization.
-        (tokensWithdrawn, finalized) = _finalizeWithdrawImpl(account, w.requestId);
+        tokensWithdrawn = _finalizeWithdrawImpl(account, w.requestId);
 
-        if (finalized) {
-            s.totalWithdraw = tokensWithdrawn.toUint120();
-            // Safety check to ensure that we do not override a finalized tokenized withdraw request
-            require(s.finalized == false);
-            s.finalized = true;
+        s.totalWithdraw = tokensWithdrawn.toUint120();
+        // Safety check to ensure that we do not override a finalized tokenized withdraw request
+        require(s.finalized == false);
+        s.finalized = true;
 
-            tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
-            emit WithdrawRequestFinalized(vault, account, w.requestId, s.totalWithdraw);
-        } else {
-            // No tokens claimed if not finalized
-            require(tokensWithdrawn == 0);
-        }
+        tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
+        emit WithdrawRequestFinalized(vault, account, w.requestId, s.totalWithdraw);
     }
 
 
@@ -256,11 +246,11 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     ) internal virtual returns (uint256 requestId);
 
     /// @notice Required implementation to finalize the withdraw
+    /// @dev Must revert if the withdraw request is not finalized
     /// @return tokensWithdrawn total tokens claimed as a result of the withdraw, does not
     /// necessarily represent the tokens that go to the account if the request has been
     /// tokenized due to liquidation
-    /// @return finalized returns true if the withdraw has been finalized
-    function _finalizeWithdrawImpl(address account, uint256 requestId) internal virtual returns (uint256 tokensWithdrawn, bool finalized);
+    function _finalizeWithdrawImpl(address account, uint256 requestId) internal virtual returns (uint256 tokensWithdrawn);
 
     /// @notice Required implementation to stake the deposit token to the yield token
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal virtual;

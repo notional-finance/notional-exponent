@@ -28,14 +28,10 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
-        finalized = canFinalizeWithdrawRequest(requestId);
-
-        if (finalized) {
-            uint256 balanceBefore = WETH.balanceOf(address(this));
-            OriginVault.claimWithdrawal(requestId);
-            tokensClaimed = WETH.balanceOf(address(this)) - balanceBefore;
-        }
+    ) internal override returns (uint256 tokensClaimed) {
+        uint256 balanceBefore = WETH.balanceOf(address(this));
+        OriginVault.claimWithdrawal(requestId);
+        tokensClaimed = WETH.balanceOf(address(this)) - balanceBefore;
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view returns (bool) {

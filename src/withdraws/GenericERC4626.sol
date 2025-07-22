@@ -32,11 +32,10 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
+    ) internal override returns (uint256 tokensClaimed) {
         uint256 sharesToRedeem = s_withdrawRequestShares[requestId];
         delete s_withdrawRequestShares[requestId];
         tokensClaimed = IERC4626(YIELD_TOKEN).redeem(sharesToRedeem, address(this), address(this));
-        finalized = true;
     }
 
     function canFinalizeWithdrawRequest(uint256 /* requestId */) public pure override returns (bool) {

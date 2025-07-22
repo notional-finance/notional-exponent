@@ -51,20 +51,15 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
-        finalized = canFinalizeWithdrawRequest(requestId);
+    ) internal override returns (uint256 tokensClaimed) {
+        (uint256 initialBatchId, uint256 finalBatchId) = _decodeBatchIds(requestId);
 
-        if (finalized) {
-            (uint256 initialBatchId, uint256 finalBatchId) = _decodeBatchIds(requestId);
-
-            for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
-                uint256 assets = upxETH.balanceOf(address(this), i);
-                if (assets == 0) continue;
-                PirexETH.redeemWithUpxEth(i, assets, address(this));
-                tokensClaimed += assets;
-            }
+        for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
+            uint256 assets = upxETH.balanceOf(address(this), i);
+            if (assets == 0) continue;
+            PirexETH.redeemWithUpxEth(i, assets, address(this));
+            tokensClaimed += assets;
         }
-
         WETH.deposit{value: tokensClaimed}();
     }
 
