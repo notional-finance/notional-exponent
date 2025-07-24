@@ -161,10 +161,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function collectFees() external override {
+    function collectFees() external override returns (uint256 feesCollected) {
         _accrueFees();
-        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), s_accruedFeesInYieldToken);
-
+        feesCollected = s_accruedFeesInYieldToken;
+        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
         delete s_accruedFeesInYieldToken;
     }
 

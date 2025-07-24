@@ -27,12 +27,22 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
             uint256 maxBorrow
         ) = lendingRouter.healthFactor(msg.sender, address(y));
 
-        console.log("wrapped tokens", w.balanceOf(address(y)));
-        console.log("total supply", y.totalSupply());
-        console.log("effective supply", y.effectiveSupply());
-
         assertApproxEqRel(collateralValue, 100_000e6, 0.001e18);
         assertApproxEqRel(maxBorrow, 91_500e6, 0.001e18);
+    }
+
+    function test_fee_accrual() public {
+        uint256 initialDeposit = 10e6;
+        console.log("initial deposit", initialDeposit);
+        _enterPosition(msg.sender, initialDeposit, 0);
+
+        uint256 totalFeesCollected = 0;
+        for (uint256 i; i < (365 * 24); i++) {
+            vm.warp(block.timestamp + 1 hours);
+            totalFeesCollected += y.collectFees();
+        }
+        console.log("total fees", totalFeesCollected);
+        console.log("implied fee rate", totalFeesCollected * 10000 / initialDeposit, "bps");
     }
 
 }
