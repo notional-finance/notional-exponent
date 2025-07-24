@@ -10,6 +10,7 @@ import "../src/withdraws/GenericERC20.sol";
 import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractRewardManager.sol";
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
+import {MORPHO} from "../src/interfaces/Morpho/IMorpho.sol";
 
 contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
@@ -759,6 +760,14 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         assertEq(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions no change");
         assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
+    }
+
+    function test_claimRewards_as_Morpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        vm.expectRevert();
+        RewardManagerMixin(address(rm)).claimAccountRewards(address(MORPHO), type(uint256).max);
     }
 
 }

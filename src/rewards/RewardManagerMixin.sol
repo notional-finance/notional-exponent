@@ -158,6 +158,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
     ) external nonReentrant returns (uint256[] memory rewards) {
         uint256 effectiveSupplyBefore = effectiveSupply();
         if (!ADDRESS_REGISTRY.isLendingRouter(msg.sender)) {
+            require(msg.sender == account);
             // If the caller is not a lending router we get the shares held in a
             // native token account.
             sharesHeld = balanceOf(account);
