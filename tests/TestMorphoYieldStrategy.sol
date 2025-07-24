@@ -198,8 +198,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         vm.startPrank(msg.sender);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
-        // NOTE: this is the morpho revert message
-        vm.expectRevert("transfer reverted");
+        vm.expectRevert();
         MORPHO.withdrawCollateral(marketParams, 1, msg.sender, msg.sender);
     }
 
@@ -453,8 +452,21 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(owner);
         USDC.approve(address(y), 90_000e6);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
-        vm.expectRevert("transfer reverted");
+        vm.expectRevert();
         MORPHO.liquidate(marketParams, msg.sender, 0, 90_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_borrow_RevertsIf_CalledOnMorpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        o.setPrice(0.95e18);
+
+        vm.startPrank(owner);
+        USDC.approve(address(y), 90_000e6);
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        vm.expectRevert();
+        MORPHO.borrow(marketParams,0, 90_000e6, msg.sender, msg.sender);
         vm.stopPrank();
     }
 

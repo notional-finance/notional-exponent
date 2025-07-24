@@ -121,6 +121,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
+        if (t_CurrentAccount == address(0)) return 0;
         return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
     }
 
