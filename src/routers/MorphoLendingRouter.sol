@@ -274,13 +274,18 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address vault,
         address liquidateAccount,
         uint256 sharesToLiquidate,
-        uint256 debtToRepay
+        uint256 borrowSharesToRepay
     ) internal override returns (uint256 sharesToLiquidator, uint256 borrowSharesRepaid) {
         MarketParams memory m = marketParams(vault);
         uint256 borrowSharesBefore = balanceOfBorrowShares(liquidateAccount, vault);
+
+        // If the account's borrow shares are less than when the liquidator is trying to repay,
+        // set it to the account's borrow shares to prevent an underflow inside Morpho.
+        if (borrowSharesBefore < borrowSharesToRepay) borrowSharesToRepay = borrowSharesBefore;
+
         // This does not return borrow shares repaid so we have to calculate it manually
         (sharesToLiquidator, /* */) = MORPHO.liquidate(
-            m, liquidateAccount, sharesToLiquidate, debtToRepay, abi.encode(m.loanToken, liquidator)
+            m, liquidateAccount, sharesToLiquidate, borrowSharesToRepay, abi.encode(m.loanToken, liquidator)
         );
         borrowSharesRepaid = borrowSharesBefore - balanceOfBorrowShares(liquidateAccount, vault);
     }
