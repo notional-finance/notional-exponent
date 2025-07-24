@@ -462,11 +462,20 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         o.setPrice(0.95e18);
 
-        vm.startPrank(owner);
-        USDC.approve(address(y), 90_000e6);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        vm.startPrank(msg.sender);
         vm.expectRevert();
         MORPHO.borrow(marketParams,0, 90_000e6, msg.sender, msg.sender);
+        vm.stopPrank();
+    }
+
+    function test_canRepay_onMorpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        asset.approve(address(MORPHO), 90_000e6);
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        MORPHO.repay(marketParams, 1e6, 0, msg.sender, bytes(""));
         vm.stopPrank();
     }
 
