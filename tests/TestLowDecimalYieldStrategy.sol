@@ -32,7 +32,7 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
     }
 
     function test_fee_accrual() public {
-        uint256 initialDeposit = 10e6;
+        uint256 initialDeposit = 1e4;
         console.log("initial deposit", initialDeposit);
         _enterPosition(msg.sender, initialDeposit, 0);
 

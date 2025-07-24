@@ -48,6 +48,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     uint8 internal immutable _yieldTokenDecimals;
     uint8 internal immutable _assetDecimals;
+    uint256 internal immutable _feeAdjustmentPrecision;
 
     /********* Storage Variables *********/
     string private s_name;
@@ -85,6 +86,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _yieldTokenDecimals = __yieldTokenDecimals;
         _assetDecimals = TokenUtils.getDecimals(_asset);
         accountingAsset = address(_asset);
+
+        if (_yieldTokenDecimals < 18) {
+            _feeAdjustmentPrecision = 10 ** (18 - _yieldTokenDecimals);
+        } else {
+            _feeAdjustmentPrecision = 1;
+        }
     }
 
     function name() public view override(ERC20, IERC20Metadata) returns (string memory) {
@@ -157,15 +164,15 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IYieldStrategy
     function feesAccrued() public view override returns (uint256 feesAccruedInYieldToken) {
-        return s_accruedFeesInYieldToken + _calculateAdditionalFeesInYieldToken();
+        return (s_accruedFeesInYieldToken + _calculateAdditionalFeesInYieldToken()) / _feeAdjustmentPrecision;
     }
 
     /// @inheritdoc IYieldStrategy
     function collectFees() external override returns (uint256 feesCollected) {
         _accrueFees();
-        feesCollected = s_accruedFeesInYieldToken;
+        feesCollected = s_accruedFeesInYieldToken / _feeAdjustmentPrecision;
         _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
-        delete s_accruedFeesInYieldToken;
+        s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
     }
 
     /*** Core Functions ***/
@@ -317,7 +324,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 x = (feeRate * timeSinceLastFeeAccrual) / YEAR;
         if (x == 0) return 0;
 
-        uint256 preFeeUserHeldYieldTokens = _yieldTokenBalance() - s_accruedFeesInYieldToken;
+        uint256 preFeeUserHeldYieldTokens = _yieldTokenBalance() * _feeAdjustmentPrecision - s_accruedFeesInYieldToken;
         // Taylor approximation of e ^ x = 1 + x + x^2 / 2! + x^3 / 3! + ...
         uint256 eToTheX = DEFAULT_PRECISION + x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
         // Decay the user's yield tokens by e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
