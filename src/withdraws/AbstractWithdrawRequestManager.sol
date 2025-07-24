@@ -276,7 +276,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             stakeData = params.stakeData;
 
             (/* */, amountBought) = _executeTrade(Trade({
-                tradeType: params.tradeType,
+                tradeType: TradeType.EXACT_IN_SINGLE,
                 sellToken: depositToken,
                 buyToken: STAKING_TOKEN,
                 amount: depositAmount,
