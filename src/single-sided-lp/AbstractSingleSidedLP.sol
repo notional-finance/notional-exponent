@@ -138,7 +138,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         uint256 maxSupplyThreshold = (_totalPoolSupply() * MAX_POOL_SHARE) / DEFAULT_PRECISION;
         // This is incumbent on a 1-1 ratio between the lpToken and the yieldToken, if that is not the
         // case then this function must be overridden.
-        uint256 poolClaim = _yieldTokenBalance();
+        uint256 poolClaim = ERC20(yieldToken).balanceOf(address(this));
         if (maxSupplyThreshold < poolClaim) revert PoolShareTooHigh(poolClaim, maxSupplyThreshold);
     }
 

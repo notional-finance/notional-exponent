@@ -650,7 +650,5 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         console.log("Max borrow is: ", maxBorrow);
         console.log("Borrowed is: ", borrowed);
         console.log("Collateral value is: ", collateralValue);
-
-        assertTrue(false);
     }  
 }
