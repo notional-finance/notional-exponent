@@ -281,9 +281,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             ILPLib.initiateWithdraw.selector, account, sharesHeld, exitBalances, params.withdrawData
         ));
         uint256[] memory requestIds = abi.decode(result, (uint256[]));
-        // Although we get multiple requests ids, we just return the first one here. The rest will be
-        // observable off chain.
-        requestId = requestIds[0];
+        for (uint256 i; i < requestIds.length; i++) {
+            // Return the first non-zero request id since the base function requires it.
+            if (requestIds[i] > 0) return requestIds[i];
+        }
+        // Revert if there are no non-zero request ids.
+        revert();
     }
 
     function _withdrawPendingRequests(
@@ -388,14 +391,17 @@ abstract contract BaseLPLib is ILPLib {
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             (w, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
+            withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
 
+            // If there is no withdraw request then skip the finalization call. The balance returned
+            // will be zero.
+            if (w.sharesAmount == 0 || w.requestId == 0) continue;
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             bool finalized;
             (exitBalances[i], finalized) = manager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
             if (!finalized) revert WithdrawRequestNotFinalized(w.requestId);
-            withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
         }
     }
 

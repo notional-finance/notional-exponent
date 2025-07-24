@@ -98,6 +98,16 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         ));
         vm.stopPrank();
     }
+
+    function test_exitPosition_zero_withdrawRequest() public {
+        _enterPosition(msg.sender, 2, 0);
+        vm.prank(msg.sender);
+        // Should revert on a zero request id.
+        vm.expectRevert();
+        lendingRouter.initiateWithdraw(
+            msg.sender, address(y), getWithdrawRequestData(msg.sender, 2)
+        );
+    }
 }
 
 contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
