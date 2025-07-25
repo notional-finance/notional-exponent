@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {console} from "forge-std/src/console.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -168,8 +167,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _accrueFees();
         _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), s_accruedFeesInYieldToken);
 
+        s_yieldTokenBalance -= s_accruedFeesInYieldToken;
         delete s_accruedFeesInYieldToken;
-        s_yieldTokenBalance = ERC20(yieldToken).balanceOf(address(this));
     }
 
     /*** Core Functions ***/
@@ -311,7 +310,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Escrow the shares after the withdraw since it will change the effective supply
         // during reward claims when using the RewardManagerMixin.
         s_escrowedShares += sharesHeld;
-        s_yieldTokenBalance = ERC20(yieldToken).balanceOf(address(this));
+        s_yieldTokenBalance -= yieldTokenAmount;
     }
 
     /*** Private Functions ***/
@@ -410,14 +409,15 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
+        uint256 yieldTokensBefore = ERC20(yieldToken).balanceOf(address(this));
         _mintYieldTokens(assets, receiver, depositData);
         uint256 yieldTokensAfter = ERC20(yieldToken).balanceOf(address(this));
-        uint256 yieldTokensMinted = yieldTokensAfter - s_yieldTokenBalance;
+        uint256 yieldTokensMinted = yieldTokensAfter - yieldTokensBefore;
 
         sharesMinted = (yieldTokensMinted * effectiveSupply()) /
             (s_yieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
 
-        s_yieldTokenBalance = yieldTokensAfter;
+        s_yieldTokenBalance += yieldTokensMinted;
         _mint(receiver, sharesMinted);
     }
 
@@ -435,9 +435,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
+        uint256 yieldTokensBefore = ERC20(yieldToken).balanceOf(address(this));
         _redeemShares(sharesToBurn, sharesOwner, isEscrowed, redeemData);
         if (isEscrowed) s_escrowedShares -= sharesToBurn;
-        s_yieldTokenBalance = ERC20(yieldToken).balanceOf(address(this));
+        uint256 yieldTokensAfter = ERC20(yieldToken).balanceOf(address(this));
+        uint256 yieldTokensRedeemed = yieldTokensBefore - yieldTokensAfter;
+        s_yieldTokenBalance -= yieldTokensRedeemed;
 
         uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
