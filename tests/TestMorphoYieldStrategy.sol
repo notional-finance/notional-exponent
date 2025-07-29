@@ -13,7 +13,7 @@ import "../src/proxy/Initializable.sol";
 contract TestMorphoYieldStrategy is TestEnvironment {
 
     function deployYieldStrategy() internal override virtual {
-        w = new MockWrapperERC20(ERC20(address(USDC)));
+        w = new MockWrapperERC20(ERC20(address(USDC)), 18);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             address(USDC),
@@ -131,7 +131,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     function postExitAssertions(uint256 initialBalance, uint256 netWorthBefore, uint256 sharesToExit, uint256 profitsWithdrawn, uint256 netWorthAfter) internal view {
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
-        assertApproxEqRel(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
+        assertApproxEqAbs(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
         assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), initialBalance - sharesToExit, "Account has collateral shares");

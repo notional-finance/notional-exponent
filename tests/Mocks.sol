@@ -14,21 +14,31 @@ import {StakingStrategy} from "../src/staking/StakingStrategy.sol";
 contract MockWrapperERC20 is ERC20 {
     ERC20 public token;
     uint256 public tokenPrecision;
+    uint8 internal immutable _decimals;
 
-    constructor(ERC20 _token) ERC20("MockWrapperERC20", "MWE") {
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    constructor(ERC20 _token, uint8 decimals_) ERC20("MockWrapperERC20", "MWE") {
         token = _token;
         tokenPrecision = 10 ** token.decimals();
-        _mint(msg.sender, 1000000 * 10e18);
+        _decimals = decimals_;
+
+        uint256 precision = 10 ** _decimals;
+        _mint(msg.sender, 1000000 * precision);
     }
 
     function deposit(uint256 amount) public {
         token.transferFrom(msg.sender, address(this), amount);
-        _mint(msg.sender, amount * 1e18 / tokenPrecision);
+        uint256 precision = 10 ** _decimals;
+        _mint(msg.sender, amount * precision / tokenPrecision);
     }
 
     function withdraw(uint256 amount) public {
         _burn(msg.sender, amount);
-        token.transfer(msg.sender, amount * tokenPrecision / 1e18);
+        uint256 precision = 10 ** _decimals;
+        token.transfer(msg.sender, amount * tokenPrecision / precision);
     }
 }
 
