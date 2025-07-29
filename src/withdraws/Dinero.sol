@@ -4,15 +4,57 @@ pragma solidity >=0.8.29;
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {WETH} from "../utils/Constants.sol";
+import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import "../interfaces/IDinero.sol";
 
-contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155Holder {
-    uint16 internal s_batchNonce;
-    uint256 internal constant MAX_BATCH_ID = type(uint120).max;
+contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
+    uint256 public initialBatchId;
+    uint256 public finalBatchId;
+
+    receive() external payable { }
+
+    constructor(address _manager) ClonedCoolDownHolder(_manager) { }
+
+    function _stopCooldown() internal pure override { revert(); }
+
+    function _startCooldown(uint256 amountToWithdraw) internal override {
+        require(initialBatchId == 0 && finalBatchId == 0);
+
+        initialBatchId = PirexETH.batchId();
+        pxETH.approve(address(PirexETH), amountToWithdraw);
+        // TODO: what do we put for should trigger validator exit?
+        PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
+        finalBatchId = PirexETH.batchId();
+    }
+
+    function _finalizeCooldown() internal override returns (uint256 tokensClaimed, bool finalized) {
+        uint256 i = initialBatchId;
+        uint256 end = finalBatchId;
+
+        for (; i <= end; i++) {
+            uint256 assets = upxETH.balanceOf(address(this), i);
+            if (assets == 0) continue;
+            PirexETH.redeemWithUpxEth(i, assets, address(this));
+            tokensClaimed += assets;
+        }
+        WETH.deposit{value: tokensClaimed}();
+        WETH.transfer(manager, tokensClaimed);
+        finalized = true;
+    }
+}
+
+contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
+
+    address public HOLDER_IMPLEMENTATION;
 
     constructor(address pxETHorApxETH) AbstractWithdrawRequestManager(
         address(WETH), address(pxETHorApxETH), address(WETH)
     ) { }
+
+    function _initialize(bytes calldata /* data */) internal override {
+        HOLDER_IMPLEMENTATION = address(new DineroCooldownHolder(address(this)));
+    }
 
     function _initiateWithdrawImpl(
         address /* account */,
@@ -24,18 +66,11 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
             amountToWithdraw = apxETH.redeem(amountToWithdraw, address(this), address(this));
         }
 
-        uint256 initialBatchId = PirexETH.batchId();
-        pxETH.approve(address(PirexETH), amountToWithdraw);
-        // TODO: what do we put for should trigger validator exit?
-        PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
-        uint256 finalBatchId = PirexETH.batchId();
-        uint256 nonce = ++s_batchNonce;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(Clones.clone(HOLDER_IMPLEMENTATION)));
+        pxETH.transfer(address(holder), amountToWithdraw);
+        holder.startCooldown(amountToWithdraw);
 
-        // May require multiple batches to complete the redemption
-        require(initialBatchId < MAX_BATCH_ID);
-        require(finalBatchId < MAX_BATCH_ID);
-        // Initial and final batch ids may overlap between requests so the nonce is used to ensure uniqueness
-        return nonce << 240 | initialBatchId << 120 | finalBatchId;
+        return uint256(uint160(address(holder)));
     }
 
     function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
@@ -43,33 +78,20 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
         PirexETH.deposit{value: amount}(address(this), YIELD_TOKEN == address(apxETH));
     }
 
-    function _decodeBatchIds(uint256 requestId) internal pure returns (uint256 initialBatchId, uint256 finalBatchId) {
-        initialBatchId = requestId >> 120 & MAX_BATCH_ID;
-        finalBatchId = requestId & MAX_BATCH_ID;
-    }
-
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
-        finalized = canFinalizeWithdrawRequest(requestId);
-
-        if (finalized) {
-            (uint256 initialBatchId, uint256 finalBatchId) = _decodeBatchIds(requestId);
-
-            for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
-                uint256 assets = upxETH.balanceOf(address(this), i);
-                if (assets == 0) continue;
-                PirexETH.redeemWithUpxEth(i, assets, address(this));
-                tokensClaimed += assets;
-            }
-        }
-
-        WETH.deposit{value: tokensClaimed}();
+    ) internal override returns (uint256 tokensClaimed) {
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        bool finalized;
+        (tokensClaimed, finalized) = holder.finalizeCooldown();
+        require(finalized);
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view returns (bool) {
-        (uint256 initialBatchId, uint256 finalBatchId) = _decodeBatchIds(requestId);
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         uint256 totalAssets;
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
@@ -80,10 +102,10 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager, ERC1155
                 return false;
             }
 
-            totalAssets += upxETH.balanceOf(address(this), i);
+            totalAssets += upxETH.balanceOf(address(holder), i);
         }
 
         // Can only finalize if the total assets are greater than the outstanding redemptions
-        return PirexETH.outstandingRedemptions() > totalAssets;
+        return PirexETH.outstandingRedemptions() >= totalAssets;
     }
 }

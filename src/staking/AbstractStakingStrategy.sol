@@ -100,10 +100,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
 
-            (uint256 tokensClaimed, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
+            uint256 tokensClaimed = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            if (!finalized) revert WithdrawRequestNotFinalized(w.requestId);
 
             // Trades may be required here if the borrowed token is not the same as what is
             // received when redeeming.

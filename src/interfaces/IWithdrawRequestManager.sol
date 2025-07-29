@@ -103,16 +103,16 @@ interface IWithdrawRequestManager {
     ) external returns (uint256 requestId);
 
     /// @notice Attempts to redeem active withdraw requests during vault exit
+    /// @dev Will revert if the withdraw request is not finalized
     /// @param account the account to finalize and redeem the withdraw request for
     /// @param withdrawYieldTokenAmount the amount of yield tokens to withdraw
     /// @param sharesToBurn the amount of shares to burn for the yield token
     /// @return tokensWithdrawn amount of withdraw tokens redeemed from the withdraw requests
-    /// @return finalized whether the withdraw request was finalized
     function finalizeAndRedeemWithdrawRequest(
         address account,
         uint256 withdrawYieldTokenAmount,
         uint256 sharesToBurn
-    ) external returns (uint256 tokensWithdrawn, bool finalized);
+    ) external returns (uint256 tokensWithdrawn);
 
     /// @notice Finalizes withdraw requests outside of a vault exit. This may be required in cases if an
     /// account is negligent in exiting their vault position and letting the withdraw request sit idle
@@ -120,10 +120,11 @@ interface IWithdrawRequestManager {
     /// where the account has the full claim on the withdraw.
     /// @dev No access control is enforced on this function but no tokens are transferred off the request
     /// manager either.
+    /// @dev Will revert if the withdraw request is not finalized
     function finalizeRequestManual(
         address vault,
         address account
-    ) external returns (uint256 tokensWithdrawn, bool finalized);
+    ) external returns (uint256 tokensWithdrawn);
 
     /// @notice If an account has an illiquid withdraw request, this method will tokenize their
     /// claim on it during liquidation.
@@ -144,7 +145,8 @@ interface IWithdrawRequestManager {
     /// @param amount the amount of tokens to rescue
     function rescueTokens(address cooldownHolder, address token, address receiver, uint256 amount) external;
 
-    /// @notice Returns whether a withdraw request can be finalized
+    /// @notice Returns whether a withdraw request can be finalized, only used off chain
+    /// to determine if a withdraw request can be finalized.
     /// @param requestId the request id of the withdraw request
     /// @return canFinalize whether the withdraw request can be finalized
     function canFinalizeWithdrawRequest(uint256 requestId) external view returns (bool);
