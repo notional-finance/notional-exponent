@@ -251,7 +251,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
                 onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes("")
             );
         } else {
-            ERC20(asset).approve(vault, assetAmount);
+            ERC20(asset).checkApprove(vault, assetAmount);
             sharesReceived = IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
         }
 
