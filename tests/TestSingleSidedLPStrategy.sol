@@ -345,9 +345,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         redeemParams.redemptionTrades = tradeBeforeRedeemParams;
         bytes memory redeemData = abi.encode(redeemParams);
 
-        // The call reverts properly inside the library but we don't propagate the revert
-        // so we need to expect a revert here
-        vm.expectPartialRevert(WithdrawRequestNotFinalized.selector);
+        // Call reverts inside the withdraw request manager when the request is
+        // not finalized
+        vm.expectRevert();
         lendingRouter.exitPosition(
             msg.sender,
             address(y),

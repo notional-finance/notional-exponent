@@ -67,6 +67,9 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             effectiveSupplyBefore: effectiveSupplyBefore,
             sharesInEscrow: didTokenize
         });
+
+        delete t_Liquidator_SharesBefore;
+        delete t_LiquidateAccount_SharesBefore;
     }
 
     function _mintSharesGivenAssets(

@@ -240,8 +240,8 @@ type Balance @entity(immutable: false) {
   lastUpdateTransactionHash: Bytes!
 
   current: BalanceSnapshot!
-  "Link to the withdraw request that this balance is associated with"
-  withdrawRequest: WithdrawRequest
+  "Link to the withdraw requests that this balance is associated with"
+  withdrawRequest: [WithdrawRequest!]
   snapshots: [BalanceSnapshot!] @derivedFrom(field: "balance")
 }
 

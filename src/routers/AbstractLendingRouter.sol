@@ -21,8 +21,9 @@ import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
 import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {ADDRESS_REGISTRY, COOLDOWN_PERIOD} from "../utils/Constants.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
-abstract contract AbstractLendingRouter is ILendingRouter {
+abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransient {
     using SafeERC20 for ERC20;
     using TokenUtils for ERC20;
 
@@ -60,7 +61,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) public override isAuthorized(onBehalf, vault) {
+    ) public override isAuthorized(onBehalf, vault) nonReentrant {
         _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
@@ -69,7 +70,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         address migrateFrom
-    ) public override isAuthorized(onBehalf, vault) {
+    ) public override isAuthorized(onBehalf, vault) nonReentrant {
         if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
         // Borrow amount is set to the amount of debt owed to the previous lending router
         (uint256 borrowAmount, /* */, /* */) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
@@ -117,7 +118,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf, vault) {
+    ) external override isAuthorized(onBehalf, vault) nonReentrant {
         _checkExit(onBehalf, vault);
 
         address asset = IYieldStrategy(vault).asset();
@@ -145,7 +146,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address vault,
         uint256 sharesToLiquidate,
         uint256 debtToRepay
-    ) external override returns (uint256 sharesToLiquidator) {
+    ) external override nonReentrant returns (uint256 sharesToLiquidator) {
         if (sharesToLiquidate == 0) revert CannotLiquidateZeroShares();
 
         address liquidator = msg.sender;
@@ -187,12 +188,12 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         bytes calldata data
-    ) external override isAuthorized(onBehalf, vault) returns (uint256 requestId) {
+    ) external override isAuthorized(onBehalf, vault) nonReentrant returns (uint256 requestId) {
         requestId = _initiateWithdraw(vault, onBehalf, data);
     }
 
     /// @inheritdoc ILendingRouter
-    function forceWithdraw(address account, address vault, bytes calldata data) external returns (uint256 requestId) {
+    function forceWithdraw(address account, address vault, bytes calldata data) external nonReentrant returns (uint256 requestId) {
         // Can only force a withdraw if health factor is negative, this allows a liquidator to
         // force a withdraw and liquidate a position at a later time.
         (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
@@ -253,7 +254,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
                 onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes("")
             );
         } else {
-            ERC20(asset).approve(vault, assetAmount);
+            ERC20(asset).checkApprove(vault, assetAmount);
             sharesReceived = IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
         }
 

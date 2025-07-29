@@ -39,6 +39,31 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
         depositCallData = "";
         withdrawCallData = "";
     }
+
+    function test_zero_cooldown_duration() public approveVaultAndStakeTokens {
+        vm.startPrank(sUSDe.owner());
+        sUSDe.setCooldownDuration(0);
+        vm.stopPrank();
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId = manager.initiateWithdraw(
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData
+        );
+
+        assertEq(manager.canFinalizeWithdrawRequest(requestId), true);
+
+        // Now we should be able to finalize the withdraw request and get the full amount back
+        (uint256 tokensWithdrawn, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(
+            address(this), initialYieldTokenBalance, sharesAmount
+        );
+        assertGt(tokensWithdrawn, 0);
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertEq(finalized, true);
+    }
 }
 
 contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
@@ -91,8 +116,9 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
 contract TestDinero_pxETH_WithdrawRequest is TestWithdrawRequest {
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         address rewardRecipient = PirexETH.rewardRecipient();
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
@@ -120,8 +146,9 @@ contract TestDinero_pxETH_WithdrawRequest is TestWithdrawRequest {
 contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         address rewardRecipient = PirexETH.rewardRecipient();
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {

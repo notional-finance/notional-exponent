@@ -40,6 +40,10 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     uint256 private transient t_borrowShares;
     uint256 private transient t_profitsWithdrawn;
 
+    // Used for the health factor calculation to replicate Morpho's behavior
+    uint256 private constant VIRTUAL_ASSETS = 1;
+    uint256 private constant VIRTUAL_SHARES = 1e6;
+
     function name() external pure override returns (string memory) {
         return "Morpho";
     }
@@ -55,6 +59,10 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             lltv: lltv
         });
 
+        // If the market already exists this call will revert. This is okay because there should
+        // be no reason that the market would already exist unless something has gone wrong. In that
+        // case we would want to assess why the market was created and perhaps change the market
+        // parameters in order to fix the issue.
         MORPHO.createMarket(marketParams(vault));
     }
 
@@ -100,7 +108,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         uint256 borrowAmount,
         bytes calldata depositData,
         MorphoAllocation[] calldata allocationData
-    ) external payable isAuthorized(onBehalf, vault) {
+    ) external payable isAuthorized(onBehalf, vault) nonReentrant {
         _allocate(vault, allocationData);
         enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData);
     }
@@ -110,7 +118,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address vault,
         address migrateFrom,
         MorphoAllocation[] calldata allocationData
-    ) external payable isAuthorized(onBehalf, vault) {
+    ) external payable isAuthorized(onBehalf, vault) nonReentrant {
         _allocate(vault, allocationData);
         migratePosition(onBehalf, vault, migrateFrom);
     }
@@ -205,13 +213,21 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             assetToRepay = 0;
         }
 
-        bytes memory repayData = abi.encode(
-            onBehalf, vault, asset, receiver, sharesToRedeem, redeemData, _isMigrate(receiver)
-        );
+        if (assetToRepay == 0 && sharesToRepay == 0) {
+            // Allows migration in the edge case where the user has no debt but
+            // still wants to migrate their position.
+            profitsWithdrawn = _redeemShares(
+                onBehalf, vault, asset, _isMigrate(receiver) ? receiver : address(0), sharesToRedeem, redeemData
+            );
+        } else {
+            bytes memory repayData = abi.encode(
+                onBehalf, vault, asset, receiver, sharesToRedeem, redeemData, _isMigrate(receiver)
+            );
 
-        // Will trigger a callback to onMorphoRepay
-        borrowSharesRepaid = _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
-        profitsWithdrawn = t_profitsWithdrawn;
+            // Will trigger a callback to onMorphoRepay
+            borrowSharesRepaid = _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
+            profitsWithdrawn = t_profitsWithdrawn;
+        }
     }
 
     function _repay(
@@ -274,13 +290,18 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address vault,
         address liquidateAccount,
         uint256 sharesToLiquidate,
-        uint256 debtToRepay
+        uint256 borrowSharesToRepay
     ) internal override returns (uint256 sharesToLiquidator, uint256 borrowSharesRepaid) {
         MarketParams memory m = marketParams(vault);
         uint256 borrowSharesBefore = balanceOfBorrowShares(liquidateAccount, vault);
+
+        // If the account's borrow shares are less than when the liquidator is trying to repay,
+        // set it to the account's borrow shares to prevent an underflow inside Morpho.
+        if (borrowSharesBefore < borrowSharesToRepay) borrowSharesToRepay = borrowSharesBefore;
+
         // This does not return borrow shares repaid so we have to calculate it manually
         (sharesToLiquidator, /* */) = MORPHO.liquidate(
-            m, liquidateAccount, sharesToLiquidate, debtToRepay, abi.encode(m.loanToken, liquidator)
+            m, liquidateAccount, sharesToLiquidate, borrowSharesToRepay, abi.encode(m.loanToken, liquidator)
         );
         borrowSharesRepaid = borrowSharesBefore - balanceOfBorrowShares(liquidateAccount, vault);
     }
@@ -310,6 +331,14 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         return (borrowShares * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
     }
 
+   function _mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {
+        return (x * y + (d - 1)) / d;
+    }
+
+    function _toAssetsUp(uint256 shares, uint256 totalShares, uint256 totalAssets) internal pure returns (uint256 assets) {
+        return _mulDivUp(shares, totalAssets + VIRTUAL_ASSETS, totalShares + VIRTUAL_SHARES);
+    }
+
     function healthFactor(address borrower, address vault) public override returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {
         MarketParams memory m = marketParams(vault);
         Id id = morphoId(m);
@@ -319,7 +348,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         Market memory market = MORPHO.market(id);
 
         if (position.borrowShares > 0) {
-            borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
+            borrowed = _toAssetsUp(position.borrowShares, market.totalBorrowShares, market.totalBorrowAssets);
         } else {
             borrowed = 0;
         }

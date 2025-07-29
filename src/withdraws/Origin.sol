@@ -7,35 +7,37 @@ import "../interfaces/IOrigin.sol";
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
 
-    constructor() AbstractWithdrawRequestManager(address(WETH), address(oETH), address(WETH)) { }
+    constructor() AbstractWithdrawRequestManager(address(WETH), address(wOETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(
         address /* account */,
-        uint256 oETHToWithdraw,
+        uint256 woETHToWithdraw,
         bytes calldata /* data */
     ) override internal returns (uint256 requestId) {
-        ERC20(YIELD_TOKEN).approve(address(OriginVault), oETHToWithdraw);
-        (requestId, ) = OriginVault.requestWithdrawal(oETHToWithdraw);
+        uint256 oethRedeemed = wOETH.redeem(woETHToWithdraw, address(this), address(this));
+        oETH.approve(address(OriginVault), oethRedeemed);
+        (requestId, ) = OriginVault.requestWithdrawal(oethRedeemed);
     }
 
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {
         uint256 minAmountOut;
         if (stakeData.length > 0) (minAmountOut) = abi.decode(stakeData, (uint256));
         WETH.approve(address(OriginVault), amount);
+        uint256 oethBefore = oETH.balanceOf(address(this));
         OriginVault.mint(address(WETH), amount, minAmountOut);
+        uint256 oethAfter = oETH.balanceOf(address(this));
+
+        oETH.approve(address(wOETH), oethAfter - oethBefore);
+        wOETH.deposit(oethAfter - oethBefore, address(this));
     }
 
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
-        finalized = canFinalizeWithdrawRequest(requestId);
-
-        if (finalized) {
-            uint256 balanceBefore = WETH.balanceOf(address(this));
-            OriginVault.claimWithdrawal(requestId);
-            tokensClaimed = WETH.balanceOf(address(this)) - balanceBefore;
-        }
+    ) internal override returns (uint256 tokensClaimed) {
+        uint256 balanceBefore = WETH.balanceOf(address(this));
+        OriginVault.claimWithdrawal(requestId);
+        tokensClaimed = WETH.balanceOf(address(this)) - balanceBefore;
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view returns (bool) {

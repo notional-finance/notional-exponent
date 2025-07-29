@@ -8,6 +8,8 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract EthenaCooldownHolder is ClonedCoolDownHolder {
 
+    uint256 public instantRedeemBalance;
+
     constructor(address _manager) ClonedCoolDownHolder(_manager) { }
 
     /// @notice There is no way to stop a cool down
@@ -17,7 +19,7 @@ contract EthenaCooldownHolder is ClonedCoolDownHolder {
         uint24 duration = sUSDe.cooldownDuration();
         if (duration == 0) {
             // If the cooldown duration is set to zero, can redeem immediately
-            sUSDe.redeem(cooldownBalance, address(this), address(this));
+            instantRedeemBalance = sUSDe.redeem(cooldownBalance, address(this), address(this));
         } else {
             // If we execute a second cooldown while one exists, the cooldown end
             // will be pushed further out. This holder should only ever have one
@@ -44,7 +46,7 @@ contract EthenaCooldownHolder is ClonedCoolDownHolder {
 
         // USDe is immutable. It cannot have a transfer tax and it is ERC20 compliant
         // so we do not need to use the additional protections here.
-        tokensClaimed = balanceAfter - balanceBefore;
+        tokensClaimed = balanceAfter - balanceBefore + instantRedeemBalance;
         USDe.transfer(manager, tokensClaimed);
         finalized = true;
     }
@@ -83,9 +85,11 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _finalizeWithdrawImpl(
         address /* account */,
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed, bool finalized) {
+    ) internal override returns (uint256 tokensClaimed) {
         EthenaCooldownHolder holder = EthenaCooldownHolder(address(uint160(requestId)));
+        bool finalized;
         (tokensClaimed, finalized) = holder.finalizeCooldown();
+        require(finalized);
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
