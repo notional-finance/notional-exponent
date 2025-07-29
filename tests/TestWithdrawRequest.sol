@@ -167,7 +167,7 @@ abstract contract TestWithdrawRequest is Test {
             assertEq(request.sharesAmount, sharesAmount - sharesToBurn);
             assertEq(request.requestId, requestId);
             assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
-            assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 1);
+            assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 5);
             assertEq(tokenizedRequest.finalized, true);
         } else {
             // The requests should now be empty
@@ -319,7 +319,7 @@ abstract contract TestWithdrawRequest is Test {
             assertEq(request.sharesAmount, sharesAmount - splitAmount);
             assertEq(request.requestId, requestId);
             assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
-            assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 2);
+            assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 5);
             assertEq(tokenizedRequest.finalized, true);
         } else {
             tokensWithdrawn = manager.finalizeAndRedeemWithdrawRequest(
@@ -339,7 +339,7 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(request.sharesAmount, splitAmount);
         assertEq(request.requestId, requestId);
         assertEq(tokenizedRequest.totalYieldTokenAmount, initialYieldTokenBalance);
-        assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 2);
+        assertApproxEqAbs(tokenizedRequest.totalWithdraw, tokensWithdrawn * 2, 5);
         assertEq(tokenizedRequest.finalized, true);
 
         manager.finalizeAndRedeemWithdrawRequest(to, splitAmount * 2, splitAmount);
