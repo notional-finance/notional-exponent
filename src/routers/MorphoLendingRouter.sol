@@ -40,6 +40,10 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
     uint256 private transient t_borrowShares;
     uint256 private transient t_profitsWithdrawn;
 
+    // Used for the health factor calculation to replicate Morpho's behavior
+    uint256 private constant VIRTUAL_ASSETS = 1;
+    uint256 private constant VIRTUAL_SHARES = 1e6;
+
     function name() external pure override returns (string memory) {
         return "Morpho";
     }
@@ -327,6 +331,14 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         return (borrowShares * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
     }
 
+   function _mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {
+        return (x * y + (d - 1)) / d;
+    }
+
+    function _toAssetsUp(uint256 shares, uint256 totalShares, uint256 totalAssets) internal pure returns (uint256 assets) {
+        return _mulDivUp(shares, totalAssets + VIRTUAL_ASSETS, totalShares + VIRTUAL_SHARES);
+    }
+
     function healthFactor(address borrower, address vault) public override returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) {
         MarketParams memory m = marketParams(vault);
         Id id = morphoId(m);
@@ -336,7 +348,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         Market memory market = MORPHO.market(id);
 
         if (position.borrowShares > 0) {
-            borrowed = (uint256(position.borrowShares) * uint256(market.totalBorrowAssets)) / uint256(market.totalBorrowShares);
+            borrowed = _toAssetsUp(position.borrowShares, market.totalBorrowShares, market.totalBorrowAssets);
         } else {
             borrowed = 0;
         }
