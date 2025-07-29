@@ -192,6 +192,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             TradeParams memory t = depositTrades[i];
 
             if (t.tradeAmount > 0) {
+                if (
+                    t.tradeType != TradeType.EXACT_IN_SINGLE &&
+                    t.tradeType != TradeType.STAKE_TOKEN
+                ) revert();
+
                 trade = Trade({
                     tradeType: t.tradeType,
                     sellToken: address(asset),
@@ -235,7 +240,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // Always sell the entire exit balance to the primary token
             if (exitBalances[i] > 0) {
                 Trade memory trade = Trade({
-                    tradeType: t.tradeType,
+                    tradeType: TradeType.EXACT_IN_SINGLE,
                     sellToken: address(tokens[i]),
                     buyToken: address(asset),
                     amount: exitBalances[i],
