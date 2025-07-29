@@ -195,10 +195,11 @@ interface ILendingRouter {
     /**
      * @dev Claims rewards for a user for a given vault.
      *
+     * @param onBehalf The address of the user to claim rewards on behalf of.
      * @param vault The address of the vault.
      *
      * @return rewards The rewards.
      */
-    function claimRewards(address vault) external returns (uint256[] memory rewards);
+    function claimRewards(address onBehalf, address vault) external returns (uint256[] memory rewards);
 }
 
