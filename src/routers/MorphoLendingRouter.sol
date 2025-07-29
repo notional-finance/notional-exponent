@@ -104,7 +104,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         uint256 borrowAmount,
         bytes calldata depositData,
         MorphoAllocation[] calldata allocationData
-    ) external payable isAuthorized(onBehalf, vault) {
+    ) external payable isAuthorized(onBehalf, vault) nonReentrant {
         _allocate(vault, allocationData);
         enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData);
     }
@@ -114,7 +114,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         address vault,
         address migrateFrom,
         MorphoAllocation[] calldata allocationData
-    ) external payable isAuthorized(onBehalf, vault) {
+    ) external payable isAuthorized(onBehalf, vault) nonReentrant {
         _allocate(vault, allocationData);
         migratePosition(onBehalf, vault, migrateFrom);
     }
