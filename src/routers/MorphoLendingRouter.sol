@@ -55,6 +55,10 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             lltv: lltv
         });
 
+        // If the market already exists this call will revert. This is okay because there should
+        // be no reason that the market would already exist unless something has gone wrong. In that
+        // case we would want to assess why the market was created and perhaps change the market
+        // parameters in order to fix the issue.
         MORPHO.createMarket(marketParams(vault));
     }
 
