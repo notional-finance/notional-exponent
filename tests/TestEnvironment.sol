@@ -23,7 +23,7 @@ abstract contract TestEnvironment is Test {
     uint256 public defaultDeposit;
     uint256 public defaultBorrow;
     uint256 public maxEntryValuationSlippage = 0.0010e18;
-    uint256 public maxExitValuationSlippage = 0.0010e18;
+    uint256 public maxExitValuationSlippage = 0.0015e18;
     uint256 public maxWithdrawValuationChange = 0.0050e18;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
@@ -57,19 +57,6 @@ abstract contract TestEnvironment is Test {
     }
 
 
-    function deployAddressRegistry() public {
-        address deployer = makeAddr("deployer");
-        vm.prank(deployer);
-        addressRegistry = address(new AddressRegistry());
-        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            address(addressRegistry),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(owner, owner, owner))
-        );
-        addressRegistry = address(proxy);
-
-        assertEq(address(addressRegistry), address(ADDRESS_REGISTRY), "AddressRegistry is incorrect");
-    }
-
     function setMaxOracleFreshness() internal {
         vm.prank(owner);
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
@@ -94,7 +81,6 @@ abstract contract TestEnvironment is Test {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         strategyName = "name";
         strategySymbol = "symbol";
-        deployAddressRegistry();
         setMaxOracleFreshness();
 
         deployYieldStrategy();

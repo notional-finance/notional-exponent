@@ -99,7 +99,7 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
         uint256 claimDelay = OriginVault.withdrawalClaimDelay();
         vm.warp(block.timestamp + claimDelay);
 
-        deal(address(WETH), address(OriginVault), 1_000e18);
+        deal(address(WETH), address(OriginVault), 2_000e18);
         OriginVault.addWithdrawalQueueLiquidity();
     }
 

@@ -17,28 +17,13 @@ abstract contract TestWithdrawRequest is Test {
     ERC20[] public allowedDepositTokens;
     bytes public depositCallData;
     bytes public withdrawCallData;
-    address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
-
-    function deployAddressRegistry() public {
-        address deployer = makeAddr("deployer");
-        vm.prank(deployer);
-        address addressRegistry = address(new AddressRegistry());
-        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
-            address(addressRegistry),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(owner, owner, owner))
-        );
-        addressRegistry = address(proxy);
-
-        assertEq(address(addressRegistry), address(ADDRESS_REGISTRY), "AddressRegistry is incorrect");
-    }
+    address public owner;
 
     function deployManager() public virtual;
 
     function setUp() public virtual {
-        owner = makeAddr("owner");
-
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
-        deployAddressRegistry();
+        owner = ADDRESS_REGISTRY.upgradeAdmin();
         deployManager();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
             address(manager), abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))

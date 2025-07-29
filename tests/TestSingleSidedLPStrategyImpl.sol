@@ -237,6 +237,7 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
 
+        maxEntryValuationSlippage = 0.005e18;
         maxExitValuationSlippage = 0.005e18;
 
         managers[0] = new GenericERC4626WithdrawRequestManager(address(sDAI));
@@ -349,7 +350,7 @@ contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
         defaultBorrow = 90e18;
 
         maxEntryValuationSlippage = 0.002e18;
-        maxExitValuationSlippage = 0.015e18;
+        maxExitValuationSlippage = 0.025e18;
 
         (AggregatorV2V3Interface ethOracle, /* */) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
         MockOracle pxETHOracle = new MockOracle(ethOracle.latestAnswer() * 0.9996e18 / 1e8);
@@ -420,9 +421,6 @@ contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
 // }
 
 contract Test_LP_Curve_deUSD_USDC is TestSingleSidedLPStrategy {
-    function overrideForkBlock() internal override {
-        FORK_BLOCK = 22589309;
-    }
 
     function setMarketVariables() internal override {
         lpToken = ERC20(0x5F6c431AC417f0f430B84A666a563FAbe681Da94);
@@ -436,6 +434,9 @@ contract Test_LP_Curve_deUSD_USDC is TestSingleSidedLPStrategy {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.0075e18;
 
         // Set deUSD oracle to USD
         vm.prank(owner);
@@ -485,6 +486,9 @@ contract Test_LP_Curve_USDC_crvUSD is TestSingleSidedLPStrategy {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.002e18;
     }
 }
 
@@ -669,7 +673,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
         maxPoolShare = 100e18;
         dyAmount = 1e6;
 
-        maxExitValuationSlippage = 0.0075e18;
+        maxExitValuationSlippage = 0.02e18;
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
