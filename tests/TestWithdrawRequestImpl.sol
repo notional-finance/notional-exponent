@@ -116,8 +116,9 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
 contract TestDinero_pxETH_WithdrawRequest is TestWithdrawRequest {
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         address rewardRecipient = PirexETH.rewardRecipient();
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
@@ -145,8 +146,9 @@ contract TestDinero_pxETH_WithdrawRequest is TestWithdrawRequest {
 contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         address rewardRecipient = PirexETH.rewardRecipient();
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
