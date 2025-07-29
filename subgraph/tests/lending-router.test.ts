@@ -732,7 +732,6 @@ describe("enter position with borrow shares", () => {
 
   describe("initiate withdraw request", () => {
     beforeAll(() => {
-      let manager = Address.fromString("0x00000000000000000000000000000000000000DD");
       listManager(vault, manager);
 
       let vaultShareBalance = BigInt.fromI32(999).times(DEFAULT_PRECISION);
@@ -763,14 +762,13 @@ describe("enter position with borrow shares", () => {
 
     test("interest has been accrued and withdraw manager is set", () => {
       let id = account.toHexString() + ":" + vault.toHexString();
-      let manager = Address.fromString("0x00000000000000000000000000000000000000DD");
       assert.fieldEquals("Balance", id, "token", vault.toHexString());
       assert.fieldEquals("Balance", id, "account", account.toHexString());
       assert.fieldEquals(
         "Balance",
         id,
         "withdrawRequest",
-        manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString(),
+        "[" + manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString() + "]",
       );
 
       let snapshotId = id + ":" + BigInt.fromI32(4).toString();
@@ -922,14 +920,13 @@ describe("enter position with borrow shares", () => {
 
     test("no vault share interest accrued since last snapshot", () => {
       let id = account.toHexString() + ":" + vault.toHexString();
-      let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
       assert.fieldEquals("Balance", id, "token", vault.toHexString());
       assert.fieldEquals("Balance", id, "account", account.toHexString());
       assert.fieldEquals(
         "Balance",
         id,
         "withdrawRequest",
-        manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString(),
+        "[" + manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString() + "]",
       );
 
       let snapshotId = id + ":" + BigInt.fromI32(5).toString();
@@ -1155,14 +1152,13 @@ describe("enter position with borrow shares", () => {
 
     test("no interest accrued since last snapshot", () => {
       let id = account.toHexString() + ":" + vault.toHexString();
-      let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
       assert.fieldEquals("Balance", id, "token", vault.toHexString());
       assert.fieldEquals("Balance", id, "account", account.toHexString());
       assert.fieldEquals(
         "Balance",
         id,
         "withdrawRequest",
-        manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString(),
+        "[" + manager.toHexString() + ":" + vault.toHexString() + ":" + account.toHexString() + "]",
       );
 
       let snapshotId = id + ":" + BigInt.fromI32(6).toString();

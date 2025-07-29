@@ -176,8 +176,7 @@ contract MockRewardVault is RewardManagerMixin {
 
             if (w.requestId != 0) {
                 uint256 yieldTokenAmount = w.yieldTokenAmount * sharesToRedeem / w.sharesAmount;
-                (uint256 tokensWithdrawn, bool finalized) = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner, yieldTokenAmount, sharesToRedeem);
-                require(finalized, "Withdraw request not finalized");
+                uint256 tokensWithdrawn = withdrawRequestManager.finalizeAndRedeemWithdrawRequest(sharesOwner, yieldTokenAmount, sharesToRedeem);
                 MockRewardPool(yieldToken).withdrawAndUnwrap(tokensWithdrawn, true);
             }
         } else {

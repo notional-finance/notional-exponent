@@ -112,8 +112,6 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             y.convertToAssets(lendingRouter.balanceOfCollateral(msg.sender, address(y))),
             maxEntryValuationSlippage
         );
-        console.log("default borrow", defaultBorrow);
-        console.log("balance of borrow shares", lendingRouter.balanceOfBorrowShares(msg.sender, address(y)));
         checkTransientsCleared();
     }
 
@@ -672,4 +670,71 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         console.log("Borrowed is: ", borrowed);
         console.log("Collateral value is: ", collateralValue);
     }  
+
+    function test_healthFactor_matches_morpho(uint256 borrowAmount, uint256 borrowAmount2) public {
+        // Test that the borrow amount is equal to the account's share of the total borrow
+        // assets on morpho. This is a sanity check to ensure that the morpho borrow amount
+        // is calculated correctly.
+        vm.assume(0 < borrowAmount);
+        vm.assume(borrowAmount < defaultBorrow);
+        vm.assume(0 < borrowAmount2);
+        vm.assume(borrowAmount2 < defaultBorrow);
+        address account = makeAddr("account");
+        vm.prank(owner);
+        asset.transfer(account, defaultDeposit);
+
+        _enterPosition(msg.sender, defaultDeposit, borrowAmount);
+        _enterPosition(account, defaultDeposit, borrowAmount2);
+
+        (
+            uint256 borrowed,
+            /* uint256 collateralValue */,
+            /* uint256 maxBorrow */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+
+        Id id = Id.wrap(keccak256(abi.encode(marketParams)));
+        Market memory market = MORPHO.market(id);
+
+        assertEq(borrowed, market.totalBorrowAssets - borrowAmount2);
+   }
+
+    function test_migrate_with_zeroBorrow() public {
+        address user = msg.sender;
+        _enterPosition(user, defaultDeposit, 0);
+        MorphoLendingRouter lendingRouter2 = MorphoLendingRouter(address(setupLendingRouter(0.98e18)));
+
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        lendingRouter.setApproval(address(lendingRouter2), true);
+
+        asset.approve(address(lendingRouter2), defaultDeposit);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        // Can migrate user position into second lending router
+        vm.startPrank(user);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
+        lendingRouter2.migratePosition(user, address(y), address(lendingRouter));
+        checkTransientsCleared();
+        vm.stopPrank();
+
+        (
+            uint256 borrowed1,
+            /* uint256 collateralValue1 */,
+            /* uint256 maxBorrow1 */
+        ) = lendingRouter.healthFactor(user, address(y));
+        (
+            uint256 borrowed2,
+            /* uint256 collateralValue2 */,
+            /* uint256 maxBorrow2 */
+        ) = lendingRouter2.healthFactor(user, address(y));
+
+        assertEq(borrowed1, 0);
+        assertEq(borrowed2, 0);
+
+        assertEq(lendingRouter.balanceOfCollateral(user, address(y)), 0);
+        assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesBefore);
+    }
 }
