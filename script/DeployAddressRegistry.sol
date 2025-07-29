@@ -8,9 +8,9 @@ import {Initializable} from "../src/proxy/Initializable.sol";
 
 // Sepolia: 0xdfb618098fC858F43fe0E5Fb906AdFE96786832f
 contract DeployAddressRegistry is Script {
-    address constant UPGRADE_ADMIN = 0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3;
-    address constant PAUSE_ADMIN = 0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3;
-    address constant FEE_RECEIVER = 0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3;
+    address constant UPGRADE_ADMIN = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
+    address constant PAUSE_ADMIN = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
+    address constant FEE_RECEIVER = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
 
     function run() public {
         vm.startBroadcast();

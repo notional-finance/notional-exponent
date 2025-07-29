@@ -146,4 +146,4 @@ interface ITradingModule {
     function canExecuteTrade(address from, uint16 dexId, Trade calldata trade) external view returns (bool);
 }
 
-ITradingModule constant TRADING_MODULE = ITradingModule(0x086b4ecD75c494dD36641195E89c25373E06d7cB);
+ITradingModule constant TRADING_MODULE = ITradingModule(0x594734c7e06C3D483466ADBCe401C6Bd269746C8);
