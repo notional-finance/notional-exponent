@@ -205,8 +205,11 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     }
 
     /// @inheritdoc ILendingRouter
-    function claimRewards(address vault) external returns (uint256[] memory rewards) {
-        return RewardManagerMixin(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
+    function claimRewards(
+        address onBehalf,
+        address vault
+    ) external override isAuthorized(onBehalf, vault) returns (uint256[] memory rewards) {
+        return RewardManagerMixin(vault).claimAccountRewards(onBehalf, balanceOfCollateral(onBehalf, vault));
     }
 
     /// @inheritdoc ILendingRouter
