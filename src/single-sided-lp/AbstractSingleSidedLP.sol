@@ -192,6 +192,11 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             TradeParams memory t = depositTrades[i];
 
             if (t.tradeAmount > 0) {
+                if (
+                    t.tradeType != TradeType.EXACT_IN_SINGLE &&
+                    t.tradeType != TradeType.STAKE_TOKEN
+                ) revert();
+
                 trade = Trade({
                     tradeType: t.tradeType,
                     sellToken: address(asset),
@@ -235,7 +240,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             // Always sell the entire exit balance to the primary token
             if (exitBalances[i] > 0) {
                 Trade memory trade = Trade({
-                    tradeType: t.tradeType,
+                    tradeType: TradeType.EXACT_IN_SINGLE,
                     sellToken: address(tokens[i]),
                     buyToken: address(asset),
                     amount: exitBalances[i],
@@ -281,9 +286,12 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
             ILPLib.initiateWithdraw.selector, account, sharesHeld, exitBalances, params.withdrawData
         ));
         uint256[] memory requestIds = abi.decode(result, (uint256[]));
-        // Although we get multiple requests ids, we just return the first one here. The rest will be
-        // observable off chain.
-        requestId = requestIds[0];
+        for (uint256 i; i < requestIds.length; i++) {
+            // Return the first non-zero request id since the base function requires it.
+            if (requestIds[i] > 0) return requestIds[i];
+        }
+        // Revert if there are no non-zero request ids.
+        revert();
     }
 
     function _withdrawPendingRequests(
@@ -388,12 +396,15 @@ abstract contract BaseLPLib is ILPLib {
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
             (w, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
+            withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
 
+            // If there is no withdraw request then skip the finalization call. The balance returned
+            // will be zero.
+            if (w.sharesAmount == 0 || w.requestId == 0) continue;
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             exitBalances[i] = manager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
-            withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
         }
     }
 

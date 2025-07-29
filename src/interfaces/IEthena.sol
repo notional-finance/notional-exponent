@@ -21,5 +21,7 @@ interface IsUSDe is IERC4626 {
     function cooldowns(address account) external view returns (UserCooldown memory);
     function cooldownShares(uint256 shares) external returns (uint256 assets);
     function unstake(address receiver) external;
+    function setCooldownDuration(uint24 duration) external;
+    function owner() external view returns (address);
 }
 

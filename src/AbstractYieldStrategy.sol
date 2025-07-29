@@ -293,7 +293,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// native balance does not require a collateral check.
     function initiateWithdrawNative(
         bytes memory data
-    ) external override returns (uint256 requestId) {
+    ) external override nonReentrant returns (uint256 requestId) {
         requestId = _withdraw(msg.sender, balanceOf(msg.sender), data);
     }
 
@@ -304,6 +304,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _accrueFees();
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
         requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+        // Revert in the edge case that the withdraw request is not created.
+        require(requestId > 0);
         // Escrow the shares after the withdraw since it will change the effective supply
         // during reward claims when using the RewardManagerMixin.
         s_escrowedShares += sharesHeld;
