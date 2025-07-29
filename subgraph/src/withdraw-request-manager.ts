@@ -97,10 +97,23 @@ function updateBalanceSnapshotForWithdrawRequest(
 
   if (w.requestId.isZero()) {
     // Clear the withdraw request if it is removed
-    balance.withdrawRequest = null;
+    let wr = balance.withdrawRequest;
+    if (wr) {
+      let index = wr.indexOf(w.id);
+      if (index !== -1) {
+        wr.splice(index, 1);
+      }
+    }
+    balance.withdrawRequest = wr;
   } else {
     // Set this at the end to stop any further interest accruals
-    balance.withdrawRequest = w.id;
+    let wr = balance.withdrawRequest;
+    if (!wr) {
+      wr = [w.id];
+    } else if (!wr.includes(w.id)) {
+      wr.push(w.id);
+    }
+    balance.withdrawRequest = wr;
   }
   balance.save();
 }
