@@ -710,4 +710,20 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(lendingRouter.balanceOfCollateral(user, address(y)), 0);
         assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesBefore);
     }
+
+    function test_can_upgrade_address_registry() public {
+        address deployer = makeAddr("deployer");
+        vm.prank(deployer);
+        addressRegistry = address(new AddressRegistry());
+
+        TimelockUpgradeableProxy proxy = TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY)));
+        vm.prank(owner);
+        proxy.initiateUpgrade(address(addressRegistry));
+
+        vm.warp(block.timestamp + 7 days);
+        vm.prank(owner);
+        proxy.executeUpgrade(bytes(""));
+
+        assertEq(proxy.getImplementation(), address(addressRegistry));
+    }
 }
