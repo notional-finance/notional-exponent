@@ -174,7 +174,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _accrueFees();
         feesCollected = s_accruedFeesInYieldToken / _feeAdjustmentPrecision;
         _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
-        s_yieldTokenBalance -= feesCollected
+        s_yieldTokenBalance -= feesCollected;
         s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
     }
 
@@ -329,6 +329,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
         uint256 x = (feeRate * timeSinceLastFeeAccrual) / YEAR;
         if (x == 0) return 0;
+        // Don't accrue fees on a dust balance of yield tokens.
+        if (s_yieldTokenBalance < VIRTUAL_SHARES) return 0;
 
         uint256 preFeeUserHeldYieldTokens = s_yieldTokenBalance * _feeAdjustmentPrecision - s_accruedFeesInYieldToken;
         // Taylor approximation of e ^ x = 1 + x + x^2 / 2! + x^3 / 3! + ...

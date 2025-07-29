@@ -644,33 +644,6 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesBefore);
     }
 
-    function test_donation_changes_valuation() public {
-        address attacker = makeAddr("attacker");
-        deal(address(y.yieldToken()), attacker, defaultDeposit * 10_000);
-        vm.startPrank(attacker);
-        // Comment out this line to see the effect of the donation on the shares minted and price
-        IERC20(address(y.yieldToken())).transfer(address(y), defaultDeposit * 10_000);
-        vm.stopPrank();
-
-        uint256 impossibleBorrow = 10_000e18;
-
-        // This will revert due to insufficient collateral
-        // _enterPosition(msg.sender, defaultDeposit, impossibleBorrow);
-
-        // This will succeed and you can see the output after the assert fails
-        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        uint256 sharesMinted = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        console.log("Shares minted is", sharesMinted);
-  
-        console.log("Price of 1 collateral in loan token: ", y.price());
-  
-        (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) = lendingRouter.healthFactor(msg.sender, address(y));
-        console.log("default deposit", defaultDeposit);
-        console.log("Max borrow is: ", maxBorrow);
-        console.log("Borrowed is: ", borrowed);
-        console.log("Collateral value is: ", collateralValue);
-    }  
-
     function test_healthFactor_matches_morpho(uint256 borrowAmount, uint256 borrowAmount2) public {
         // Test that the borrow amount is equal to the account's share of the total borrow
         // assets on morpho. This is a sanity check to ensure that the morpho borrow amount

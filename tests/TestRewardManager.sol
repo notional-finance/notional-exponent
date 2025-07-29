@@ -777,7 +777,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         vm.warp(block.timestamp + 1 days);
   
         vm.prank(msg.sender);
-        uint[] memory rewards = lendingRouter.claimRewards(address(y));
+        uint[] memory rewards = lendingRouter.claimRewards(msg.sender, address(y));
         vm.assertApproxEqRel(rewards[1], 1_000e6, 0.001e18);
     }  
 

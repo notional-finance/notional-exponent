@@ -568,61 +568,30 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
-    function test_Drain_MorphoSuppliers_ByInflationDonation() public {  
-        console.log("Asset is", IERC20Metadata(address(asset)).symbol());  
+    function test_donation_does_not_change_collateral_value() public {
+        if (keccak256(abi.encodePacked(strategyName)) == keccak256(abi.encodePacked("Pendle PT"))) vm.skip(true);
+
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
   
-        address tapir = address(69);  
-        deal(address(asset), tapir, defaultDeposit);   
-        _enterPosition(tapir, defaultDeposit, 0);  
-        uint256 balanceBefore = lendingRouter.balanceOfCollateral(tapir, address(y));  
+        (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        assertApproxEqRel(collateralValueAfter, collateralValueBefore, 0.001e18);
+
+        uint256 priceBefore = y.price(msg.sender);
   
-        console.log("Effective supply before initiate withdraw: ", y.effectiveSupply());  
-        console.log("Price before initiate withdraw: ", y.price());  
+        deal(address(y.yieldToken()), msg.sender, 1e18);
+        IERC20(y.yieldToken()).transfer(address(y), 1e18);
+
+        uint256 priceAfter = y.price(msg.sender);
+
+        assertEq(priceBefore, priceAfter, "Price should not change after donation");
   
-        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));  
-        Position memory position = MORPHO.position(Id.wrap(keccak256(abi.encode(marketParams))), tapir);  
-        uint maxBorrow = position.collateral * y.price() / 1e36;  
-        console.log("Max borrow is: ", maxBorrow);  
-  
-        vm.startPrank(tapir);  
-        lendingRouter.initiateWithdraw(tapir, address(y), getWithdrawRequestData(tapir, balanceBefore));  
-  
-        position = MORPHO.position(Id.wrap(keccak256(abi.encode(marketParams))), tapir);  
-        maxBorrow = position.collateral * y.price() / 1e36;  
-        console.log("Max borrow after initiate withdraw: ", maxBorrow);  
-  
-        console.log("Effective supply after initiate withdraw: ", y.effectiveSupply());  
-        console.log("Price after initiate withdraw: ", y.price());  
-  
-        deal(address(y.yieldToken()), tapir, 1e18);  
-        console.log("Yield token of the vault: ", IERC20Metadata(address(y.yieldToken())).symbol());  
-        IERC20(y.yieldToken()).transfer(address(y), 1e18);  
-  
-        position = MORPHO.position(Id.wrap(keccak256(abi.encode(marketParams))), tapir);  
-        maxBorrow = position.collateral * y.price() / 1e36;  
-        console.log("Max borrow after donation: ", maxBorrow);  
-  
-        console.log("Effective supply after donation: ", y.effectiveSupply());  
-        console.log("Price after donation: ", y.price());  
-  
-        Id idx = Id.wrap(keccak256(abi.encode(marketParams)));  
-        Market memory market = MORPHO.market(idx);  
-        console.log("Total supplied", market.totalSupplyAssets);  
-        console.log("Total borrowed", market.totalBorrowAssets);  
-  
-        uint256 borrowable = market.totalSupplyAssets - market.totalBorrowAssets;  
-        console.log("Borrowable is", borrowable);  
-  
-        MORPHO.borrow(marketParams, borrowable, 0, tapir, tapir);  
-        console.log("Effective supply after borrow: ", y.effectiveSupply());  
-  
-        position = MORPHO.position(idx, tapir);  
-        console.log("collateral", position.collateral);  
-        console.log("borrowShares", position.borrowShares);  
-  
-        maxBorrow = position.collateral * y.price() / 1e36;  
-        uint canBorrow = maxBorrow - position.borrowShares;  
-        console.log("Can borrow is", canBorrow); // STILL EXTREMELY HIGH!   
+        (/* */, uint256 collateralValueAfterDonation, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        assertEq(collateralValueAfterDonation, collateralValueAfter, "Donation should not change collateral value");
     }  
 
 }

@@ -57,12 +57,11 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
         assertEq(manager.canFinalizeWithdrawRequest(requestId), true);
 
         // Now we should be able to finalize the withdraw request and get the full amount back
-        (uint256 tokensWithdrawn, bool finalized) = manager.finalizeAndRedeemWithdrawRequest(
+        uint256 tokensWithdrawn = manager.finalizeAndRedeemWithdrawRequest(
             address(this), initialYieldTokenBalance, sharesAmount
         );
         assertGt(tokensWithdrawn, 0);
         assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
-        assertEq(finalized, true);
     }
 }
 
