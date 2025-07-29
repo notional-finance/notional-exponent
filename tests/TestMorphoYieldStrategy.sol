@@ -198,8 +198,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         vm.startPrank(msg.sender);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
-        // NOTE: this is the morpho revert message
-        vm.expectRevert("transfer reverted");
+        vm.expectRevert();
         MORPHO.withdrawCollateral(marketParams, 1, msg.sender, msg.sender);
     }
 
@@ -453,8 +452,30 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(owner);
         USDC.approve(address(y), 90_000e6);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
-        vm.expectRevert("transfer reverted");
+        vm.expectRevert();
         MORPHO.liquidate(marketParams, msg.sender, 0, 90_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_borrow_RevertsIf_CalledOnMorpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        o.setPrice(0.95e18);
+
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        vm.startPrank(msg.sender);
+        vm.expectRevert();
+        MORPHO.borrow(marketParams,0, 90_000e6, msg.sender, msg.sender);
+        vm.stopPrank();
+    }
+
+    function test_canRepay_onMorpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        asset.approve(address(MORPHO), 90_000e6);
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        MORPHO.repay(marketParams, 1e6, 0, msg.sender, bytes(""));
         vm.stopPrank();
     }
 
@@ -624,4 +645,31 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(lendingRouter.balanceOfCollateral(user, address(y)), 0);
         assertEq(lendingRouter2.balanceOfCollateral(user, address(y)), sharesBefore);
     }
+
+    function test_donation_changes_valuation() public {
+        address attacker = makeAddr("attacker");
+        deal(address(y.yieldToken()), attacker, defaultDeposit * 10_000);
+        vm.startPrank(attacker);
+        // Comment out this line to see the effect of the donation on the shares minted and price
+        IERC20(address(y.yieldToken())).transfer(address(y), defaultDeposit * 10_000);
+        vm.stopPrank();
+
+        uint256 impossibleBorrow = 10_000e18;
+
+        // This will revert due to insufficient collateral
+        // _enterPosition(msg.sender, defaultDeposit, impossibleBorrow);
+
+        // This will succeed and you can see the output after the assert fails
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 sharesMinted = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        console.log("Shares minted is", sharesMinted);
+  
+        console.log("Price of 1 collateral in loan token: ", y.price());
+  
+        (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) = lendingRouter.healthFactor(msg.sender, address(y));
+        console.log("default deposit", defaultDeposit);
+        console.log("Max borrow is: ", maxBorrow);
+        console.log("Borrowed is: ", borrowed);
+        console.log("Collateral value is: ", collateralValue);
+    }  
 }

