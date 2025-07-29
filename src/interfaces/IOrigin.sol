@@ -2,6 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 interface IOriginVault {
     struct WithdrawalQueueMetadata {
@@ -37,4 +38,4 @@ interface IOriginVault {
 
 IOriginVault constant OriginVault = IOriginVault(0x39254033945AA2E4809Cc2977E7087BEE48bd7Ab);
 ERC20 constant oETH = ERC20(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3);
-
+IERC4626 constant wOETH = IERC4626(0xDcEe70654261AF21C44c093C300eD3Bb97b78192);

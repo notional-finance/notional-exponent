@@ -10,6 +10,7 @@ import "../src/withdraws/GenericERC20.sol";
 import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractRewardManager.sol";
 import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
 import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
+import {MORPHO} from "../src/interfaces/Morpho/IMorpho.sol";
 
 contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
@@ -108,13 +109,13 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Claim rewards
         {
             vm.prank(msg.sender);
-            uint256[] memory rewardInitial = lendingRouter.claimRewards(address(y));
+            uint256[] memory rewardInitial = lendingRouter.claimRewards(msg.sender, address(y));
             assertGt(rewardInitial[0], 0);
             assertEq(rewardInitial[1], 0);
 
             // No additional rewards for second user
             vm.prank(user);
-            uint256[] memory rewardSecondUser = lendingRouter.claimRewards(address(y));
+            uint256[] memory rewardSecondUser = lendingRouter.claimRewards(user, address(y));
             assertEq(rewardSecondUser[0], 0);
             assertEq(rewardSecondUser[1], 0);
         }
@@ -125,12 +126,12 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Claim rewards for the second time
         {
             vm.prank(msg.sender);
-            uint256[] memory rewardInitial = lendingRouter.claimRewards(address(y));
+            uint256[] memory rewardInitial = lendingRouter.claimRewards(msg.sender, address(y));
             assertEq(rewardInitial[0], 0);
             assertGt(rewardInitial[1], 0);
 
             vm.prank(user);
-            uint256[] memory rewardSecondUser = lendingRouter.claimRewards(address(y));
+            uint256[] memory rewardSecondUser = lendingRouter.claimRewards(user, address(y));
             assertEq(rewardSecondUser[0], 0);
             assertGt(rewardSecondUser[1], 0);
         }
@@ -181,7 +182,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
 
         vm.prank(msg.sender);
-        uint256[] memory rewards = lendingRouter.claimRewards(address(y));
+        uint256[] memory rewards = lendingRouter.claimRewards(msg.sender, address(y));
 
         assertApproxEqRel(rewards[0], expectedRewards, 0.0001e18, "Rewards are incorrect");
         if (hasEmissions) assertApproxEqRel(rewards[1], 1e18, 0.0001e18, "Emissions tokens are incorrect");
@@ -200,7 +201,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
 
         vm.prank(msg.sender);
-        rewards = lendingRouter.claimRewards(address(y));
+        rewards = lendingRouter.claimRewards(msg.sender, address(y));
         assertEq(rewards[0], 0, "Rewards are empty");
         if (hasEmissions) assertEq(rewards[1], 0, "Emissions tokens are empty");
 
@@ -223,7 +224,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.effectiveSupply()));
 
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
         if (hasRewards) {
             assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewardsAfter, 0.0001e18, "Rewards are claimed");
         } else {
@@ -295,7 +296,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         rm.claimRewardTokens();
 
         vm.prank(msg.sender);
-        uint256[] memory rewards = lendingRouter.claimRewards(address(y));
+        uint256[] memory rewards = lendingRouter.claimRewards(msg.sender, address(y));
         if (isFullExit) {
             assertEq(rewards.length, 0);
         } else {
@@ -322,7 +323,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Since there were two claims before, the owner should receive 2x the rewards
         // as the balance of shares.
         vm.prank(owner);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(owner, address(y));
         uint256 sharesAfterOwner = lendingRouter.balanceOfCollateral(owner, address(y));
         uint256 expectedRewardsForOwner = hasRewards ? y.convertSharesToYieldToken(sharesAfterOwner) * 2 : 0;
         if (hasRewards) {
@@ -382,6 +383,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // This second parameter is ignored because we get the balanceOf from
         // the contract itself.
+        vm.prank(liquidator);
         RewardManagerMixin(address(rm)).claimAccountRewards(liquidator, type(uint256).max);
 
         uint256 expectedRewardsForLiquidator = hasRewards ? y.convertSharesToYieldToken(sharesToLiquidator) : 0;
@@ -389,7 +391,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.0010e18, "Liquidator account emissions");
 
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
         uint256 sharesAfterUser = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 emissionsForUserAfter = 1e18 * sharesAfterUser / y.totalSupply();
 
@@ -428,7 +430,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // Must claim rewards through the new lending router
         vm.prank(user);
-        lendingRouter2.claimRewards(address(y));
+        lendingRouter2.claimRewards(user, address(y));
 
         // Assert that rewards are claimed on the position during migration
         assertApproxEqRel(rewardToken.balanceOf(user), expectedRewards, 0.0001e18, "Rewards are claimed");
@@ -453,9 +455,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // Both positions should have rewards
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
         vm.prank(owner);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(owner, address(y));
 
         uint256 emissionsBefore1 = emissionsToken.balanceOf(msg.sender);
         uint256 emissionsBefore2 = emissionsToken.balanceOf(owner);
@@ -504,7 +506,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         vm.stopPrank();
 
         vm.prank(owner);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(owner, address(y));
 
         // No rewards should be claimed for the user but the owner should have accrued more rewards since it
         // does not have a withdraw request.
@@ -525,7 +527,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
 
         if (hasRewards) {
             assertGt(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards claimed");
@@ -546,7 +548,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
 
         if (hasRewards) {
             assertGt(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards claimed");
@@ -616,6 +618,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // This second parameter is ignored because we get the balanceOf from
         // the contract itself.
+        vm.prank(liquidator);
         RewardManagerMixin(address(rm)).claimAccountRewards(liquidator, type(uint256).max);
 
         // No claims here because inside a withdraw request
@@ -625,7 +628,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         uint256 initialRewards = rewardToken.balanceOf(msg.sender);
         uint256 initialEmissions = emissionsToken.balanceOf(msg.sender);
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
 
         // No claims here because inside a withdraw request
         if (hasRewards) assertEq(rewardToken.balanceOf(msg.sender), initialRewards, "Liquidated account rewards 2");
@@ -688,7 +691,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // No rewards claimed on claim via the second lending router
         vm.prank(user);
-        lendingRouter2.claimRewards(address(y));
+        lendingRouter2.claimRewards(user, address(y));
 
         assertEq(emissionsToken.balanceOf(user), emissionsBefore1, "User account emissions no change");
         assertEq(rewardToken.balanceOf(user), rewardsBefore1, "User account rewards no change");
@@ -755,7 +758,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // No rewards are claimed after the withdraw request
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
 
         assertEq(emissionsToken.balanceOf(msg.sender), emissionsBefore1, "User account emissions no change");
         assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
@@ -777,5 +780,28 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         uint[] memory rewards = lendingRouter.claimRewards(address(y));
         vm.assertApproxEqRel(rewards[1], 1_000e6, 0.001e18);
     }  
+
+    function test_claimRewards_as_Morpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
+
+        vm.expectRevert();
+        RewardManagerMixin(address(rm)).claimAccountRewards(address(MORPHO), type(uint256).max);
+    }
+
+    function test_claimRewards_isAuthorized() public {
+        address operator = makeAddr("operator");
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, operator, msg.sender));
+        lendingRouter.claimRewards(msg.sender, address(y));
+
+        vm.prank(msg.sender);
+        lendingRouter.setApproval(operator, true);
+
+        vm.prank(operator);
+        lendingRouter.claimRewards(msg.sender, address(y));
+    }
 
 }

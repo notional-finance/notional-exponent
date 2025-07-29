@@ -192,7 +192,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.warp(block.timestamp + 1 days);
 
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
         (VaultRewardState[] memory rewardStates, /* */) = rm.getRewardSettings();
         uint256[] memory rewardsBefore = new uint256[](rewardStates.length);
         for (uint256 i = 0; i < rewardStates.length; i++) {
@@ -201,7 +201,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         }
 
         vm.prank(msg.sender);
-        lendingRouter.claimRewards(address(y));
+        lendingRouter.claimRewards(msg.sender, address(y));
         for (uint256 i = 0; i < rewardStates.length; i++) {
             assertEq(ERC20(rewardStates[i].rewardToken).balanceOf(msg.sender), rewardsBefore[i]);
         }
