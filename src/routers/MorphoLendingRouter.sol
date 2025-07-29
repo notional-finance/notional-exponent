@@ -209,13 +209,21 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
             assetToRepay = 0;
         }
 
-        bytes memory repayData = abi.encode(
-            onBehalf, vault, asset, receiver, sharesToRedeem, redeemData, _isMigrate(receiver)
-        );
+        if (assetToRepay == 0 && sharesToRepay == 0) {
+            // Allows migration in the edge case where the user has no debt but
+            // still wants to migrate their position.
+            profitsWithdrawn = _redeemShares(
+                onBehalf, vault, asset, _isMigrate(receiver) ? receiver : address(0), sharesToRedeem, redeemData
+            );
+        } else {
+            bytes memory repayData = abi.encode(
+                onBehalf, vault, asset, receiver, sharesToRedeem, redeemData, _isMigrate(receiver)
+            );
 
-        // Will trigger a callback to onMorphoRepay
-        borrowSharesRepaid = _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
-        profitsWithdrawn = t_profitsWithdrawn;
+            // Will trigger a callback to onMorphoRepay
+            borrowSharesRepaid = _repay(vault, asset, assetToRepay, sharesToRepay, onBehalf, repayData);
+            profitsWithdrawn = t_profitsWithdrawn;
+        }
     }
 
     function _repay(
