@@ -14,13 +14,17 @@
   solc = "0.8.29"
   src = "src"
   test = "tests"
+  fs_permissions = [
+    { access = "read-write", path = "./script"},
+  ]
 
 [profile.ci]
   fuzz = { runs = 10_000 }
   verbosity = 4
 
 [etherscan]
-  mainnet = { key = "${API_KEY_ETHERSCAN}" }
+  mainnet = { key = "${ETHERSCAN_TOKEN}" }
+  sepolia = { key = "${ETHERSCAN_TOKEN}" }
 
 [fmt]
   bracket_spacing = true
@@ -46,3 +50,4 @@
 
 [profile.libraries]
 "src/staking/PendlePTLib.sol:PendlePTLib" = "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f"
+
