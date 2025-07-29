@@ -764,6 +764,23 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         assertEq(rewardToken.balanceOf(msg.sender), rewardsBefore1, "User account rewards no change");
     }
 
+    function test_lowDecimalRewards_claimRewards(uint256 deposit) public {
+        vm.prank(owner);
+        rm.updateRewardToken(1, address(USDC), 365_000e6, uint32(block.timestamp + 365 days));
+        deal(address(USDC), address(rm), 365_000e6);
+
+        vm.assume(deposit < defaultDeposit);
+        vm.assume(deposit > 0);
+  
+        _enterPosition(msg.sender, deposit, 0);
+  
+        vm.warp(block.timestamp + 1 days);
+  
+        vm.prank(msg.sender);
+        uint[] memory rewards = lendingRouter.claimRewards(msg.sender, address(y));
+        vm.assertApproxEqRel(rewards[1], 1_000e6, 0.001e18);
+    }  
+
     function test_claimRewards_as_Morpho() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));

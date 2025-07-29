@@ -127,7 +127,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     /**
      * @dev Collects the fees accrued by the vault. Only callable by the owner.
      */
-    function collectFees() external;
+    function collectFees() external returns (uint256 feesCollected);
 
     /**
      * @dev Returns the price of a yield token in terms of the asset token for the

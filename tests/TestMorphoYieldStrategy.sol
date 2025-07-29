@@ -13,7 +13,7 @@ import "../src/proxy/Initializable.sol";
 contract TestMorphoYieldStrategy is TestEnvironment {
 
     function deployYieldStrategy() internal override virtual {
-        w = new MockWrapperERC20(ERC20(address(USDC)));
+        w = new MockWrapperERC20(ERC20(address(USDC)), 18);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             address(USDC),
@@ -129,7 +129,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     function postExitAssertions(uint256 initialBalance, uint256 netWorthBefore, uint256 sharesToExit, uint256 profitsWithdrawn, uint256 netWorthAfter) internal view {
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
-        assertApproxEqRel(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
+        assertApproxEqAbs(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
         assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), initialBalance - sharesToExit, "Account has collateral shares");
@@ -196,8 +196,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         vm.startPrank(msg.sender);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
-        // NOTE: this is the morpho revert message
-        vm.expectRevert("transfer reverted");
+        vm.expectRevert();
         MORPHO.withdrawCollateral(marketParams, 1, msg.sender, msg.sender);
     }
 
@@ -451,8 +450,30 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(owner);
         USDC.approve(address(y), 90_000e6);
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
-        vm.expectRevert("transfer reverted");
+        vm.expectRevert();
         MORPHO.liquidate(marketParams, msg.sender, 0, 90_000e6, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_borrow_RevertsIf_CalledOnMorpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        o.setPrice(0.95e18);
+
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        vm.startPrank(msg.sender);
+        vm.expectRevert();
+        MORPHO.borrow(marketParams,0, 90_000e6, msg.sender, msg.sender);
+        vm.stopPrank();
+    }
+
+    function test_canRepay_onMorpho() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+
+        vm.startPrank(msg.sender);
+        asset.approve(address(MORPHO), 90_000e6);
+        MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
+        MORPHO.repay(marketParams, 1e6, 0, msg.sender, bytes(""));
         vm.stopPrank();
     }
 

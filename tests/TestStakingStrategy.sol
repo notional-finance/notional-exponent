@@ -568,4 +568,30 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.stopPrank();
     }
 
+    function test_donation_does_not_change_collateral_value() public {
+        if (keccak256(abi.encodePacked(strategyName)) == keccak256(abi.encodePacked("Pendle PT"))) vm.skip(true);
+
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        (/* */, uint256 collateralValueBefore, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+  
+        (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        assertApproxEqRel(collateralValueAfter, collateralValueBefore, 0.001e18);
+
+        uint256 priceBefore = y.price(msg.sender);
+  
+        deal(address(y.yieldToken()), msg.sender, 1e18);
+        IERC20(y.yieldToken()).transfer(address(y), 1e18);
+
+        uint256 priceAfter = y.price(msg.sender);
+
+        assertEq(priceBefore, priceAfter, "Price should not change after donation");
+  
+        (/* */, uint256 collateralValueAfterDonation, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
+        assertEq(collateralValueAfterDonation, collateralValueAfter, "Donation should not change collateral value");
+    }  
+
 }

@@ -48,6 +48,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     uint8 internal immutable _yieldTokenDecimals;
     uint8 internal immutable _assetDecimals;
+    uint256 internal immutable _feeAdjustmentPrecision;
 
     /********* Storage Variables *********/
     string private s_name;
@@ -56,6 +57,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     uint32 private s_lastFeeAccrualTime;
     uint256 private s_accruedFeesInYieldToken;
     uint256 private s_escrowedShares;
+    uint256 internal s_yieldTokenBalance;
     /****** End Storage Variables ******/
 
     /********* Transient Variables *********/
@@ -85,6 +87,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _yieldTokenDecimals = __yieldTokenDecimals;
         _assetDecimals = TokenUtils.getDecimals(_asset);
         accountingAsset = address(_asset);
+
+        if (_yieldTokenDecimals < 18) {
+            _feeAdjustmentPrecision = 10 ** (18 - _yieldTokenDecimals);
+        } else {
+            _feeAdjustmentPrecision = 1;
+        }
     }
 
     function name() public view override(ERC20, IERC20Metadata) returns (string memory) {
@@ -100,13 +108,13 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// @inheritdoc IYieldStrategy
     function convertSharesToYieldToken(uint256 shares) public view override returns (uint256) {
         // NOTE: rounds down on division
-        return (shares * (_yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (effectiveSupply());
+        return (shares * (s_yieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS)) / (effectiveSupply());
     }
 
     /// @inheritdoc IYieldStrategy
     function convertYieldTokenToShares(uint256 yieldTokens) public view returns (uint256) {
         // NOTE: rounds down on division
-        return (yieldTokens * effectiveSupply()) / (_yieldTokenBalance() - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+        return (yieldTokens * effectiveSupply()) / (s_yieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -119,6 +127,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
+        if (t_CurrentAccount == address(0)) return 0;
         return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
     }
 
@@ -157,15 +166,16 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IYieldStrategy
     function feesAccrued() public view override returns (uint256 feesAccruedInYieldToken) {
-        return s_accruedFeesInYieldToken + _calculateAdditionalFeesInYieldToken();
+        return (s_accruedFeesInYieldToken + _calculateAdditionalFeesInYieldToken()) / _feeAdjustmentPrecision;
     }
 
     /// @inheritdoc IYieldStrategy
-    function collectFees() external override {
+    function collectFees() external override returns (uint256 feesCollected) {
         _accrueFees();
-        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), s_accruedFeesInYieldToken);
-
-        delete s_accruedFeesInYieldToken;
+        feesCollected = s_accruedFeesInYieldToken / _feeAdjustmentPrecision;
+        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
+        s_yieldTokenBalance -= feesCollected;
+        s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
     }
 
     /*** Core Functions ***/
@@ -309,6 +319,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Escrow the shares after the withdraw since it will change the effective supply
         // during reward claims when using the RewardManagerMixin.
         s_escrowedShares += sharesHeld;
+        s_yieldTokenBalance -= yieldTokenAmount;
     }
 
     /*** Private Functions ***/
@@ -318,8 +329,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
         uint256 x = (feeRate * timeSinceLastFeeAccrual) / YEAR;
         if (x == 0) return 0;
+        // Don't accrue fees on a dust balance of yield tokens.
+        if (s_yieldTokenBalance < VIRTUAL_SHARES) return 0;
 
-        uint256 preFeeUserHeldYieldTokens = _yieldTokenBalance() - s_accruedFeesInYieldToken;
+        uint256 preFeeUserHeldYieldTokens = s_yieldTokenBalance * _feeAdjustmentPrecision - s_accruedFeesInYieldToken;
         // Taylor approximation of e ^ x = 1 + x + x^2 / 2! + x^3 / 3! + ...
         uint256 eToTheX = DEFAULT_PRECISION + x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
         // Decay the user's yield tokens by e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
@@ -354,10 +367,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _isWithdrawRequestPending(address account) virtual internal view returns (bool) {
         return address(withdrawRequestManager) != address(0)
             && withdrawRequestManager.isPendingWithdrawRequest(address(this), account);
-    }
-
-    function _yieldTokenBalance() internal view returns (uint256) {
-        return ERC20(yieldToken).balanceOf(address(this));
     }
 
     /// @dev Can be used to delegate call to the TradingModule's implementation in order to execute a trade
@@ -411,11 +420,15 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
-        uint256 initialYieldTokenBalance = _yieldTokenBalance();
+        uint256 yieldTokensBefore = ERC20(yieldToken).balanceOf(address(this));
         _mintYieldTokens(assets, receiver, depositData);
-        uint256 yieldTokensMinted = _yieldTokenBalance() - initialYieldTokenBalance;
+        uint256 yieldTokensAfter = ERC20(yieldToken).balanceOf(address(this));
+        uint256 yieldTokensMinted = yieldTokensAfter - yieldTokensBefore;
 
-        sharesMinted = (yieldTokensMinted * effectiveSupply()) / (initialYieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+        sharesMinted = (yieldTokensMinted * effectiveSupply()) /
+            (s_yieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+
+        s_yieldTokenBalance += yieldTokensMinted;
         _mint(receiver, sharesMinted);
     }
 
@@ -433,8 +446,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // First accrue fees on the yield token
         _accrueFees();
+        uint256 yieldTokensBefore = ERC20(yieldToken).balanceOf(address(this));
         _redeemShares(sharesToBurn, sharesOwner, isEscrowed, redeemData);
         if (isEscrowed) s_escrowedShares -= sharesToBurn;
+        uint256 yieldTokensAfter = ERC20(yieldToken).balanceOf(address(this));
+        uint256 yieldTokensRedeemed = yieldTokensBefore - yieldTokensAfter;
+        s_yieldTokenBalance -= yieldTokensRedeemed;
 
         uint256 finalAssetBalance = TokenUtils.tokenBalance(asset);
         assetsWithdrawn = finalAssetBalance - initialAssetBalance;
