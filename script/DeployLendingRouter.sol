@@ -8,12 +8,15 @@ import {MorphoLendingRouter} from "../src/routers/MorphoLendingRouter.sol";
 import {ProxyHelper} from "./ProxyHelper.sol";
 import {GnosisHelper, MethodCall} from "./GnosisHelper.sol";
 
-contract DeployLendingRouter is ProxyHelper, GnosisHelper {
+contract DeployMorphoLendingRouter is ProxyHelper, GnosisHelper {
     function run() public {
         vm.startBroadcast();
         MorphoLendingRouter lendingRouter = new MorphoLendingRouter();
-        address proxy = deployProxy(address(lendingRouter), bytes(""));
         vm.stopBroadcast();
+
+        console.log("MorphoLendingRouter implementation at", address(lendingRouter));
+        address proxy = deployProxy(address(lendingRouter));
+        console.log("MorphoLendingRouter proxy at", proxy);
 
         MethodCall[] memory calls = new MethodCall[](1);
         calls[0] = MethodCall({
@@ -21,6 +24,6 @@ contract DeployLendingRouter is ProxyHelper, GnosisHelper {
             value: 0,
             callData: abi.encodeWithSelector(AddressRegistry.setLendingRouter.selector, proxy)
         });
-        generateBatch("./script/list-lending-router.json", calls);
+        generateBatch("./script/list-morpho-lending-router.json", calls);
     }
 }   

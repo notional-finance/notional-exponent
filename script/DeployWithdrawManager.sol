@@ -13,16 +13,18 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
 
+    function name() internal pure virtual returns (string memory);
+
     function deployWithdrawManager() internal virtual returns (address impl);
 
     function run() public {
         vm.startBroadcast();
         address impl = deployWithdrawManager();
-        console.log("WithdrawManager implementation at", impl);
+        console.log(name(), "implementation at", impl);
         vm.stopBroadcast();
 
         address proxy = deployProxy(impl, bytes(""));
-        console.log("WithdrawManager proxy at", address(proxy));
+        console.log(name(), "proxy at", address(proxy));
 
         MethodCall[] memory calls = new MethodCall[](1);
         calls[0] = MethodCall({
@@ -31,11 +33,18 @@ abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
             callData: abi.encodeWithSelector(AddressRegistry.setWithdrawRequestManager.selector, proxy)
         });
 
-        generateBatch("./script/list-withdraw-manager.json", calls);
+        generateBatch(
+            string(abi.encodePacked("./script/list-", name(), "-withdraw-manager.json")),
+            calls
+        );
     }
 }
 
 contract DeployEtherFiWithdrawManager is DeployWithdrawManager {
+
+    function name() internal pure override returns (string memory) {
+        return "EtherFiWithdrawManager";
+    }
 
     function deployWithdrawManager() internal override returns (address impl) {
         impl = address(new EtherFiWithdrawRequestManager());
@@ -43,6 +52,10 @@ contract DeployEtherFiWithdrawManager is DeployWithdrawManager {
 }
 
 contract DeployEthenaWithdrawManager is DeployWithdrawManager {
+
+    function name() internal pure override returns (string memory) {
+        return "EthenaWithdrawManager";
+    }
 
     function deployWithdrawManager() internal override returns (address impl) {
         impl = address(new EthenaWithdrawRequestManager());

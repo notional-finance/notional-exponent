@@ -14,4 +14,11 @@ abstract contract ProxyHelper is Script {
         vm.stopBroadcast();
         return address(proxy);
     }
+
+    function deployProxy(address impl) public returns (address) {
+        vm.startBroadcast();
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(impl, bytes(""));
+        vm.stopBroadcast();
+        return address(proxy);
+    }
 }
