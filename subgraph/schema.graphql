@@ -152,7 +152,7 @@ type Oracle @entity(immutable: false) {
   historicalRates: [ExchangeRate!] @derivedFrom(field: "oracle")
 }
 
-type ExchangeRate @entity(timeseries: true) {
+type ExchangeRate @entity(immutable: true) {
   "External Oracle ID:Timestamp"
   id: ID!
   blockNumber: BigInt!

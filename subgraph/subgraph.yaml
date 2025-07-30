@@ -8,9 +8,9 @@ dataSources:
     name: AddressRegistry
     network: mainnet
     source:
-      address: "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f"
+      address: "0xe335d314BD4eF7DD44F103dC124FEFb7Ce63eC95"
       abi: AddressRegistry
-      startBlock: 0
+      startBlock: 23027728
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
