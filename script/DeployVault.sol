@@ -31,6 +31,8 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     uint256 public depositAmount;
     uint256 public supplyAmount;
     uint256 public borrowAmount;
+    // Used for withdraw manager only exits
+    bool public skipExit = false;
 
     function deployVault() internal virtual returns (address impl);
 
@@ -98,10 +100,14 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
             user, address(y), depositAmount, borrowAmount,
             getDepositData(user, depositAmount + borrowAmount)
         );
+        uint256 balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(user, address(y));
+        console.log("Enter position: ", depositAmount, borrowAmount);
+        console.log("Balance of Collateral: ", balance);
+
+        if (skipExit) return;
 
         vm.warp(block.timestamp + 5 minutes);
 
-        uint256 balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(user, address(y));
         MORPHO_LENDING_ROUTER.exitPosition(
             user,
             address(y),
@@ -110,6 +116,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
             type(uint256).max,
             getRedeemData(user, balance)
         );
+        console.log("Exited Position: ", asset.balanceOf(user));
 
         vm.stopPrank();
     }
@@ -151,9 +158,9 @@ contract EtherFiStaking is DeployVault {
     uint256 constant FEE_RATE = 0.0015e18;
 
     constructor() {
-        depositAmount = 10_000e6;
-        supplyAmount = 100_000e6;
-        borrowAmount = 90_000e6;
+        depositAmount = 10e18;
+        supplyAmount = 100e18;
+        borrowAmount = 90e18;
     }
 
     function getDepositData(address /* user */, uint256 /* amount */) internal pure override returns (bytes memory) {
@@ -173,7 +180,7 @@ contract EtherFiStaking is DeployVault {
     }
 
     function name() internal pure override returns (string memory) {
-        return "Notional:Staking:weETH";
+        return "Notional Staking weETH";
     }
 
     function symbol() internal pure override returns (string memory) {
@@ -214,8 +221,15 @@ contract EtherFiStaking is DeployVault {
 contract EthenaStaking is DeployVault {
     uint256 constant FEE_RATE = 0.0025e18;
 
+    constructor() {
+        depositAmount = 10_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 90_000e6;
+        skipExit = true;
+    }
+
     function name() internal pure override returns (string memory) {
-        return "Notional:Staking:sUSDe";
+        return "Notional Staking sUSDe";
     }
 
     function symbol() internal pure override returns (string memory) {
