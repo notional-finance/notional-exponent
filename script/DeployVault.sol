@@ -46,6 +46,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     function getRedeemData(address user, uint256 amount) internal view virtual returns (bytes memory);
 
     function run() public {
+        require(proxy == address(0), "Vault already deployed");
         address impl = deployVault();
         console.log("Vault implementation deployed at", impl);
 
@@ -161,6 +162,7 @@ contract EtherFiStaking is DeployVault {
         depositAmount = 10e18;
         supplyAmount = 100e18;
         borrowAmount = 90e18;
+        proxy = 0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae;
     }
 
     function getDepositData(address /* user */, uint256 /* amount */) internal pure override returns (bytes memory) {
@@ -226,6 +228,7 @@ contract EthenaStaking is DeployVault {
         supplyAmount = 100_000e6;
         borrowAmount = 90_000e6;
         skipExit = true;
+        proxy = 0xAf14d06A65C91541a5b2db627eCd1c92d7d9C48B;
     }
 
     function name() internal pure override returns (string memory) {
