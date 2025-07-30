@@ -46,7 +46,7 @@ abstract contract TestEnvironment is Test {
         _;
     }
 
-    function checkTransientsCleared() internal {
+    function checkTransientsCleared() internal view {
         if (!canInspectTransientVariables) return;
 
         (address currentAccount, address currentLendingRouter, address allowTransferTo, uint256 allowTransferAmount) = MockYieldStrategy(address(y)).transientVariables();
