@@ -98,7 +98,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         uint256 borrowShares;
         uint256 vaultSharesReceived;
         if (borrowAmount > 0) {
-            _flashBorrowAndEnter(
+            (vaultSharesReceived, borrowShares) = _flashBorrowAndEnter(
                 onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateFrom
             );
         } else {
@@ -127,9 +127,8 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         if (0 < assetToRepay) {
             (borrowSharesRepaid, profitsWithdrawn) = _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
         } else {
-            // TODO: on migrate assetToRepay is always set to uint256.max so we can remove this call
-            address migrateTo = _isMigrate(receiver) ? receiver : address(0);
-            profitsWithdrawn = _redeemShares(onBehalf, vault, asset, migrateTo, sharesToRedeem, redeemData);
+            // Migrate to is always set to address(0) since assetToRepay is always set to uint256.max
+            profitsWithdrawn = _redeemShares(onBehalf, vault, asset, address(0), sharesToRedeem, redeemData);
             if (0 < profitsWithdrawn) ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
         }
 

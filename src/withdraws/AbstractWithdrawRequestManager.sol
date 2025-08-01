@@ -15,7 +15,7 @@ import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY, DEFAULT_PRECISION} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed, ITradingModule} from "../interfaces/ITradingModule.sol";
 
 
 /**
@@ -29,6 +29,7 @@ import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfac
  * request can be liquidated.
  */
 abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Initializable {
+
     using SafeERC20 for ERC20;
     using TypeConvert for uint256;
 
@@ -91,6 +92,9 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
         yieldTokensMinted = ERC20(YIELD_TOKEN).balanceOf(address(this)) - initialYieldTokenBalance;
         ERC20(YIELD_TOKEN).safeTransfer(msg.sender, yieldTokensMinted);
+
+        // Emits the amount of staking tokens for the yield token at this point in time.
+        emit ITradingModule.TradeExecuted(STAKING_TOKEN, YIELD_TOKEN, stakeTokenAmount, yieldTokensMinted);
     }
 
     /// @inheritdoc IWithdrawRequestManager

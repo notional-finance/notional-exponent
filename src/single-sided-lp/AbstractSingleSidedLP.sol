@@ -368,7 +368,11 @@ abstract contract BaseLPLib is ILPLib {
 
         requestIds = new uint256[](exitBalances.length);
         for (uint256 i; i < exitBalances.length; i++) {
-            if (exitBalances[i] == 0) continue;
+            // For liquidity curve based pools (non-UniswapV3 tick based vaults), it is exceedingly
+            // difficult to push one of the tokens to a very low balance such that the exitBalance
+            // actually returns zero. Having a zero balance withdraw request will cause a lot of issues
+            // so instead we revert here.
+            if (exitBalances[i] == 0) revert();
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
 
             tokens[i].checkApprove(address(manager), exitBalances[i]);
