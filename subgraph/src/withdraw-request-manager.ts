@@ -34,6 +34,8 @@ function getWithdrawRequest(
     withdrawRequest.account = account.toHexString();
     withdrawRequest.vault = vault.toHexString();
     withdrawRequest.balance = account.toHexString() + ":" + vault.toHexString();
+    withdrawRequest.yieldTokenAmount = BigInt.zero();
+    withdrawRequest.sharesAmount = BigInt.zero();
   }
   withdrawRequest.lastUpdateBlockNumber = event.block.number;
   withdrawRequest.lastUpdateTimestamp = event.block.timestamp.toI32();
@@ -197,10 +199,9 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   twr.totalWithdraw = toW.getS().totalWithdraw;
   twr.finalized = toW.getS().finalized;
 
-  let yieldTokenAmount = twr.totalYieldTokenAmount.times(event.params.sharesAmount).div(toW.getW().sharesAmount);
-
   // Update the withdraw requests
   let toWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.to, event);
+  let toYieldTokenAmountBefore = toWithdrawRequest.yieldTokenAmount;
   toWithdrawRequest.requestId = event.params.requestId;
   toWithdrawRequest.yieldTokenAmount = toW.getW().yieldTokenAmount;
   toWithdrawRequest.sharesAmount = toW.getW().sharesAmount;
@@ -209,6 +210,10 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   if (!holders.includes(toWithdrawRequest.id)) {
     holders.push(toWithdrawRequest.id);
   }
+
+  // This is calculated as the change in the yield token amount on the
+  // to withdraw request before and after the tokenization
+  let yieldTokenAmount = toWithdrawRequest.yieldTokenAmount.minus(toYieldTokenAmountBefore);
   updateBalanceSnapshotForWithdrawRequest(toWithdrawRequest, event.params.sharesAmount, yieldTokenAmount, event);
 
   // Update the from withdraw request

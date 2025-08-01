@@ -389,8 +389,8 @@ function updateBalance(
 function findPendleTokenInAmount(
   vaultAddress: Address,
   tokenInSy: Address,
-  ptToken: Address,
   event: ethereum.Event,
+  isEntry: boolean,
 ): BigInt {
   if (event.receipt === null) return BigInt.zero();
 
@@ -404,9 +404,10 @@ function findPendleTokenInAmount(
       let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
       let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 
-      if (sellToken == tokenInSy && buyToken == ptToken) {
+      // Only look for the tokenInSy on the sell side if it is an entry, buyToken on exit
+      if (sellToken == tokenInSy && isEntry) {
         return sellAmount;
-      } else if (sellToken == ptToken && buyToken == tokenInSy) {
+      } else if (buyToken == tokenInSy && !isEntry) {
         return buyAmount;
       }
     }
@@ -415,52 +416,63 @@ function findPendleTokenInAmount(
   return BigInt.zero();
 }
 
-function getInterestAccumulator(
-  v: IYieldStrategy,
-  tokenAmount: BigInt,
-  strategy: string,
-  event: ethereum.Event,
-): BigInt {
+function getInterestAccumulator(v: IYieldStrategy, strategy: string): BigInt {
   let yieldToken = v.yieldToken();
   let accountingAsset = v.accountingAsset();
   let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
 
   if (strategy == "Staking") {
+    // NOTE: this depends on the exchange rate oracle
     return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
-  } else if (strategy == "PendlePT") {
-    let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
-    let expiry = pt.expiry();
-    let timeToExpiry = expiry.minus(event.block.timestamp);
-    let ptTokens = v.convertSharesToYieldToken(tokenAmount);
-    let y = getToken(yieldToken.toHexString());
-    let asset = getToken(accountingAsset.toHexString());
-
-    log.info("timeToExpiry: {}", [timeToExpiry.toString()]);
-    log.info("x: {}", [v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toString()]);
-
-    let x: f64 =
-      (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
-      (SECONDS_IN_YEAR.times(RATE_PRECISION).toI64() as f64);
-    log.info("x: {}", [x.toString()]);
-
-    let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
-    let marginalPtAtMaturity = ptTokens.times(RATE_PRECISION).div(discountFactor);
-    let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, yieldToken, event);
-    log.info("discountFactor: {}", [discountFactor.toString()]);
-    log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
-    log.info("tokenInAmount: {}", [tokenInAmount.toString()]);
-    let tokenInAmountScaled = tokenInAmount.times(y.precision).div(asset.precision);
-    let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmountScaled);
-    log.info("tokenInAmountScaled: {}", [tokenInAmountScaled.toString()]);
-    log.info("marginalRemainingInterest: {}", [marginalRemainingInterest.toString()]);
-    // TODO: is the ratio upside down?
-    let acc = marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry);
-    log.info("acc: {}", [acc.toString()]);
-    return acc;
   } else {
     // NOTE: this can go negative if the price goes down.
     return v.convertToAssets(DEFAULT_PRECISION);
   }
+}
+
+export function getPendleInterestAccrued(
+  v: IYieldStrategy,
+  tokenAmount: BigInt,
+  lastInterestAccumulator: BigInt,
+  lastSnapshotTimestamp: BigInt,
+  event: ethereum.Event,
+): BigInt[] {
+  let yieldToken = v.yieldToken();
+  let accountingAsset = v.accountingAsset();
+
+  let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
+  let expiry = pt.expiry();
+  let timeToExpiry = expiry.minus(event.block.timestamp);
+  let ptTokens = v.convertSharesToYieldToken(tokenAmount);
+  let y = getToken(yieldToken.toHexString());
+  let asset = getToken(accountingAsset.toHexString());
+
+  log.info("timeToExpiry: {}", [timeToExpiry.toString()]);
+  log.info("x: {}", [v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toString()]);
+
+  let x: f64 =
+    (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
+    (SECONDS_IN_YEAR.times(RATE_PRECISION).toI64() as f64);
+  log.info("x: {}", [x.toString()]);
+
+  let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
+  let marginalPtAtMaturity = ptTokens.times(RATE_PRECISION).div(discountFactor);
+  // On entry look for the sellToken and on exit look for the buyToken that equals the accounting asset
+  let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, event, tokenAmount.gt(BigInt.zero()));
+  log.info("discountFactor: {}", [discountFactor.toString()]);
+  log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
+  log.info("tokenInAmount: {}", [tokenInAmount.toString()]);
+  let tokenInAmountScaled = tokenInAmount.times(y.precision).div(asset.precision);
+  // This is the new value of the accumulator
+  let newInterestAccumulator = marginalPtAtMaturity.minus(tokenInAmountScaled);
+  log.info("tokenInAmountScaled: {}", [tokenInAmountScaled.toString()]);
+  log.info("newInterestAccumulator: {}", [newInterestAccumulator.toString()]);
+
+  let timeSinceLastSnapshot = event.block.timestamp.minus(lastSnapshotTimestamp);
+  // Use the minimum of the time since the last snapshot and the time to expiry
+  let interestAccrueTime = timeSinceLastSnapshot.lt(timeToExpiry) ? timeSinceLastSnapshot : timeToExpiry;
+  let interestAccrued = lastInterestAccumulator.times(interestAccrueTime).div(timeToExpiry);
+  return [interestAccrued, newInterestAccumulator];
 }
 
 export function updateSnapshotMetrics(
@@ -480,36 +492,43 @@ export function updateSnapshotMetrics(
 
     let interestAccumulator: BigInt;
     let vaultFeeAccumulator: BigInt;
+    let interestAccruedSinceLastSnapshot: BigInt;
+    let vaultFeesAccruedSinceLastSnapshot: BigInt;
     if (balance.withdrawRequest === null) {
-      // This is the value of one vault share in the underlying token.
-      // the problem is that this includes both interest accrued as well as some
-      // aspects of mark to market pnl.
-      interestAccumulator = getInterestAccumulator(v, tokenAmount, strategy, event);
-
       if (strategy == "PendlePT") {
-        interestAccumulator = snapshot._lastInterestAccumulator.plus(interestAccumulator);
-        snapshot._lastInterestAccumulator = BigInt.zero();
+        let r = getPendleInterestAccrued(
+          v,
+          tokenAmount,
+          snapshot._lastInterestAccumulator,
+          BigInt.fromI32(snapshot.timestamp),
+          event,
+        );
+        interestAccruedSinceLastSnapshot = r[0];
+        interestAccumulator = r[1];
+      } else {
+        interestAccumulator = getInterestAccumulator(v, strategy);
+        // This accumulator is in the underlying basis.
+        interestAccruedSinceLastSnapshot = interestAccumulator
+          .minus(snapshot._lastInterestAccumulator)
+          .times(snapshot._accumulatedBalance)
+          .div(DEFAULT_PRECISION);
       }
 
       // This is the number of yield tokens per vault share, it is decreasing over time. Convert this
       // to default precision
       vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION).times(DEFAULT_PRECISION).div(y.precision);
+      // This accumulator is in a yield token basis.
+      vaultFeesAccruedSinceLastSnapshot = snapshot._lastVaultFeeAccumulator
+        .minus(vaultFeeAccumulator)
+        .times(snapshot._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
     } else {
       // Pause the interest accrual and vault fees accrual during a withdraw request
       interestAccumulator = snapshot._lastInterestAccumulator;
+      interestAccruedSinceLastSnapshot = BigInt.zero();
       vaultFeeAccumulator = snapshot._lastVaultFeeAccumulator;
+      vaultFeesAccruedSinceLastSnapshot = BigInt.zero();
     }
-
-    // This accumulator is in the underlying basis.
-    let interestAccruedSinceLastSnapshot = interestAccumulator
-      .minus(snapshot._lastInterestAccumulator)
-      .times(snapshot._accumulatedBalance)
-      .div(DEFAULT_PRECISION);
-    // This accumulator is in a yield token basis.
-    let vaultFeesAccruedSinceLastSnapshot = snapshot._lastVaultFeeAccumulator
-      .minus(vaultFeeAccumulator)
-      .times(snapshot._accumulatedBalance)
-      .div(DEFAULT_PRECISION);
 
     snapshot.totalInterestAccrualAtSnapshot = snapshot.totalInterestAccrualAtSnapshot.plus(
       interestAccruedSinceLastSnapshot,
@@ -545,6 +564,13 @@ export function updateSnapshotMetrics(
     snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized
       .times(token.precision)
       .div(snapshot._accumulatedBalance);
+
+    if (tokenAmount.lt(BigInt.zero())) {
+      // Scale down the cost basis when the token amount decreases
+      snapshot.adjustedCostBasis = snapshot.adjustedCostBasis
+        .times(snapshot.currentBalance)
+        .div(snapshot.previousBalance);
+    }
   } else {
     snapshot.adjustedCostBasis = BigInt.zero();
   }

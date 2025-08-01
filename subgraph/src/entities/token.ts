@@ -85,9 +85,10 @@ export function getBorrowShare(vault: Address, lendingRouter: Address, event: et
   let l = ILendingRouter.bind(lendingRouter);
   let name = l.name();
   let decimals = 18;
+  let v = IYieldStrategy.bind(Address.fromBytes(vault));
+  let asset = getToken(v.asset().toHexString());
+
   if (name == "Morpho") {
-    let v = IYieldStrategy.bind(Address.fromBytes(vault));
-    let asset = getToken(v.asset().toHexString());
     // Morpho borrow shares are 6 decimals more than the asset to account
     // for the virtual shares.
     decimals = asset.decimals + 6;
@@ -102,6 +103,7 @@ export function getBorrowShare(vault: Address, lendingRouter: Address, event: et
   borrowShare.tokenAddress = lendingRouter;
   borrowShare.vaultAddress = vault;
   borrowShare.tokenType = "VaultDebt";
+  borrowShare.underlying = asset.id;
 
   borrowShare.lastUpdateBlockNumber = event.block.number;
   borrowShare.lastUpdateTimestamp = event.block.timestamp.toI32();

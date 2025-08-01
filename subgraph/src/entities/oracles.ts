@@ -45,11 +45,13 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
 
   // Vault share price
   let oracle = getOracle(asset, vaultShare, "YieldStrategy");
+  oracle.decimals = 36;
   let latestRate = v.price();
   updateExchangeRate(oracle, latestRate, block);
 
   // Vault fee accumulator
   let oracle2 = getOracle(vaultShare, yieldToken, "YieldStrategy");
+  oracle2.decimals = 18;
   let latestRate2 = v.convertSharesToYieldToken(DEFAULT_PRECISION);
   updateExchangeRate(oracle2, latestRate2, block);
 
@@ -60,6 +62,7 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
     if (borrowShare) {
       let latestRate = l.convertBorrowSharesToAssets(vault, borrowShare.precision);
       let borrowShareOracle = getOracle(borrowShare, asset, "BorrowShareOracle");
+      borrowShareOracle.decimals = asset.decimals;
       updateExchangeRate(borrowShareOracle, latestRate, block);
     }
   }

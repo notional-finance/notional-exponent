@@ -687,7 +687,7 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1007200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008208");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "916469");
       // Negative PnL includes loss from the initial deposit
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "-8200000");
 
@@ -720,7 +720,7 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", borrowSharesMinted.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "817200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008888");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "907999");
 
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "9000000");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "9000000");
@@ -941,7 +941,7 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "912700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1014111");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "913613");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "23300000");
 
       // These both get adjusted downwards because of the redemption
@@ -1022,7 +1022,7 @@ describe("enter position with borrow shares", () => {
       );
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "722700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1003750");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "892222");
 
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "33300000");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "33300000");
@@ -1068,9 +1068,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
 
       assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.toString());
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "99000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "997000000000000000");
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "1000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.toString());
       assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
     });
@@ -1085,9 +1085,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
 
       assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.neg().toString());
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-99000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "997000000000000000");
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "1000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.neg().toString());
       assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
     });
