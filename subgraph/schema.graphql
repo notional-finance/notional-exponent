@@ -115,7 +115,9 @@ type Account @entity(immutable: false) {
 enum OracleType {
   Chainlink
   VaultShareOracleRate
-  VaultShareInterestAccrued
+  VaultFeeAccrualRate
+  BorrowShareOracleRate
+  WithdrawTokenExchangeRate
 }
 
 type OracleRegistry @entity(immutable: false) {
