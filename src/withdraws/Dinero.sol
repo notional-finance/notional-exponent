@@ -108,4 +108,10 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
         // Can only finalize if the total assets are greater than the outstanding redemptions
         return PirexETH.outstandingRedemptions() >= totalAssets;
     }
+
+    function getExchangeRate() public view override returns (uint256) {
+        // pxETH is rebasing so we can just return 1e18
+        if (YIELD_TOKEN == address(pxETH)) return 1e18;
+        return super.getExchangeRate();
+    }
 }

@@ -16,6 +16,7 @@ import {ADDRESS_REGISTRY, DEFAULT_PRECISION} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed, ITradingModule} from "../interfaces/ITradingModule.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 
 /**
@@ -333,6 +334,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             ((10 ** tokenDecimals) * DEFAULT_PRECISION);
         // NOTE: returns the normalized value given the shares input
         return (true, totalValue * shares / w.sharesAmount);
+    }
+
+    /// @inheritdoc IWithdrawRequestManager
+    function getExchangeRate() public view override virtual returns (uint256) {
+        // Covers the base case where the yield token is an ERC4626 vault and returns
+        // the exchange rate of the yield token back to the staking token.
+        return IERC4626(YIELD_TOKEN).convertToAssets(10 ** ERC20(YIELD_TOKEN).decimals());
     }
 
 }

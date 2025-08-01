@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 interface IweETH is IERC20 {
     function wrap(uint256 eETHDeposit) external returns (uint256 weETHMinted);
     function unwrap(uint256 weETHDeposit) external returns (uint256 eETHMinted);
+    function getRate() external view returns (uint256);
 }
 
 interface ILiquidityPool {

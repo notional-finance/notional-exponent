@@ -38,4 +38,8 @@ contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
     function canFinalizeWithdrawRequest(uint256 /* requestId */) public pure override returns (bool) {
         return true;
     }
+
+    function getExchangeRate() public view override returns (uint256) {
+        return 10 ** ERC20(YIELD_TOKEN).decimals();
+    }
 }

@@ -484,4 +484,9 @@ abstract contract TestWithdrawRequest is Test {
         manager.tokenizeWithdrawRequest(staker2, splitStaker, splitAmount);
     }
 
+    function test_getExchangeRate() public approveVaultAndStakeTokens {
+        uint256 exchangeRate = manager.getExchangeRate();
+        assertGe(exchangeRate, 1e18);
+    }
+
 }

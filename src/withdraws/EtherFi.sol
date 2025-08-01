@@ -49,5 +49,9 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
             WithdrawRequestNFT.ownerOf(requestId) != address(0)
         );
     }
+
+    function getExchangeRate() public view override returns (uint256) {
+        return weETH.getRate();
+    }
 }
 

@@ -166,4 +166,9 @@ interface IWithdrawRequestManager {
     /// @return hasRequest whether the account has a withdraw request
     /// @return value the value of the withdraw request in terms of the asset
     function getWithdrawRequestValue(address vault, address account, address asset, uint256 shares) external view returns (bool hasRequest, uint256 value);
+
+    /// @notice Returns the protocol reported exchange rate between the yield token
+    /// and then withdraw token.
+    /// @return exchangeRate the exchange rate of the yield token to the withdraw token
+    function getExchangeRate() external view returns (uint256 exchangeRate);
 }
