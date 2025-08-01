@@ -46,6 +46,10 @@ let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
 let USDC_PRECISION = BigInt.fromI32(10).pow(6);
 let BORROW_SHARE_PRECISION = BigInt.fromI32(10).pow(12);
 
+function padHexString(hexString: string): string {
+  return "0x" + hexString.slice(2).padStart(64, "0");
+}
+
 function createEnterPositionEvent(
   user: Address,
   vault: Address,
@@ -248,10 +252,11 @@ describe("enter position with borrow shares", () => {
     // Add TradeExecuted log
     let tradeExecutedLog = newLog();
     tradeExecutedLog.address = vault;
+    log.info("padded asset {}", [padHexString(asset.toHexString())]);
     tradeExecutedLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
-      Bytes.fromHexString(asset.toHexString()),
-      Bytes.fromHexString(yieldToken.toHexString()),
+      Bytes.fromHexString(padHexString(asset.toHexString())),
+      Bytes.fromHexString(padHexString(yieldToken.toHexString())),
     ];
     tradeExecutedLog.data = ethereum.encode(
       ethereum.Value.fromTuple(
@@ -266,8 +271,8 @@ describe("enter position with borrow shares", () => {
     incentiveTransferLog.address = vault;
     incentiveTransferLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-      Bytes.fromHexString(asset.toHexString()),
-      Bytes.fromHexString(account.toHexString()),
+      Bytes.fromHexString(padHexString(asset.toHexString())),
+      Bytes.fromHexString(padHexString(account.toHexString())),
     ];
     incentiveTransferLog.data = ethereum.encode(ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION))!;
 
@@ -453,8 +458,8 @@ describe("enter position with borrow shares", () => {
       incentiveTransferLog.address = vault;
       incentiveTransferLog.topics = [
         Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-        Bytes.fromHexString(asset.toHexString()),
-        Bytes.fromHexString(account.toHexString()),
+        Bytes.fromHexString(padHexString(asset.toHexString())),
+        Bytes.fromHexString(padHexString(account.toHexString())),
       ];
       incentiveTransferLog.data = ethereum.encode(
         ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(2))),
@@ -607,8 +612,8 @@ describe("enter position with borrow shares", () => {
       incentiveTransferLog.address = vault;
       incentiveTransferLog.topics = [
         Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-        Bytes.fromHexString(asset.toHexString()),
-        Bytes.fromHexString(account.toHexString()),
+        Bytes.fromHexString(padHexString(asset.toHexString())),
+        Bytes.fromHexString(padHexString(account.toHexString())),
       ];
       incentiveTransferLog.data = ethereum.encode(
         ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(2))),
@@ -1344,8 +1349,8 @@ describe("enter pendle pt position interest accrual", () => {
     tradeExecutedLog.address = vault;
     tradeExecutedLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
-      Bytes.fromHexString(accountingAsset.toHexString()),
-      Bytes.fromHexString(yieldToken.toHexString()),
+      Bytes.fromHexString(padHexString(accountingAsset.toHexString())),
+      Bytes.fromHexString(padHexString(yieldToken.toHexString())),
     ];
     tradeExecutedLog.data = ethereum.encode(
       ethereum.Value.fromTuple(

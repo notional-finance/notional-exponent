@@ -1,4 +1,4 @@
-import { Address, BigInt, ByteArray, crypto, ethereum } from "@graphprotocol/graph-ts";
+import { Address, BigInt, ByteArray, Bytes, crypto, ethereum } from "@graphprotocol/graph-ts";
 import {
   EnterPosition,
   ExitPosition,
@@ -197,16 +197,16 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
       // We do this here because we don't know the current lending router in order
       // to get the proper balance snapshot so these need to be done after the balance
       // snapshots are updated.
-      let rewardToken = Address.fromBytes(_log.topics[1]);
-      let account = Address.fromBytes(_log.topics[2]);
+      let rewardToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+      let account = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
       let amount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.reverse()));
       createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
     } else if (
       _log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))
     ) {
       // NOTE: the account is the one doing the trade here.
-      let sellToken = Address.fromBytes(_log.topics[1]);
-      let buyToken = Address.fromBytes(_log.topics[2]);
+      let sellToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+      let buyToken = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
       let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
       let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 

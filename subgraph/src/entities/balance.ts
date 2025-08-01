@@ -1,4 +1,4 @@
-import { ethereum, BigInt, log, Address, ByteArray, crypto } from "@graphprotocol/graph-ts";
+import { ethereum, BigInt, log, Address, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
 import {
   Account,
   Balance,
@@ -399,8 +399,8 @@ function findPendleTokenInAmount(
     if (_log.address.toHexString() != vaultAddress.toHexString()) continue;
 
     if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
-      let sellToken = Address.fromBytes(_log.topics[1]);
-      let buyToken = Address.fromBytes(_log.topics[2]);
+      let sellToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+      let buyToken = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
       let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
       let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 
