@@ -103,6 +103,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         return s_symbol;
     }
 
+    function decimals() public view override(ERC20, IERC20Metadata) returns (uint8) {
+        return _yieldTokenDecimals + 6;
+    }
+
     /*** Valuation and Conversion Functions ***/
 
     /// @inheritdoc IYieldStrategy

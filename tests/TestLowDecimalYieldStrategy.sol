@@ -22,13 +22,22 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         (
-            uint256 borrowAmount,
+            /* */,
             uint256 collateralValue,
             uint256 maxBorrow
         ) = lendingRouter.healthFactor(msg.sender, address(y));
 
         assertApproxEqRel(collateralValue, 100_000e6, 0.001e18);
         assertApproxEqRel(maxBorrow, 91_500e6, 0.001e18);
+    }
+
+    function test_vault_share_precision() public {
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        uint256 oneShare = 10 ** y.decimals();
+        uint256 yt = y.convertSharesToYieldToken(oneShare);
+        uint256 shares = y.convertYieldTokenToShares(yt);
+        assertEq(shares, oneShare);
+        assertEq(yt, 1e6);
     }
 
     function test_fee_accrual() public {
