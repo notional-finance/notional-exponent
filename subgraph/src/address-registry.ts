@@ -15,6 +15,7 @@ import {
 } from "../generated/templates";
 import { getOracleRegistry, updateChainlinkOracle, updateVaultOracles } from "./entities/oracles";
 import { Address, ethereum } from "@graphprotocol/graph-ts";
+import { ILendingRouter } from "../generated/AddressRegistry/ILendingRouter";
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {
   const id = event.params.lendingRouter.toHexString();
@@ -29,6 +30,8 @@ export function handleLendingRouterSet(event: LendingRouterSet): void {
   lendingRouter.lastUpdateBlockNumber = event.block.number;
   lendingRouter.lastUpdateTimestamp = event.block.timestamp.toI32();
   lendingRouter.lastUpdateTransactionHash = event.transaction.hash;
+  let lr = ILendingRouter.bind(event.params.lendingRouter);
+  lendingRouter.name = lr.name();
   lendingRouter.save();
 
   LendingRouterTemplate.create(event.params.lendingRouter);
@@ -59,6 +62,7 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
   vault.feeRate = yieldStrategy.feeRate();
   vault.yieldToken = createERC20TokenAsset(yieldStrategy.yieldToken(), event, UNDERLYING).id;
   vault.asset = createERC20TokenAsset(yieldStrategy.asset(), event, UNDERLYING).id;
+  vault.strategyType = yieldStrategy.strategy();
 
   let vaultToken = createERC20TokenAsset(event.params.vault, event, VAULT_SHARE);
   vault.vaultToken = vaultToken.id;

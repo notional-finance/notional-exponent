@@ -189,6 +189,9 @@ type Vault @entity(immutable: false) {
   "Fee rate of the vault"
   feeRate: BigInt!
 
+  "Strategy type of the vault"
+  strategyType: String!
+
   withdrawRequestManagers: [WithdrawRequestManager!]!
   withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "vault")
 }
@@ -202,6 +205,8 @@ type LendingRouter @entity(immutable: false) {
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
+
+  name: String!
 }
 
 type WithdrawRequestManager @entity(immutable: false) {
