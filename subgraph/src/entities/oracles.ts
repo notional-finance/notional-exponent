@@ -2,7 +2,7 @@ import { Address, ethereum, Bytes, BigInt } from "@graphprotocol/graph-ts";
 import { ExchangeRate, Oracle, OracleRegistry, Token } from "../../generated/schema";
 import { getToken } from "./token";
 import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
-import { DEFAULT_PRECISION } from "../constants";
+import { DEFAULT_PRECISION, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/AddressRegistry/ILendingRouter";
 import { Aggregator } from "../../generated/AddressRegistry/Aggregator";
 
@@ -48,7 +48,7 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
   oracle.decimals = 36;
   oracle.ratePrecision = BigInt.fromI32(10).pow(36);
   oracle.oracleAddress = vault;
-  let latestRate = v.price();
+  let latestRate = v.price1(ZERO_ADDRESS);
   updateExchangeRate(oracle, latestRate, block);
 
   // Vault fee accumulator

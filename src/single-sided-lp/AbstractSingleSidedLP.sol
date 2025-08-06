@@ -44,7 +44,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @notice Index of the TOKENS() array that refers to the primary borrowed currency by the
     /// leveraged vault. All valuations are done in terms of this currency.
-    function PRIMARY_INDEX() internal view virtual returns (uint256);
+    function PRIMARY_INDEX() public view virtual returns (uint256);
 
     /// @notice Returns the total supply of the pool token. Is a virtual function because
     /// ComposableStablePools use a "virtual supply" and a different method must be called

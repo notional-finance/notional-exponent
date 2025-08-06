@@ -82,11 +82,6 @@
         "name": "tokensWithdrawn",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "finalized",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "nonpayable"
@@ -111,14 +106,22 @@
         "name": "tokensWithdrawn",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "finalized",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getExchangeRate",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "exchangeRate",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",

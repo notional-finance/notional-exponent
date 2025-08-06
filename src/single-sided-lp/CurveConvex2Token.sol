@@ -22,13 +22,13 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
 
     uint256 internal constant _NUM_TOKENS = 2;
 
-    ERC20 internal immutable CURVE_POOL_TOKEN;
+    ERC20 public immutable CURVE_POOL_TOKEN;
     uint8 internal immutable _PRIMARY_INDEX;
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
 
     function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
-    function PRIMARY_INDEX() internal view override returns (uint256) { return _PRIMARY_INDEX; }
+    function PRIMARY_INDEX() public view override returns (uint256) { return _PRIMARY_INDEX; }
     function TOKENS() internal view override returns (ERC20[] memory) {
         ERC20[] memory tokens = new ERC20[](_NUM_TOKENS);
         tokens[0] = ERC20(TOKEN_1);
