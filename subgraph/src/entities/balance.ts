@@ -8,6 +8,7 @@ import {
   Token,
 } from "../../generated/schema";
 import {
+  ADDRESS_REGISTRY,
   DEFAULT_PRECISION,
   RATE_PRECISION,
   SECONDS_IN_YEAR,
@@ -22,6 +23,8 @@ import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
 import { ITradingModule } from "../../generated/AddressRegistry/ITradingModule";
 import { IPPrincipalToken } from "../../generated/AddressRegistry/IPPrincipalToken";
 import { getToken } from "./token";
+import { AddressRegistry } from "../../generated/AddressRegistry/AddressRegistry";
+import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
 
 export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): BalanceSnapshot {
   let id = balance.id + ":" + event.block.number.toString();
@@ -422,8 +425,14 @@ function getInterestAccumulator(v: IYieldStrategy, strategy: string): BigInt {
   let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
 
   if (strategy == "Staking") {
-    // NOTE: this depends on the exchange rate oracle
-    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
+    let r = AddressRegistry.bind(changetype<Address>(ADDRESS_REGISTRY));
+    let wrm = r.getWithdrawRequestManager(yieldToken);
+    if (wrm != Address.zero()) {
+      let w = IWithdrawRequestManager.bind(wrm);
+      return w.getExchangeRate();
+    } else {
+      return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
+    }
   } else {
     // NOTE: this can go negative if the price goes down.
     return v.convertToAssets(DEFAULT_PRECISION);
@@ -469,9 +478,12 @@ export function getPendleInterestAccrued(
   log.info("newInterestAccumulator: {}", [newInterestAccumulator.toString()]);
 
   let timeSinceLastSnapshot = event.block.timestamp.minus(lastSnapshotTimestamp);
+  let timeToExpiryBefore = expiry.minus(lastSnapshotTimestamp);
   // Use the minimum of the time since the last snapshot and the time to expiry
-  let interestAccrueTime = timeSinceLastSnapshot.lt(timeToExpiry) ? timeSinceLastSnapshot : timeToExpiry;
-  let interestAccrued = lastInterestAccumulator.times(interestAccrueTime).div(timeToExpiry);
+  let interestAccrueTime = timeSinceLastSnapshot.lt(timeToExpiryBefore) ? timeSinceLastSnapshot : timeToExpiryBefore;
+  let interestAccrued = lastInterestAccumulator.times(interestAccrueTime).div(timeToExpiryBefore);
+  // Adjust the new interest accumulator based on the interest accrued since the last snapshot
+  newInterestAccumulator = newInterestAccumulator.plus(lastInterestAccumulator).minus(interestAccrued);
   return [interestAccrued, newInterestAccumulator];
 }
 
@@ -557,20 +569,20 @@ export function updateSnapshotMetrics(
   snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(tokenAmount);
 
   // This is the total realized cost of the balance in the underlying (i.e. asset token)
-  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(underlyingAmountRealized);
+  if (tokenAmount.lt(BigInt.zero())) {
+    // Scale down the cost basis when the token amount decreases
+    snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized
+      .times(snapshot.currentBalance)
+      .div(snapshot.previousBalance);
+  } else {
+    snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(underlyingAmountRealized);
+  }
 
   // This is the average cost basis of the balance in the underlying token precision
   if (snapshot._accumulatedBalance.gt(BigInt.zero())) {
     snapshot.adjustedCostBasis = snapshot._accumulatedCostRealized
       .times(token.precision)
       .div(snapshot._accumulatedBalance);
-
-    if (tokenAmount.lt(BigInt.zero())) {
-      // Scale down the cost basis when the token amount decreases
-      snapshot.adjustedCostBasis = snapshot.adjustedCostBasis
-        .times(snapshot.currentBalance)
-        .div(snapshot.previousBalance);
-    }
   } else {
     snapshot.adjustedCostBasis = BigInt.zero();
   }

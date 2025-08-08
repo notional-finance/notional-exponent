@@ -51,6 +51,7 @@ export function createVault(vault: Address): Vault {
   v.vaultToken = vault.toHexString();
   v.feeRate = BigInt.fromI32(1000);
   v.withdrawRequestManagers = [];
+  v.strategyType = "Staking";
   v.save();
 
   let vaultShare = new Token(vault.toHexString());

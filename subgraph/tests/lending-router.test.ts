@@ -691,10 +691,10 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1007200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "916469");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1008090081");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
       // Negative PnL includes loss from the initial deposit
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "-8200000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "-9090081");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "9090081");
@@ -724,11 +724,11 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", borrowSharesMinted.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "817200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "907999");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "818100000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1010000");
 
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "9000000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "9000000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "8100000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "8100000");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastInterestAccumulator", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", BigInt.zero().toString());
@@ -786,9 +786,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1007200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008208");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "1790000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1008090081");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "899919");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "19080081");
@@ -945,9 +945,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "912700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "913613");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "23300000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "908189262");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "27810738");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "17189262");
@@ -1026,11 +1026,11 @@ describe("enter position with borrow shares", () => {
         borrowSharesMinted.minus(borrowSharesRepaid).toString(),
       );
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "722700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "892222");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "727200000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1010000");
 
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "33300000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "33300000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "28800000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "28800000");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastInterestAccumulator", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", BigInt.zero().toString());
@@ -1176,9 +1176,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "912700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1014111");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "23300000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "908189262");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "27810738");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "17189262");
