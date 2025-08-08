@@ -86,8 +86,6 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal override virtual {
         ERC20(asset).approve(address(withdrawRequestManager), assets);
         uint256 yieldTokens = withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
-
-        emit TradeExecuted(address(asset), address(yieldToken), assets, yieldTokens);
     }
 
     function _redeemShares(

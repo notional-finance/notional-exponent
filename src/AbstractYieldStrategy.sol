@@ -23,6 +23,7 @@ import {IWithdrawRequestManager} from "./interfaces/IWithdrawRequestManager.sol"
 import {Initializable} from "./proxy/Initializable.sol";
 import {ADDRESS_REGISTRY} from "./utils/Constants.sol";
 import {ILendingRouter} from "./interfaces/ILendingRouter.sol";
+import {MORPHO} from "./interfaces/Morpho/IMorpho.sol";
 
 /// @title AbstractYieldStrategy
 /// @notice This is the base contract for all yield strategies, it implements the core logic for
@@ -131,7 +132,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
-        if (t_CurrentAccount == address(0)) return 0;
+        // Disable direct borrowing from Morpho, but allow any other callers to see
+        // the proper price.
+        if (msg.sender == address(MORPHO) && t_CurrentAccount == address(0)) return 0;
         return convertToAssets(SHARE_PRECISION) * (10 ** (36 - 24));
     }
 
