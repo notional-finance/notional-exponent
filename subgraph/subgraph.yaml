@@ -83,6 +83,8 @@ templates:
           file: ./abis/ITradingModule.json
         - name: IPPrincipalToken
           file: ./abis/IPPrincipalToken.json
+        - name: MorphoLendingRouter
+          file: ./abis/MorphoLendingRouter.json
       entities:
         - LendingRouter
       eventHandlers:

@@ -194,6 +194,8 @@ type Vault @entity(immutable: false) {
 
   withdrawRequestManagers: [WithdrawRequestManager!]!
   withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "vault")
+
+  markets: [Market!] @derivedFrom(field: "vault")
 }
 
 type LendingRouter @entity(immutable: false) {
@@ -207,6 +209,27 @@ type LendingRouter @entity(immutable: false) {
   lastUpdateTransactionHash: Bytes!
 
   name: String!
+
+  markets: [Market!] @derivedFrom(field: "lendingRouter")
+}
+
+"Only set on the first entry for a lending router / vault combination"
+type Market @entity(immutable: false) {
+  "Vault:LendingRouter"
+  id: ID!
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+
+  lendingRouter: LendingRouter!
+  vault: Vault!
+
+  "Generic abi-encoded params for the market"
+  params: Bytes!
 }
 
 type WithdrawRequestManager @entity(immutable: false) {

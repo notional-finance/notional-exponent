@@ -11,6 +11,7 @@ import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLos
 import { loadAccount } from "./entities/account";
 import { Account, Token } from "../generated/schema";
 import { DEFAULT_PRECISION, ZERO_ADDRESS } from "./constants";
+import { getMarketParams } from "./entities/market";
 
 function getBorrowSharePrice(
   borrowAssets: BigInt,
@@ -74,6 +75,10 @@ export function handleEnterPosition(event: EnterPosition): void {
   }
 
   parseVaultEvents(account, event.params.vault, event);
+
+  // Get any initial market params for the lending router / vault (market) combination.
+  // Since the subgraph has to stay generic, we need to do this on the first entry.
+  getMarketParams(event.address, event.params.vault, event);
 }
 
 export function handleExitPosition(event: ExitPosition): void {
