@@ -16,7 +16,7 @@ fi
 
 CONTRACT_NAME=$2
 DEPLOYER=MAINNET_V2_DEPLOYER
-SENDER=""
+SENDER="0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
 if [ "$1" = "WithdrawRequestManager" ]; then
     SCRIPT_NAME="DeployWithdrawManager"
 elif [ "$1" = "LendingRouter" ]; then

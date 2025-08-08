@@ -85,7 +85,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     /// @dev By default we can use the withdraw request manager to stake the tokens
     function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal override virtual {
         ERC20(asset).approve(address(withdrawRequestManager), assets);
-        uint256 yieldTokens = withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
+        withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
     }
 
     function _redeemShares(

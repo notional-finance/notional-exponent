@@ -46,29 +46,46 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     function getRedeemData(address user, uint256 amount) internal view virtual returns (bytes memory);
 
     function run() public {
-        require(proxy == address(0), "Vault already deployed");
         address impl = deployVault();
         console.log("Vault implementation deployed at", impl);
 
-        proxy = deployProxy(impl, abi.encode(name(), symbol()));
-        console.log("Vault proxy deployed at", address(proxy));
+        MethodCall[] memory calls;
+        bool isUpgrade = false;
+        if (proxy == address(0)) {
+            proxy = deployProxy(impl, abi.encode(name(), symbol()));
+            console.log("Vault proxy deployed at", address(proxy));
 
-        MethodCall[] memory setup = postDeploySetup();
-        MethodCall[] memory calls = new MethodCall[](setup.length + 1);
+            MethodCall[] memory setup = postDeploySetup();
+            calls = new MethodCall[](setup.length + 1);
 
-        for (uint256 i = 0; i < setup.length; i++) {
-            calls[i] = setup[i];
+            for (uint256 i = 0; i < setup.length; i++) {
+                calls[i] = setup[i];
+            }
+            calls[calls.length - 1] = MethodCall({
+                to: address(ADDRESS_REGISTRY),
+                value: 0,
+                callData: abi.encodeWithSelector(AddressRegistry.setWhitelistedVault.selector, proxy, true)
+            });
+        } else {
+            isUpgrade = true;
+            console.log("Existing proxy at", proxy);
+            calls = new MethodCall[](1);
+            calls[0] = MethodCall({
+                to: proxy,
+                value: 0,
+                callData: abi.encodeWithSelector(TimelockUpgradeableProxy.initiateUpgrade.selector, impl)
+            });
         }
-        calls[calls.length - 1] = MethodCall({
-            to: address(ADDRESS_REGISTRY),
-            value: 0,
-            callData: abi.encodeWithSelector(AddressRegistry.setWhitelistedVault.selector, proxy, true)
-        });
 
         vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
         for (uint256 i = 0; i < calls.length; i++) {
             (bool success, ) = calls[i].to.call(calls[i].callData);
             if (!success) revert("Failed to call");
+        }
+        if (isUpgrade) {
+            vm.warp(block.timestamp + 7 days);
+            TimelockUpgradeableProxy(payable(proxy)).executeUpgrade(bytes(""));
+            ITradingModule(TRADING_MODULE).setMaxOracleFreshness(type(uint32).max);
         }
         vm.stopPrank();
 
