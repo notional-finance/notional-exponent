@@ -118,6 +118,10 @@ templates:
           file: ./abis/IPPrincipalToken.json
         - name: MorphoLendingRouter
           file: ./abis/MorphoLendingRouter.json
+        - name: AddressRegistry
+          file: ./abis/AddressRegistry.json
+        - name: IWithdrawRequestManager
+          file: ./abis/IWithdrawRequestManager.json
       entities:
         - LendingRouter
       eventHandlers:

@@ -80,11 +80,13 @@ export function updateWithdrawRequestManagerOracles(wrm: Address, block: ethereu
   let base = getToken(w.STAKING_TOKEN().toHexString());
   let quote = getToken(w.YIELD_TOKEN().toHexString());
   let oracle = getOracle(base, quote, "WithdrawRequestManagerOracleRate");
-  let latestRate = w.getExchangeRate();
-  oracle.decimals = base.decimals;
-  oracle.ratePrecision = base.precision;
-  oracle.oracleAddress = wrm;
-  updateExchangeRate(oracle, latestRate, block);
+  let latestRate = w.try_getExchangeRate();
+  if (!latestRate.reverted) {
+    oracle.decimals = base.decimals;
+    oracle.ratePrecision = base.precision;
+    oracle.oracleAddress = wrm;
+    updateExchangeRate(oracle, latestRate.value, block);
+  }
 }
 
 export function registerChainlinkOracle(

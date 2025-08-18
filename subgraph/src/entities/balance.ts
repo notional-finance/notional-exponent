@@ -429,10 +429,13 @@ function getInterestAccumulator(v: IYieldStrategy, strategy: string): BigInt {
     let wrm = r.getWithdrawRequestManager(yieldToken);
     if (wrm != Address.zero()) {
       let w = IWithdrawRequestManager.bind(wrm);
-      return w.getExchangeRate();
-    } else {
-      return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
+      let r = w.try_getExchangeRate();
+      if (!r.reverted) {
+        return r.value;
+      }
     }
+
+    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
   } else {
     // NOTE: this can go negative if the price goes down.
     return v.convertToAssets(DEFAULT_PRECISION);

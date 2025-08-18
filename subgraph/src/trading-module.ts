@@ -131,8 +131,8 @@ function getTradingModulePermissions(sender: Address, token: Address, event: eth
     permissions.name = nameSymbol[0];
     permissions.symbol = nameSymbol[1];
 
-    let t = getToken(token.toHexString());
-    if (t.get("symbol") !== null) {
+    let entity = Token.load(token.toHexString());
+    if (entity != null) {
       // Only set the token link if the asset exists, otherwise just set the
       // token address
       permissions.token = token.toHexString();
