@@ -294,7 +294,40 @@ python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef123
 python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
-#### 3. List Supported Vaults
+#### 3. Withdraw from Morpho
+
+Withdraws all supplied assets from a Morpho market associated with a vault.
+
+**Syntax:**
+```bash
+python action_runner.py withdraw-from-morpho <mode> <vault_address> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py withdraw-from-morpho sim 0x1234567890abcdef1234567890abcdef12345678 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# With gas estimate multiplier (30% increase)
+python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
+```
+
+#### 4. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 
