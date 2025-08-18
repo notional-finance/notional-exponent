@@ -13,7 +13,12 @@ import {
   WithdrawRequestManager as WithdrawRequestManagerTemplate,
   LendingRouter as LendingRouterTemplate,
 } from "../generated/templates";
-import { getOracleRegistry, updateChainlinkOracle, updateVaultOracles } from "./entities/oracles";
+import {
+  getOracleRegistry,
+  updateChainlinkOracle,
+  updateVaultOracles,
+  updateWithdrawRequestManagerOracles,
+} from "./entities/oracles";
 import { Address, ethereum } from "@graphprotocol/graph-ts";
 import { ILendingRouter } from "../generated/AddressRegistry/ILendingRouter";
 
@@ -130,9 +135,9 @@ export function handleBlockOracleUpdate(block: ethereum.Block): void {
     updateVaultOracles(Address.fromBytes(registry.listedVaults[i]), block, registry.lendingRouters);
   }
 
-  // for (let i = 0; i < registry.withdrawRequestManager.length; i++) {
-  //   updateWithdrawRequestManagerOracles(Address.fromBytes(registry.withdrawRequestManager[i]), block);
-  // }
+  for (let i = 0; i < registry.withdrawRequestManager.length; i++) {
+    updateWithdrawRequestManagerOracles(Address.fromBytes(registry.withdrawRequestManager[i]), block);
+  }
 }
 
 // export function handleFeeReceiverTransferred(

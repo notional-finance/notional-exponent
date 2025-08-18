@@ -53,6 +53,9 @@ export function handleEnterPosition(event: EnterPosition): void {
       event.address,
       event,
     );
+  } else {
+    // This still initializes the borrow share token object.
+    getBorrowShare(event.params.vault, event.address, event);
   }
 
   if (event.params.vaultSharesReceived.gt(BigInt.zero())) {

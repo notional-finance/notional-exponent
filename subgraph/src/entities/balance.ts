@@ -569,7 +569,7 @@ export function updateSnapshotMetrics(
   snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(tokenAmount);
 
   // This is the total realized cost of the balance in the underlying (i.e. asset token)
-  if (tokenAmount.lt(BigInt.zero())) {
+  if (tokenAmount.lt(BigInt.zero()) && snapshot.previousBalance.gt(BigInt.zero())) {
     // Scale down the cost basis when the token amount decreases
     snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized
       .times(snapshot.currentBalance)

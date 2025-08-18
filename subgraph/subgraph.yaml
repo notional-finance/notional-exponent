@@ -60,7 +60,40 @@ dataSources:
           handler: handleWithdrawRequestManagerSet
       blockHandlers:
         - handler: handleBlockOracleUpdate
+          filter:
+            kind: polling
+            every: 1600 # approx every 6 hours
       file: ./src/address-registry.ts
+  - name: TradingModule
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      address: "0x594734c7e06C3D483466ADBCe401C6Bd269746C8"
+      abi: ITradingModule
+      startBlock: 23027728
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/trading-module.ts
+      entities:
+        - Oracle
+      abis:
+        - name: Aggregator
+          file: ./abis/AggregatorV2V3Interface.json
+        - name: ITradingModule
+          file: ./abis/ITradingModule.json
+        - name: IERC20Metadata
+          file: ./abis/IERC20Metadata.json
+      eventHandlers:
+        - event: PriceOracleUpdated(address,address)
+          handler: handlePriceOracleUpdate
+        - event: TokenPermissionsUpdated(address,address,(bool,uint32,uint32))
+          handler: handleTokenPermissionsUpdate
+      blockHandlers:
+        - handler: handleInitialOracles
+          filter:
+            kind: once
 templates:
   - name: LendingRouter
     kind: ethereum/contract

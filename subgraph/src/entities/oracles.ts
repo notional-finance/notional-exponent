@@ -5,6 +5,7 @@ import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
 import { DEFAULT_PRECISION, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/AddressRegistry/ILendingRouter";
 import { Aggregator } from "../../generated/AddressRegistry/Aggregator";
+import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
 
 const ORACLE_REGISTRY_ID = "0";
 const SIX_HOURS = BigInt.fromI32(21_600);
@@ -71,6 +72,57 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
       borrowShareOracle.oracleAddress = l._address;
       updateExchangeRate(borrowShareOracle, latestRate, block);
     }
+  }
+}
+
+export function updateWithdrawRequestManagerOracles(wrm: Address, block: ethereum.Block): void {
+  let w = IWithdrawRequestManager.bind(wrm);
+  let base = getToken(w.STAKING_TOKEN().toHexString());
+  let quote = getToken(w.YIELD_TOKEN().toHexString());
+  let oracle = getOracle(base, quote, "WithdrawRequestManagerOracleRate");
+  let latestRate = w.getExchangeRate();
+  oracle.decimals = base.decimals;
+  oracle.ratePrecision = base.precision;
+  oracle.oracleAddress = wrm;
+  updateExchangeRate(oracle, latestRate, block);
+}
+
+export function registerChainlinkOracle(
+  baseAsset: Token,
+  quoteAsset: Token,
+  oracleAddress: Address,
+  mustInvert: boolean,
+  event: ethereum.Event,
+): void {
+  let oracle = getOracle(baseAsset, quoteAsset, "Chainlink");
+  oracle.oracleAddress = oracleAddress;
+  oracle.mustInvert = mustInvert;
+  oracle.lastUpdateBlockNumber = event.block.number;
+  oracle.lastUpdateTimestamp = event.block.timestamp.toI32();
+  oracle.lastUpdateTransactionHash = event.transaction.hash;
+
+  if (oracleAddress == ZERO_ADDRESS) {
+    // Set the ETH rate oracle just once to its own hardcoded rate of 1
+    oracle.decimals = 18;
+    oracle.ratePrecision = BigInt.fromI32(10).pow(18);
+    oracle.latestRate = oracle.ratePrecision;
+    oracle.save();
+  } else {
+    let _oracle = Aggregator.bind(oracleAddress);
+    let decimals = _oracle.decimals();
+    oracle.decimals = decimals;
+    oracle.ratePrecision = BigInt.fromI32(10).pow(decimals as u8);
+
+    // Will call oracle.save inside
+    updateChainlinkOracle(oracle, event.block);
+  }
+
+  let registry = getOracleRegistry();
+  let chainlinkOracles = registry.chainlinkOracles;
+  if (!chainlinkOracles.includes(oracle.id)) {
+    chainlinkOracles.push(oracle.id);
+    registry.chainlinkOracles = chainlinkOracles;
+    registry.save();
   }
 }
 

@@ -12,3 +12,4 @@ export const RATE_PRECISION = BigInt.fromI32(10).pow(9);
 export const SHARE_PRECISION = BigInt.fromI32(10).pow(24);
 export const SHARE_DECIMALS = 24;
 export const ADDRESS_REGISTRY = Address.fromHexString("0xe335d314BD4eF7DD44F103dC124FEFb7Ce63eC95");
+export const USD_ASSET_ID = "0x000000000000000000000000000000000000F147";
