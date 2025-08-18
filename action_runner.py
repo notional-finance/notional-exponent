@@ -53,7 +53,8 @@ class ActionRunner:
     def create_initial_position(self, vault_address: str, initial_deposit: str, 
                               initial_supply: str, initial_borrow: str,
                               mode: str, sender_address: Optional[str] = None,
-                              account_name: Optional[str] = None) -> bool:
+                              account_name: Optional[str] = None,
+                              gas_estimate_multiplier: Optional[int] = None) -> bool:
         """Execute CreateInitialPosition action."""
         try:
             # Validate inputs
@@ -96,14 +97,22 @@ class ActionRunner:
                 data=deposit_data_hex,
                 mode=mode,
                 sender_address=sender_address,
-                account_name=account_name
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
             )
             
             # Execute forge command
             print("Executing forge command...")
             print(" ".join(forge_cmd))
             
-            result = subprocess.run(forge_cmd, capture_output=True, text=True)
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
                 print("✓ Initial position created successfully!")
@@ -122,20 +131,15 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
-    def exit_position_and_withdraw(self, vault_address: str, initial_deposit: str,
-                                 initial_supply: str, initial_borrow: str,
-                                 min_purchase_amount: str, mode: str,
-                                 sender_address: Optional[str] = None,
-                                 account_name: Optional[str] = None) -> bool:
+    def exit_position_and_withdraw(self, vault_address: str, min_purchase_amount: str,
+                                 mode: str, sender_address: Optional[str] = None,
+                                 account_name: Optional[str] = None,
+                                 gas_estimate_multiplier: Optional[int] = None) -> bool:
         """Execute ExitPositionAndWithdraw action."""
         try:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
-            
-            initial_deposit_decimal = InputValidator.validate_decimal_amount(initial_deposit)
-            initial_supply_decimal = InputValidator.validate_decimal_amount(initial_supply)
-            initial_borrow_decimal = InputValidator.validate_decimal_amount(initial_borrow)
             min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
             
             # Get vault implementation
@@ -144,10 +148,7 @@ class ActionRunner:
                 print(f"Error: No vault implementation found for address {vault_address}")
                 return False
             
-            # Scale user inputs
-            scaled_deposit = vault.scale_user_input(initial_deposit_decimal)
-            scaled_supply = vault.scale_user_input(initial_supply_decimal)
-            scaled_borrow = vault.scale_user_input(initial_borrow_decimal)
+            # Scale user input
             scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
             
             # Get redeem data
@@ -155,20 +156,25 @@ class ActionRunner:
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
             
             # Build and execute forge command
-            forge_cmd = self._build_forge_command(
-                action_script="script/actions/ExitPositionAndWithdraw.sol",
+            forge_cmd = self._build_exit_forge_command(
                 vault_address=vault_address,
-                initial_supply=scaled_supply,
-                initial_borrow=scaled_borrow,
-                initial_deposit=scaled_deposit,
                 data=redeem_data_hex,
                 mode=mode,
                 sender_address=sender_address,
-                account_name=account_name
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
             )
             
             print("Executing forge command...")
-            result = subprocess.run(forge_cmd, capture_output=True, text=True)
+            
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
                 print("✓ Position exited and withdrawn successfully!")
@@ -191,7 +197,8 @@ class ActionRunner:
                            initial_supply: int, initial_borrow: int,
                            initial_deposit: int, data: str, mode: str,
                            sender_address: Optional[str] = None,
-                           account_name: Optional[str] = None) -> list[str]:
+                           account_name: Optional[str] = None,
+                           gas_estimate_multiplier: Optional[int] = None) -> list[str]:
         """Build forge command arguments."""
         cmd = [
             "forge", "script", action_script,
@@ -206,6 +213,12 @@ class ActionRunner:
             cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
             if account_name:
                 cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
         
         # Add function arguments
         cmd.extend([
@@ -213,6 +226,39 @@ class ActionRunner:
             str(initial_supply),
             str(initial_borrow),
             str(initial_deposit),
+            data
+        ])
+        
+        return cmd
+    
+    def _build_exit_forge_command(self, vault_address: str, data: str, mode: str,
+                                sender_address: Optional[str] = None,
+                                account_name: Optional[str] = None,
+                                gas_estimate_multiplier: Optional[int] = None) -> list[str]:
+        """Build forge command arguments for exit position."""
+        cmd = [
+            "forge", "script", "script/actions/ExitPositionAndWithdraw.sol",
+            "--sig", "run(address,bytes)"
+        ]
+        
+        if mode == "sim":
+            cmd.extend(["--fork-url", self.rpc_url])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        elif mode == "exec":
+            cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
+            if account_name:
+                cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
+        
+        # Add function arguments
+        cmd.extend([
+            vault_address,
             data
         ])
         
@@ -234,17 +280,16 @@ def main():
     create_parser.add_argument('initial_borrow', help='Initial borrow amount')
     create_parser.add_argument('--sender', help='Sender address (for sim mode)')
     create_parser.add_argument('--account', help='Account name (for exec mode)')
+    create_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # Exit position command
     exit_parser = subparsers.add_parser('exit-position', help='Exit position and withdraw')
     exit_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
     exit_parser.add_argument('vault_address', help='Vault contract address')
-    exit_parser.add_argument('initial_deposit', help='Initial deposit amount')
-    exit_parser.add_argument('initial_supply', help='Initial supply amount')
-    exit_parser.add_argument('initial_borrow', help='Initial borrow amount')
     exit_parser.add_argument('min_purchase_amount', help='Minimum purchase amount')
     exit_parser.add_argument('--sender', help='Sender address (for sim mode)')
     exit_parser.add_argument('--account', help='Account name (for exec mode)')
+    exit_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # List vaults command
     subparsers.add_parser('list-vaults', help='List supported vault addresses')
@@ -273,7 +318,8 @@ def main():
                 initial_borrow=args.initial_borrow,
                 mode=args.mode,
                 sender_address=args.sender,
-                account_name=args.account
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
             )
             sys.exit(0 if success else 1)
             
@@ -287,13 +333,11 @@ def main():
             
             success = runner.exit_position_and_withdraw(
                 vault_address=args.vault_address,
-                initial_deposit=args.initial_deposit,
-                initial_supply=args.initial_supply,
-                initial_borrow=args.initial_borrow,
                 min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
                 sender_address=args.sender,
-                account_name=args.account
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
             )
             sys.exit(0 if success else 1)
             

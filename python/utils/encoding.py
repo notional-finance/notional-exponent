@@ -14,10 +14,10 @@ class EncodingHelper:
     
     @staticmethod
     def encode_redeem_params(dex_id: int, min_purchase_amount: int, exchange_data: bytes) -> bytes:
-        """Encode RedeemParams struct."""
+        """Encode RedeemParams struct to match Solidity's abi.encode(RedeemParams(...))."""
         return encode(
-            ['uint8', 'uint256', 'bytes'],
-            [dex_id, min_purchase_amount, exchange_data]
+            ['(uint8,uint256,bytes)'],  # Tuple type for the struct
+            [(dex_id, min_purchase_amount, exchange_data)]
         )
     
     @staticmethod

@@ -24,32 +24,35 @@ class Web3Helper:
         
         # Call asset() on the vault to get the asset address
         asset_signature = self.w3.keccak(text="asset()")[:4]
+
+        checksum_address = Web3.to_checksum_address(vault_address)
         
         try:
             # Get asset address from vault
             asset_result = self.w3.eth.call({
-                'to': vault_address,
+                'to': checksum_address,
                 'data': asset_signature.hex()
             })
             asset_address = '0x' + asset_result.hex()[-40:]  # Extract last 20 bytes as address
-            
+
+            checksum_asset_address = Web3.to_checksum_address(asset_address)
             # Get decimals from asset
             decimals_result = self.w3.eth.call({
-                'to': asset_address,
+                'to': checksum_asset_address,
                 'data': decimals_signature.hex()
             })
             return int(decimals_result.hex(), 16)
             
         except Exception as e:
-            print(f"Warning: Could not fetch decimals for vault {vault_address}: {e}")
-            return 18  # Default to 18 decimals
+            raise RuntimeError(f"Failed to fetch decimals for vault {checksum_address}: {e}") from e
     
     def get_contract_call(self, address: str, function_signature: str) -> bytes:
         """Make a contract call and return raw bytes."""
         signature_hash = self.w3.keccak(text=function_signature)[:4]
+        checksum_address = Web3.to_checksum_address(address)
         
         result = self.w3.eth.call({
-            'to': address,
+            'to': checksum_address,
             'data': signature_hash.hex()
         })
         
