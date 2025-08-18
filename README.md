@@ -262,7 +262,7 @@ python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef1
 
 #### 2. Exit Position and Withdraw
 
-Exits an existing position and withdraws funds from a vault.
+Exits an existing position and withdraws funds from Morpho.
 
 **Syntax:**
 ```bash
