@@ -2,13 +2,10 @@ import { Address, ethereum, Bytes, BigInt } from "@graphprotocol/graph-ts";
 import { ExchangeRate, Oracle, OracleRegistry, Token } from "../../generated/schema";
 import { getToken } from "./token";
 import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
-import { DEFAULT_PRECISION, ZERO_ADDRESS } from "../constants";
+import { DEFAULT_PRECISION, ORACLE_REGISTRY_ID, SIX_HOURS, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/AddressRegistry/ILendingRouter";
 import { Aggregator } from "../../generated/AddressRegistry/Aggregator";
 import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
-
-const ORACLE_REGISTRY_ID = "0";
-const SIX_HOURS = BigInt.fromI32(21_600);
 
 export function getOracleRegistry(): OracleRegistry {
   let registry = OracleRegistry.load(ORACLE_REGISTRY_ID);

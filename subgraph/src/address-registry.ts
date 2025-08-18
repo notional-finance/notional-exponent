@@ -5,9 +5,9 @@ import {
 } from "../generated/AddressRegistry/AddressRegistry";
 import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy";
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager";
-import { LendingRouter, Oracle, Vault, WithdrawRequestManager } from "../generated/schema";
+import { LendingRouter, Oracle, OracleRegistry, Vault, WithdrawRequestManager } from "../generated/schema";
 import { createERC20TokenAsset } from "./entities/token";
-import { UNDERLYING, VAULT_SHARE } from "./constants";
+import { ORACLE_REGISTRY_ID, UNDERLYING, VAULT_SHARE } from "./constants";
 import {
   Vault as VaultTemplate,
   WithdrawRequestManager as WithdrawRequestManagerTemplate,
@@ -21,6 +21,7 @@ import {
 } from "./entities/oracles";
 import { Address, ethereum } from "@graphprotocol/graph-ts";
 import { ILendingRouter } from "../generated/AddressRegistry/ILendingRouter";
+import { handleInitialOracles } from "./trading-module";
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {
   const id = event.params.lendingRouter.toHexString();
@@ -120,6 +121,9 @@ export function handleWithdrawRequestManagerSet(event: WithdrawRequestManagerSet
 }
 
 export function handleBlockOracleUpdate(block: ethereum.Block): void {
+  let r = OracleRegistry.load(ORACLE_REGISTRY_ID);
+  if (r === null) handleInitialOracles(block);
+
   let registry = getOracleRegistry();
   registry.lastRefreshBlockNumber = block.number;
   registry.lastRefreshTimestamp = block.timestamp.toI32();

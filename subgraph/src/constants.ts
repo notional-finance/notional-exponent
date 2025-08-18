@@ -13,3 +13,5 @@ export const SHARE_PRECISION = BigInt.fromI32(10).pow(24);
 export const SHARE_DECIMALS = 24;
 export const ADDRESS_REGISTRY = Address.fromHexString("0xe335d314BD4eF7DD44F103dC124FEFb7Ce63eC95");
 export const USD_ASSET_ID = "0x000000000000000000000000000000000000F147";
+export const ORACLE_REGISTRY_ID = "0";
+export const SIX_HOURS = BigInt.fromI32(21_600);

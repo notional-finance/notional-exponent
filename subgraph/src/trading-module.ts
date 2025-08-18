@@ -1,8 +1,8 @@
-import { Address, ethereum, BigInt, dataSource, Bytes } from "@graphprotocol/graph-ts";
+import { Address, ethereum, BigInt, Bytes } from "@graphprotocol/graph-ts";
 import { Token, TradingModulePermission } from "../generated/schema";
 import { PriceOracleUpdated, TokenPermissionsUpdated, ITradingModule } from "../generated/TradingModule/ITradingModule";
 import { USD_ASSET_ID, ZERO_ADDRESS } from "./constants";
-import { createERC20TokenAsset, getToken, getTokenNameAndSymbol } from "./entities/token";
+import { createERC20TokenAsset, getTokenNameAndSymbol } from "./entities/token";
 import { IERC20Metadata } from "../generated/AddressRegistry/IERC20Metadata";
 import { registerChainlinkOracle } from "./entities/oracles";
 
@@ -40,81 +40,79 @@ export function handlePriceOracleUpdate(event: PriceOracleUpdated): void {
 }
 
 export function handleInitialOracles(block: ethereum.Block): void {
-  if (dataSource.network() == "mainnet") {
-    let trading = ITradingModule.bind(
-      Address.fromBytes(Address.fromHexString("0x594734c7e06C3D483466ADBCe401C6Bd269746C8")),
-    );
+  let trading = ITradingModule.bind(
+    Address.fromBytes(Address.fromHexString("0x594734c7e06C3D483466ADBCe401C6Bd269746C8")),
+  );
 
-    // Creates an empty event for method compatibility
-    let event = new ethereum.Event(
+  // Creates an empty event for method compatibility
+  let event = new ethereum.Event(
+    trading._address,
+    BigInt.zero(),
+    BigInt.zero(),
+    null,
+    block,
+    new ethereum.Transaction(
+      Bytes.empty(),
+      BigInt.zero(),
       trading._address,
+      ZERO_ADDRESS,
       BigInt.zero(),
       BigInt.zero(),
-      null,
-      block,
-      new ethereum.Transaction(
-        Bytes.empty(),
-        BigInt.zero(),
-        trading._address,
-        ZERO_ADDRESS,
-        BigInt.zero(),
-        BigInt.zero(),
-        BigInt.zero(),
-        Bytes.empty(),
-        BigInt.zero(),
-      ),
-      new Array<ethereum.EventParam>(),
-      null,
-    );
-    let initialQuoteAssets = [
-      // ETH
-      Address.fromHexString("0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"),
-      // tBTC
-      Address.fromHexString("0x8350b7de6a6a2c1368e7d4bd968190e13e354297"),
-      // WBTC
-      Address.fromHexString("0xf4030086522a5beea4988f8ca5b36dbc97bee88c"),
-      // GHO
-      Address.fromHexString("0x3f12643d3f6f874d39c2a4c9f2cd6f2dbac877fc"),
-      // USDe
-      Address.fromHexString("0xa569d910839ae8865da8f8e70fffb0cba869f961"),
-      // DAI
-      Address.fromHexString("0xaed0c38402a5d19df6e4c03f4e2dced6e29c1ee9"),
-      // PYUSD
-      Address.fromHexString("0x8f1df6d7f2db73eece86a18b4381f4707b918fb1"),
-      // wstETH
-      Address.fromHexString("0x8770d8deb4bc923bf929cd260280b5f1dd69564d"),
-      // sUSDe
-      Address.fromHexString("0xff3bc18ccbd5999ce63e788a1c250a88626ad099"),
-      // USDC
-      Address.fromHexString("0x8fffffd4afb6115b954bd326cbe7b4ba576818f6"),
-      // rsETH
-      Address.fromHexString("0xb676ea4e0a54ffd579effc1f1317c70d671f2028"),
-      // rETH
-      Address.fromHexString("0xa7d273951861cf07df8b0a1c3c934fd41ba9e8eb"),
-      // stETH
-      Address.fromHexString("0xcfe54b5cd566ab89272946f602d76ea879cab4a8"),
-      // BAL
-      Address.fromHexString("0xdf2917806e30300537aeb49a7663062f4d1f2b5f"),
-      // ezETH
-      Address.fromHexString("0xe1ffdc18be251e76fb0a1cbfa6d30692c374c5fc"),
-      // WETH
-      Address.fromHexString("0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"),
-      // weETH
-      Address.fromHexString("0xe47f6c47de1f1d93d8da32309d4db90acdadeeae"),
-      // USDT
-      Address.fromHexString("0x3e7d1eab13ad0104d2750b8863b489d65364e32d"),
-      // osETH
-      Address.fromHexString("0x3d3d7d124b0b80674730e0d31004790559209deb"),
-      // crvUSD
-      Address.fromHexString("0xeef0c605546958c1f899b6fb336c20671f9cd49f"),
-    ];
-    let usdBaseAsset = getUSDAsset(event);
+      BigInt.zero(),
+      Bytes.empty(),
+      BigInt.zero(),
+    ),
+    new Array<ethereum.EventParam>(),
+    null,
+  );
+  let initialQuoteAssets = [
+    // ETH
+    Address.fromHexString("0x0000000000000000000000000000000000000000"),
+    // tBTC
+    Address.fromHexString("0x18084fba666a33d37592fa2633fd49a74dd93a88"),
+    // WBTC
+    Address.fromHexString("0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"),
+    // GHO
+    Address.fromHexString("0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f"),
+    // USDe
+    Address.fromHexString("0x4c9edd5852cd905f086c759e8383e09bff1e68b3"),
+    // DAI
+    Address.fromHexString("0x6b175474e89094c44da98b954eedeac495271d0f"),
+    // PYUSD
+    Address.fromHexString("0x6c3ea9036406852006290770bedfcaba0e23a0e8"),
+    // wstETH
+    Address.fromHexString("0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"),
+    // sUSDe
+    Address.fromHexString("0x9d39a5de30e57443bff2a8307a4256c8797a3497"),
+    // USDC
+    Address.fromHexString("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+    // rsETH
+    Address.fromHexString("0xa1290d69c65a6fe4df752f95823fae25cb99e5a7"),
+    // rETH
+    Address.fromHexString("0xae78736cd615f374d3085123a210448e74fc6393"),
+    // stETH
+    Address.fromHexString("0xae7ab96520de3a18e5e111b5eaab095312d7fe84"),
+    // BAL
+    Address.fromHexString("0xba100000625a3754423978a60c9317c58a424e3d"),
+    // ezETH
+    Address.fromHexString("0xbf5495efe5db9ce00f80364c8b423567e58d2110"),
+    // WETH
+    Address.fromHexString("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+    // weETH
+    Address.fromHexString("0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee"),
+    // USDT
+    Address.fromHexString("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+    // osETH
+    Address.fromHexString("0xf1c9acdc66974dfb6decb12aa385b9cd01190e38"),
+    // crvUSD
+    Address.fromHexString("0xf939e0a03fb07f59a73314e73794be0e57ac1b4e"),
+  ];
+  let usdBaseAsset = getUSDAsset(event);
 
-    for (let i = 0; i < initialQuoteAssets.length; i++) {
-      let quoteAsset = createERC20TokenAsset(Address.fromBytes(initialQuoteAssets[i]), event, "Underlying");
-      let oracle = trading.priceOracles(Address.fromBytes(initialQuoteAssets[i]));
-      registerChainlinkOracle(usdBaseAsset, quoteAsset, oracle.getOracle(), false, event);
-    }
+  for (let i = 0; i < initialQuoteAssets.length; i++) {
+    let quoteAsset = createERC20TokenAsset(Address.fromBytes(initialQuoteAssets[i]), event, "Underlying");
+    let oracle = trading.priceOracles(Address.fromBytes(initialQuoteAssets[i]));
+    registerChainlinkOracle(usdBaseAsset, quoteAsset, oracle.getOracle(), false, event);
   }
 }
 

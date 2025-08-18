@@ -90,10 +90,6 @@ dataSources:
           handler: handlePriceOracleUpdate
         - event: TokenPermissionsUpdated(address,address,(bool,uint32,uint32))
           handler: handleTokenPermissionsUpdate
-      blockHandlers:
-        - handler: handleInitialOracles
-          filter:
-            kind: once
 templates:
   - name: LendingRouter
     kind: ethereum/contract
