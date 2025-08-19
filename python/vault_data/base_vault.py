@@ -21,6 +21,11 @@ class BaseVault(ABC):
         """Get encoded redeem data for this vault."""
         pass
     
+    @abstractmethod
+    def get_withdraw_data(self) -> bytes:
+        """Get encoded withdraw data for this vault."""
+        pass
+    
     def get_asset_decimals(self) -> int:
         """Get the number of decimals for the vault's underlying asset."""
         if self._asset_decimals is None:

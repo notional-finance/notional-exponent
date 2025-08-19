@@ -35,6 +35,10 @@ class Vault_0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae(BaseVault):
         
         return redeem_params
     
+    def get_withdraw_data(self) -> bytes:
+        """Get encoded withdraw data for this vault."""
+        return EncodingHelper.encode_empty_bytes()
+    
     def validate_inputs(self, **kwargs) -> Dict[str, Any]:
         """Validate and process inputs specific to this vault."""
         validated = super().validate_inputs(**kwargs)
