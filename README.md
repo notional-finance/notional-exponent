@@ -274,7 +274,7 @@ python action_runner.py exit-position <mode> <vault_address> <shares_to_redeem> 
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
 - `shares_to_redeem` - Shares to redeem (1e24 precision, e.g., "1.5" for 1.5 shares)
-- `asset_to_repay` - Asset amount to repay (native precision, decimal format)
+- `asset_to_repay` - Asset amount to repay (decimal format)
 - `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
 
 **Mode-specific options:**

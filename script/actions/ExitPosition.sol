@@ -27,6 +27,8 @@ contract ExitPosition is Script {
 
     function exitPosition(
         IYieldStrategy vault,
+        uint256 sharesToRedeem,
+        uint256 assetToRepay,
         bytes memory redeemData
     ) internal {
         ERC20 asset = ERC20(vault.asset());
