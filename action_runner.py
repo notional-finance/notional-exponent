@@ -52,7 +52,8 @@ class ActionRunner:
     
     def create_initial_position(self, vault_address: str, initial_deposit: str, 
                               initial_supply: str, initial_borrow: str,
-                              mode: str, sender_address: Optional[str] = None,
+                              min_purchase_amount: str, mode: str, 
+                              sender_address: Optional[str] = None,
                               account_name: Optional[str] = None,
                               gas_estimate_multiplier: Optional[int] = None) -> bool:
         """Execute CreateInitialPosition action."""
@@ -64,6 +65,7 @@ class ActionRunner:
             initial_deposit_decimal = InputValidator.validate_decimal_amount(initial_deposit)
             initial_supply_decimal = InputValidator.validate_decimal_amount(initial_supply)
             initial_borrow_decimal = InputValidator.validate_decimal_amount(initial_borrow)
+            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
             
             # Get vault implementation
             vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
@@ -78,11 +80,12 @@ class ActionRunner:
             scaled_deposit = vault.scale_user_input(initial_deposit_decimal)
             scaled_supply = vault.scale_user_input(initial_supply_decimal)
             scaled_borrow = vault.scale_user_input(initial_borrow_decimal)
+            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
             
-            print(f"Scaled values - Deposit: {scaled_deposit}, Supply: {scaled_supply}, Borrow: {scaled_borrow}")
+            print(f"Scaled values - Deposit: {scaled_deposit}, Supply: {scaled_supply}, Borrow: {scaled_borrow}, Min Purchase: {scaled_min_purchase}")
             
             # Get deposit data
-            deposit_data = vault.get_deposit_data()
+            deposit_data = vault.get_deposit_data(scaled_min_purchase)
             deposit_data_hex = EncodingHelper.bytes_to_hex(deposit_data)
             
             print(f"Deposit data: {deposit_data_hex}")
@@ -454,6 +457,7 @@ def main():
     create_parser.add_argument('initial_deposit', help='Initial deposit amount')
     create_parser.add_argument('initial_supply', help='Initial supply amount')
     create_parser.add_argument('initial_borrow', help='Initial borrow amount')
+    create_parser.add_argument('min_purchase_amount', help='Minimum purchase amount for slippage protection')
     create_parser.add_argument('--sender', help='Sender address (for sim mode)')
     create_parser.add_argument('--account', help='Account name (for exec mode)')
     create_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
@@ -508,6 +512,7 @@ def main():
                 initial_deposit=args.initial_deposit,
                 initial_supply=args.initial_supply,
                 initial_borrow=args.initial_borrow,
+                min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
                 sender_address=args.sender,
                 account_name=args.account,

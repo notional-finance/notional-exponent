@@ -230,7 +230,7 @@ Creates a new position in a supported vault.
 
 **Syntax:**
 ```bash
-python action_runner.py create-position <mode> <vault_address> <initial_deposit> <initial_supply> <initial_borrow> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py create-position <mode> <vault_address> <initial_deposit> <initial_supply> <initial_borrow> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
@@ -239,6 +239,7 @@ python action_runner.py create-position <mode> <vault_address> <initial_deposit>
 - `initial_deposit` - Initial deposit amount (decimal format, e.g., "1000.5")
 - `initial_supply` - Initial supply amount (decimal format, e.g., "2000.0")
 - `initial_borrow` - Initial borrow amount (decimal format, e.g., "500.0")
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format, e.g., "950.0")
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required) - Address to simulate transaction from
@@ -251,13 +252,13 @@ python action_runner.py create-position <mode> <vault_address> <initial_deposit>
 **Examples:**
 ```bash
 # Simulation mode
-python action_runner.py create-position sim 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py create-position sim 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (50% increase)
-python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 150
+python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 150
 ```
 
 #### 2. Exit Position and Withdraw

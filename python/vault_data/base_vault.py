@@ -12,7 +12,7 @@ class BaseVault(ABC):
         self._asset_decimals: Optional[int] = None
     
     @abstractmethod
-    def get_deposit_data(self) -> bytes:
+    def get_deposit_data(self, min_purchase_amount: int) -> bytes:
         """Get encoded deposit data for this vault."""
         pass
     

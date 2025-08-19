@@ -21,6 +21,15 @@ class EncodingHelper:
         )
     
     @staticmethod
+    def encode_staking_trade_params(trade_type: int, min_purchase_amount: int, 
+                                  exchange_data: bytes, dex_id: int, stake_data: bytes) -> bytes:
+        """Encode StakingTradeParams struct to match Solidity's abi.encode(StakingTradeParams(...))."""
+        return encode(
+            ['(uint8,uint256,bytes,uint16,bytes)'],  # Tuple type for the struct
+            [(trade_type, min_purchase_amount, exchange_data, dex_id, stake_data)]
+        )
+    
+    @staticmethod
     def encode_empty_bytes() -> bytes:
         """Return empty bytes for deposit data."""
         return b""
