@@ -10,6 +10,7 @@ class Vault_0xaf14d06a65c91541a5b2db627ecd1c92d7d9c48b(BaseVault):
     # Constants from the original Solidity file
     USDC_USDe_POOL = "0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72"
     DEX_ID_CURVE_V2 = 7  # From DexId enum: CURVE_V2 = 7
+    LTV = 0.915
     
     def get_deposit_data(self, min_purchase_amount: int) -> bytes:
 

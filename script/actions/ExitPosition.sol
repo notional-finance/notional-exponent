@@ -11,19 +11,21 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
 
-contract ExitPositionAndWithdraw is Script {
+contract ExitPosition is Script {
 
     function run(
         address vaultAddress,
+        uint256 sharesToRedeem,
+        uint256 assetToRepay,
         bytes memory redeemData
     ) public {
-        console.log("Exiting position and withdrawing");
+        console.log("Exiting position");
         IYieldStrategy vault = IYieldStrategy(vaultAddress);
         console.log("Exiting position for vault", vaultAddress);
-        exitPositionAndWithdraw(vault, redeemData);
+        exitPosition(vault, sharesToRedeem, assetToRepay, redeemData);
     }
 
-    function exitPositionAndWithdraw(
+    function exitPosition(
         IYieldStrategy vault,
         bytes memory redeemData
     ) internal {
@@ -46,37 +48,19 @@ contract ExitPositionAndWithdraw is Script {
         uint256 assetBalance = asset.balanceOf(msg.sender);
         console.log("Asset Balance Before: ", assetBalance);
 
-        uint256 assetToRepay = type(uint256).max;
-        
         uint256 balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(msg.sender, address(vault));
         console.log("Balance of Collateral Before Exit Position: ", balance);
 
         vm.startBroadcast();
         MORPHO_LENDING_ROUTER.exitPosition(
-            msg.sender, address(vault), msg.sender, balance, assetToRepay, redeemData
+            msg.sender, address(vault), msg.sender, sharesToRedeem, assetToRepay, redeemData
         );
         vm.stopBroadcast();
 
         assetBalance = asset.balanceOf(msg.sender);
         console.log("Asset Balance After Exit Position: ", assetBalance);
 
-        Position memory p = MORPHO.position(id, msg.sender);
-        uint256 supplyShares = p.supplyShares;
-        console.log("Supply Shares: ", supplyShares);
-
-        console.log("Withdrawing assets from market");
-        vm.startBroadcast();
-        MORPHO.withdraw(marketParams, 0, supplyShares, msg.sender, msg.sender);
-        vm.stopBroadcast();
-
-        assetBalance = asset.balanceOf(msg.sender);
-        console.log("Asset Balance After Withdraw: ", assetBalance);
-
         balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(msg.sender, address(vault));
         console.log("Balance of Collateral After Exit Position: ", balance);
-
-        console.log("Morpho Market After");
-        console.log("Total Supply Assets: ", MORPHO.market(id).totalSupplyAssets);
-        console.log("Total Borrow Assets: ", MORPHO.market(id).totalBorrowAssets);
     }
 }

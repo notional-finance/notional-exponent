@@ -261,13 +261,49 @@ python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef1
 python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 150
 ```
 
-#### 2. Exit Position and Withdraw
+#### 2. Exit Position
 
-Exits an existing position and withdraws funds from Morpho.
+Exits a position with specified shares and asset amounts.
 
 **Syntax:**
 ```bash
-python action_runner.py exit-position <mode> <vault_address> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py exit-position <mode> <vault_address> <shares_to_redeem> <asset_to_repay> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+- `shares_to_redeem` - Shares to redeem (1e24 precision, e.g., "1.5" for 1.5 shares)
+- `asset_to_repay` - Asset amount to repay (native precision, decimal format)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py exit-position sim 0x1234567890abcdef1234567890abcdef12345678 1.5 500.0 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1.5 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# With gas estimate multiplier (20% increase)
+python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1.5 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
+```
+
+#### 3. Exit Position and Withdraw
+
+Exits an existing position and withdraws all funds from a vault.
+
+**Syntax:**
+```bash
+python action_runner.py exit-position-and-withdraw <mode> <vault_address> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
@@ -286,16 +322,16 @@ python action_runner.py exit-position <mode> <vault_address> <min_purchase_amoun
 **Examples:**
 ```bash
 # Simulation mode
-python action_runner.py exit-position sim 0x1234567890abcdef1234567890abcdef12345678 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py exit-position-and-withdraw sim 0x1234567890abcdef1234567890abcdef12345678 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (20% increase)
-python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
+python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
-#### 3. Withdraw from Morpho
+#### 4. Withdraw from Morpho
 
 Withdraws all supplied assets from a Morpho market associated with a vault.
 
@@ -328,7 +364,7 @@ python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890ab
 python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
-#### 4. Initiate Withdraw
+#### 5. Initiate Withdraw
 
 Initiates a withdraw request for vault assets using vault-specific withdraw data.
 
@@ -361,7 +397,7 @@ python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcde
 python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
 ```
 
-#### 5. List Supported Vaults
+#### 6. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 
