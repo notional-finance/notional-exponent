@@ -469,7 +469,56 @@ python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef1
 python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
-#### 8. List Supported Vaults
+#### 8. View Market Details
+
+Queries and displays market parameters for a vault (simulation only).
+
+**Syntax:**
+```bash
+python action_runner.py view-market-details <vault_address> [--sender ADDRESS]
+```
+
+**Arguments (in order):**
+- `vault_address` - The vault contract address (0x...)
+
+**Optional parameters:**
+- `--sender ADDRESS` - Sender address for simulation context
+
+**Examples:**
+```bash
+# Basic market details query
+python action_runner.py view-market-details 0x1234567890abcdef1234567890abcdef12345678
+
+# With sender address
+python action_runner.py view-market-details 0x1234567890abcdef1234567890abcdef12345678 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+```
+
+#### 9. View Account Details
+
+Queries and displays account details including balances and health factors for a specific account in a vault (simulation only).
+
+**Syntax:**
+```bash
+python action_runner.py view-account-details <vault_address> <account_address> [--sender ADDRESS]
+```
+
+**Arguments (in order):**
+- `vault_address` - The vault contract address (0x...)
+- `account_address` - The account address to query (0x...)
+
+**Optional parameters:**
+- `--sender ADDRESS` - Sender address for simulation context
+
+**Examples:**
+```bash
+# Basic account details query
+python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432
+
+# With sender address
+python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+```
+
+#### 10. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 

@@ -417,6 +417,94 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def view_market_details(self, vault_address: str,
+                           sender_address: Optional[str] = None) -> bool:
+        """Execute view market details query (simulation only)."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            
+            print(f"Querying market details for vault {vault_address}")
+            
+            # Build and execute forge command (always in sim mode)
+            forge_cmd = self._build_view_market_details_forge_command(
+                vault_address=vault_address,
+                sender_address=sender_address
+            )
+            
+            print("Executing forge command...")
+            
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+            
+            if result.returncode == 0:
+                print("✓ Market details query completed successfully!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+                
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+    
+    def view_account_details(self, vault_address: str, account_address: str,
+                            sender_address: Optional[str] = None) -> bool:
+        """Execute view account details query (simulation only)."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            account_address = InputValidator.validate_address(account_address)
+            
+            print(f"Querying account details for account {account_address} in vault {vault_address}")
+            
+            # Build and execute forge command (always in sim mode)
+            forge_cmd = self._build_view_account_details_forge_command(
+                vault_address=vault_address,
+                account_address=account_address,
+                sender_address=sender_address
+            )
+            
+            print("Executing forge command...")
+            
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+            
+            if result.returncode == 0:
+                print("✓ Account details query completed successfully!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+                
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+    
     def withdraw_from_morpho(self, vault_address: str, mode: str,
                            sender_address: Optional[str] = None,
                            account_name: Optional[str] = None,
@@ -770,6 +858,40 @@ class ActionRunner:
         ])
         
         return cmd
+    
+    def _build_view_market_details_forge_command(self, vault_address: str,
+                                               sender_address: Optional[str] = None) -> list[str]:
+        """Build forge command arguments for view market details."""
+        cmd = [
+            "forge", "script", "script/actions/Views.sol",
+            "--sig", "getMarketDetails(address)",
+            "--fork-url", self.rpc_url
+        ]
+        
+        if sender_address:
+            cmd.extend(["--sender", sender_address])
+        
+        # Add function arguments
+        cmd.extend([vault_address])
+        
+        return cmd
+    
+    def _build_view_account_details_forge_command(self, vault_address: str, account_address: str,
+                                                 sender_address: Optional[str] = None) -> list[str]:
+        """Build forge command arguments for view account details."""
+        cmd = [
+            "forge", "script", "script/actions/Views.sol",
+            "--sig", "getAccountDetails(address,address)",
+            "--fork-url", self.rpc_url
+        ]
+        
+        if sender_address:
+            cmd.extend(["--sender", sender_address])
+        
+        # Add function arguments
+        cmd.extend([vault_address, account_address])
+        
+        return cmd
 
 
 def main():
@@ -847,6 +969,17 @@ def main():
     flash_liquidate_parser.add_argument('--sender', help='Sender address (for sim mode)')
     flash_liquidate_parser.add_argument('--account', help='Account name (for exec mode)')
     flash_liquidate_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
+    
+    # View market details command (simulation only)
+    view_market_parser = subparsers.add_parser('view-market-details', help='View market details for a vault (simulation only)')
+    view_market_parser.add_argument('vault_address', help='Vault contract address')
+    view_market_parser.add_argument('--sender', help='Sender address (optional)')
+    
+    # View account details command (simulation only)
+    view_account_parser = subparsers.add_parser('view-account-details', help='View account details for a vault (simulation only)')
+    view_account_parser.add_argument('vault_address', help='Vault contract address')
+    view_account_parser.add_argument('account_address', help='Account address to query')
+    view_account_parser.add_argument('--sender', help='Sender address (optional)')
     
     # List vaults command
     subparsers.add_parser('list-vaults', help='List supported vault addresses')
@@ -990,6 +1123,21 @@ def main():
                 sender_address=args.sender,
                 account_name=args.account,
                 gas_estimate_multiplier=args.gas_estimate_multiplier
+            )
+            sys.exit(0 if success else 1)
+            
+        elif args.action == 'view-market-details':
+            success = runner.view_market_details(
+                vault_address=args.vault_address,
+                sender_address=args.sender
+            )
+            sys.exit(0 if success else 1)
+            
+        elif args.action == 'view-account-details':
+            success = runner.view_account_details(
+                vault_address=args.vault_address,
+                account_address=args.account_address,
+                sender_address=args.sender
             )
             sys.exit(0 if success else 1)
             
