@@ -43,8 +43,9 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
 
   // Vault share price
   let oracle = getOracle(asset, vaultShare, "VaultShareOracleRate");
-  oracle.decimals = 36;
-  oracle.ratePrecision = BigInt.fromI32(10).pow(36);
+  let decimals: u8 = (asset.decimals + 12) as u8;
+  oracle.decimals = decimals;
+  oracle.ratePrecision = BigInt.fromI32(10).pow(decimals);
   oracle.oracleAddress = vault;
   let latestRate = v.price1(ZERO_ADDRESS);
   updateExchangeRate(oracle, latestRate, block);
