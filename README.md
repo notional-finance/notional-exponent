@@ -397,7 +397,42 @@ python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcde
 python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
 ```
 
-#### 6. List Supported Vaults
+#### 6. Max Leverage
+
+Calculates the maximum leverage for a vault position by analyzing collateral balance, borrow shares, price, and LTV parameters.
+
+**Syntax:**
+```bash
+python action_runner.py max-leverage <mode> <vault_address> <rounding_buffer> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+- `rounding_buffer` - Rounding buffer for leverage calculation (integer format, e.g., "1000000000")
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# With gas estimate multiplier (40% increase)
+python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
+```
+
+#### 7. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 

@@ -51,3 +51,14 @@ class InputValidator:
             raise ValidationError("Account name cannot be empty")
         
         return account_name.strip()
+    
+    @staticmethod
+    def validate_integer_amount(amount: str) -> int:
+        """Validate and convert string amount to integer."""
+        try:
+            int_amount = int(amount)
+            if int_amount < 0:
+                raise ValidationError("Amount cannot be negative")
+            return int_amount
+        except (ValueError, TypeError):
+            raise ValidationError(f"Invalid integer format: {amount}")

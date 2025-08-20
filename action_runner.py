@@ -273,6 +273,73 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def max_leverage(self, vault_address: str, rounding_buffer: str, min_purchase_amount: str, mode: str,
+                    sender_address: Optional[str] = None, account_name: Optional[str] = None,
+                    gas_estimate_multiplier: Optional[int] = None) -> bool:
+        """Execute MaxLeverage action."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            mode = InputValidator.validate_mode(mode)
+            rounding_buffer_int = InputValidator.validate_integer_amount(rounding_buffer)
+            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            
+            # Get vault implementation
+            vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
+            if not vault:
+                print(f"Error: No vault implementation found for address {vault_address}")
+                return False
+            
+            print(f"Calculating max leverage for vault {vault_address}")
+            
+            # Scale user input
+            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
+            
+            # Get redeem data
+            redeem_data = vault.get_redeem_data(scaled_min_purchase)
+            redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
+            
+            print(f"Redeem data: {redeem_data_hex}")
+            
+            # Build and execute forge command
+            forge_cmd = self._build_max_leverage_forge_command(
+                vault_address=vault_address,
+                rounding_buffer=str(rounding_buffer_int),
+                data=redeem_data_hex,
+                mode=mode,
+                sender_address=sender_address,
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
+            )
+            
+            print("Executing forge command...")
+            
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+            
+            if result.returncode == 0:
+                print("✓ Max leverage calculation completed successfully!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+                
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+    
     def withdraw_from_morpho(self, vault_address: str, mode: str,
                            sender_address: Optional[str] = None,
                            account_name: Optional[str] = None,
@@ -555,6 +622,40 @@ class ActionRunner:
         ])
         
         return cmd
+    
+    def _build_max_leverage_forge_command(self, vault_address: str, rounding_buffer: str, data: str, mode: str,
+                                        sender_address: Optional[str] = None,
+                                        account_name: Optional[str] = None,
+                                        gas_estimate_multiplier: Optional[int] = None) -> list[str]:
+        """Build forge command arguments for max leverage calculation."""
+        cmd = [
+            "forge", "script", "script/actions/MaxLeverage.sol",
+            "--sig", "run(address,uint256,bytes)"
+        ]
+        
+        if mode == "sim":
+            cmd.extend(["--fork-url", self.rpc_url])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        elif mode == "exec":
+            cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
+            if account_name:
+                cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
+        
+        # Add function arguments
+        cmd.extend([
+            vault_address,
+            rounding_buffer,
+            data
+        ])
+        
+        return cmd
 
 
 def main():
@@ -610,6 +711,16 @@ def main():
     initiate_parser.add_argument('--sender', help='Sender address (for sim mode)')
     initiate_parser.add_argument('--account', help='Account name (for exec mode)')
     initiate_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
+    
+    # Max leverage command
+    max_leverage_parser = subparsers.add_parser('max-leverage', help='Calculate maximum leverage for a vault position')
+    max_leverage_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
+    max_leverage_parser.add_argument('vault_address', help='Vault contract address')
+    max_leverage_parser.add_argument('rounding_buffer', help='Rounding buffer for leverage calculation')
+    max_leverage_parser.add_argument('min_purchase_amount', help='Minimum purchase amount for slippage protection')
+    max_leverage_parser.add_argument('--sender', help='Sender address (for sim mode)')
+    max_leverage_parser.add_argument('--account', help='Account name (for exec mode)')
+    max_leverage_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # List vaults command
     subparsers.add_parser('list-vaults', help='List supported vault addresses')
@@ -709,6 +820,25 @@ def main():
             
             success = runner.initiate_withdraw(
                 vault_address=args.vault_address,
+                mode=args.mode,
+                sender_address=args.sender,
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
+            )
+            sys.exit(0 if success else 1)
+            
+        elif args.action == 'max-leverage':
+            if args.mode == 'sim' and not args.sender:
+                print("Error: --sender is required for sim mode")
+                sys.exit(1)
+            if args.mode == 'exec' and not args.account:
+                print("Error: --account is required for exec mode")
+                sys.exit(1)
+            
+            success = runner.max_leverage(
+                vault_address=args.vault_address,
+                rounding_buffer=args.rounding_buffer,
+                min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
                 sender_address=args.sender,
                 account_name=args.account,
