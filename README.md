@@ -432,7 +432,44 @@ python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef1234
 python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
 ```
 
-#### 7. List Supported Vaults
+#### 7. Flash Liquidate
+
+Performs flash liquidation of an account using Morpho's flash loan functionality to liquidate collateral and repay borrowed assets.
+
+**Syntax:**
+```bash
+python action_runner.py flash-liquidate <mode> <vault_address> <liquidate_account> <shares_to_liquidate> <assets_to_borrow> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+- `liquidate_account` - Address of the account to liquidate (0x...)
+- `shares_to_liquidate` - Shares to liquidate (1e24 precision, e.g., "1.5" for 1.5 shares)
+- `assets_to_borrow` - Assets to borrow via flash loan (decimal format)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py flash-liquidate sim 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# With gas estimate multiplier (30% increase)
+python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
+```
+
+#### 8. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 

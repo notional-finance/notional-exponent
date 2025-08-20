@@ -340,6 +340,83 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def flash_liquidate(self, vault_address: str, liquidate_account: str, shares_to_liquidate: str, 
+                       assets_to_borrow: str, min_purchase_amount: str, mode: str,
+                       sender_address: Optional[str] = None, account_name: Optional[str] = None,
+                       gas_estimate_multiplier: Optional[int] = None) -> bool:
+        """Execute FlashLiquidate action."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            liquidate_account = InputValidator.validate_address(liquidate_account)
+            mode = InputValidator.validate_mode(mode)
+            shares_to_liquidate_decimal = InputValidator.validate_decimal_amount(shares_to_liquidate)
+            assets_to_borrow_decimal = InputValidator.validate_decimal_amount(assets_to_borrow)
+            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            
+            # Get vault implementation
+            vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
+            if not vault:
+                print(f"Error: No vault implementation found for address {vault_address}")
+                return False
+            
+            print(f"Performing flash liquidation for vault {vault_address}")
+            print(f"Liquidating account: {liquidate_account}")
+            print(f"Shares to liquidate: {shares_to_liquidate}")
+            print(f"Assets to borrow: {assets_to_borrow}")
+            
+            # Scale user inputs
+            scaled_shares_to_liquidate = vault.scale_shares_to_1e24_precision(shares_to_liquidate_decimal)
+            scaled_assets_to_borrow = vault.scale_user_input(assets_to_borrow_decimal)
+            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
+            
+            # Get redeem data
+            redeem_data = vault.get_redeem_data(scaled_min_purchase)
+            redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
+            
+            print(f"Redeem data: {redeem_data_hex}")
+            
+            # Build and execute forge command
+            forge_cmd = self._build_flash_liquidate_forge_command(
+                vault_address=vault_address,
+                liquidate_account=liquidate_account,
+                shares_to_liquidate=str(scaled_shares_to_liquidate),
+                assets_to_borrow=str(scaled_assets_to_borrow),
+                data=redeem_data_hex,
+                mode=mode,
+                sender_address=sender_address,
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
+            )
+            
+            print("Executing forge command...")
+            
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+            
+            if result.returncode == 0:
+                print("✓ Flash liquidation completed successfully!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+                
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+    
     def withdraw_from_morpho(self, vault_address: str, mode: str,
                            sender_address: Optional[str] = None,
                            account_name: Optional[str] = None,
@@ -656,6 +733,43 @@ class ActionRunner:
         ])
         
         return cmd
+    
+    def _build_flash_liquidate_forge_command(self, vault_address: str, liquidate_account: str, 
+                                           shares_to_liquidate: str, assets_to_borrow: str, data: str, mode: str,
+                                           sender_address: Optional[str] = None,
+                                           account_name: Optional[str] = None,
+                                           gas_estimate_multiplier: Optional[int] = None) -> list[str]:
+        """Build forge command arguments for flash liquidate."""
+        cmd = [
+            "forge", "script", "script/actions/FlashLiquidate.sol",
+            "--sig", "run(address,address,uint256,uint256,bytes)"
+        ]
+        
+        if mode == "sim":
+            cmd.extend(["--fork-url", self.rpc_url])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        elif mode == "exec":
+            cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
+            if account_name:
+                cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
+        
+        # Add function arguments
+        cmd.extend([
+            vault_address,
+            liquidate_account,
+            shares_to_liquidate,
+            assets_to_borrow,
+            data
+        ])
+        
+        return cmd
 
 
 def main():
@@ -721,6 +835,18 @@ def main():
     max_leverage_parser.add_argument('--sender', help='Sender address (for sim mode)')
     max_leverage_parser.add_argument('--account', help='Account name (for exec mode)')
     max_leverage_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
+    
+    # Flash liquidate command
+    flash_liquidate_parser = subparsers.add_parser('flash-liquidate', help='Perform flash liquidation of an account')
+    flash_liquidate_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
+    flash_liquidate_parser.add_argument('vault_address', help='Vault contract address')
+    flash_liquidate_parser.add_argument('liquidate_account', help='Account to liquidate')
+    flash_liquidate_parser.add_argument('shares_to_liquidate', help='Shares to liquidate (1e24 precision)')
+    flash_liquidate_parser.add_argument('assets_to_borrow', help='Assets to borrow for flash loan')
+    flash_liquidate_parser.add_argument('min_purchase_amount', help='Minimum purchase amount for slippage protection')
+    flash_liquidate_parser.add_argument('--sender', help='Sender address (for sim mode)')
+    flash_liquidate_parser.add_argument('--account', help='Account name (for exec mode)')
+    flash_liquidate_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # List vaults command
     subparsers.add_parser('list-vaults', help='List supported vault addresses')
@@ -838,6 +964,27 @@ def main():
             success = runner.max_leverage(
                 vault_address=args.vault_address,
                 rounding_buffer=args.rounding_buffer,
+                min_purchase_amount=args.min_purchase_amount,
+                mode=args.mode,
+                sender_address=args.sender,
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
+            )
+            sys.exit(0 if success else 1)
+            
+        elif args.action == 'flash-liquidate':
+            if args.mode == 'sim' and not args.sender:
+                print("Error: --sender is required for sim mode")
+                sys.exit(1)
+            if args.mode == 'exec' and not args.account:
+                print("Error: --account is required for exec mode")
+                sys.exit(1)
+            
+            success = runner.flash_liquidate(
+                vault_address=args.vault_address,
+                liquidate_account=args.liquidate_account,
+                shares_to_liquidate=args.shares_to_liquidate,
+                assets_to_borrow=args.assets_to_borrow,
                 min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
                 sender_address=args.sender,
