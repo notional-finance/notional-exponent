@@ -366,7 +366,7 @@ class ActionRunner:
             print(f"Assets to borrow: {assets_to_borrow}")
             
             # Scale user inputs
-            scaled_shares_to_liquidate = vault.scale_shares_to_1e24_precision(shares_to_liquidate_decimal)
+            scaled_shares_to_liquidate = int(shares_to_liquidate_decimal * (10 ** 24))
             scaled_assets_to_borrow = vault.scale_user_input(assets_to_borrow_decimal)
             scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
             
@@ -390,6 +390,7 @@ class ActionRunner:
             )
             
             print("Executing forge command...")
+            print(f"Command: {' '.join(forge_cmd)}")
             
             # Set environment variables for forge
             env = os.environ.copy()
