@@ -19,11 +19,15 @@ function getBorrowSharePrice(
   underlyingToken: Token,
   borrowShare: Token,
 ): BigInt {
-  return borrowAssets
-    .times(DEFAULT_PRECISION)
-    .times(borrowShare.precision)
-    .div(borrowShares)
-    .div(underlyingToken.precision);
+  if (borrowAssets.gt(BigInt.zero())) {
+    return borrowAssets
+      .times(DEFAULT_PRECISION)
+      .times(borrowShare.precision)
+      .div(borrowShares)
+      .div(underlyingToken.precision);
+  } else {
+    return BigInt.zero();
+  }
 }
 
 export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {

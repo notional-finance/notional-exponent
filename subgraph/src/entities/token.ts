@@ -61,6 +61,15 @@ export function createERC20TokenAsset(tokenAddress: Address, event: ethereum.Eve
     token.precision = BigInt.fromI32(10).pow(decimals as u8);
   }
 
+  // Need to override the decimals for the two initially deployed vaults
+  if (
+    tokenAddress == Address.fromHexString("0xaf14d06a65c91541a5b2db627ecd1c92d7d9c48b") ||
+    tokenAddress == Address.fromHexString("0x7f723fee1e65a7d26be51a05af0b5efee4a7d5ae")
+  ) {
+    token.decimals = 24;
+    token.precision = BigInt.fromI32(10).pow(24 as u8);
+  }
+
   token.tokenInterface = "ERC20";
   token.tokenAddress = tokenAddress;
   token.tokenType = tokenType;
