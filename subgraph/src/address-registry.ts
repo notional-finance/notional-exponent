@@ -49,36 +49,43 @@ export function handleLendingRouterSet(event: LendingRouterSet): void {
   r.save();
 }
 
-export function handleWhitelistedVault(event: WhitelistedVault): void {
-  const id = event.params.vault.toHexString();
+export function createVault(address: Address, event: ethereum.Event, isWhitelisted: boolean): Vault {
+  const id = address.toHexString();
   let vault = Vault.load(id);
-  if (!vault) {
-    vault = new Vault(id);
-    vault.firstUpdateBlockNumber = event.block.number;
-    vault.firstUpdateTimestamp = event.block.timestamp.toI32();
-    vault.firstUpdateTransactionHash = event.transaction.hash;
-  }
+  if (vault) return vault;
 
-  vault.isWhitelisted = event.params.isWhitelisted;
+  vault = new Vault(id);
+  vault.firstUpdateBlockNumber = event.block.number;
+  vault.firstUpdateTimestamp = event.block.timestamp.toI32();
+  vault.firstUpdateTransactionHash = event.transaction.hash;
+
+  vault.isWhitelisted = isWhitelisted;
   vault.lastUpdateBlockNumber = event.block.number;
   vault.lastUpdateTimestamp = event.block.timestamp.toI32();
   vault.lastUpdateTransactionHash = event.transaction.hash;
 
-  let yieldStrategy = IYieldStrategy.bind(event.params.vault);
+  let yieldStrategy = IYieldStrategy.bind(address);
   vault.feeRate = yieldStrategy.feeRate();
   vault.yieldToken = createERC20TokenAsset(yieldStrategy.yieldToken(), event, UNDERLYING).id;
   vault.asset = createERC20TokenAsset(yieldStrategy.asset(), event, UNDERLYING).id;
   vault.strategyType = yieldStrategy.strategy();
 
-  let vaultToken = createERC20TokenAsset(event.params.vault, event, VAULT_SHARE);
+  let vaultToken = createERC20TokenAsset(address, event, VAULT_SHARE);
   vault.vaultToken = vaultToken.id;
-  vaultToken.vaultAddress = event.params.vault;
+  vaultToken.vaultAddress = address;
   vaultToken.underlying = vault.asset;
   vaultToken.save();
 
   // These will be listed on approval
   vault.withdrawRequestManagers = [];
+  vault.save();
 
+  return vault;
+}
+
+export function handleWhitelistedVault(event: WhitelistedVault): void {
+  let vault = createVault(event.params.vault, event, event.params.isWhitelisted);
+  vault.isWhitelisted = event.params.isWhitelisted;
   vault.save();
 
   VaultTemplate.create(event.params.vault);

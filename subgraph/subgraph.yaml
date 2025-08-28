@@ -149,6 +149,10 @@ templates:
           file: ./abis/IWithdrawRequestManager.json
         - name: IYieldStrategy
           file: ./abis/IYieldStrategy.json
+        - name: IERC20Metadata
+          file: ./abis/IERC20Metadata.json
+        - name: AddressRegistry
+          file: ./abis/AddressRegistry.json
       entities:
         - WithdrawRequestManager
       eventHandlers:

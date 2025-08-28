@@ -1,4 +1,4 @@
-import { ethereum, store, Address, BigInt } from "@graphprotocol/graph-ts";
+import { ethereum, store, Address, BigInt, log } from "@graphprotocol/graph-ts";
 import {
   ApprovedVault,
   InitiateWithdrawRequest,
@@ -19,6 +19,7 @@ import { loadAccount } from "./entities/account";
 import { convertPrice } from "./lending-router";
 import { IYieldStrategy } from "../generated/templates/WithdrawRequestManager/IYieldStrategy";
 import { UNDERLYING } from "./constants";
+import { createVault } from "./address-registry";
 
 function getWithdrawRequest(
   withdrawRequestManager: Address,
@@ -45,8 +46,11 @@ function getWithdrawRequest(
 }
 
 export function handleApprovedVault(event: ApprovedVault): void {
+  // Create the vault if it is approved before being whitelisted
   let vault = Vault.load(event.params.vault.toHexString());
-  if (!vault) return;
+  if (!vault) {
+    vault = createVault(event.params.vault, event, false);
+  }
 
   let managers = vault.withdrawRequestManagers;
   if (event.params.isApproved) {
