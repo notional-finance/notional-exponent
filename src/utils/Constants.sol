@@ -9,6 +9,7 @@ address constant ALT_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 uint256 constant DEFAULT_PRECISION = 1e18;
 uint256 constant DEFAULT_DECIMALS = 18;
 uint256 constant SHARE_PRECISION = 1e24;
+uint256 constant VIRTUAL_SHARES = 1e6;
 
 uint256 constant COOLDOWN_PERIOD = 5 minutes;
 uint256 constant YEAR = 365 days;

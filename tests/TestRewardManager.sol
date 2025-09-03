@@ -804,4 +804,30 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         lendingRouter.claimRewards(msg.sender, address(y));
     }
 
+    function test_rewardEmissions_noShares() public {
+        vm.prank(owner);
+        rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        deal(address(emissionsToken), address(rm), 365e18);
+        VaultRewardState[] memory rewardStates;
+        (rewardStates, /* */) = rm.getRewardSettings();
+        assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 0);
+        
+        vm.warp(block.timestamp + 30 days);
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        (rewardStates, /* */) = rm.getRewardSettings();
+        assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 0);
+
+        vm.warp(block.timestamp + 1 days);
+
+
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(msg.sender, address(y));
+        (rewardStates, /* */) = rm.getRewardSettings();
+        assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 9999999999999);
+
+        uint256 emissions = emissionsToken.balanceOf(msg.sender);
+        assertApproxEqRel(emissions, 1e18, 0.001e18);
+    }
+
 }

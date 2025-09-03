@@ -21,7 +21,7 @@ import {TokenUtils} from "./utils/TokenUtils.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./interfaces/IWithdrawRequestManager.sol";
 import {Initializable} from "./proxy/Initializable.sol";
-import {ADDRESS_REGISTRY} from "./utils/Constants.sol";
+import {ADDRESS_REGISTRY, VIRTUAL_SHARES} from "./utils/Constants.sol";
 import {ILendingRouter} from "./interfaces/ILendingRouter.sol";
 import {MORPHO} from "./interfaces/Morpho/IMorpho.sol";
 
@@ -32,7 +32,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     using TokenUtils for ERC20;
     using SafeERC20 for ERC20;
 
-    uint256 internal constant VIRTUAL_SHARES = 1e6;
     uint256 internal constant VIRTUAL_YIELD_TOKENS = 1;
     uint256 internal constant SHARE_PRECISION = DEFAULT_PRECISION * VIRTUAL_SHARES;
 
