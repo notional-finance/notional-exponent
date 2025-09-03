@@ -201,16 +201,22 @@ contract CurveConvexLib is BaseLPLib {
 
     function unstakeAndExitPool(
         uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided
-    ) external returns (uint256[] memory exitBalances) {
+    ) external returns (uint256[] memory exitBalances, ERC20[] memory tokens) {
         _unstakeLpTokens(poolClaim);
 
         exitBalances = _exitPool(poolClaim, _minAmounts, isSingleSided);
+        tokens = TOKENS();
 
+        // Any ETH received from exit pool needs to be wrapped back into WETH. Change the
+        // reported token array to WETH accordingly. This also allows us to use a WETH withdraw
+        // request manager.
         if (ASSET == address(WETH)) {
             if (TOKEN_1 == ETH_ADDRESS) {
                 WETH.deposit{value: exitBalances[0]}();
+                tokens[0] = ERC20(address(WETH));
             } else if (TOKEN_2 == ETH_ADDRESS) {
                 WETH.deposit{value: exitBalances[1]}();
+                tokens[1] = ERC20(address(WETH));
             }
         }
     }
@@ -258,6 +264,7 @@ contract CurveConvexLib is BaseLPLib {
             } else {
                 exitBalances[_PRIMARY_INDEX] = ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity_one_coin(
                     // Last two parameters are useEth = true and receiver = this contract
+                    // Return ETH in this case so that we can wrap it back into WETH if required.
                     poolClaim, _PRIMARY_INDEX, _minAmounts[_PRIMARY_INDEX], true, address(this)
                 );
             }
@@ -284,6 +291,7 @@ contract CurveConvexLib is BaseLPLib {
                 // them before and after.
                 ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(
                     // Last two parameters are useEth = true and receiver = this contract
+                    // Return ETH in this case so that we can wrap it back into WETH if required.
                     poolClaim, minAmounts, true, address(this)
                 );
                 exitBalances[0] = TokenUtils.tokenBalance(TOKEN_1) - exitBalances[0];
