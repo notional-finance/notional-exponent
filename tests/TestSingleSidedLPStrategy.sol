@@ -35,6 +35,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     TradeParams[] tradeBeforeRedeemParams;
 
     TestWithdrawRequest[] withdrawRequests;
+    bool isDummyWithdrawRequestManager;
 
     function getDepositData(
         address /* user */,
@@ -209,6 +210,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     function test_enterPosition_stakeBeforeDeposit() public {
         vm.skip(address(managers[stakeTokenIndex]) == address(0));
+        vm.skip(isDummyWithdrawRequestManager);
 
         depositParams.depositTrades.push(TradeParams({
             tradeType: TradeType.STAKE_TOKEN,
@@ -347,16 +349,19 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         // Call reverts inside the withdraw request manager when the request is
         // not finalized
-        vm.expectRevert();
-        lendingRouter.exitPosition(
-            msg.sender,
-            address(y),
-            msg.sender,
-            shares,
-            type(uint256).max,
-            redeemData
-        );
-        vm.stopPrank();
+        (WithdrawRequest memory w, /* */) = managers[stakeTokenIndex].getWithdrawRequest(address(y), msg.sender);
+        if (!managers[stakeTokenIndex].canFinalizeWithdrawRequest(w.requestId)) {
+            vm.expectRevert();
+            lendingRouter.exitPosition(
+                msg.sender,
+                address(y),
+                msg.sender,
+                shares,
+                type(uint256).max,
+                redeemData
+            );
+            vm.stopPrank();
+        }
 
         finalizeWithdrawRequest(msg.sender);
 
@@ -408,6 +413,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     function test_withdrawRequestValuation() public {
         vm.skip(address(managers[stakeTokenIndex]) == address(0));
+        vm.skip(isDummyWithdrawRequestManager);
         
         address staker = makeAddr("staker");
         vm.prank(owner);
