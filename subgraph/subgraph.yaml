@@ -153,6 +153,14 @@ templates:
           file: ./abis/IERC20Metadata.json
         - name: AddressRegistry
           file: ./abis/AddressRegistry.json
+        - name: ITradingModule
+          file: ./abis/ITradingModule.json
+        - name: IPPrincipalToken
+          file: ./abis/IPPrincipalToken.json
+        - name: MorphoLendingRouter
+          file: ./abis/MorphoLendingRouter.json
+        - name: Aggregator
+          file: ./abis/AggregatorV2V3Interface.json
       entities:
         - WithdrawRequestManager
       eventHandlers:

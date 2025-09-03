@@ -77,7 +77,7 @@ export function updateWithdrawRequestManagerOracles(wrm: Address, block: ethereu
   let w = IWithdrawRequestManager.bind(wrm);
   let base = getToken(w.STAKING_TOKEN().toHexString());
   let quote = getToken(w.YIELD_TOKEN().toHexString());
-  let oracle = getOracle(base, quote, "WithdrawRequestManagerOracleRate");
+  let oracle = getOracle(base, quote, "WithdrawTokenExchangeRate");
   let latestRate = w.try_getExchangeRate();
   if (!latestRate.reverted) {
     oracle.decimals = base.decimals;
