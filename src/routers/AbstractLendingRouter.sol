@@ -273,8 +273,10 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         uint256 sharesHeld = balanceOfCollateral(sharesOwner, vault);
 
         // Allows the transfer from the lending market to the sharesOwner
-        IYieldStrategy(vault).allowTransfer(receiver, sharesToRedeem, sharesOwner);
-        _withdrawCollateral(vault, asset, sharesToRedeem, sharesOwner, receiver);
+        if (0 < sharesToRedeem) {
+            IYieldStrategy(vault).allowTransfer(receiver, sharesToRedeem, sharesOwner);
+            _withdrawCollateral(vault, asset, sharesToRedeem, sharesOwner, receiver);
+        }
 
         // If we are not migrating then burn the shares
         if (migrateTo == address(0)) {
