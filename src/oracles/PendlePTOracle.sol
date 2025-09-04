@@ -17,6 +17,7 @@ contract PendlePTOracle is AbstractCustomOracle {
     AggregatorV2V3Interface public immutable baseToUSDOracle;
     int256 public immutable baseToUSDDecimals;
     int256 public immutable ptDecimals;
+    uint256 public immutable ptOraclePrecision;
     bool public immutable invertBase;
 
     constructor (
@@ -26,7 +27,8 @@ contract PendlePTOracle is AbstractCustomOracle {
         bool useSyOracleRate_,
         uint32 twapDuration_,
         string memory description_,
-        address sequencerUptimeOracle_
+        address sequencerUptimeOracle_,
+        uint256 ptOraclePrecision_
     ) AbstractCustomOracle(
         description_,
         sequencerUptimeOracle_
@@ -41,6 +43,9 @@ contract PendlePTOracle is AbstractCustomOracle {
         uint8 _baseDecimals = baseToUSDOracle_.decimals();
         (/* */, address pt, /* */) = IPMarket(pendleMarket_).readTokens();
         uint8 _ptDecimals = ERC20(pt).decimals();
+        // There are times when the SY is not in 18 decimals, the PT oracle
+        // will be returned in different decimals due to the exchange rate difference.
+        ptOraclePrecision = ptOraclePrecision_;
 
         require(_baseDecimals <= 18);
         require(_ptDecimals <= 18);
@@ -62,7 +67,9 @@ contract PendlePTOracle is AbstractCustomOracle {
         uint256 ptRate = useSyOracleRate ?
             PENDLE_ORACLE.getPtToSyRate(pendleMarket, twapDuration) :
             PENDLE_ORACLE.getPtToAssetRate(pendleMarket, twapDuration);
-        return ptRate.toInt();
+        
+        // Normalize the PT rate to 1e18 decimals
+        return (ptRate * 1e18 / ptOraclePrecision).toInt();
     }
 
     function _calculateBaseToQuote() internal view override returns (

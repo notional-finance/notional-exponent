@@ -115,7 +115,8 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
             true,
             15 minutes,
             "Pendle PT",
-            address(0)
+            address(0),
+            1e18
         );
 
         o = new MockOracle(pendleOracle.latestAnswer());
