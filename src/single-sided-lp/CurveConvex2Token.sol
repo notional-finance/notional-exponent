@@ -42,9 +42,8 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         address _yieldToken,
         uint256 _feeRate,
         address _rewardManager,
-        DeploymentParams memory params,
-        IWithdrawRequestManager _withdrawRequestManager
-    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18, _withdrawRequestManager) {
+        DeploymentParams memory params
+    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18) {
         CURVE_POOL_TOKEN = ERC20(params.poolToken);
 
         // We interact with curve pools directly so we never pass the token addresses back
@@ -63,6 +62,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
             type(uint8).max;
 
         LP_LIB = address(new CurveConvexLib(TOKEN_1, TOKEN_2, _asset, _PRIMARY_INDEX, params));
+
+        // Validate that withdraw request managers are either all address(0) or all non-zero
+        _validateWithdrawRequestManagers();
     }
 
     function strategy() public pure override returns (string memory) {
