@@ -59,7 +59,8 @@ interface ILPLib {
         address account,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
-        bytes[] calldata withdrawData
+        bytes[] calldata withdrawData,
+        address forceWithdrawFrom
     ) external returns (uint256[] memory requestIds);
 
     /// @dev Tokenizes a withdraw request during liquidation

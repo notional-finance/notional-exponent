@@ -300,9 +300,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function initiateWithdraw(
         address account,
         uint256 sharesHeld,
-        bytes calldata data
+        bytes calldata data,
+        address forceWithdrawFrom
     ) external onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
-        requestId = _withdraw(account, sharesHeld, data);
+        requestId = _withdraw(account, sharesHeld, data, forceWithdrawFrom);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -311,16 +312,21 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function initiateWithdrawNative(
         bytes memory data
     ) external override nonReentrant returns (uint256 requestId) {
-        requestId = _withdraw(msg.sender, balanceOf(msg.sender), data);
+        requestId = _withdraw(msg.sender, balanceOf(msg.sender), data, address(0));
     }
 
-    function _withdraw(address account, uint256 sharesHeld, bytes memory data) internal returns (uint256 requestId) {
+    function _withdraw(
+        address account,
+        uint256 sharesHeld,
+        bytes memory data,
+        address forceWithdrawFrom
+    ) internal returns (uint256 requestId) {
         if (sharesHeld == 0) revert InsufficientSharesHeld();
 
         // Accrue fees before initiating a withdraw since it will change the effective supply
         _accrueFees();
         uint256 yieldTokenAmount = convertSharesToYieldToken(sharesHeld);
-        requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+        requestId = _initiateWithdraw(account, yieldTokenAmount, sharesHeld, data, forceWithdrawFrom);
         // Revert in the edge case that the withdraw request is not created.
         require(requestId > 0);
         // Escrow the shares after the withdraw since it will change the effective supply
@@ -495,7 +501,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal virtual returns (uint256 requestId);
 
     /// @inheritdoc IYieldStrategy

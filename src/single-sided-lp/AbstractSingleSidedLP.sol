@@ -271,7 +271,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal override returns (uint256 requestId) {
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
@@ -283,7 +284,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         });
 
         bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
-            ILPLib.initiateWithdraw.selector, account, sharesHeld, exitBalances, params.withdrawData
+            ILPLib.initiateWithdraw.selector,
+            account, sharesHeld, exitBalances, params.withdrawData, forceWithdrawFrom
         ));
         uint256[] memory requestIds = abi.decode(result, (uint256[]));
         for (uint256 i; i < requestIds.length; i++) {
@@ -362,7 +364,8 @@ abstract contract BaseLPLib is ILPLib {
         address account,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
-        bytes[] calldata withdrawData
+        bytes[] calldata withdrawData,
+        address forceWithdrawFrom
     ) external override returns (uint256[] memory requestIds) {
         ERC20[] memory tokens = TOKENS();
 
@@ -381,7 +384,8 @@ abstract contract BaseLPLib is ILPLib {
                 account: account,
                 yieldTokenAmount: exitBalances[i],
                 sharesAmount: sharesHeld,
-                data: withdrawData[i]
+                data: withdrawData[i],
+                forceWithdrawFrom: forceWithdrawFrom
             });
         }
     }

@@ -214,7 +214,8 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function initiateWithdraw(
         address account,
         uint256 sharesHeld,
-        bytes calldata data
+        bytes calldata data,
+        address forceWithdrawFrom
     ) external returns (uint256 requestId);
 
     /**

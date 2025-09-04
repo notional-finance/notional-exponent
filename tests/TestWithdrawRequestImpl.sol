@@ -51,7 +51,7 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
         uint256 sharesAmount = initialYieldTokenBalance / 2;
 
         uint256 requestId = manager.initiateWithdraw(
-            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
         );
 
         assertEq(manager.canFinalizeWithdrawRequest(requestId), true);

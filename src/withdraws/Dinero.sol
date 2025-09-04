@@ -59,7 +59,8 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 amountToWithdraw,
-        bytes calldata /* data */
+        bytes calldata /* data */,
+        address /* forceWithdrawFrom */
     ) override internal returns (uint256 requestId) {
         if (YIELD_TOKEN == address(apxETH)) {
             // First redeem the apxETH to pxETH before we initiate the redemption

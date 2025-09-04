@@ -17,7 +17,8 @@ contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 tokensToWithdraw,
-        bytes calldata /* data */
+        bytes calldata /* data */,
+        address /* forceWithdrawFrom */
     ) override internal returns (uint256 requestId) {
         requestId = ++currentRequestId;
         s_withdrawRequestTokens[requestId] = tokensToWithdraw;

@@ -74,11 +74,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal override virtual returns (uint256 requestId) {
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: yieldTokenAmount, sharesAmount: sharesHeld, data: data
+            account: account, yieldTokenAmount: yieldTokenAmount, sharesAmount: sharesHeld, data: data,
+            forceWithdrawFrom: forceWithdrawFrom
         });
     }
 

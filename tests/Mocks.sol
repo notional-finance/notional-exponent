@@ -74,7 +74,7 @@ contract MockYieldStrategy is AbstractYieldStrategy {
         MockWrapperERC20(yieldToken).withdraw(yieldTokensBurned);
     }
 
-    function _initiateWithdraw(address /* account */, uint256 /* yieldTokenAmount */, uint256 /* sharesHeld */, bytes memory /* data */) internal pure override returns (uint256 requestId) {
+    function _initiateWithdraw(address /* account */, uint256 /* yieldTokenAmount */, uint256 /* sharesHeld */, bytes memory /* data */, address /* forceWithdrawFrom */) internal pure override returns (uint256 requestId) {
         requestId = 0;
     }
 
@@ -189,10 +189,11 @@ contract MockRewardVault is RewardManagerMixin {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal override returns (uint256 requestId) {
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
-        requestId = withdrawRequestManager.initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+        requestId = withdrawRequestManager.initiateWithdraw(account, yieldTokenAmount, sharesHeld, data, forceWithdrawFrom);
     }
 
     function __postLiquidation(
