@@ -64,7 +64,7 @@ contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
     }
 
     function unpause() external {
-        if (msg.sender != ADDRESS_REGISTRY.pauseAdmin()) revert Unauthorized(msg.sender);
+        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         isPaused = false;
     }
 

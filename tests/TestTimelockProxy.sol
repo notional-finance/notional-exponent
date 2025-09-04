@@ -32,8 +32,16 @@ contract TestTimelockProxy is Test {
     function setUp() public {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         upgradeOwner = ADDRESS_REGISTRY.upgradeAdmin();
-        pauseOwner = ADDRESS_REGISTRY.pauseAdmin();
+        pauseOwner = makeAddr("pauseOwner");
         feeReceiver = ADDRESS_REGISTRY.feeReceiver();
+
+        vm.startPrank(upgradeOwner);
+        registry.transferPauseAdmin(pauseOwner);
+        vm.stopPrank();
+
+        vm.startPrank(pauseOwner);
+        registry.acceptPauseAdmin();
+        vm.stopPrank();
 
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(
@@ -129,7 +137,7 @@ contract TestTimelockProxy is Test {
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
 
-        vm.prank(pauseOwner);
+        vm.prank(upgradeOwner);
         proxy.unpause();
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
