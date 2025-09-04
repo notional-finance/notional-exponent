@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import {AbstractRewardManager, RewardPoolStorage} from "./AbstractRewardManager.sol";
-import {ICurveGauge} from "../interfaces/Curve/ICurve.sol";
+import {ICurveGauge, MINTER} from "../interfaces/Curve/ICurve.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 
@@ -12,6 +12,7 @@ contract CurveRewardManager is AbstractRewardManager {
     function _executeClaim() internal override {
         address rewardPool = _getRewardPoolSlot().rewardPool;
         ICurveGauge(rewardPool).claim_rewards();
+        MINTER.mint(rewardPool);
     }
 
     function _withdrawFromPreviousRewardPool(RewardPoolStorage memory oldRewardPool) internal override {

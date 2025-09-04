@@ -25,6 +25,12 @@ interface ICurveGauge {
     function reward_data(address token) external view returns (Reward memory);
 }
 
+interface ICurveMinter {
+    function mint(address gauge) external;
+}
+
+ICurveMinter constant MINTER = ICurveMinter(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
+
 interface ICurvePool {
     function coins(uint256 idx) external view returns (address);
 
