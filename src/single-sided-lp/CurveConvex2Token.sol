@@ -171,9 +171,6 @@ contract CurveConvexLib is BaseLPLib {
     }
 
     function initialApproveTokens() external {
-        // If either token is ETH_ADDRESS the check approve will short circuit
-        ERC20(TOKEN_1).checkApprove(address(CURVE_POOL), type(uint256).max);
-        ERC20(TOKEN_2).checkApprove(address(CURVE_POOL), type(uint256).max);
         if (CONVEX_BOOSTER != address(0)) {
             CURVE_POOL_TOKEN.checkApprove(address(CONVEX_BOOSTER), type(uint256).max);
         } else {
@@ -223,6 +220,9 @@ contract CurveConvexLib is BaseLPLib {
     function _enterPool(
         uint256[] memory _amounts, uint256 minPoolClaim, uint256 msgValue
     ) internal returns (uint256) {
+        if (0 < _amounts[0]) ERC20(TOKEN_1).checkApprove(address(CURVE_POOL), _amounts[0]);
+        if (0 < _amounts[1]) ERC20(TOKEN_2).checkApprove(address(CURVE_POOL), _amounts[1]);
+
         if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
             return ICurveStableSwapNG(CURVE_POOL).add_liquidity{value: msgValue}(
                 _amounts, minPoolClaim
