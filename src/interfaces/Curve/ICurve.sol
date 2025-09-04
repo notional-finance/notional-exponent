@@ -8,9 +8,21 @@ enum CurveInterface {
 }
 
 interface ICurveGauge {
+    struct Reward {
+        address token;
+        address distributor;
+        uint256 period_finish;
+        uint256 rate;
+        uint256 last_update;
+        uint256 integral;
+    }
+
     function claim_rewards() external;
     function deposit(uint256 _value) external;
     function withdraw(uint256 _value) external;
+    function reward_count() external view returns (uint256);
+    function reward_tokens(uint256 idx) external view returns (address);
+    function reward_data(address token) external view returns (Reward memory);
 }
 
 interface ICurvePool {

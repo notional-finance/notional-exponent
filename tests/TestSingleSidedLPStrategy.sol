@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 import "./TestMorphoYieldStrategy.sol";
 import "../src/rewards/ConvexRewardManager.sol";
+import "../src/rewards/CurveRewardManager.sol";
 import "../src/interfaces/IRewardManager.sol";
 import "../src/single-sided-lp/CurveConvex2Token.sol";
 import "../src/single-sided-lp/AbstractSingleSidedLP.sol";
@@ -77,7 +78,6 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     function setMarketVariables() internal virtual;
 
     function deployYieldStrategy() internal override {
-        ConvexRewardManager rmImpl = new ConvexRewardManager();
         invertBase = false;
         // Set default parameters
         managers.push(IWithdrawRequestManager(address(0)));
@@ -114,8 +114,15 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         }));
 
         setMarketVariables();
+        address rmImpl = curveGauge == address(0) ? address(new ConvexRewardManager()) : address(new CurveRewardManager());
         if (usdOracleToken == address(0)) usdOracleToken = address(asset);
-        if (address(w) == address(0)) w = ERC20(rewardPool);
+        if (address(w) == address(0)) {
+            if (rewardPool != address(0)) {
+                w = ERC20(rewardPool);
+            } else {
+                w = ERC20(curveGauge);
+            }
+        }
 
         for (uint256 i = 0; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
@@ -164,10 +171,11 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
     function postDeploySetup() internal override virtual {
         rm = IRewardManager(address(y));
-        if (address(rewardPool) != address(0)) {
+        address p = address(rewardPool) != address(0) ? address(rewardPool) : address(curveGauge);
+        if (p != address(0)) {
             vm.startPrank(owner);
             rm.migrateRewardPool(address(lpToken), RewardPoolStorage({
-                rewardPool: rewardPool,
+                rewardPool: p,
                 forceClaimAfter: 0,
                 lastClaimTimestamp: 0
             }));
@@ -185,15 +193,22 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function test_claimRewards() public {
-        // TODO: test claims on the curve gauge directly
-        vm.skip(rewardPool == address(0));
+        (VaultRewardState[] memory rewardStates, /* */) = rm.getRewardSettings();
+        vm.skip(rewardStates.length == 0);
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.warp(block.timestamp + 1 days);
 
+        // address rewardToken = ICurveGauge(curveGauge).reward_tokens(0);
+        // ICurveGauge.Reward memory r = ICurveGauge(curveGauge).reward_data(rewardToken);
+        // console.log("timestamp", block.timestamp);
+        // console.log("curve gauge reward data", r.period_finish);
+        // console.log("curve gauge reward data", r.rate);
+        // console.log("curve gauge reward data", r.last_update);
+        // console.log("curve gauge reward data", r.integral);
+
         vm.prank(msg.sender);
         lendingRouter.claimRewards(msg.sender, address(y));
-        (VaultRewardState[] memory rewardStates, /* */) = rm.getRewardSettings();
         uint256[] memory rewardsBefore = new uint256[](rewardStates.length);
         for (uint256 i = 0; i < rewardStates.length; i++) {
             rewardsBefore[i] = ERC20(rewardStates[i].rewardToken).balanceOf(msg.sender);

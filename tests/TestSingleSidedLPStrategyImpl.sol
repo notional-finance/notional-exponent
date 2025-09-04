@@ -707,3 +707,22 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
         vm.stopPrank();
     }
 }
+
+contract Test_LP_Curve_USDC_crvUSD_CurveGauge is TestSingleSidedLPStrategy {
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E);
+        curveGauge = 0x95f00391cB5EebCd190EB58728B4CE23DbFa6ac1;
+        asset = USDC;
+        w = ERC20(rewardPool);
+        curveInterface = CurveInterface.V1;
+        primaryIndex = 0;
+        maxPoolShare = 100e18;
+        dyAmount = 1e6;
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.002e18;
+    }
+}
