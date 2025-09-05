@@ -176,12 +176,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function collectFees() external override returns (uint256 feesCollected) {
+    function collectFees() external nonReentrant override returns (uint256 feesCollected) {
         _accrueFees();
         feesCollected = s_accruedFeesInYieldToken / _feeAdjustmentPrecision;
-        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
         s_yieldTokenBalance -= feesCollected;
         s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
+        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
     }
 
     /*** Core Functions ***/
@@ -249,7 +249,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address liquidateAccount,
         uint256 sharesToLiquidate,
         uint256 accountSharesHeld
-    ) external onlyLendingRouter {
+    ) external onlyLendingRouter nonReentrant {
         t_CurrentAccount = liquidateAccount;
         // Liquidator cannot liquidate if they have an active withdraw request, including a tokenized
         // withdraw request.
@@ -269,7 +269,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) external onlyLendingRouter {
+    ) external onlyLendingRouter nonReentrant {
         t_AllowTransfer_To = liquidator;
         t_AllowTransfer_Amount = sharesToLiquidator;
         // Transfer the shares to the liquidator from the lending router
@@ -301,7 +301,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesHeld,
         bytes calldata data,
         address forceWithdrawFrom
-    ) external onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
+    ) external nonReentrant onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
         requestId = _withdraw(account, sharesHeld, data, forceWithdrawFrom);
     }
 
