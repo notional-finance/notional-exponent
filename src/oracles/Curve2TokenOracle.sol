@@ -70,6 +70,11 @@ contract Curve2TokenOracle is AbstractLPOracle {
         uint256 primaryPrecision = 10 ** decimals[PRIMARY_INDEX];
         uint256 secondaryPrecision = 10 ** decimals[SECONDARY_INDEX];
 
+        if (TOKEN_1 == ETH_ADDRESS || TOKEN_2 == ETH_ADDRESS) {
+            // Ensures that we are not inside a reentrancy context
+            ICurvePool(LP_TOKEN).get_virtual_price();
+        }
+
         // `get_dy` returns the price of one unit of the primary token
         // converted to the secondary token. The spot price is in secondary
         // precision and then we convert it to DEFAULT_PRECISION for comparison
