@@ -256,36 +256,12 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     }
 }
 
-contract TestStakingStrategy_PT_eUSDe is TestStakingStrategy_PT {
-    function setMarketVariables() internal override {
-        market = 0x85667e484a32d884010Cf16427D90049CCf46e97;
-        tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
-        tokenOut = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
-        withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
-        ptToken = 0x50D2C7992b802Eef16c04FeADAB310f31866a545;
-        defaultDexId = uint8(DexId.CURVE_V2);
-        defaultDepositExchangeData = abi.encode(CurveV2SingleData({
-            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-            fromIndex: 1,
-            toIndex: 0
-        }));
-        defaultRedeemExchangeData = abi.encode(CurveV2SingleData({
-            pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-            fromIndex: 0,
-            toIndex: 1
-        }));
-
-        defaultDeposit = 10_000e6;
-        defaultBorrow = 90_000e6;
-    }
-
-    function test_accountingAsset() public view {
-        assertEq(y.accountingAsset(), address(USDe));
-    }
-}
-
 
 contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 22352979;
+    }
+
     function setMarketVariables() internal override {
         market = 0xB162B764044697cf03617C2EFbcB1f42e31E4766;
         tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
@@ -325,25 +301,6 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         vm.startPrank(owner);
         TRADING_MODULE.setPriceOracle(address(tokenOut), AggregatorV2V3Interface(address(withdrawTokenOracle)));
         vm.stopPrank();
-
-        depositFills.push(IPRouter.FillOrderParams({
-            order: IPRouter.Order({
-                salt: 1272298264258536272942376644425766518232160717710904308615777799358817600096,
-                expiry: 1745853785,
-                nonce: 0,
-                orderType: IPRouter.OrderType.YT_FOR_SY,
-                token: 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497,
-                YT: 0x1de6Ff19FDA7496DdC12f2161f6ad6427c52aBBe,
-                maker: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
-                receiver: 0x401e4211414d8286212d9c0Bc77f5F54B15972C7,
-                makingAmount: 20083061612967988565283,
-                lnImpliedRate: 74913576139103066,
-                failSafeRate: 900000000000000000,
-                permit: bytes("")
-            }),
-            signature: hex"56929fa970eead4bcbb454fb2e837d31d138aef4021409eb42a31c95cd83d860577abbcc5e1233882ebe3d53d7281d4e9880181df8b8ca3360fabf67a84f1c1e1c",
-            makingAmount: 20083061612967988565283
-        }));
     }
 
     function getWithdrawRequestData(

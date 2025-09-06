@@ -82,6 +82,15 @@ abstract contract TestEnvironment is Test {
         strategyName = "name";
         strategySymbol = "symbol";
         setMaxOracleFreshness();
+        if (address(ADDRESS_REGISTRY).code.length == 0) {
+            address impl = address(new AddressRegistry());
+            deployCodeTo(
+                "TimelockUpgradeableProxy.sol",
+                abi.encode(impl, bytes("")),
+                address(ADDRESS_REGISTRY)
+            );
+            ADDRESS_REGISTRY.initialize(abi.encode(owner, owner, owner));
+        }
 
         deployYieldStrategy();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
