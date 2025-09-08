@@ -55,6 +55,7 @@ interface IWithdrawRequestManager {
     event WithdrawRequestRedeemed(
         address indexed vault,
         address indexed account,
+        uint256 requestId,
         uint256 withdrawYieldTokenAmount,
         uint256 sharesBurned,
         bool isCleared

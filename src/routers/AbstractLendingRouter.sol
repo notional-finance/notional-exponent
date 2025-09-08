@@ -200,6 +200,8 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
 
         // Clear the current account since this method is not called using isAuthorized
         IYieldStrategy(vault).clearCurrentAccount();
+
+        emit ForceWithdraw(account, vault, requestId);
     }
 
     /// @inheritdoc ILendingRouter

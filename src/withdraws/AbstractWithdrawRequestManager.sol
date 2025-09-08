@@ -137,6 +137,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         tokensWithdrawn = _finalizeWithdraw(account, msg.sender, s_withdraw);
 
         // Allows for partial withdrawal of yield tokens
+        uint256 requestId = s_withdraw.requestId;
         bool isCleared = false;
         if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
             tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
@@ -148,7 +149,10 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             isCleared = true;
         }
 
-        emit WithdrawRequestRedeemed(msg.sender, account, withdrawYieldTokenAmount, sharesToBurn, isCleared);
+        emit WithdrawRequestRedeemed(
+            msg.sender, account, requestId,
+            withdrawYieldTokenAmount, sharesToBurn, isCleared
+        );
 
         ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
     }
