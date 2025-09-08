@@ -44,6 +44,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyUpgradeAdmin nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
         uint256 effectiveSupplyBefore = IYieldStrategy(address(this)).effectiveSupply();
+        // Clear the force claim timestamp to ensure that we claim all rewards before migration.
+        // This value will be set to a new value at the end  of this method.
+        _getRewardPoolSlot().forceClaimAfter = 0;
         _claimVaultRewards(effectiveSupplyBefore, _getVaultRewardStateSlot());
         RewardPoolStorage memory oldRewardPool = _getRewardPoolSlot();
 
