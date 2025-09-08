@@ -180,6 +180,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         s_yieldTokenBalance -= feesCollected;
         s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
         _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
+
+        emit FeesCollected(feesCollected);
     }
 
     /*** Core Functions ***/
@@ -277,6 +279,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_CurrentAccount;
+
+        ADDRESS_REGISTRY.emitAccountNativePosition(liquidator, false);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -291,6 +295,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         assetsWithdrawn = _burnShares(sharesToRedeem, sharesHeld, redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
+
+        if (sharesHeld == sharesToRedeem) ADDRESS_REGISTRY.emitAccountNativePosition(msg.sender, true);
     }
 
     /// @inheritdoc IYieldStrategy

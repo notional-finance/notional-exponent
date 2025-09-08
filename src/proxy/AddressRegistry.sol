@@ -148,4 +148,12 @@ contract AddressRegistry is Initializable {
         delete accountPositions[account][vault];
         emit AccountPositionCleared(account, vault, msg.sender);
     }
+
+    function emitAccountNativePosition(address account, bool isCleared) external {
+        // Can only be called by a whitelisted vault
+        require(whitelistedVaults[msg.sender]);
+        if (isCleared) emit AccountPositionCleared(account, msg.sender, address(0));
+        else emit AccountPositionCreated(account, msg.sender, address(0));
+    }
+
 }
