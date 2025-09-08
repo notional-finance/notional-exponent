@@ -60,7 +60,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 poolTokens = ERC20(poolToken).balanceOf(address(this));
         _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
 
-        // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
+        // Set the last claim timestamp to the current block timestamp since we're claiming all the rewards
         // earlier in this method.
         _getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
         _getRewardPoolSlot().rewardPool = newRewardPool.rewardPool;
