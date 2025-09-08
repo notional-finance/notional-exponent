@@ -15,7 +15,7 @@ import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY, DEFAULT_PRECISION} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed, ITradingModule} from "../interfaces/ITradingModule.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, ITradingModule} from "../interfaces/ITradingModule.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 

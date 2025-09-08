@@ -5,7 +5,6 @@ import {ILendingRouter, VaultPosition} from "../interfaces/ILendingRouter.sol";
 import {
     NotAuthorized,
     CannotExitPositionWithinCooldownPeriod,
-    CannotInitiateWithdraw,
     CannotForceWithdraw,
     InvalidLendingRouter,
     NoExistingPosition,

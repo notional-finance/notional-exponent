@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 
 import "./Mocks.sol";
+import "../src/interfaces/ILendingRouter.sol";
 import "../src/proxy/AddressRegistry.sol";
 import "../src/utils/Constants.sol";
 import "../src/AbstractYieldStrategy.sol";

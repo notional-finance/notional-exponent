@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSUL-1.1
 pragma solidity >=0.8.29;
 
-import {IPMarket, IPOracle, PENDLE_ORACLE} from "../interfaces/IPendle.sol";
+import {IPMarket, PENDLE_ORACLE} from "../interfaces/IPendle.sol";
 import {AggregatorV2V3Interface} from "../interfaces/AggregatorV2V3Interface.sol";
 import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";

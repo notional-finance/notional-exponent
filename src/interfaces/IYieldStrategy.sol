@@ -4,8 +4,6 @@ pragma solidity >=0.8.29;
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {IOracle} from "./Morpho/IOracle.sol";
-import {MarketParams} from "./Morpho/IMorpho.sol";
-import {IMorphoLiquidateCallback, IMorphoFlashLoanCallback} from "./Morpho/IMorphoCallbacks.sol";
 
 /**
  * @notice A strategy vault that is specifically designed for leveraged yield

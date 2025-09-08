@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {WithdrawRequestNotFinalized} from "../interfaces/Errors.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {
-    IWithdrawRequestManager,
-    WithdrawRequest,
-    TokenizedWithdrawRequest
-} from "../interfaces/IWithdrawRequestManager.sol";
-import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
-import {Trade, TradeType, TRADING_MODULE} from "../interfaces/ITradingModule.sol";
+import {IWithdrawRequestManager, WithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
+import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
