@@ -56,6 +56,9 @@ contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
         if (block.timestamp < upgradeValidAt) revert InvalidUpgrade();
         if (newImplementation == address(0)) revert InvalidUpgrade();
         ERC1967Utils.upgradeToAndCall(newImplementation, data);
+
+        delete newImplementation;
+        delete upgradeValidAt;
     }
 
     function pause() external {
