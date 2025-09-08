@@ -6,7 +6,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {WETH} from "../utils/Constants.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import "../interfaces/IDinero.sol";
+import {IPirexETH, PirexETH, pxETH, apxETH, upxETH} from "../interfaces/IDinero.sol";
 
 contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
     uint256 public initialBatchId;

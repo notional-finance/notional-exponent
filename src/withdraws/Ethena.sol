@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../interfaces/IEthena.sol";
+import {IsUSDe, sUSDe, USDe} from "../interfaces/IEthena.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";

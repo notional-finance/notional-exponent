@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractRewardManager, RewardPoolStorage} from "./AbstractRewardManager.sol";
+import {AbstractRewardManager} from "./AbstractRewardManager.sol";
+import {RewardPoolStorage} from "../interfaces/IRewardManager.sol";
 import {IConvexRewardPool, IConvexBooster} from "../interfaces/Curve/IConvex.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";

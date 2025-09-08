@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../interfaces/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest, TokenizedWithdrawRequest, StakingTradeParams} from "../interfaces/IWithdrawRequestManager.sol";
 import {Initializable} from "../proxy/Initializable.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import {

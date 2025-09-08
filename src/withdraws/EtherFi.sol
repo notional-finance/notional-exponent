@@ -4,7 +4,7 @@ pragma solidity >=0.8.29;
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {WETH} from "../utils/Constants.sol";
-import "../interfaces/IEtherFi.sol";
+import {weETH, eETH, LiquidityPool, WithdrawRequestNFT} from "../interfaces/IEtherFi.sol";
 
 contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721Holder {
 

@@ -11,6 +11,7 @@ import "../src/staking/PendlePT.sol";
 import "../src/staking/PendlePTLib.sol";
 import "../src/oracles/PendlePTOracle.sol";
 import "../src/staking/PendlePT_sUSDe.sol";
+import {OrderFilledV2} from "../src/interfaces/IPendle.sol";
 
 abstract contract TestStakingStrategy_PT is TestStakingStrategy {
     address internal market;

@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../interfaces/IRewardManager.sol";
+import {IRewardManager, RewardPoolStorage, VaultRewardState} from "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {Unauthorized} from "../interfaces/Errors.sol";
 import {SHARE_PRECISION, ADDRESS_REGISTRY, YEAR, VIRTUAL_SHARES} from "../utils/Constants.sol";

@@ -7,8 +7,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Constants.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../interfaces/Curve/ICurve.sol";
-import "../interfaces/Curve/IConvex.sol";
+import {ICurvePool, ICurve2TokenPoolV1, ICurve2TokenPoolV2, ICurveStableSwapNG, ICurveGauge, CurveInterface} from "../interfaces/Curve/ICurve.sol";
+import {IConvexBooster, IConvexRewardPool} from "../interfaces/Curve/IConvex.sol";
 
 struct DeploymentParams {
     address pool;
