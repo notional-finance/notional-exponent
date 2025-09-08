@@ -21,10 +21,12 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     // Uses custom storage slots to avoid collisions with other contracts
-    uint256 private constant REWARD_POOL_SLOT = 1000001;
-    uint256 private constant VAULT_REWARD_STATE_SLOT = 1000002;
-    uint256 private constant ACCOUNT_REWARD_DEBT_SLOT = 1000003;
-    uint256 private constant ACCOUNT_ESCROW_STATE_SLOT = 1000004;
+    // keccak256("notional.rewardManager.rewardPool")
+    uint256 private constant REWARD_POOL_SLOT = 0xb1630c9ab375319506d0354f42326eb3b0f3cdb4a34062a84700ebef1ece57f6;
+    // keccak256("notional.rewardManager.vaultRewardState")
+    uint256 private constant VAULT_REWARD_STATE_SLOT = 0x5a7d8c54ba64221684d78e9f27720908d8deb4705b6f1336ef8721b7b4329023;
+    // keccak256("notional.rewardManager.accountRewardDebt")
+    uint256 private constant ACCOUNT_REWARD_DEBT_SLOT = 0x61d38dd3c50f8b8521fba47d2736bc704c86cafb37f95969db772cc6ddecd0e5;
 
     function _getRewardPoolSlot() internal pure returns (RewardPoolStorage storage store) {
         assembly { store.slot := REWARD_POOL_SLOT }
@@ -35,7 +37,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     function _getAccountRewardDebtSlot() internal pure returns (
-        mapping(address account => mapping(address rewardToken => uint256 rewardDebt)) storage store
+        mapping(address rewardToken => mapping(address account => uint256 rewardDebt)) storage store
     ) {
         assembly { store.slot := ACCOUNT_REWARD_DEBT_SLOT }
     }
