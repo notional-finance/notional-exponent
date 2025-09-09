@@ -8,10 +8,28 @@ enum CurveInterface {
 }
 
 interface ICurveGauge {
+    struct Reward {
+        address token;
+        address distributor;
+        uint256 period_finish;
+        uint256 rate;
+        uint256 last_update;
+        uint256 integral;
+    }
+
     function claim_rewards() external;
     function deposit(uint256 _value) external;
     function withdraw(uint256 _value) external;
+    function reward_count() external view returns (uint256);
+    function reward_tokens(uint256 idx) external view returns (address);
+    function reward_data(address token) external view returns (Reward memory);
 }
+
+interface ICurveMinter {
+    function mint(address gauge) external;
+}
+
+ICurveMinter constant MINTER = ICurveMinter(0xd061D61a4d941c39E5453435B6345Dc261C2fcE0);
 
 interface ICurvePool {
     function coins(uint256 idx) external view returns (address);
