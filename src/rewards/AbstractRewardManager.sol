@@ -6,7 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {Unauthorized} from "../interfaces/Errors.sol";
-import {SHARE_PRECISION, ADDRESS_REGISTRY, YEAR} from "../utils/Constants.sol";
+import {SHARE_PRECISION, ADDRESS_REGISTRY, YEAR, VIRTUAL_SHARES} from "../utils/Constants.sol";
 import {TypeConvert} from "../utils/TypeConvert.sol";
 import {IEIP20NonStandard} from "../interfaces/IEIP20NonStandard.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
@@ -295,7 +295,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 time = blockTime < state.endTime ? blockTime : state.endTime;
 
         uint256 additionalIncentiveAccumulatedPerVaultShare;
-        if (state.lastAccumulatedTime < time && 0 < effectiveSupplyBefore) {
+        if (state.lastAccumulatedTime < time && VIRTUAL_SHARES < effectiveSupplyBefore) {
             // NOTE: no underflow, checked in if statement
             uint256 timeSinceLastAccumulation = time - state.lastAccumulatedTime;
             // Precision here is:
