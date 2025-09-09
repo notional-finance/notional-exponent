@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import "../interfaces/ISingleSidedLP.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {DEFAULT_PRECISION, ADDRESS_REGISTRY} from "../utils/Constants.sol";
+import {DEFAULT_PRECISION, ADDRESS_REGISTRY, WETH} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
@@ -105,7 +105,10 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         bool hasZeroManager = false;
 
         for (uint256 i; i < tokens.length; i++) {
-            address withdrawRequestManager = address(ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i])));
+            address token = address(tokens[i]);
+            // If the token is address(0), then we use WETH as the withdraw request token
+            if (token == address(0)) token = address(WETH);
+            address withdrawRequestManager = address(ADDRESS_REGISTRY.getWithdrawRequestManager(address(token)));
             
             if (withdrawRequestManager == address(0)) {
                 hasZeroManager = true;
