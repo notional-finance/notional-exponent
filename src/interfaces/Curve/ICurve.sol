@@ -73,6 +73,7 @@ interface ICurve2TokenPoolV2 is ICurvePoolV2 {
     function remove_liquidity_one_coin(uint256 token_amount, uint256 i, uint256 min_amount, bool use_eth, address receiver) external returns (uint256);
     // Curve V2 does not return the amounts removed
     function remove_liquidity(uint256 amount, uint256[2] calldata _min_amounts, bool use_eth, address receiver) external;
+    function claim_admin_fees() external;
 }
 
 interface ICurveStableSwapNG is ICurvePoolV1 {
