@@ -38,7 +38,7 @@ interface ICurvePool {
     // @dev Index values can be found via the `coins` public getter method
     // @dev see: https://etherscan.io/address/0xDC24316b9AE028F1497c275EB9192a3Ea0f67022#readContract
     // @param i Index value for the stEth to send -- 1
-    // @param j Index value of the Eth to recieve -- 0
+    // @param j Index value of the Eth to receive -- 0
     // @param dx Amount of `i` (stEth) being exchanged
     // @param minDy Minimum amount of `j` (Eth) to receive
     // @return Actual amount of `j` (Eth) received

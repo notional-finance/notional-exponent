@@ -5,24 +5,21 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {DEFAULT_DECIMALS, DEFAULT_PRECISION, YEAR, ADDRESS_REGISTRY} from "./utils/Constants.sol";
+import {DEFAULT_DECIMALS, DEFAULT_PRECISION, YEAR, ADDRESS_REGISTRY, VIRTUAL_SHARES} from "./utils/Constants.sol";
 
 import {
     Unauthorized,
     UnauthorizedLendingMarketTransfer,
     InsufficientSharesHeld,
-    CannotLiquidate,
     CannotEnterPosition,
     CurrentAccountAlreadySet
 } from "./interfaces/Errors.sol";
 import {IYieldStrategy} from "./interfaces/IYieldStrategy.sol";
 import {IOracle} from "./interfaces/Morpho/IOracle.sol";
 import {TokenUtils} from "./utils/TokenUtils.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "./interfaces/ITradingModule.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy} from "./interfaces/ITradingModule.sol";
 import {IWithdrawRequestManager} from "./interfaces/IWithdrawRequestManager.sol";
 import {Initializable} from "./proxy/Initializable.sol";
-import {ADDRESS_REGISTRY, VIRTUAL_SHARES} from "./utils/Constants.sol";
-import {ILendingRouter} from "./interfaces/ILendingRouter.sol";
 import {MORPHO} from "./interfaces/Morpho/IMorpho.sol";
 
 /// @title AbstractYieldStrategy
@@ -183,6 +180,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         s_yieldTokenBalance -= feesCollected;
         s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
         _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
+
+        emit FeesCollected(feesCollected);
     }
 
     /*** Core Functions ***/
@@ -280,6 +279,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Clear the transient variables to prevent re-use in a future call.
         delete t_CurrentAccount;
+
+        ADDRESS_REGISTRY.emitAccountNativePosition(liquidator, false);
     }
 
     /// @inheritdoc IYieldStrategy
@@ -294,6 +295,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         assetsWithdrawn = _burnShares(sharesToRedeem, sharesHeld, redeemData, msg.sender);
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
+
+        if (sharesHeld == sharesToRedeem) ADDRESS_REGISTRY.emitAccountNativePosition(msg.sender, true);
     }
 
     /// @inheritdoc IYieldStrategy

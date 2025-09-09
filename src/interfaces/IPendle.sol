@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >=0.8.0;
 
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
 event OrderFilledV2(
     bytes32 indexed orderHash,
     IPRouter.OrderType indexed orderType,
@@ -188,7 +190,6 @@ interface IPMarket {
         );
 }
 
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 interface IStandardizedYield is IERC20Metadata {
     /// @dev Emitted when any base tokens is deposited to mint shares

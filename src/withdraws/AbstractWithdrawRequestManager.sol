@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../interfaces/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest, TokenizedWithdrawRequest, StakingTradeParams} from "../interfaces/IWithdrawRequestManager.sol";
 import {Initializable} from "../proxy/Initializable.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import {
@@ -15,7 +15,7 @@ import {TokenUtils} from "../utils/TokenUtils.sol";
 import {ADDRESS_REGISTRY, DEFAULT_PRECISION} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed, ITradingModule} from "../interfaces/ITradingModule.sol";
+import {Trade, TradeType, TRADING_MODULE, nProxy, ITradingModule} from "../interfaces/ITradingModule.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 
@@ -137,6 +137,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         tokensWithdrawn = _finalizeWithdraw(account, msg.sender, s_withdraw);
 
         // Allows for partial withdrawal of yield tokens
+        uint256 requestId = s_withdraw.requestId;
+        bool isCleared = false;
         if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
             tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
             s_withdraw.sharesAmount -= sharesToBurn.toUint120();
@@ -144,7 +146,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         } else {
             require(s_withdraw.yieldTokenAmount == withdrawYieldTokenAmount);
             delete s_accountWithdrawRequest[msg.sender][account];
+            isCleared = true;
         }
+
+        emit WithdrawRequestRedeemed(
+            msg.sender, account, requestId,
+            withdrawYieldTokenAmount, sharesToBurn, isCleared
+        );
 
         ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
     }

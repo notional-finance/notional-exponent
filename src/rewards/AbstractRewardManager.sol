@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../interfaces/IRewardManager.sol";
+import {IRewardManager, RewardPoolStorage, VaultRewardState} from "../interfaces/IRewardManager.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {Unauthorized} from "../interfaces/Errors.sol";
 import {SHARE_PRECISION, ADDRESS_REGISTRY, YEAR, VIRTUAL_SHARES} from "../utils/Constants.sol";
@@ -21,10 +21,12 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     // Uses custom storage slots to avoid collisions with other contracts
-    uint256 private constant REWARD_POOL_SLOT = 1000001;
-    uint256 private constant VAULT_REWARD_STATE_SLOT = 1000002;
-    uint256 private constant ACCOUNT_REWARD_DEBT_SLOT = 1000003;
-    uint256 private constant ACCOUNT_ESCROW_STATE_SLOT = 1000004;
+    // keccak256("notional.rewardManager.rewardPool")
+    uint256 private constant REWARD_POOL_SLOT = 0xb1630c9ab375319506d0354f42326eb3b0f3cdb4a34062a84700ebef1ece57f6;
+    // keccak256("notional.rewardManager.vaultRewardState")
+    uint256 private constant VAULT_REWARD_STATE_SLOT = 0x5a7d8c54ba64221684d78e9f27720908d8deb4705b6f1336ef8721b7b4329023;
+    // keccak256("notional.rewardManager.accountRewardDebt")
+    uint256 private constant ACCOUNT_REWARD_DEBT_SLOT = 0x61d38dd3c50f8b8521fba47d2736bc704c86cafb37f95969db772cc6ddecd0e5;
 
     function _getRewardPoolSlot() internal pure returns (RewardPoolStorage storage store) {
         assembly { store.slot := REWARD_POOL_SLOT }
@@ -35,7 +37,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     }
 
     function _getAccountRewardDebtSlot() internal pure returns (
-        mapping(address account => mapping(address rewardToken => uint256 rewardDebt)) storage store
+        mapping(address rewardToken => mapping(address account => uint256 rewardDebt)) storage store
     ) {
         assembly { store.slot := ACCOUNT_REWARD_DEBT_SLOT }
     }
@@ -44,6 +46,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
     function migrateRewardPool(address poolToken, RewardPoolStorage memory newRewardPool) external override onlyUpgradeAdmin nonReentrant {
         // Claim all rewards from the previous reward pool before withdrawing
         uint256 effectiveSupplyBefore = IYieldStrategy(address(this)).effectiveSupply();
+        // Clear the force claim timestamp to ensure that we claim all rewards before migration.
+        // This value will be set to a new value at the end  of this method.
+        _getRewardPoolSlot().forceClaimAfter = 0;
         _claimVaultRewards(effectiveSupplyBefore, _getVaultRewardStateSlot());
         RewardPoolStorage memory oldRewardPool = _getRewardPoolSlot();
 
@@ -57,7 +62,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 poolTokens = ERC20(poolToken).balanceOf(address(this));
         _depositIntoNewRewardPool(poolToken, poolTokens, newRewardPool);
 
-        // Set the last claim timestamp to the current block timestamp since we re claiming all the rewards
+        // Set the last claim timestamp to the current block timestamp since we're claiming all the rewards
         // earlier in this method.
         _getRewardPoolSlot().lastClaimTimestamp = uint32(block.timestamp);
         _getRewardPoolSlot().rewardPool = newRewardPool.rewardPool;

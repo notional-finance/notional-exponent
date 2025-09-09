@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../interfaces/ISingleSidedLP.sol";
 import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
 import {DEFAULT_PRECISION, ADDRESS_REGISTRY, WETH} from "../utils/Constants.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
-import {IWithdrawRequestManager, WithdrawRequest, TokenizedWithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
+import {IWithdrawRequestManager, WithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
 import {TokenUtils} from "../utils/TokenUtils.sol";
-import {
-    CannotEnterPosition,
-    WithdrawRequestNotFinalized,
-    PoolShareTooHigh,
-    AssetRemaining
-} from "../interfaces/Errors.sol";
+import {PoolShareTooHigh, AssetRemaining} from "../interfaces/Errors.sol";
+import {ILPLib, TradeParams, DepositParams, RedeemParams, WithdrawParams} from "../interfaces/ISingleSidedLP.sol";
 
 /**
  * @notice Base contract for the SingleSidedLP strategy. This strategy deposits into an LP

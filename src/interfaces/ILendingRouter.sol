@@ -35,6 +35,12 @@ interface ILendingRouter {
         uint256 vaultSharesToLiquidator
     );
 
+    event ForceWithdraw(
+        address indexed account,
+        address indexed vault,
+        uint256 requestId
+    );
+
     /**
      * @dev Returns the name of the lending router.
      *

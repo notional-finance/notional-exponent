@@ -8,6 +8,7 @@ import "../src/withdraws/GenericERC4626.sol";
 import "../src/withdraws/GenericERC20.sol";
 import "../src/withdraws/Origin.sol";
 import "../src/withdraws/Dinero.sol";
+import {sDAI, DAI} from "../src/interfaces/IEthena.sol";
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) public override {

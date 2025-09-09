@@ -52,6 +52,15 @@ interface IWithdrawRequestManager {
         uint256 totalWithdraw
     );
 
+    event WithdrawRequestRedeemed(
+        address indexed vault,
+        address indexed account,
+        uint256 requestId,
+        uint256 withdrawYieldTokenAmount,
+        uint256 sharesBurned,
+        bool isCleared
+    );
+
     /// @notice Returns the token that will be the result of staking
     /// @return yieldToken the yield token of the withdraw request manager
     function YIELD_TOKEN() external view returns (address);

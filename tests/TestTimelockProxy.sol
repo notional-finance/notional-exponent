@@ -86,7 +86,7 @@ contract TestTimelockProxy is Test {
         vm.warp(block.timestamp + proxy.UPGRADE_DELAY() + 1);
         proxy.executeUpgrade(bytes(""));
 
-        assertEq(proxy.newImplementation(), address(timelock2));
+        assertEq(proxy.getImplementation(), address(timelock2));
         vm.stopPrank();
     }
 

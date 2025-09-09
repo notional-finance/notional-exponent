@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 
 import "./Mocks.sol";
+import "../src/interfaces/ILendingRouter.sol";
 import "../src/proxy/AddressRegistry.sol";
 import "../src/utils/Constants.sol";
 import "../src/AbstractYieldStrategy.sol";
@@ -82,6 +83,22 @@ abstract contract TestEnvironment is Test {
         strategyName = "name";
         strategySymbol = "symbol";
         setMaxOracleFreshness();
+        if (address(ADDRESS_REGISTRY).code.length == 0) {
+            address impl = address(new AddressRegistry());
+            deployCodeTo(
+                "TimelockUpgradeableProxy.sol",
+                abi.encode(impl, bytes("")),
+                address(ADDRESS_REGISTRY)
+            );
+            ADDRESS_REGISTRY.initialize(abi.encode(owner, owner, owner));
+        } else {
+            address impl = address(new AddressRegistry());
+            vm.startPrank(owner);
+            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).initiateUpgrade(impl);
+            vm.warp(block.timestamp + 7 days);
+            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).executeUpgrade(bytes(""));
+            vm.stopPrank();
+        }
 
         deployYieldStrategy();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {Trade, TradeType} from "./ITradingModule.sol";
+import {TradeType} from "./ITradingModule.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 struct TradeParams {

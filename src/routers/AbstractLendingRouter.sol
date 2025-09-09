@@ -5,7 +5,6 @@ import {ILendingRouter, VaultPosition} from "../interfaces/ILendingRouter.sol";
 import {
     NotAuthorized,
     CannotExitPositionWithinCooldownPeriod,
-    CannotInitiateWithdraw,
     CannotForceWithdraw,
     InvalidLendingRouter,
     NoExistingPosition,
@@ -19,7 +18,6 @@ import {TokenUtils} from "../utils/TokenUtils.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
 import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
-import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
 import {ADDRESS_REGISTRY, COOLDOWN_PERIOD} from "../utils/Constants.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
@@ -202,6 +200,8 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
 
         // Clear the current account since this method is not called using isAuthorized
         IYieldStrategy(vault).clearCurrentAccount();
+
+        emit ForceWithdraw(account, vault, requestId);
     }
 
     /// @inheritdoc ILendingRouter

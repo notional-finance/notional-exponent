@@ -3,7 +3,7 @@ pragma solidity >=0.8.29;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {WETH} from "../utils/Constants.sol";
-import "../interfaces/IOrigin.sol";
+import {IOriginVault, OriginVault, oETH, wOETH} from "../interfaces/IOrigin.sol";
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
 
