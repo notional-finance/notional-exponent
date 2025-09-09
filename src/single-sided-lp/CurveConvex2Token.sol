@@ -155,9 +155,7 @@ contract CurveConvexLib is BaseLPLib {
             // Total supply on stable swap has a non-reentrant lock
             ICurveStableSwapNG(CURVE_POOL).totalSupply();
         } else if (CURVE_INTERFACE == CurveInterface.V2) {
-            // Curve V2 does a `-1` on the liquidity amount so set the amount removed to 1 to
-            // avoid an underflow.
-            ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(1, minAmounts, true, address(this));
+            ICurve2TokenPoolV2(CURVE_POOL).claim_admin_fees();
         } else {
             revert();
         }
