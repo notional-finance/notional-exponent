@@ -262,7 +262,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         if (isMigrate) {
             // When migrating we do not withdraw any assets and we must repay the entire debt
             // from the previous lending router.
-            ERC20(asset).safeTransferFrom(receiver, address(this), assetToRepay);
+            if (0 < assetToRepay) ERC20(asset).safeTransferFrom(receiver, address(this), assetToRepay);
             assetsWithdrawn = assetToRepay;
         }
 
@@ -276,7 +276,7 @@ contract MorphoLendingRouter is AbstractLendingRouter, IMorphoLiquidateCallback,
         unchecked {
             profitsWithdrawn = assetsWithdrawn - assetToRepay;
         }
-        ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
+        if (0 < profitsWithdrawn) ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
 
         // Allow morpho to repay the debt
         ERC20(asset).checkApprove(address(MORPHO), assetToRepay);
