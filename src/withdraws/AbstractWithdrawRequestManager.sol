@@ -17,6 +17,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Trade, TradeType, TRADING_MODULE, nProxy, ITradingModule} from "../interfaces/ITradingModule.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 
 /**
@@ -29,7 +30,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  * request. It also allows for the withdraw request to be "tokenized" so that shares of the withdraw
  * request can be liquidated.
  */
-abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Initializable {
+abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Initializable, ReentrancyGuardTransient {
 
     using SafeERC20 for ERC20;
     using TypeConvert for uint256;
@@ -85,7 +86,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address depositToken,
         uint256 amount,
         bytes calldata data
-    ) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
+    ) external override onlyApprovedVault nonReentrant returns (uint256 yieldTokensMinted) {
         uint256 initialYieldTokenBalance = ERC20(YIELD_TOKEN).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         (uint256 stakeTokenAmount, bytes memory stakeData) = _preStakingTrade(depositToken, amount, data);
@@ -105,7 +106,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         uint256 sharesAmount,
         bytes calldata data,
         address forceWithdrawFrom
-    ) external override onlyApprovedVault returns (uint256 requestId) {
+    ) external override onlyApprovedVault nonReentrant returns (uint256 requestId) {
         WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
         if (accountWithdraw.requestId != 0) revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
 
@@ -130,7 +131,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         uint256 withdrawYieldTokenAmount,
         uint256 sharesToBurn
-    ) external override onlyApprovedVault returns (uint256 tokensWithdrawn) {
+    ) external override onlyApprovedVault nonReentrant returns (uint256 tokensWithdrawn) {
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][account];
         if (s_withdraw.requestId == 0) return 0;
 
@@ -161,7 +162,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     function finalizeRequestManual(
         address vault,
         address account
-    ) external override returns (uint256 tokensWithdrawn) {
+    ) external override nonReentrant returns (uint256 tokensWithdrawn) {
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[vault][account];
         if (s_withdraw.requestId == 0) revert NoWithdrawRequest(vault, account);
 
@@ -175,7 +176,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address _from,
         address _to,
         uint256 sharesAmount
-    ) external override onlyApprovedVault returns (bool didTokenize) {
+    ) external override onlyApprovedVault nonReentrant returns (bool didTokenize) {
         if (_from == _to) revert();
 
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][_from];
