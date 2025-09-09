@@ -131,6 +131,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
+        require(_reentrancyGuardEntered() == false);
         // Disable direct borrowing from Morpho, but allow any other callers to see
         // the proper price.
         if (msg.sender == address(MORPHO) && t_CurrentAccount == address(0)) return 0;
@@ -138,7 +139,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function price(address borrower) external override returns (uint256) {
+    function price(address borrower) nonReentrant external override returns (uint256) {
         // Do not change the current account in this method since this method is not
         // authenticated and we do not want to have any unexpected side effects.
         address prevCurrentAccount = t_CurrentAccount;
