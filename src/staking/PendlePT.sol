@@ -141,7 +141,8 @@ contract PendlePT is AbstractStakingStrategy {
         address account,
         uint256 ptAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal override returns (uint256 requestId) {
         // Withdraws can only be initiated for expired PTs
         require(PT.isExpired(), "Cannot initiate withdraw for non-expired PTs");
@@ -153,7 +154,8 @@ contract PendlePT is AbstractStakingStrategy {
 
         ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
         return withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: tokenOutSy, sharesAmount: sharesHeld, data: data
+            account: account, yieldTokenAmount: tokenOutSy, sharesAmount: sharesHeld, data: data,
+            forceWithdrawFrom: forceWithdrawFrom
         });
     }
 }

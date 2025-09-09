@@ -117,7 +117,8 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal virtual returns (uint256 requestId);
     
     /// @dev Ensures that the account no longer accrues rewards after a withdraw request is initiated.
@@ -125,7 +126,8 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal override returns (uint256 requestId) {
         uint256 effectiveSupplyBefore = effectiveSupply();
 
@@ -139,7 +141,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
             sharesInEscrow: false
         });
 
-        requestId = __initiateWithdraw(account, yieldTokenAmount, sharesHeld, data);
+        requestId = __initiateWithdraw(account, yieldTokenAmount, sharesHeld, data, forceWithdrawFrom);
     }
 
     function _updateAccountRewards(

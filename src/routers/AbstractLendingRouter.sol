@@ -188,7 +188,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         address vault,
         bytes calldata data
     ) external override isAuthorized(onBehalf, vault) nonReentrant returns (uint256 requestId) {
-        requestId = _initiateWithdraw(vault, onBehalf, data);
+        requestId = _initiateWithdraw(vault, onBehalf, data, false);
     }
 
     /// @inheritdoc ILendingRouter
@@ -198,7 +198,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
         if (borrowed <= maxBorrow) revert CannotForceWithdraw(account);
 
-        requestId = _initiateWithdraw(vault, account, data);
+        requestId = _initiateWithdraw(vault, account, data, true);
 
         // Clear the current account since this method is not called using isAuthorized
         IYieldStrategy(vault).clearCurrentAccount();
@@ -290,11 +290,14 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
     function _initiateWithdraw(
         address vault,
         address account,
-        bytes calldata data
+        bytes calldata data,
+        bool isForce
     ) internal returns (uint256 requestId) {
         uint256 sharesHeld = balanceOfCollateral(account, vault);
         if (sharesHeld == 0) revert InsufficientSharesHeld();
-        return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data);
+        return IYieldStrategy(vault).initiateWithdraw(
+            account, sharesHeld, data, isForce ? msg.sender : address(0)
+        );
     }
 
     /*** Virtual Methods (lending market specific) ***/

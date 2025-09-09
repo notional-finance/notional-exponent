@@ -90,15 +90,37 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address _yieldToken,
         uint256 _feeRate,
         address _rewardManager,
-        uint8 _yieldTokenDecimals,
-        IWithdrawRequestManager _withdrawRequestManager
+        uint8 _yieldTokenDecimals
     ) RewardManagerMixin( _asset, _yieldToken, _feeRate, _rewardManager, _yieldTokenDecimals) {
         MAX_POOL_SHARE = _maxPoolShare;
-        // Although there will be multiple withdraw request managers, we only need to set one here
-        // to check whether or not a withdraw request is pending. If any one of the withdraw requests
-        // is not finalized then the entire withdraw will revert and the user will remain in a pending
-        // withdraw state.
-        withdrawRequestManager = _withdrawRequestManager;
+
+    }
+
+    /// @notice Validates that all withdraw request managers are either all address(0) or all non-zero
+    /// @dev this must be called in the child contract constructor since the tokens are not yet
+    /// initialized in this constructor.
+    function _validateWithdrawRequestManagers() internal view {
+        ERC20[] memory tokens = TOKENS();
+        bool hasNonZeroManager = false;
+        bool hasZeroManager = false;
+
+        for (uint256 i; i < tokens.length; i++) {
+            address token = address(tokens[i]);
+            // If the token is address(0), then we use WETH as the withdraw request token
+            if (token == address(0)) token = address(WETH);
+            address withdrawRequestManager = address(ADDRESS_REGISTRY.getWithdrawRequestManager(address(token)));
+            
+            if (withdrawRequestManager == address(0)) {
+                hasZeroManager = true;
+            } else {
+                hasNonZeroManager = true;
+            }
+
+            // If we have both zero and non-zero managers, revert
+            if (hasZeroManager && hasNonZeroManager) {
+                revert("Inconsistent withdraw request managers: must be all zero or all non-zero");
+            }
+        }
     }
 
     function _initialize(bytes calldata data) internal override {
@@ -270,7 +292,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesHeld,
-        bytes memory data
+        bytes memory data,
+        address forceWithdrawFrom
     ) internal override returns (uint256 requestId) {
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
@@ -282,7 +305,8 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         });
 
         bytes memory result = _delegateCall(LP_LIB, abi.encodeWithSelector(
-            ILPLib.initiateWithdraw.selector, account, sharesHeld, exitBalances, params.withdrawData
+            ILPLib.initiateWithdraw.selector,
+            account, sharesHeld, exitBalances, params.withdrawData, forceWithdrawFrom
         ));
         uint256[] memory requestIds = abi.decode(result, (uint256[]));
         for (uint256 i; i < requestIds.length; i++) {
@@ -355,7 +379,9 @@ abstract contract BaseLPLib is ILPLib {
         ERC20[] memory tokens = _tokensForWithdrawRequest();
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
-            if (address(manager) == address(0)) continue;
+            // If there is no withdraw request manager for the first token then there are no withdraw
+            // requests to check for. There must be a withdraw request manager for each token.
+            if (address(manager) == address(0)) return false;
             // This is called as a view function, not a delegate call so use the msg.sender to get
             // the correct vault address
             (WithdrawRequest memory w, /* */) = manager.getWithdrawRequest(msg.sender, account);
@@ -370,7 +396,8 @@ abstract contract BaseLPLib is ILPLib {
         address account,
         uint256 sharesHeld,
         uint256[] calldata exitBalances,
-        bytes[] calldata withdrawData
+        bytes[] calldata withdrawData,
+        address forceWithdrawFrom
     ) external override returns (uint256[] memory requestIds) {
         ERC20[] memory tokens = _tokensForWithdrawRequest();
         requestIds = new uint256[](exitBalances.length);
@@ -388,7 +415,8 @@ abstract contract BaseLPLib is ILPLib {
                 account: account,
                 yieldTokenAmount: exitBalances[i],
                 sharesAmount: sharesHeld,
-                data: withdrawData[i]
+                data: withdrawData[i],
+                forceWithdrawFrom: forceWithdrawFrom
             });
         }
     }
@@ -409,9 +437,8 @@ abstract contract BaseLPLib is ILPLib {
             (w, /* */) = manager.getWithdrawRequest(address(this), sharesOwner);
             withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
 
-            // If there is no withdraw request then skip the finalization call. The balance returned
-            // will be zero.
-            if (w.sharesAmount == 0 || w.requestId == 0) continue;
+            // There must be a corresponding withdraw request for each token.
+            if (w.sharesAmount == 0 || w.requestId == 0) revert();
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             exitBalances[i] = manager.finalizeAndRedeemWithdrawRequest({
                 account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
@@ -428,7 +455,9 @@ abstract contract BaseLPLib is ILPLib {
         ERC20[] memory tokens = _tokensForWithdrawRequest();
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
-            if (address(manager) == address(0)) continue;
+            // If there is no withdraw request manager for the first token then there are no
+            // withdraw requests to tokenize. There must be a withdraw request manager for each token.
+            if (address(manager) == address(0)) return false;
             // If there is no withdraw request then this will be a noop, make sure to OR with the previous result
             // to ensure that the result is always set but it is done after so the tokenizeWithdrawRequest call
             // is not short circuited.

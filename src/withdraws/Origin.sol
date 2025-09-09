@@ -12,7 +12,8 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
     function _initiateWithdrawImpl(
         address /* account */,
         uint256 woETHToWithdraw,
-        bytes calldata /* data */
+        bytes calldata /* data */,
+        address /* forceWithdrawFrom */
     ) override internal returns (uint256 requestId) {
         uint256 oethRedeemed = wOETH.redeem(woETHToWithdraw, address(this), address(this));
         oETH.approve(address(OriginVault), oethRedeemed);

@@ -99,7 +99,8 @@ interface IWithdrawRequestManager {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
-        bytes calldata data
+        bytes calldata data,
+        address forceWithdrawFrom
     ) external returns (uint256 requestId);
 
     /// @notice Attempts to redeem active withdraw requests during vault exit

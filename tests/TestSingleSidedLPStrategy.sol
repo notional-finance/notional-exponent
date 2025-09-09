@@ -149,8 +149,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 gauge: curveGauge,
                 convexRewardPool: address(rewardPool),
                 curveInterface: curveInterface
-            }),
-            managers[0]
+            })
         );
 
         feeToken = lpToken;
@@ -407,8 +406,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
                 gauge: curveGauge,
                 convexRewardPool: address(rewardPool),
                 curveInterface: curveInterface
-            }),
-            managers[0]
+            })
         ));
 
         vm.startPrank(owner);
