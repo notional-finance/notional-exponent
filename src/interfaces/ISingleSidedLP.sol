@@ -43,7 +43,11 @@ interface ILPLib {
     function joinPoolAndStake(uint256[] memory amounts, uint256 minPoolClaim) external;
 
     /// @dev Unstakes and exits the pool
-    function unstakeAndExitPool(uint256 poolClaim, uint256[] memory minAmounts, bool isSingleSided) external returns (uint256[] memory exitBalances);
+    function unstakeAndExitPool(
+        uint256 poolClaim,
+        uint256[] memory minAmounts,
+        bool isSingleSided
+    ) external returns (uint256[] memory exitBalances, ERC20[] memory tokens);
 
     /// @dev Gets the value of all pending withdrawals
     function getWithdrawRequestValue(address account, address asset, uint256 shares) external view returns (uint256 totalValue);

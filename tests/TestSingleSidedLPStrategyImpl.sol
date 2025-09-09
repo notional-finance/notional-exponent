@@ -329,7 +329,7 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
     }
 }
 
-contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
+contract Test_LP_Curve_pxETH_WETH is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
         lpToken = ERC20(0xC8Eb2Cf2f792F77AF0Cd9e203305a585E588179D);
         rewardPool = 0x3B793E505A3C7dbCb718Fe871De8eBEf7854e74b;
@@ -360,6 +360,121 @@ contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
             address(pxETH),
             AggregatorV2V3Interface(address(pxETHOracle))
         );
+    }
+}
+
+// This is a test to ensure that ETH withdraw request managers work correctly by wrapping to
+// WETH on withdraw.
+contract Test_LP_Curve_ETHx_ETH is TestSingleSidedLPStrategy {
+
+    function getRedeemData(address user, uint256 redeemAmount) internal override returns (bytes memory) {
+        (WithdrawRequest memory w, /* */) = managers[0].getWithdrawRequest(address(y), user);
+        if (w.requestId != 0) {
+            RedeemParams memory r;
+            r.minAmounts = new uint256[](2);
+            r.redemptionTrades = new TradeParams[](2);
+            r.redemptionTrades[1] = TradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                dexId: uint8(DexId.CURVE_V2),
+                tradeAmount: 0,
+                minPurchaseAmount: 0,
+                exchangeData: abi.encode(CurveV2SingleData({
+                    pool: 0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492,
+                    fromIndex: 1,
+                    toIndex: 0
+                }))
+            });
+
+            return abi.encode(r);
+        }
+
+        return super.getRedeemData(user, redeemAmount);
+    }
+
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492);
+        rewardPool = 0x399e111c7209a741B06F8F86Ef0Fdd88fC198D20;
+        asset = ERC20(address(WETH));
+        stakeTokenIndex = 1;
+        isDummyWithdrawRequestManager = true;
+
+        managers[0] = new GenericERC20WithdrawRequestManager(address(WETH));
+        managers[1] = new GenericERC20WithdrawRequestManager(
+            address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b)
+        );
+        withdrawRequests[0] = new TestGenericERC20WithdrawRequest();
+        withdrawRequests[1] = new TestGenericERC20WithdrawRequest();
+
+        // Sell WETH to stETH on the stETH/ETH pool itself before entry.
+
+        // // NOTE: this does not work because the trading module does not unwrap the WETH
+        // // properly before selling it on the curve pool.
+        // tradeBeforeDepositParams[1] = TradeParams({
+        //     tradeType: TradeType.EXACT_IN_SINGLE,
+        //     dexId: uint8(DexId.CURVE_V2),
+        //     tradeAmount: 0,
+        //     minPurchaseAmount: 0,
+        //     exchangeData: abi.encode(CurveV2SingleData({
+        //         pool: 0x21E27a5E5513D6e65C4f830167390997aA84843a,
+        //         fromIndex: 0,
+        //         toIndex: 1
+        //     }))
+        // });
+
+        // Sell ETHx to WETH on the ETHx/ETH pool itself before exit. ETH returned
+        // by the pool will be converted back to WETH by the Trading Module.
+        tradeBeforeRedeemParams[1] = TradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.CURVE_V2),
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(CurveV2SingleData({
+                pool: 0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492,
+                fromIndex: 1,
+                toIndex: 0
+            }))
+        });
+
+        curveInterface = CurveInterface.V1;
+        primaryIndex = 0;
+        maxPoolShare = 100e18;
+        dyAmount = 1e9;
+
+        defaultDeposit = 10e18;
+        defaultBorrow = 90e18;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.025e18;
+
+        (AggregatorV2V3Interface ethOracle, /* */) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        MockOracle ETHxOracle = new MockOracle(ethOracle.latestAnswer() * 1.0647e18 / 1e8);
+        // TODO: need a ETHx oracle
+        vm.prank(owner);
+        TRADING_MODULE.setPriceOracle(
+            address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b),
+            AggregatorV2V3Interface(address(ETHxOracle))
+        );
+    }
+
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+
+        vm.startPrank(owner);
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            // Allow selling of WETH to enter the pool
+            address(WETH),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 1 }
+        ));
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            // Allow trading of ETHx
+            address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b),
+            ITradingModule.TokenPermissions(
+            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 1 }
+        ));
+        vm.stopPrank();
     }
 }
 
