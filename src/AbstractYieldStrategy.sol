@@ -131,6 +131,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
     /// @inheritdoc IOracle
     function price() public view override returns (uint256) {
+        require(_reentrancyGuardEntered() == false);
         // Disable direct borrowing from Morpho, but allow any other callers to see
         // the proper price.
         if (msg.sender == address(MORPHO) && t_CurrentAccount == address(0)) return 0;
@@ -138,7 +139,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function price(address borrower) external override returns (uint256) {
+    function price(address borrower) nonReentrant external override returns (uint256) {
         // Do not change the current account in this method since this method is not
         // authenticated and we do not want to have any unexpected side effects.
         address prevCurrentAccount = t_CurrentAccount;
@@ -176,12 +177,12 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function collectFees() external override returns (uint256 feesCollected) {
+    function collectFees() external nonReentrant override returns (uint256 feesCollected) {
         _accrueFees();
         feesCollected = s_accruedFeesInYieldToken / _feeAdjustmentPrecision;
-        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
         s_yieldTokenBalance -= feesCollected;
         s_accruedFeesInYieldToken -= (feesCollected * _feeAdjustmentPrecision);
+        _transferYieldTokenToOwner(ADDRESS_REGISTRY.feeReceiver(), feesCollected);
     }
 
     /*** Core Functions ***/
@@ -249,7 +250,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address liquidateAccount,
         uint256 sharesToLiquidate,
         uint256 accountSharesHeld
-    ) external onlyLendingRouter {
+    ) external onlyLendingRouter nonReentrant {
         t_CurrentAccount = liquidateAccount;
         // Liquidator cannot liquidate if they have an active withdraw request, including a tokenized
         // withdraw request.
@@ -269,7 +270,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) external onlyLendingRouter {
+    ) external onlyLendingRouter nonReentrant {
         t_AllowTransfer_To = liquidator;
         t_AllowTransfer_Amount = sharesToLiquidator;
         // Transfer the shares to the liquidator from the lending router
@@ -301,7 +302,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         uint256 sharesHeld,
         bytes calldata data,
         address forceWithdrawFrom
-    ) external onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
+    ) external nonReentrant onlyLendingRouter setCurrentAccount(account) override returns (uint256 requestId) {
         requestId = _withdraw(account, sharesHeld, data, forceWithdrawFrom);
     }
 
