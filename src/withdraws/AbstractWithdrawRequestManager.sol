@@ -310,6 +310,12 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
+    function getKnownWithdrawTokenAmount(
+        uint256 /* requestId */
+    ) public view override virtual returns (bool hasKnownAmount, uint256 amount) {
+        return (false, 0);
+    }
+
     /// @inheritdoc IWithdrawRequestManager
     function getWithdrawRequestValue(
         address vault,
@@ -322,15 +328,17 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
         TokenizedWithdrawRequest memory s = s_tokenizedWithdrawRequest[w.requestId];
 
+        (bool hasKnownAmount, uint256 knownAmount) = getKnownWithdrawTokenAmount(w.requestId);
         int256 tokenRate;
         uint256 tokenAmount;
         uint256 tokenDecimals;
         uint256 assetDecimals = TokenUtils.getDecimals(asset);
-        if (s.finalized) {
+        if (s.finalized || hasKnownAmount) {
             // If finalized the withdraw request is locked to the tokens withdrawn
             (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
             tokenDecimals = TokenUtils.getDecimals(WITHDRAW_TOKEN);
-            tokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
+            uint256 totalWithdraw = s.finalized ? uint256(s.totalWithdraw) : knownAmount;
+            tokenAmount = (uint256(w.yieldTokenAmount) * totalWithdraw) / uint256(s.totalYieldTokenAmount);
         } else {
             // Otherwise we use the yield token rate
             (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);

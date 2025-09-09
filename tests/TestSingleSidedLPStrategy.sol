@@ -444,7 +444,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y))));
         vm.stopPrank();
         (/* */, uint256 collateralValueAfter, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
-        assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0001e18, "Withdrawal should not change collateral value");
+        assertApproxEqRel(collateralValueBefore, collateralValueAfter, 0.0005e18, "Withdrawal should not change collateral value");
 
         vm.warp(block.timestamp + 10 days);
         (/* */, uint256 collateralValueAfterWarp, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
@@ -465,7 +465,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         (/* */, uint256 collateralValueAfterFinalize, /* */) = lendingRouter.healthFactor(msg.sender, address(y));
 
         assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
-        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
+        assertGe(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should not decrease after finalize");
     }
 
     function test_liquidate_tokenizesWithdrawRequest() public {

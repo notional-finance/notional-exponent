@@ -3,14 +3,16 @@ pragma solidity >=0.8.29;
 
 import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {WETH} from "../utils/Constants.sol";
+import {WETH, DEFAULT_PRECISION} from "../utils/Constants.sol";
 import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {IPirexETH, PirexETH, pxETH, apxETH, upxETH} from "../interfaces/IDinero.sol";
+import {TRADING_MODULE} from "../interfaces/ITradingModule.sol";
 
 contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
     uint256 public initialBatchId;
     uint256 public finalBatchId;
+    uint256 public pxETHAmount;
 
     receive() external payable { }
 
@@ -23,8 +25,7 @@ contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
 
         initialBatchId = PirexETH.batchId();
         pxETH.approve(address(PirexETH), amountToWithdraw);
-        // TODO: what do we put for should trigger validator exit?
-        PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
+        (pxETHAmount, /* */) = PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
         finalBatchId = PirexETH.batchId();
     }
 
@@ -108,6 +109,15 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
 
         // Can only finalize if the total assets are greater than the outstanding redemptions
         return PirexETH.outstandingRedemptions() >= totalAssets;
+    }
+
+    function getKnownWithdrawTokenAmount(uint256 requestId) public view override returns (bool hasKnownAmount, uint256 amount) {
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        hasKnownAmount = true;
+        // The withdraw token is marked as WETH here, but we know the pxETH amount instead of the WETH
+        // amount so we do need to convert it to WETH using the pxETH market price.
+        (int256 tokenRate, /* */) = TRADING_MODULE.getOraclePrice(address(pxETH), WITHDRAW_TOKEN);
+        amount = holder.pxETHAmount() * uint256(tokenRate) / DEFAULT_PRECISION;
     }
 
     function getExchangeRate() public view override returns (uint256) {

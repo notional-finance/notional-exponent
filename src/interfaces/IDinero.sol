@@ -29,9 +29,9 @@ interface IPirexETH {
     }
 
     function batchId() external view returns (uint256);
-    function initiateRedemption(uint256 assets, address receiver, bool shouldTriggerValidatorExit) external;
+    function initiateRedemption(uint256 assets, address receiver, bool shouldTriggerValidatorExit) external returns (uint256 postFeesAmount, uint256 feeAmount);
     function deposit(address receiver, bool shouldCompound) external payable;
-    function instantRedeemWithPxEth(uint256 _assets, address _receiver) external;
+    function instantRedeemWithPxEth(uint256 _assets, address _receiver) external returns (uint256 postFeesAmount, uint256 feeAmount);
     function redeemWithUpxEth(uint256 _tokenId, uint256 _assets, address _receiver) external;
     function outstandingRedemptions() external view returns (uint256);
 

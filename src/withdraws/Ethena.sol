@@ -9,6 +9,7 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 contract EthenaCooldownHolder is ClonedCoolDownHolder {
 
     uint256 public instantRedeemBalance;
+    uint256 public expectedRedeemBalance;
 
     constructor(address _manager) ClonedCoolDownHolder(_manager) { }
 
@@ -25,7 +26,7 @@ contract EthenaCooldownHolder is ClonedCoolDownHolder {
             // will be pushed further out. This holder should only ever have one
             // cooldown ever.
             require(sUSDe.cooldowns(address(this)).cooldownEnd == 0);
-            sUSDe.cooldownShares(cooldownBalance);
+            expectedRedeemBalance = sUSDe.cooldownShares(cooldownBalance);
         }
     }
 
@@ -92,6 +93,13 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
         (tokensClaimed, finalized) = holder.finalizeCooldown();
         require(finalized);
     }
+
+    function getKnownWithdrawTokenAmount(uint256 requestId) public view override returns (bool hasKnownAmount, uint256 amount) {
+        EthenaCooldownHolder holder = EthenaCooldownHolder(address(uint160(requestId)));
+        hasKnownAmount = true;
+        amount = holder.expectedRedeemBalance() + holder.instantRedeemBalance();
+    }
+
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         uint24 duration = sUSDe.cooldownDuration();

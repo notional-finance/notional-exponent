@@ -443,7 +443,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         checkTransientsCleared();
 
         assertApproxEqRel(collateralValueAfterFinalize, collateralValueAfterWarp, 0.01e18, "Withdrawal should be similar to collateral value after finalize");
-        assertGt(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should increase after finalize");
+        assertGe(collateralValueAfterFinalize, collateralValueAfterWarp, "Withdrawal value should not decrease after finalize");
     }
 
     function test_enterPosition_after_Exit_WithdrawRequest() public {
