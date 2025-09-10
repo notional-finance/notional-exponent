@@ -139,6 +139,12 @@ contract TestStakingStrategy_Ethena is TestStakingStrategy {
         (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
         o = new MockOracle(oracle.latestAnswer() * 1e18 / 1e8);
 
+        // Ethena uses USDe as the withdraw token during valuation
+        (oracle, ) = TRADING_MODULE.priceOracles(address(USDe));
+        withdrawTokenOracle = new MockOracle(oracle.latestAnswer() * 1e18 / 1e8);
+        vm.prank(owner);
+        TRADING_MODULE.setPriceOracle(address(USDe), AggregatorV2V3Interface(address(withdrawTokenOracle)));
+
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
         maxEntryValuationSlippage = 0.0050e18;

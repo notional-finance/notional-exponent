@@ -181,4 +181,10 @@ interface IWithdrawRequestManager {
     /// and then withdraw token.
     /// @return exchangeRate the exchange rate of the yield token to the withdraw token
     function getExchangeRate() external view returns (uint256 exchangeRate);
+
+    /// @notice Returns the known amount of withdraw tokens for a withdraw request
+    /// @param requestId the request id of the withdraw request
+    /// @return hasKnownAmount whether the amount is known
+    /// @return amount the amount of withdraw tokens
+    function getKnownWithdrawTokenAmount(uint256 requestId) external view returns (bool hasKnownAmount, uint256 amount);
 }
