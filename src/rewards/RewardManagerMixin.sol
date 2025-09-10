@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IRewardManager} from "../interfaces/IRewardManager.sol";
-import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
-import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
-import {CannotLiquidateZeroShares} from "../interfaces/Errors.sol";
+import { IRewardManager } from "../interfaces/IRewardManager.sol";
+import { AbstractYieldStrategy } from "../AbstractYieldStrategy.sol";
+import { ILendingRouter } from "../interfaces/ILendingRouter.sol";
+import { ADDRESS_REGISTRY } from "../utils/Constants.sol";
+import { CannotLiquidateZeroShares } from "../interfaces/Errors.sol";
 
 abstract contract RewardManagerMixin is AbstractYieldStrategy {
     IRewardManager public immutable REWARD_MANAGER;
@@ -19,16 +19,22 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 _feeRate,
         address _rewardManager,
         uint8 _yieldTokenDecimals
-    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _yieldTokenDecimals) {
+    )
+        AbstractYieldStrategy(_asset, _yieldToken, _feeRate, _yieldTokenDecimals)
+    {
         REWARD_MANAGER = IRewardManager(_rewardManager);
     }
 
     function _preLiquidation(
-        address /* liquidateAccount */,
+        address, /* liquidateAccount */
         address liquidator,
-        uint256 /* sharesToLiquidate */,
+        uint256, /* sharesToLiquidate */
         uint256 accountSharesHeld
-    ) internal override virtual {
+    )
+        internal
+        virtual
+        override
+    {
         // This only works because the liquidator is prevented from having a position on the lending router so any
         // balance will be a native token balance.
         t_Liquidator_SharesBefore = balanceOf(liquidator);
@@ -39,13 +45,20 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) internal virtual returns (bool didTokenize);
+    )
+        internal
+        virtual
+        returns (bool didTokenize);
 
     function _postLiquidation(
         address liquidator,
         address liquidateAccount,
         uint256 sharesToLiquidator
-    ) internal override returns (bool didTokenize) {
+    )
+        internal
+        override
+        returns (bool didTokenize)
+    {
         // Total supply does not change during liquidation
         uint256 effectiveSupplyBefore = effectiveSupply();
         if (sharesToLiquidator == 0) revert CannotLiquidateZeroShares();
@@ -76,7 +89,11 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 assets,
         bytes memory depositData,
         address receiver
-    ) internal override returns (uint256 sharesMinted) {
+    )
+        internal
+        override
+        returns (uint256 sharesMinted)
+    {
         uint256 effectiveSupplyBefore = effectiveSupply();
         uint256 initialVaultShares = ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(receiver, address(this));
         sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
@@ -95,7 +112,11 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 sharesHeld,
         bytes memory redeemData,
         address sharesOwner
-    ) internal override returns (uint256 assetsWithdrawn) {
+    )
+        internal
+        override
+        returns (uint256 assetsWithdrawn)
+    {
         uint256 effectiveSupplyBefore = effectiveSupply();
         // Get the escrow state before burning the shares since it will be cleared if
         // the entire balance is burned.
@@ -119,8 +140,11 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 sharesHeld,
         bytes memory data,
         address forceWithdrawFrom
-    ) internal virtual returns (uint256 requestId);
-    
+    )
+        internal
+        virtual
+        returns (uint256 requestId);
+
     /// @dev Ensures that the account no longer accrues rewards after a withdraw request is initiated.
     function _initiateWithdraw(
         address account,
@@ -128,10 +152,14 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 sharesHeld,
         bytes memory data,
         address forceWithdrawFrom
-    ) internal override returns (uint256 requestId) {
+    )
+        internal
+        override
+        returns (uint256 requestId)
+    {
         uint256 effectiveSupplyBefore = effectiveSupply();
 
-        // Claim all rewards before initiating a withdraw shares not considered 
+        // Claim all rewards before initiating a withdraw shares not considered
         // in the escrow state at this point.
         _updateAccountRewards({
             account: account,
@@ -150,17 +178,31 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
         bool sharesInEscrow
-    ) internal returns (bytes memory) {
-        return _delegateCall(address(REWARD_MANAGER), abi.encodeWithSelector(
-            IRewardManager.updateAccountRewards.selector,
-            account, effectiveSupplyBefore, accountSharesBefore, accountSharesAfter, sharesInEscrow
-        ));
+    )
+        internal
+        returns (bytes memory)
+    {
+        return _delegateCall(
+            address(REWARD_MANAGER),
+            abi.encodeWithSelector(
+                IRewardManager.updateAccountRewards.selector,
+                account,
+                effectiveSupplyBefore,
+                accountSharesBefore,
+                accountSharesAfter,
+                sharesInEscrow
+            )
+        );
     }
 
     function claimAccountRewards(
         address account,
         uint256 sharesHeld
-    ) external nonReentrant returns (uint256[] memory rewards) {
+    )
+        external
+        nonReentrant
+        returns (uint256[] memory rewards)
+    {
         uint256 effectiveSupplyBefore = effectiveSupply();
         if (!ADDRESS_REGISTRY.isLendingRouter(msg.sender)) {
             require(msg.sender == account);

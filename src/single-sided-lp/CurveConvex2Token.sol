@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
-import {AbstractSingleSidedLP, BaseLPLib} from "./AbstractSingleSidedLP.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TokenUtils} from "../utils/TokenUtils.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET} from "../utils/Constants.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ICurvePool, ICurve2TokenPoolV1, ICurve2TokenPoolV2, ICurveStableSwapNG, ICurveGauge, CurveInterface} from "../interfaces/Curve/ICurve.sol";
-import {IConvexBooster, IConvexRewardPool} from "../interfaces/Curve/IConvex.sol";
+import { IWithdrawRequestManager } from "../interfaces/IWithdrawRequestManager.sol";
+import { AbstractSingleSidedLP, BaseLPLib } from "./AbstractSingleSidedLP.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
+import { ETH_ADDRESS, ALT_ETH_ADDRESS, WETH, CHAIN_ID_MAINNET } from "../utils/Constants.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    ICurvePool,
+    ICurve2TokenPoolV1,
+    ICurve2TokenPoolV2,
+    ICurveStableSwapNG,
+    ICurveGauge,
+    CurveInterface
+} from "../interfaces/Curve/ICurve.sol";
+import { IConvexBooster, IConvexRewardPool } from "../interfaces/Curve/IConvex.sol";
 
 struct DeploymentParams {
     address pool;
@@ -19,7 +26,6 @@ struct DeploymentParams {
 }
 
 contract CurveConvex2Token is AbstractSingleSidedLP {
-
     uint256 internal constant _NUM_TOKENS = 2;
 
     ERC20 public immutable CURVE_POOL_TOKEN;
@@ -27,8 +33,14 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     address internal immutable TOKEN_1;
     address internal immutable TOKEN_2;
 
-    function NUM_TOKENS() internal pure override returns (uint256) { return _NUM_TOKENS; }
-    function PRIMARY_INDEX() public view override returns (uint256) { return _PRIMARY_INDEX; }
+    function NUM_TOKENS() internal pure override returns (uint256) {
+        return _NUM_TOKENS;
+    }
+
+    function PRIMARY_INDEX() public view override returns (uint256) {
+        return _PRIMARY_INDEX;
+    }
+
     function TOKENS() internal view override returns (ERC20[] memory) {
         ERC20[] memory tokens = new ERC20[](_NUM_TOKENS);
         tokens[0] = ERC20(TOKEN_1);
@@ -43,7 +55,9 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         uint256 _feeRate,
         address _rewardManager,
         DeploymentParams memory params
-    ) AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18) {
+    )
+        AbstractSingleSidedLP(_maxPoolShare, _asset, _yieldToken, _feeRate, _rewardManager, 18)
+    {
         CURVE_POOL_TOKEN = ERC20(params.poolToken);
 
         // We interact with curve pools directly so we never pass the token addresses back
@@ -54,12 +68,13 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         TOKEN_2 = _rewriteAltETH(ICurvePool(params.pool).coins(1));
 
         // Assets may be WETH, so we need to unwrap it in this case.
-        _PRIMARY_INDEX =
-            (TOKEN_1 == _asset || (TOKEN_1 == ETH_ADDRESS && _asset == address(WETH))) ? 0 :
-            (TOKEN_2 == _asset || (TOKEN_2 == ETH_ADDRESS && _asset == address(WETH))) ? 1 :
-            // Otherwise the primary index is not set and we will not be able to enter or exit
-            // single sided.
-            type(uint8).max;
+        _PRIMARY_INDEX = (TOKEN_1 == _asset || (TOKEN_1 == ETH_ADDRESS && _asset == address(WETH)))
+            ? 0
+            : (TOKEN_2 == _asset || (TOKEN_2 == ETH_ADDRESS && _asset == address(WETH)))
+                ? 1
+                // Otherwise the primary index is not set and we will not be able to enter or exit
+                // single sided.
+                : type(uint8).max;
 
         LP_LIB = address(new CurveConvexLib(TOKEN_1, TOKEN_2, _asset, _PRIMARY_INDEX, params));
 
@@ -76,8 +91,8 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
     }
 
     function _transferYieldTokenToOwner(address owner, uint256 yieldTokens) internal override {
-        _delegateCall(LP_LIB, abi.encodeWithSelector(
-            CurveConvexLib.transferYieldTokenToOwner.selector, owner, yieldTokens)
+        _delegateCall(
+            LP_LIB, abi.encodeWithSelector(CurveConvexLib.transferYieldTokenToOwner.selector, owner, yieldTokens)
         );
     }
 
@@ -116,15 +131,9 @@ contract CurveConvexLib is BaseLPLib {
     // Payable is required for the CurveV1 interface which will execute a transfer
     // when the remove_liquidity function is called, it only will be done to this contract
     // during the checkReentrancyContext function.
-    receive() external payable {}
+    receive() external payable { }
 
-    constructor(
-        address _token1,
-        address _token2,
-        address _asset,
-        uint8 _primaryIndex,
-        DeploymentParams memory params
-    ) {
+    constructor(address _token1, address _token2, address _asset, uint8 _primaryIndex, DeploymentParams memory params) {
         TOKEN_1 = _token1;
         TOKEN_2 = _token2;
         ASSET = _asset;
@@ -178,9 +187,7 @@ contract CurveConvexLib is BaseLPLib {
         }
     }
 
-    function joinPoolAndStake(
-        uint256[] memory _amounts, uint256 minPoolClaim
-    ) external {
+    function joinPoolAndStake(uint256[] memory _amounts, uint256 minPoolClaim) external {
         // Although Curve uses ALT_ETH to represent native ETH, it is rewritten in the Curve2TokenPoolMixin
         // to the Deployments.ETH_ADDRESS which we use internally.
         uint256 msgValue;
@@ -197,8 +204,13 @@ contract CurveConvexLib is BaseLPLib {
     }
 
     function unstakeAndExitPool(
-        uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided
-    ) external returns (uint256[] memory exitBalances, ERC20[] memory tokens) {
+        uint256 poolClaim,
+        uint256[] memory _minAmounts,
+        bool isSingleSided
+    )
+        external
+        returns (uint256[] memory exitBalances, ERC20[] memory tokens)
+    {
         _unstakeLpTokens(poolClaim);
 
         exitBalances = _exitPool(poolClaim, _minAmounts, isSingleSided);
@@ -209,10 +221,10 @@ contract CurveConvexLib is BaseLPLib {
         // request manager.
         if (ASSET == address(WETH)) {
             if (TOKEN_1 == ETH_ADDRESS) {
-                WETH.deposit{value: exitBalances[0]}();
+                WETH.deposit{ value: exitBalances[0] }();
                 tokens[0] = ERC20(address(WETH));
             } else if (TOKEN_2 == ETH_ADDRESS) {
-                WETH.deposit{value: exitBalances[1]}();
+                WETH.deposit{ value: exitBalances[1] }();
                 tokens[1] = ERC20(address(WETH));
             }
         }
@@ -223,28 +235,24 @@ contract CurveConvexLib is BaseLPLib {
         CURVE_POOL_TOKEN.safeTransfer(owner, yieldTokens);
     }
 
-    function _enterPool(
-        uint256[] memory _amounts, uint256 minPoolClaim, uint256 msgValue
-    ) internal returns (uint256) {
+    function _enterPool(uint256[] memory _amounts, uint256 minPoolClaim, uint256 msgValue) internal returns (uint256) {
         if (0 < _amounts[0]) ERC20(TOKEN_1).checkApprove(address(CURVE_POOL), _amounts[0]);
         if (0 < _amounts[1]) ERC20(TOKEN_2).checkApprove(address(CURVE_POOL), _amounts[1]);
 
         if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
-            return ICurveStableSwapNG(CURVE_POOL).add_liquidity{value: msgValue}(
-                _amounts, minPoolClaim
-            );
-        } 
+            return ICurveStableSwapNG(CURVE_POOL).add_liquidity{ value: msgValue }(_amounts, minPoolClaim);
+        }
 
         uint256[2] memory amounts;
         amounts[0] = _amounts[0];
         amounts[1] = _amounts[1];
         if (CURVE_INTERFACE == CurveInterface.V1) {
-            return ICurve2TokenPoolV1(CURVE_POOL).add_liquidity{value: msgValue}(
-                amounts, minPoolClaim
-            );
+            return ICurve2TokenPoolV1(CURVE_POOL).add_liquidity{ value: msgValue }(amounts, minPoolClaim);
         } else if (CURVE_INTERFACE == CurveInterface.V2) {
-            return ICurve2TokenPoolV2(CURVE_POOL).add_liquidity{value: msgValue}(
-                amounts, minPoolClaim, 0 < msgValue // use_eth = true if msgValue > 0
+            return ICurve2TokenPoolV2(CURVE_POOL).add_liquidity{ value: msgValue }(
+                amounts,
+                minPoolClaim,
+                0 < msgValue // use_eth = true if msgValue > 0
             );
         }
 
@@ -252,8 +260,13 @@ contract CurveConvexLib is BaseLPLib {
     }
 
     function _exitPool(
-        uint256 poolClaim, uint256[] memory _minAmounts, bool isSingleSided
-    ) internal returns (uint256[] memory exitBalances) {
+        uint256 poolClaim,
+        uint256[] memory _minAmounts,
+        bool isSingleSided
+    )
+        internal
+        returns (uint256[] memory exitBalances)
+    {
         if (isSingleSided) {
             exitBalances = new uint256[](_NUM_TOKENS);
             if (CURVE_INTERFACE == CurveInterface.V1 || CURVE_INTERFACE == CurveInterface.StableSwapNG) {
@@ -265,7 +278,11 @@ contract CurveConvexLib is BaseLPLib {
                 exitBalances[_PRIMARY_INDEX] = ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity_one_coin(
                     // Last two parameters are useEth = true and receiver = this contract
                     // Return ETH in this case so that we can wrap it back into WETH if required.
-                    poolClaim, _PRIMARY_INDEX, _minAmounts[_PRIMARY_INDEX], true, address(this)
+                    poolClaim,
+                    _PRIMARY_INDEX,
+                    _minAmounts[_PRIMARY_INDEX],
+                    true,
+                    address(this)
                 );
             }
         } else {
@@ -273,7 +290,7 @@ contract CurveConvexLib is BaseLPLib {
             if (CURVE_INTERFACE == CurveInterface.StableSwapNG) {
                 return ICurveStableSwapNG(CURVE_POOL).remove_liquidity(poolClaim, _minAmounts);
             }
-            
+
             // Redeem proportionally, min amounts are rewritten to a fixed length array
             uint256[2] memory minAmounts;
             minAmounts[0] = _minAmounts[0];
@@ -292,7 +309,10 @@ contract CurveConvexLib is BaseLPLib {
                 ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(
                     // Last two parameters are useEth = true and receiver = this contract
                     // Return ETH in this case so that we can wrap it back into WETH if required.
-                    poolClaim, minAmounts, true, address(this)
+                    poolClaim,
+                    minAmounts,
+                    true,
+                    address(this)
                 );
                 exitBalances[0] = TokenUtils.tokenBalance(TOKEN_1) - exitBalances[0];
                 exitBalances[1] = TokenUtils.tokenBalance(TOKEN_2) - exitBalances[1];
@@ -309,7 +329,6 @@ contract CurveConvexLib is BaseLPLib {
         }
     }
 
-
     function _unstakeLpTokens(uint256 poolClaim) internal {
         if (CONVEX_REWARD_POOL != address(0)) {
             bool success = IConvexRewardPool(CONVEX_REWARD_POOL).withdrawAndUnwrap(poolClaim, false);
@@ -318,5 +337,4 @@ contract CurveConvexLib is BaseLPLib {
             ICurveGauge(CURVE_GAUGE).withdraw(poolClaim);
         }
     }
-
 }

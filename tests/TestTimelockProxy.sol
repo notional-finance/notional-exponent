@@ -13,7 +13,7 @@ contract MockInitializable is Initializable {
         return true;
     }
 
-    function _initialize(bytes calldata /* data */) internal override {
+    function _initialize(bytes calldata /* data */ ) internal override {
         didInitialize = true;
     }
 }
@@ -45,8 +45,7 @@ contract TestTimelockProxy is Test {
 
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(
-            address(impl),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
+            address(impl), abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
     }
 
@@ -71,7 +70,9 @@ contract TestTimelockProxy is Test {
         proxy.initiateUpgrade(address(timelock2));
 
         vm.expectEmit(true, true, true, true);
-        emit TimelockUpgradeableProxy.UpgradeInitiated(address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
+        emit TimelockUpgradeableProxy.UpgradeInitiated(
+            address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY())
+        );
         vm.prank(upgradeOwner);
         proxy.initiateUpgrade(address(timelock2));
 
@@ -197,5 +198,4 @@ contract TestTimelockProxy is Test {
 
         assertEq(registry.feeReceiver(), newFeeReceiver);
     }
-    
 }

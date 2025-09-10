@@ -31,26 +31,22 @@ struct RewardPoolStorage {
 /// it will be called through a delegatecall from the vault to avoid token transfers
 /// of staked tokens.
 interface IRewardManager {
-
     event VaultRewardTransfer(address indexed token, address indexed account, uint256 amount);
     event VaultRewardUpdate(address indexed rewardToken, uint128 emissionRatePerYear, uint32 endTime);
 
     /// @notice Returns the current reward claim method and reward state
     /// @return rewardStates Array of vault reward states
     /// @return rewardPool Reward pool storage
-    function getRewardSettings() external view returns (
-        VaultRewardState[] memory rewardStates,
-        RewardPoolStorage memory rewardPool
-    );
+    function getRewardSettings()
+        external
+        view
+        returns (VaultRewardState[] memory rewardStates, RewardPoolStorage memory rewardPool);
 
     /// @notice Returns the reward debt for the given reward token and account
     /// @param rewardToken Address of the reward token
     /// @param account Address of the account
     /// @return rewardDebt The reward debt for the account
-    function getRewardDebt(address rewardToken, address account) external view returns (
-        uint256 rewardDebt
-    );
-
+    function getRewardDebt(address rewardToken, address account) external view returns (uint256 rewardDebt);
 
     /// @notice Updates account rewards during enter and exit vault operations, only
     /// callable via delegatecall from inside the vault
@@ -65,7 +61,9 @@ interface IRewardManager {
         uint256 accountSharesBefore,
         uint256 accountSharesAfter,
         bool sharesInEscrow
-    ) external returns (uint256[] memory rewards);
+    )
+        external
+        returns (uint256[] memory rewards);
 
     /// @notice Sets a secondary reward rate for a given token, only callable via the owner
     /// @param index Index of the reward token
@@ -77,7 +75,8 @@ interface IRewardManager {
         address rewardToken,
         uint128 emissionRatePerYear,
         uint32 endTime
-    ) external;
+    )
+        external;
 
     /// @notice Migrates the reward pool to a new reward pool, needs to be called initially
     /// to set the reward pool storage and when the reward pool is updated.

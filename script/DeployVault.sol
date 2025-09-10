@@ -4,29 +4,31 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Script.sol";
 import "forge-std/src/Test.sol";
 import "./GnosisHelper.sol";
-import {ProxyHelper} from "./ProxyHelper.sol";
-import {AddressRegistry} from "../src/proxy/AddressRegistry.sol";
-import {TimelockUpgradeableProxy} from "../src/proxy/TimelockUpgradeableProxy.sol";
-import {Initializable} from "../src/proxy/Initializable.sol";
-import {ADDRESS_REGISTRY, WETH} from "../src/utils/Constants.sol";
-import {MORPHO} from "../src/interfaces/Morpho/IMorpho.sol";
-import {TRADING_MODULE, ITradingModule, TradeType, DexId, CurveV2SingleData} from "../src/interfaces/ITradingModule.sol";
-import {MorphoLendingRouter} from "../src/routers/MorphoLendingRouter.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {AggregatorV2V3Interface} from "../src/interfaces/AggregatorV2V3Interface.sol";
-import {weETH} from "../src/interfaces/IEtherFi.sol";
-import {sUSDe} from "../src/interfaces/IEthena.sol";
+import { ProxyHelper } from "./ProxyHelper.sol";
+import { AddressRegistry } from "../src/proxy/AddressRegistry.sol";
+import { TimelockUpgradeableProxy } from "../src/proxy/TimelockUpgradeableProxy.sol";
+import { Initializable } from "../src/proxy/Initializable.sol";
+import { ADDRESS_REGISTRY, WETH } from "../src/utils/Constants.sol";
+import { MORPHO } from "../src/interfaces/Morpho/IMorpho.sol";
+import {
+    TRADING_MODULE, ITradingModule, TradeType, DexId, CurveV2SingleData
+} from "../src/interfaces/ITradingModule.sol";
+import { MorphoLendingRouter } from "../src/routers/MorphoLendingRouter.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { AggregatorV2V3Interface } from "../src/interfaces/AggregatorV2V3Interface.sol";
+import { weETH } from "../src/interfaces/IEtherFi.sol";
+import { sUSDe } from "../src/interfaces/IEthena.sol";
 import "../src/staking/StakingStrategy.sol";
-import {IWithdrawRequestManager, StakingTradeParams} from "../src/interfaces/IWithdrawRequestManager.sol";
-import {IYieldStrategy} from "../src/interfaces/IYieldStrategy.sol";
-import {RedeemParams} from "../src/staking/AbstractStakingStrategy.sol";
+import { IWithdrawRequestManager, StakingTradeParams } from "../src/interfaces/IWithdrawRequestManager.sol";
+import { IYieldStrategy } from "../src/interfaces/IYieldStrategy.sol";
+import { RedeemParams } from "../src/staking/AbstractStakingStrategy.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
 address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
 abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
-    address proxy;
+    address public proxy;
 
     uint256 public depositAmount;
     uint256 public supplyAmount;
@@ -79,7 +81,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
 
         vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
         for (uint256 i = 0; i < calls.length; i++) {
-            (bool success, ) = calls[i].to.call(calls[i].callData);
+            (bool success,) = calls[i].to.call(calls[i].callData);
             if (!success) revert("Failed to call");
         }
         if (isUpgrade) {
@@ -105,18 +107,14 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
 
         vm.startPrank(supplier);
         asset.approve(address(MORPHO), type(uint256).max);
-        MORPHO.supply(
-            MORPHO_LENDING_ROUTER.marketParams(address(y)),
-            supplyAmount, 0, supplier, ""
-        );
+        MORPHO.supply(MORPHO_LENDING_ROUTER.marketParams(address(y)), supplyAmount, 0, supplier, "");
         vm.stopPrank();
 
         vm.startPrank(user);
         MORPHO.setAuthorization(address(MORPHO_LENDING_ROUTER), true);
         asset.approve(address(MORPHO_LENDING_ROUTER), depositAmount);
         MORPHO_LENDING_ROUTER.enterPosition(
-            user, address(y), depositAmount, borrowAmount,
-            getDepositData(user, depositAmount + borrowAmount)
+            user, address(y), depositAmount, borrowAmount, getDepositData(user, depositAmount + borrowAmount)
         );
         uint256 balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(user, address(y));
         console.log("Enter position: ", depositAmount, borrowAmount);
@@ -127,12 +125,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         vm.warp(block.timestamp + 5 minutes);
 
         MORPHO_LENDING_ROUTER.exitPosition(
-            user,
-            address(y),
-            user,
-            balance,
-            type(uint256).max,
-            getRedeemData(user, balance)
+            user, address(y), user, balance, type(uint256).max, getRedeemData(user, balance)
         );
         console.log("Exited Position: ", asset.balanceOf(user));
 
@@ -148,32 +141,26 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
             calls[callIndex++] = MethodCall({
                 to: m[i],
                 value: 0,
-                callData: abi.encodeWithSelector(IWithdrawRequestManager.setApprovedVault.selector,
-                        proxy, true
-                    )
+                callData: abi.encodeWithSelector(IWithdrawRequestManager.setApprovedVault.selector, proxy, true)
             });
         }
 
         for (uint256 i = 0; i < t.length; i++) {
-            calls[callIndex++] = MethodCall({
-                to: address(TRADING_MODULE),
-                value: 0,
-                callData: t[i]
-            });
+            calls[callIndex++] = MethodCall({ to: address(TRADING_MODULE), value: 0, callData: t[i] });
         }
 
         calls[callIndex++] = MethodCall({
             to: address(MORPHO_LENDING_ROUTER),
             value: 0,
-            callData: abi.encodeWithSelector(MorphoLendingRouter.initializeMarket.selector,
-                proxy, MORPHO_IRM, MORPHO_LLTV()
+            callData: abi.encodeWithSelector(
+                MorphoLendingRouter.initializeMarket.selector, proxy, MORPHO_IRM, MORPHO_LLTV()
             )
         });
     }
 }
 
 contract EtherFiStaking is DeployVault {
-    uint256 constant FEE_RATE = 0.0015e18;
+    uint256 public constant FEE_RATE = 0.0015e18;
 
     constructor() {
         depositAmount = 10e18;
@@ -182,20 +169,20 @@ contract EtherFiStaking is DeployVault {
         proxy = 0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae;
     }
 
-    function getDepositData(address /* user */, uint256 /* amount */) internal pure override returns (bytes memory) {
+    function getDepositData(address, /* user */ uint256 /* amount */ ) internal pure override returns (bytes memory) {
         return bytes("");
     }
 
-    function getRedeemData(address /* user */, uint256 /* amount */) internal pure override returns (bytes memory) {
-        return abi.encode(RedeemParams({
-            minPurchaseAmount: 0,
-            dexId: uint8(DexId.CURVE_V2),
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5,
-                fromIndex: 1,
-                toIndex: 0
-            }))
-        }));
+    function getRedeemData(address, /* user */ uint256 /* amount */ ) internal pure override returns (bytes memory) {
+        return abi.encode(
+            RedeemParams({
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5, fromIndex: 1, toIndex: 0 })
+                )
+            })
+        );
     }
 
     function name() internal pure override returns (string memory) {
@@ -224,11 +211,13 @@ contract EtherFiStaking is DeployVault {
 
     function tradePermissions() internal view override returns (bytes[] memory t) {
         t = new bytes[](1);
-        t[0] = abi.encodeWithSelector(TRADING_MODULE.setTokenPermissions.selector,
-            proxy, address(weETH),
+        t[0] = abi.encodeWithSelector(
+            TRADING_MODULE.setTokenPermissions.selector,
+            proxy,
+            address(weETH),
             ITradingModule.TokenPermissions({
                 allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
+                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), // forge-lint: disable-line
                 // Exact in single and exact in batch
                 tradeTypeFlags: 5
             })
@@ -238,7 +227,7 @@ contract EtherFiStaking is DeployVault {
 }
 
 contract EthenaStaking is DeployVault {
-    uint256 constant FEE_RATE = 0.0025e18;
+    uint256 public constant FEE_RATE = 0.0025e18;
 
     constructor() {
         depositAmount = 10_000e6;
@@ -275,11 +264,13 @@ contract EthenaStaking is DeployVault {
     function tradePermissions() internal pure override returns (bytes[] memory t) {
         address[] memory m = managers();
         t = new bytes[](1);
-        t[0] = abi.encodeWithSelector(TRADING_MODULE.setTokenPermissions.selector,
-            m[0], address(USDC),
+        t[0] = abi.encodeWithSelector(
+            TRADING_MODULE.setTokenPermissions.selector,
+            m[0],
+            address(USDC),
             ITradingModule.TokenPermissions({
                 allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
+                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), // forge-lint: disable-line
                 // Exact in single and exact in batch
                 tradeTypeFlags: 5
             })
@@ -288,26 +279,36 @@ contract EthenaStaking is DeployVault {
     }
 
     function getRedeemData(
-        address /* user */,
+        address, /* user */
         uint256 /* shares */
-    ) internal pure override returns (bytes memory redeemData) {
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
         return bytes("");
     }
 
     function getDepositData(
-        address /* user */,
+        address, /* user */
         uint256 /* assets */
-    ) internal pure override returns (bytes memory depositData) {
-        return abi.encode(StakingTradeParams({
-            tradeType: TradeType.EXACT_IN_SINGLE,
-            minPurchaseAmount: 0,
-            dexId: uint8(DexId.CURVE_V2),
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-                fromIndex: 1,
-                toIndex: 0
-            })),
-            stakeData: bytes("")
-        }));
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(
+            StakingTradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72, fromIndex: 1, toIndex: 0 })
+                ),
+                stakeData: bytes("")
+            })
+        );
     }
 }

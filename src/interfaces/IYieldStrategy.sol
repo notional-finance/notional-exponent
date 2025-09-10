@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
-import {IOracle} from "./Morpho/IOracle.sol";
+import { IERC20 } from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import { IOracle } from "./Morpho/IOracle.sol";
 
 /**
  * @notice A strategy vault that is specifically designed for leveraged yield
@@ -99,7 +99,8 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 
     /**
-     * @dev Returns the amount of yield tokens that the Vault would exchange for the amount of shares provided, in an ideal
+     * @dev Returns the amount of yield tokens that the Vault would exchange for the amount of shares provided, in an
+     * ideal
      * scenario where all the conditions are met.
      */
     function convertSharesToYieldToken(uint256 shares) external view returns (uint256 yieldTokens);
@@ -142,9 +143,15 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * @param receiver The address to mint the shares to.
      * @param depositData calldata used to deposit the assets.
      */
-    function mintShares(uint256 assets, address receiver, bytes memory depositData) external returns (uint256 sharesMinted);
+    function mintShares(
+        uint256 assets,
+        address receiver,
+        bytes memory depositData
+    )
+        external
+        returns (uint256 sharesMinted);
 
-    /** 
+    /**
      * @notice Burns shares for a given number of shares.
      *
      * @param sharesOwner The address of the account to burn the shares for.
@@ -156,7 +163,9 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
         uint256 sharesToBurn,
         uint256 sharesHeld,
         bytes memory redeemData
-    ) external returns (uint256 assetsWithdrawn);
+    )
+        external
+        returns (uint256 assetsWithdrawn);
 
     /**
      * @notice Allows the lending market to transfer shares on exit position
@@ -181,7 +190,8 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
         address liquidateAccount,
         uint256 sharesToLiquidate,
         uint256 accountSharesHeld
-    ) external;
+    )
+        external;
 
     /**
      * @notice Post-liquidation function.
@@ -190,11 +200,7 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      * @param liquidateAccount The address of the account to liquidate.
      * @param sharesToLiquidator The amount of shares to liquidate.
      */
-    function postLiquidation(
-        address liquidator,
-        address liquidateAccount,
-        uint256 sharesToLiquidator
-    ) external;
+    function postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) external;
 
     /**
      * @notice Redeems shares for assets for a native token.
@@ -216,7 +222,9 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
         uint256 sharesHeld,
         bytes calldata data,
         address forceWithdrawFrom
-    ) external returns (uint256 requestId);
+    )
+        external
+        returns (uint256 requestId);
 
     /**
      * @notice Initiates a withdraw for the native balance of the account.

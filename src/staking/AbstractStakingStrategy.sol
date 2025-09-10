@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractYieldStrategy} from "../AbstractYieldStrategy.sol";
-import {IWithdrawRequestManager, WithdrawRequest} from "../interfaces/IWithdrawRequestManager.sol";
-import {Trade, TradeType} from "../interfaces/ITradingModule.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { AbstractYieldStrategy } from "../AbstractYieldStrategy.sol";
+import { IWithdrawRequestManager, WithdrawRequest } from "../interfaces/IWithdrawRequestManager.sol";
+import { Trade, TradeType } from "../interfaces/ITradingModule.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 struct RedeemParams {
     uint8 dexId;
@@ -33,7 +33,9 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         address _yieldToken,
         uint256 _feeRate,
         IWithdrawRequestManager _withdrawRequestManager
-    ) AbstractYieldStrategy(_asset, _yieldToken, _feeRate, ERC20(_yieldToken).decimals()) {
+    )
+        AbstractYieldStrategy(_asset, _yieldToken, _feeRate, ERC20(_yieldToken).decimals())
+    {
         // For Pendle PT the yield token does not define the withdraw request manager,
         // it is the token out sy
         withdrawRequestManager = _withdrawRequestManager;
@@ -52,9 +54,8 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     /// @notice Returns the total value in terms of the borrowed token of the account's position
     function convertToAssets(uint256 shares) public view override returns (uint256) {
         if (t_CurrentAccount != address(0) && _isWithdrawRequestPending(t_CurrentAccount)) {
-            (bool hasRequest, uint256 value) = withdrawRequestManager.getWithdrawRequestValue(
-                address(this), t_CurrentAccount, asset, shares
-            );
+            (bool hasRequest, uint256 value) =
+                withdrawRequestManager.getWithdrawRequestValue(address(this), t_CurrentAccount, asset, shares);
 
             // If the account does not have a withdraw request then this will fall through
             // to the super implementation.
@@ -70,16 +71,32 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         uint256 sharesHeld,
         bytes memory data,
         address forceWithdrawFrom
-    ) internal override virtual returns (uint256 requestId) {
+    )
+        internal
+        virtual
+        override
+        returns (uint256 requestId)
+    {
         ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: yieldTokenAmount, sharesAmount: sharesHeld, data: data,
+            account: account,
+            yieldTokenAmount: yieldTokenAmount,
+            sharesAmount: sharesHeld,
+            data: data,
             forceWithdrawFrom: forceWithdrawFrom
         });
     }
 
     /// @dev By default we can use the withdraw request manager to stake the tokens
-    function _mintYieldTokens(uint256 assets, address /* receiver */, bytes memory depositData) internal override virtual {
+    function _mintYieldTokens(
+        uint256 assets,
+        address, /* receiver */
+        bytes memory depositData
+    )
+        internal
+        virtual
+        override
+    {
         ERC20(asset).approve(address(withdrawRequestManager), assets);
         withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
     }
@@ -89,13 +106,18 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         address sharesOwner,
         bool isEscrowed,
         bytes memory redeemData
-    ) internal override {
+    )
+        internal
+        override
+    {
         if (isEscrowed) {
-            (WithdrawRequest memory w, /* */) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
+            (WithdrawRequest memory w, /* */ ) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
 
             uint256 tokensClaimed = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
-                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
+                account: sharesOwner,
+                withdrawYieldTokenAmount: yieldTokensBurned,
+                sharesToBurn: sharesToRedeem
             });
 
             // Trades may be required here if the borrowed token is not the same as what is
@@ -125,7 +147,11 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     function _executeInstantRedemption(
         uint256 yieldTokensToRedeem,
         bytes memory redeemData
-    ) internal virtual returns (uint256 assetsPurchased) {
+    )
+        internal
+        virtual
+        returns (uint256 assetsPurchased)
+    {
         RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
         Trade memory trade = Trade({
             tradeType: TradeType.EXACT_IN_SINGLE,
@@ -139,17 +165,28 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
         // Executes a trade on the given Dex, the vault must have permissions set for
         // each dex and token it wants to sell.
-        (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
+        ( /* */ , assetsPurchased) = _executeTrade(trade, params.dexId);
     }
-    
-    function _preLiquidation(address, address, uint256, uint256) internal override { /* no-op */ }
 
-    function _postLiquidation(address liquidator, address liquidateAccount, uint256 sharesToLiquidator) internal override returns (bool didTokenize) {
+    /* solhint-disable no-empty-blocks */
+    function _preLiquidation(address, address, uint256, uint256) internal override { /* no-op */ }
+    /* solhint-enable no-empty-blocks */
+
+    function _postLiquidation(
+        address liquidator,
+        address liquidateAccount,
+        uint256 sharesToLiquidator
+    )
+        internal
+        override
+        returns (bool didTokenize)
+    {
         if (address(withdrawRequestManager) != address(0)) {
-            // No need to accrue fees because neither the total supply or total yield token balance is changing. If there
+            // No need to accrue fees because neither the total supply or total yield token balance is changing. If
+            // there
             // is no withdraw request then this will be a noop.
-            didTokenize = withdrawRequestManager.tokenizeWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
+            didTokenize =
+                withdrawRequestManager.tokenizeWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
-
 }

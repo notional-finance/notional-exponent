@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractRewardManager} from "./AbstractRewardManager.sol";
-import {RewardPoolStorage} from "../interfaces/IRewardManager.sol";
-import {IConvexRewardPool, IConvexBooster} from "../interfaces/Curve/IConvex.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TokenUtils} from "../utils/TokenUtils.sol";
+import { AbstractRewardManager } from "./AbstractRewardManager.sol";
+import { RewardPoolStorage } from "../interfaces/IRewardManager.sol";
+import { IConvexRewardPool, IConvexBooster } from "../interfaces/Curve/IConvex.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 
 contract ConvexRewardManager is AbstractRewardManager {
     using TokenUtils for ERC20;
@@ -20,7 +20,14 @@ contract ConvexRewardManager is AbstractRewardManager {
         require(IConvexRewardPool(oldRewardPool.rewardPool).withdrawAndUnwrap(boosterBalance, true));
     }
 
-    function _depositIntoNewRewardPool(address poolToken, uint256 poolTokens, RewardPoolStorage memory newRewardPool) internal override {
+    function _depositIntoNewRewardPool(
+        address poolToken,
+        uint256 poolTokens,
+        RewardPoolStorage memory newRewardPool
+    )
+        internal
+        override
+    {
         uint256 poolId = IConvexRewardPool(newRewardPool.rewardPool).pid();
         address booster = IConvexRewardPool(newRewardPool.rewardPool).operator();
         ERC20(poolToken).checkApprove(booster, type(uint256).max);

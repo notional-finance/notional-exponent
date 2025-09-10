@@ -2,11 +2,11 @@
 pragma solidity >=0.8.29;
 
 import "forge-std/src/Script.sol";
-import {ADDRESS_REGISTRY} from "../src/utils/Constants.sol";
-import {AddressRegistry} from "../src/proxy/AddressRegistry.sol";
-import {MorphoLendingRouter} from "../src/routers/MorphoLendingRouter.sol";
-import {ProxyHelper} from "./ProxyHelper.sol";
-import {GnosisHelper, MethodCall} from "./GnosisHelper.sol";
+import { ADDRESS_REGISTRY } from "../src/utils/Constants.sol";
+import { AddressRegistry } from "../src/proxy/AddressRegistry.sol";
+import { MorphoLendingRouter } from "../src/routers/MorphoLendingRouter.sol";
+import { ProxyHelper } from "./ProxyHelper.sol";
+import { GnosisHelper, MethodCall } from "./GnosisHelper.sol";
 
 contract DeployMorphoLendingRouter is ProxyHelper, GnosisHelper {
     function run() public {
@@ -26,4 +26,4 @@ contract DeployMorphoLendingRouter is ProxyHelper, GnosisHelper {
         });
         generateBatch("./script/list-morpho-lending-router.json", calls);
     }
-}   
+}

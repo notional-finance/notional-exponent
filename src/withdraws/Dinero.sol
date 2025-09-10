@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {WETH, DEFAULT_PRECISION} from "../utils/Constants.sol";
-import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {IPirexETH, PirexETH, pxETH, apxETH, upxETH} from "../interfaces/IDinero.sol";
-import {TRADING_MODULE} from "../interfaces/ITradingModule.sol";
+import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { WETH, DEFAULT_PRECISION } from "../utils/Constants.sol";
+import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IPirexETH, PirexETH, pxETH, apxETH, upxETH } from "../interfaces/IDinero.sol";
+import { TRADING_MODULE } from "../interfaces/ITradingModule.sol";
 
 contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
     uint256 public initialBatchId;
@@ -18,14 +18,16 @@ contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
 
     constructor(address _manager) ClonedCoolDownHolder(_manager) { }
 
-    function _stopCooldown() internal pure override { revert(); }
+    function _stopCooldown() internal pure override {
+        revert();
+    }
 
     function _startCooldown(uint256 amountToWithdraw) internal override {
         require(initialBatchId == 0 && finalBatchId == 0);
 
         initialBatchId = PirexETH.batchId();
         pxETH.approve(address(PirexETH), amountToWithdraw);
-        (pxETHAmount, /* */) = PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
+        (pxETHAmount, /* */ ) = PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
         finalBatchId = PirexETH.batchId();
     }
 
@@ -39,51 +41,58 @@ contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
             PirexETH.redeemWithUpxEth(i, assets, address(this));
             tokensClaimed += assets;
         }
-        WETH.deposit{value: tokensClaimed}();
-        WETH.transfer(manager, tokensClaimed);
+        WETH.deposit{ value: tokensClaimed }();
+        WETH.transfer(manager, tokensClaimed); // forge-lint: disable-line
         finalized = true;
     }
 }
 
 contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
-
     address public HOLDER_IMPLEMENTATION;
 
-    constructor(address pxETHorApxETH) AbstractWithdrawRequestManager(
-        address(WETH), address(pxETHorApxETH), address(WETH)
-    ) { }
+    constructor(address pxETHorApxETH)
+        AbstractWithdrawRequestManager(address(WETH), address(pxETHorApxETH), address(WETH))
+    { }
 
-    function _initialize(bytes calldata /* data */) internal override {
+    function _initialize(bytes calldata /* data */ ) internal override {
         HOLDER_IMPLEMENTATION = address(new DineroCooldownHolder(address(this)));
     }
 
     function _initiateWithdrawImpl(
-        address /* account */,
+        address, /* account */
         uint256 amountToWithdraw,
-        bytes calldata /* data */,
+        bytes calldata, /* data */
         address /* forceWithdrawFrom */
-    ) override internal returns (uint256 requestId) {
+    )
+        internal
+        override
+        returns (uint256 requestId)
+    {
         if (YIELD_TOKEN == address(apxETH)) {
             // First redeem the apxETH to pxETH before we initiate the redemption
             amountToWithdraw = apxETH.redeem(amountToWithdraw, address(this), address(this));
         }
 
         DineroCooldownHolder holder = DineroCooldownHolder(payable(Clones.clone(HOLDER_IMPLEMENTATION)));
-        pxETH.transfer(address(holder), amountToWithdraw);
+        pxETH.transfer(address(holder), amountToWithdraw); // forge-lint: disable-line
         holder.startCooldown(amountToWithdraw);
 
         return uint256(uint160(address(holder)));
     }
 
-    function _stakeTokens(uint256 amount, bytes memory /* stakeData */) internal override {
+    function _stakeTokens(uint256 amount, bytes memory /* stakeData */ ) internal override {
         WETH.withdraw(amount);
-        PirexETH.deposit{value: amount}(address(this), YIELD_TOKEN == address(apxETH));
+        PirexETH.deposit{ value: amount }(address(this), YIELD_TOKEN == address(apxETH));
     }
 
     function _finalizeWithdrawImpl(
-        address /* account */,
+        address, /* account */
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed) {
+    )
+        internal
+        override
+        returns (uint256 tokensClaimed)
+    {
         DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
         bool finalized;
         (tokensClaimed, finalized) = holder.finalizeCooldown();
@@ -111,12 +120,17 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
         return PirexETH.outstandingRedemptions() >= totalAssets;
     }
 
-    function getKnownWithdrawTokenAmount(uint256 requestId) public view override returns (bool hasKnownAmount, uint256 amount) {
+    function getKnownWithdrawTokenAmount(uint256 requestId)
+        public
+        view
+        override
+        returns (bool hasKnownAmount, uint256 amount)
+    {
         DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
         hasKnownAmount = true;
         // The withdraw token is marked as WETH here, but we know the pxETH amount instead of the WETH
         // amount so we do need to convert it to WETH using the pxETH market price.
-        (int256 tokenRate, /* */) = TRADING_MODULE.getOraclePrice(address(pxETH), WITHDRAW_TOKEN);
+        (int256 tokenRate, /* */ ) = TRADING_MODULE.getOraclePrice(address(pxETH), WITHDRAW_TOKEN);
         amount = holder.pxETHAmount() * uint256(tokenRate) / DEFAULT_PRECISION;
     }
 

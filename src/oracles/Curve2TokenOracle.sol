@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractLPOracle, ERC20} from "./AbstractLPOracle.sol";
-import {ICurvePool} from "../interfaces/Curve/ICurve.sol";
-import {TokenUtils} from "../utils/TokenUtils.sol";
-import {ETH_ADDRESS, ALT_ETH_ADDRESS, DEFAULT_PRECISION} from "../utils/Constants.sol";
-import {TypeConvert} from "../utils/TypeConvert.sol";
-import {AggregatorV2V3Interface} from "../interfaces/AggregatorV2V3Interface.sol";
+import { AbstractLPOracle, ERC20 } from "./AbstractLPOracle.sol";
+import { ICurvePool } from "../interfaces/Curve/ICurve.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
+import { ETH_ADDRESS, ALT_ETH_ADDRESS, DEFAULT_PRECISION } from "../utils/Constants.sol";
+import { TypeConvert } from "../utils/TypeConvert.sol";
+import { AggregatorV2V3Interface } from "../interfaces/AggregatorV2V3Interface.sol";
 
 contract Curve2TokenOracle is AbstractLPOracle {
     using TypeConvert for uint256;
@@ -33,8 +33,18 @@ contract Curve2TokenOracle is AbstractLPOracle {
         AggregatorV2V3Interface baseToUSDOracle_,
         bool _invertBase,
         uint256 _dyAmount
-    // Curve LP tokens are in 18 decimals so we use DEFAULT_PRECISION
-    ) AbstractLPOracle(DEFAULT_PRECISION, _lowerLimitMultiplier, _upperLimitMultiplier, _lpToken, _primaryIndex, description_, sequencerUptimeOracle_) {
+    )
+        // Curve LP tokens are in 18 decimals so we use DEFAULT_PRECISION
+        AbstractLPOracle(
+            DEFAULT_PRECISION,
+            _lowerLimitMultiplier,
+            _upperLimitMultiplier,
+            _lpToken,
+            _primaryIndex,
+            description_,
+            sequencerUptimeOracle_
+        )
+    {
         TOKEN_1 = _rewriteAltETH(ICurvePool(_lpToken).coins(0));
         TOKEN_2 = _rewriteAltETH(ICurvePool(_lpToken).coins(1));
         DECIMALS_1 = TokenUtils.getDecimals(TOKEN_1);
@@ -45,7 +55,7 @@ contract Curve2TokenOracle is AbstractLPOracle {
         dyAmount = _dyAmount;
 
         uint8 _baseDecimals = baseToUSDOracle_.decimals();
-        baseToUSDDecimals = int256(10**_baseDecimals);
+        baseToUSDDecimals = int256(10 ** _baseDecimals);
     }
 
     function _rewriteAltETH(address token) private pure returns (address) {
@@ -79,31 +89,23 @@ contract Curve2TokenOracle is AbstractLPOracle {
         // converted to the secondary token. The spot price is in secondary
         // precision and then we convert it to DEFAULT_PRECISION for comparison
         // with the oracle price.
-        spotPrices[SECONDARY_INDEX] = ICurvePool(LP_TOKEN).get_dy(
-            int8(PRIMARY_INDEX), int8(SECONDARY_INDEX), dyAmount
-        ) * primaryPrecision * DEFAULT_PRECISION / (dyAmount * secondaryPrecision);
+        spotPrices[SECONDARY_INDEX] = ICurvePool(LP_TOKEN).get_dy(int8(PRIMARY_INDEX), int8(SECONDARY_INDEX), dyAmount)
+            * primaryPrecision * DEFAULT_PRECISION / (dyAmount * secondaryPrecision);
 
         // This is returned in DEFAULT_PRECISION
         return _calculateLPTokenValue(tokens, decimals, balances, spotPrices).toInt();
     }
 
-    function _calculateBaseToQuote() internal view override returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) {
+    function _calculateBaseToQuote()
+        internal
+        view
+        override
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
         int256 lpTokenValue = _lpTokenValue();
 
         int256 baseToUSD;
-        (
-            roundId,
-            baseToUSD,
-            startedAt,
-            updatedAt,
-            answeredInRound
-        ) = baseToUSDOracle.latestRoundData();
+        (roundId, baseToUSD, startedAt, updatedAt, answeredInRound) = baseToUSDOracle.latestRoundData();
         require(baseToUSD > 0, "Chainlink Rate Error");
         // Overflow and div by zero not possible
         if (invertBase) baseToUSD = (baseToUSDDecimals * baseToUSDDecimals) / baseToUSD;

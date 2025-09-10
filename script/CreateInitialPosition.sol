@@ -3,32 +3,35 @@ pragma solidity >=0.8.29;
 
 import "forge-std/src/Script.sol";
 import "../src/interfaces/ITradingModule.sol";
-import {StakingTradeParams} from "../src/interfaces/IWithdrawRequestManager.sol";
-import {MorphoLendingRouter} from "../src/routers/MorphoLendingRouter.sol";
-import {IYieldStrategy} from "../src/interfaces/IYieldStrategy.sol";
-import {MORPHO, MarketParams, Id} from "../src/interfaces/Morpho/IMorpho.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { StakingTradeParams } from "../src/interfaces/IWithdrawRequestManager.sol";
+import { MorphoLendingRouter } from "../src/routers/MorphoLendingRouter.sol";
+import { IYieldStrategy } from "../src/interfaces/IYieldStrategy.sol";
+import { MORPHO, MarketParams, Id } from "../src/interfaces/Morpho/IMorpho.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
 
 contract CreateInitialPosition is Script {
-
     function getDepositData(
-        address /* user */,
+        address, /* user */
         uint256 /* assets */
-    ) internal pure returns (bytes memory depositData) {
+    )
+        internal
+        pure
+        returns (bytes memory depositData)
+    {
         // TODO: need to find a way to inject other deposit data
-        return abi.encode(StakingTradeParams({
-            tradeType: TradeType.EXACT_IN_SINGLE,
-            minPurchaseAmount: 0,
-            dexId: uint8(DexId.CURVE_V2),
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-                fromIndex: 1,
-                toIndex: 0
-            })),
-            stakeData: bytes("")
-        }));
+        return abi.encode(
+            StakingTradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72, fromIndex: 1, toIndex: 0 })
+                ),
+                stakeData: bytes("")
+            })
+        );
     }
 
     function run() public {
@@ -74,7 +77,7 @@ contract CreateInitialPosition is Script {
         MORPHO.supply(marketParams, initialSupply, 0, msg.sender, "");
         vm.stopBroadcast();
 
-        uint256 initialBorrow =  0.9e6;
+        uint256 initialBorrow = 0.9e6;
         uint256 initialDeposit = 1.0e6;
         console.log("Creating initial position");
         console.log("Initial Deposit", initialDeposit);
@@ -83,9 +86,7 @@ contract CreateInitialPosition is Script {
         bytes memory depositData = getDepositData(msg.sender, initialDeposit + initialBorrow);
 
         vm.startBroadcast();
-        MORPHO_LENDING_ROUTER.enterPosition(
-            msg.sender, address(vault), initialDeposit, initialBorrow, depositData
-        );
+        MORPHO_LENDING_ROUTER.enterPosition(msg.sender, address(vault), initialDeposit, initialBorrow, depositData);
         vm.stopBroadcast();
 
         uint256 balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(msg.sender, address(vault));

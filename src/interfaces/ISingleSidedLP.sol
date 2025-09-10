@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {TradeType} from "./ITradingModule.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TradeType } from "./ITradingModule.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 struct TradeParams {
     uint256 tradeAmount;
@@ -35,7 +35,6 @@ struct WithdrawParams {
 
 /// @dev Internal library for single-sided LPs, used to reduce the bytecode size of the main contract
 interface ILPLib {
-
     /// @dev Approves the tokens needed for the pool, only called once during initialization
     function initialApproveTokens() external;
 
@@ -47,16 +46,27 @@ interface ILPLib {
         uint256 poolClaim,
         uint256[] memory minAmounts,
         bool isSingleSided
-    ) external returns (uint256[] memory exitBalances, ERC20[] memory tokens);
+    )
+        external
+        returns (uint256[] memory exitBalances, ERC20[] memory tokens);
 
     /// @dev Gets the value of all pending withdrawals
-    function getWithdrawRequestValue(address account, address asset, uint256 shares) external view returns (uint256 totalValue);
+    function getWithdrawRequestValue(
+        address account,
+        address asset,
+        uint256 shares
+    )
+        external
+        view
+        returns (uint256 totalValue);
 
     /// @dev Finalizes a withdraw request and redeems the shares
     function finalizeAndRedeemWithdrawRequest(
         address sharesOwner,
         uint256 sharesToRedeem
-    ) external returns (uint256[] memory exitBalances, ERC20[] memory withdrawTokens);
+    )
+        external
+        returns (uint256[] memory exitBalances, ERC20[] memory withdrawTokens);
 
     /// @dev Initiates a withdraw request
     function initiateWithdraw(
@@ -65,14 +75,18 @@ interface ILPLib {
         uint256[] calldata exitBalances,
         bytes[] calldata withdrawData,
         address forceWithdrawFrom
-    ) external returns (uint256[] memory requestIds);
+    )
+        external
+        returns (uint256[] memory requestIds);
 
     /// @dev Tokenizes a withdraw request during liquidation
     function tokenizeWithdrawRequest(
         address liquidateAccount,
         address liquidator,
         uint256 sharesToLiquidator
-    ) external returns (bool didTokenize);
+    )
+        external
+        returns (bool didTokenize);
 
     /// @dev Checks if the account has pending withdrawals
     function hasPendingWithdrawals(address account) external view returns (bool);

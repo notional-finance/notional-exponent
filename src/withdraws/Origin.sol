@@ -1,23 +1,26 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
-import {WETH} from "../utils/Constants.sol";
-import {IOriginVault, OriginVault, oETH, wOETH} from "../interfaces/IOrigin.sol";
+import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
+import { WETH } from "../utils/Constants.sol";
+import { IOriginVault, OriginVault, oETH, wOETH } from "../interfaces/IOrigin.sol";
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
-
     constructor() AbstractWithdrawRequestManager(address(WETH), address(wOETH), address(WETH)) { }
 
     function _initiateWithdrawImpl(
-        address /* account */,
+        address, /* account */
         uint256 woETHToWithdraw,
-        bytes calldata /* data */,
+        bytes calldata, /* data */
         address /* forceWithdrawFrom */
-    ) override internal returns (uint256 requestId) {
+    )
+        internal
+        override
+        returns (uint256 requestId)
+    {
         uint256 oethRedeemed = wOETH.redeem(woETHToWithdraw, address(this), address(this));
         oETH.approve(address(OriginVault), oethRedeemed);
-        (requestId, ) = OriginVault.requestWithdrawal(oethRedeemed);
+        (requestId,) = OriginVault.requestWithdrawal(oethRedeemed);
     }
 
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {
@@ -33,9 +36,13 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function _finalizeWithdrawImpl(
-        address /* account */,
+        address, /* account */
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed) {
+    )
+        internal
+        override
+        returns (uint256 tokensClaimed)
+    {
         uint256 balanceBefore = WETH.balanceOf(address(this));
         OriginVault.claimWithdrawal(requestId);
         tokensClaimed = WETH.balanceOf(address(this)) - balanceBefore;

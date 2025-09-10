@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IsUSDe, sUSDe, USDe} from "../interfaces/IEthena.sol";
-import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
-import {AbstractWithdrawRequestManager} from "./AbstractWithdrawRequestManager.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IsUSDe, sUSDe, USDe } from "../interfaces/IEthena.sol";
+import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
+import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
 contract EthenaCooldownHolder is ClonedCoolDownHolder {
-
     uint256 public instantRedeemBalance;
     uint256 public expectedRedeemBalance;
 
     constructor(address _manager) ClonedCoolDownHolder(_manager) { }
 
     /// @notice There is no way to stop a cool down
-    function _stopCooldown() internal pure override { revert(); }
+    function _stopCooldown() internal pure override {
+        revert();
+    }
 
     function _startCooldown(uint256 cooldownBalance) internal override {
         uint24 duration = sUSDe.cooldownDuration();
@@ -48,58 +49,66 @@ contract EthenaCooldownHolder is ClonedCoolDownHolder {
         // USDe is immutable. It cannot have a transfer tax and it is ERC20 compliant
         // so we do not need to use the additional protections here.
         tokensClaimed = balanceAfter - balanceBefore + instantRedeemBalance;
-        USDe.transfer(manager, tokensClaimed);
+        USDe.transfer(manager, tokensClaimed); // forge-lint: disable-line
         finalized = true;
     }
 }
 
 contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
-
     address public HOLDER_IMPLEMENTATION;
 
     constructor() AbstractWithdrawRequestManager(address(USDe), address(sUSDe), address(USDe)) { }
 
-    function _initialize(bytes calldata /* data */) internal override {
+    function _initialize(bytes calldata /* data */ ) internal override {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 
-    function _stakeTokens(
-        uint256 usdeAmount,
-        bytes memory /* stakeData */
-    ) internal override {
+    function _stakeTokens(uint256 usdeAmount, bytes memory /* stakeData */ ) internal override {
         USDe.approve(address(sUSDe), usdeAmount);
         sUSDe.deposit(usdeAmount, address(this));
     }
 
     function _initiateWithdrawImpl(
-        address /* account */,
+        address, /* account */
         uint256 balanceToTransfer,
-        bytes calldata /* data */,
+        bytes calldata, /* data */
         address /* forceWithdrawFrom */
-    ) internal override returns (uint256 requestId) {
+    )
+        internal
+        override
+        returns (uint256 requestId)
+    {
         EthenaCooldownHolder holder = EthenaCooldownHolder(Clones.clone(HOLDER_IMPLEMENTATION));
-        sUSDe.transfer(address(holder), balanceToTransfer);
+        sUSDe.transfer(address(holder), balanceToTransfer); // forge-lint: disable-line
         holder.startCooldown(balanceToTransfer);
 
         return uint256(uint160(address(holder)));
     }
 
     function _finalizeWithdrawImpl(
-        address /* account */,
+        address, /* account */
         uint256 requestId
-    ) internal override returns (uint256 tokensClaimed) {
+    )
+        internal
+        override
+        returns (uint256 tokensClaimed)
+    {
         EthenaCooldownHolder holder = EthenaCooldownHolder(address(uint160(requestId)));
         bool finalized;
         (tokensClaimed, finalized) = holder.finalizeCooldown();
         require(finalized);
     }
 
-    function getKnownWithdrawTokenAmount(uint256 requestId) public view override returns (bool hasKnownAmount, uint256 amount) {
+    function getKnownWithdrawTokenAmount(uint256 requestId)
+        public
+        view
+        override
+        returns (bool hasKnownAmount, uint256 amount)
+    {
         EthenaCooldownHolder holder = EthenaCooldownHolder(address(uint160(requestId)));
         hasKnownAmount = true;
         amount = holder.expectedRedeemBalance() + holder.instantRedeemBalance();
     }
-
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         uint24 duration = sUSDe.cooldownDuration();
@@ -111,5 +120,4 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
         IsUSDe.UserCooldown memory userCooldown = sUSDe.cooldowns(holder);
         return (userCooldown.cooldownEnd < block.timestamp || 0 == duration);
     }
-
 }

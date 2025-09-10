@@ -11,14 +11,13 @@ import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
 
 contract TestMorphoYieldStrategy is TestEnvironment {
-
-    function deployYieldStrategy() internal override virtual {
+    function deployYieldStrategy() internal virtual override {
         w = new MockWrapperERC20(ERC20(address(USDC)), 18);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             address(USDC),
             address(w),
-            0.0010e18 // 0.1% fee rate
+            0.001e18 // 0.1% fee rate
         );
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
@@ -34,8 +33,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         asset.approve(address(MORPHO), type(uint256).max);
         MORPHO.supply(
-            MorphoLendingRouter(address(l)).marketParams(address(y)),
-            500_000 * 10 ** asset.decimals(), 0, owner, ""
+            MorphoLendingRouter(address(l)).marketParams(address(y)), 500_000 * 10 ** asset.decimals(), 0, owner, ""
         );
         vm.stopPrank();
 
@@ -51,8 +49,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         if (!MORPHO.isAuthorized(user, address(l))) MORPHO.setAuthorization(address(l), true);
         asset.approve(address(l), depositAmount);
         l.enterPosition(
-            user, address(y), depositAmount, borrowAmount,
-            getDepositData(user, depositAmount + borrowAmount)
+            user, address(y), depositAmount, borrowAmount, getDepositData(user, depositAmount + borrowAmount)
         );
         vm.stopPrank();
     }
@@ -68,11 +65,13 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         for (uint256 i = 0; i < users.length; i++) {
             address user = users[i];
             assertEq(w.balanceOf(user), 0, "User has no wrapped tokens");
-            assertGe(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()),
+            assertGe(
+                w.balanceOf(address(y)),
+                y.convertSharesToYieldToken(y.totalSupply()),
                 "Yield token balance matches total supply"
             );
-            assertEq(y.balanceOf(address(MORPHO)), y.totalSupply() - y.balanceOf(owner),
-                "Morpho has all collateral shares"
+            assertEq(
+                y.balanceOf(address(MORPHO)), y.totalSupply() - y.balanceOf(owner), "Morpho has all collateral shares"
             );
             assertEq(y.balanceOf(user), 0, "User has no collateral shares");
             computedTotalSupply += lendingRouter.balanceOfCollateral(user, address(y));
@@ -96,7 +95,9 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.prank(owner);
         ADDRESS_REGISTRY.setWhitelistedVault(address(y), false);
         vm.startPrank(msg.sender);
-        if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) {
+            MORPHO.setAuthorization(address(lendingRouter), true);
+        }
         asset.approve(address(lendingRouter), defaultDeposit);
         vm.expectRevert(abi.encodeWithSelector(InvalidVault.selector, address(y)));
         bytes memory data = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
@@ -115,7 +116,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         checkTransientsCleared();
     }
 
-    function test_enterPosition_zeroBorrow() public { 
+    function test_enterPosition_zeroBorrow() public {
         _enterPosition(msg.sender, defaultDeposit, 0);
         postEntryAssertions(msg.sender, lendingRouter);
         assertApproxEqRel(
@@ -126,14 +127,36 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         checkTransientsCleared();
     }
 
-    function postExitAssertions(uint256 initialBalance, uint256 netWorthBefore, uint256 sharesToExit, uint256 profitsWithdrawn, uint256 netWorthAfter) internal view {
+    function postExitAssertions(
+        uint256 initialBalance,
+        uint256 netWorthBefore,
+        uint256 sharesToExit,
+        uint256 profitsWithdrawn,
+        uint256 netWorthAfter
+    )
+        internal
+        view
+    {
         // Check that the yield token balance is correct
         assertEq(w.balanceOf(msg.sender), 0, "Account has no wrapped tokens");
-        assertApproxEqAbs(y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()), y.totalSupply(), 1, "Yield token is 1-1 with collateral shares");
+        assertApproxEqAbs(
+            y.convertYieldTokenToShares(w.balanceOf(address(y)) - y.feesAccrued()),
+            y.totalSupply(),
+            1,
+            "Yield token is 1-1 with collateral shares"
+        );
         assertEq(y.balanceOf(address(MORPHO)), y.totalSupply(), "Morpho has all collateral shares");
         assertEq(y.balanceOf(msg.sender), 0, "Account has no collateral shares");
-        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), initialBalance - sharesToExit, "Account has collateral shares");
-        assertEq(lendingRouter.balanceOfCollateral(msg.sender, address(y)), y.balanceOf(address(MORPHO)), "Account has collateral shares on MORPHO");
+        assertEq(
+            lendingRouter.balanceOfCollateral(msg.sender, address(y)),
+            initialBalance - sharesToExit,
+            "Account has collateral shares"
+        );
+        assertEq(
+            lendingRouter.balanceOfCollateral(msg.sender, address(y)),
+            y.balanceOf(address(MORPHO)),
+            "Account has collateral shares on MORPHO"
+        );
         assertApproxEqRel(netWorthBefore - netWorthAfter, profitsWithdrawn, maxExitValuationSlippage);
     }
 
@@ -200,7 +223,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         MORPHO.withdrawCollateral(marketParams, 1, msg.sender, msg.sender);
     }
 
-    function test_exitPosition_revertsIf_BeforeCooldownPeriod() public { 
+    function test_exitPosition_revertsIf_BeforeCooldownPeriod() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         vm.startPrank(msg.sender);
@@ -209,41 +232,9 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
-    // // TODO: add tests for various pause/unpause scenarios
-    // // function test_pause_unpause() public {
-    // //     // Initially not paused
-    // //     assertEq(y.isPaused(), false);
-
-    // //     // Only owner can pause
-    // //     vm.prank(msg.sender);
-    // //     vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
-    // //     y.pause();
-
-    // //     vm.prank(owner);
-    // //     y.pause();
-    // //     assertEq(y.isPaused(), true);
-
-    // //     // Cannot perform operations while paused
-    // //     vm.prank(msg.sender);
-    // //     vm.expectRevert(abi.encodeWithSelector(Paused.selector));
-    // //     y.enterPosition(msg.sender, 100_000e6, 100_000e6, getDepositData(msg.sender, 100_000e6));
-
-    // //     // Only owner can unpause
-    // //     vm.prank(msg.sender);
-    // //     vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, msg.sender, owner));
-    // //     y.unpause();
-
-    // //     vm.prank(owner);
-    // //     y.unpause();
-    // //     assertEq(y.isPaused(), false);
-
-    // //     // Can perform operations after unpause
-    // //     _enterPosition(msg.sender, 100_000e6, 100_000e6);
-    // // }
-
     function test_setApproval() public {
         address operator = address(0x123);
-        
+
         // Initially not approved
         assertEq(lendingRouter.isApproved(msg.sender, operator), false);
 
@@ -260,7 +251,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         // Test that approvals work for operations
         vm.prank(msg.sender);
         lendingRouter.setApproval(operator, true);
-        
+
         // Operator can perform operations on behalf of user
         vm.prank(owner);
         asset.transfer(operator, defaultDeposit);
@@ -271,7 +262,10 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(operator);
         asset.approve(address(lendingRouter), defaultDeposit);
         lendingRouter.enterPosition(
-            msg.sender, address(y), defaultDeposit, defaultBorrow,
+            msg.sender,
+            address(y),
+            defaultDeposit,
+            defaultBorrow,
             getDepositData(msg.sender, defaultDeposit + defaultBorrow)
         );
         checkTransientsCleared();
@@ -284,10 +278,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         // Operator can no longer perform operations
         vm.startPrank(operator);
         vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, operator, msg.sender));
-        lendingRouter.enterPosition(
-            msg.sender, address(y), 100_000e6, 100_000e6,
-            getDepositData(msg.sender, 100_000e6)
-        );
+        lendingRouter.enterPosition(msg.sender, address(y), 100_000e6, 100_000e6, getDepositData(msg.sender, 100_000e6));
         checkTransientsCleared();
         vm.stopPrank();
     }
@@ -333,7 +324,12 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         assertEq(yieldTokens, w.balanceOf(address(y)), "yield token balance should be equal to yield tokens");
         assertEq(shares, y.convertYieldTokenToShares(yieldTokens), "convertYieldTokenToShares should equal shares");
-        assertApproxEqRel(shares, y.convertToShares(assets), 0.0001e18, "convertToShares(convertToAssets(balanceOfShares)) should be equal to balanceOfShares");
+        assertApproxEqRel(
+            shares,
+            y.convertToShares(assets),
+            0.0001e18,
+            "convertToShares(convertToAssets(balanceOfShares)) should be equal to balanceOfShares"
+        );
     }
 
     function test_redeemNative_RevertsIf_NoSharesHeld() public {
@@ -365,12 +361,12 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();
         address liquidator = makeAddr("liquidator");
-        
+
         vm.prank(owner);
         asset.transfer(liquidator, defaultDeposit + defaultBorrow);
 
         vm.warp(block.timestamp + 6 minutes);
-        o.setPrice(originalPrice * 0.90e18 / 1e18);
+        o.setPrice(originalPrice * 0.9e18 / 1e18);
 
         vm.startPrank(liquidator);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
@@ -398,12 +394,12 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();
         address liquidator = makeAddr("liquidator");
-        
+
         vm.prank(owner);
         asset.transfer(liquidator, defaultDeposit + defaultBorrow);
 
         vm.warp(block.timestamp + 6 minutes);
-        o.setPrice(originalPrice * 0.90e18 / 1e18);
+        o.setPrice(originalPrice * 0.9e18 / 1e18);
 
         vm.startPrank(liquidator);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
@@ -418,7 +414,13 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.startPrank(liquidator);
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
-        lendingRouter.enterPosition(liquidator, address(y), defaultDeposit, defaultBorrow, getDepositData(liquidator, defaultDeposit + defaultBorrow));
+        lendingRouter.enterPosition(
+            liquidator,
+            address(y),
+            defaultDeposit,
+            defaultBorrow,
+            getDepositData(liquidator, defaultDeposit + defaultBorrow)
+        );
         checkTransientsCleared();
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
@@ -463,7 +465,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
         vm.startPrank(msg.sender);
         vm.expectRevert();
-        MORPHO.borrow(marketParams,0, 90_000e6, msg.sender, msg.sender);
+        MORPHO.borrow(marketParams, 0, 90_000e6, msg.sender, msg.sender);
         vm.stopPrank();
     }
 
@@ -483,7 +485,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         MorphoLendingRouter(address(lendingRouter)).onMorphoFlashLoan(10_000e6, bytes(""));
 
         vm.expectRevert();
-        MorphoLendingRouter(address(lendingRouter)).onMorphoLiquidate(10_000e6, bytes("")); 
+        MorphoLendingRouter(address(lendingRouter)).onMorphoLiquidate(10_000e6, bytes(""));
 
         vm.expectRevert();
         MorphoLendingRouter(address(lendingRouter)).onMorphoRepay(10_000e6, bytes(""));
@@ -558,7 +560,6 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.stopPrank();
     }
 
-    
     function test_migrate_RevertsIf_NotAuthorized() public {
         address user = msg.sender;
         MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
@@ -567,18 +568,15 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         lendingRouter.setApproval(address(lendingRouter2), false);
         // Revert occurs on the original lending router
         vm.expectRevert(
-            abi.encodeWithSelector(NotAuthorized.selector, address(lendingRouter2), user),
-            address(lendingRouter)
+            abi.encodeWithSelector(NotAuthorized.selector, address(lendingRouter2), user), address(lendingRouter)
         );
         lendingRouter2.migratePosition(user, address(y), address(lendingRouter));
         vm.stopPrank();
-
     }
 
     function test_migrate_RevertsIf_PriorToCooldownPeriod() public {
         address user = msg.sender;
         MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
-
 
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSelector(CannotExitPositionWithinCooldownPeriod.selector));
@@ -607,8 +605,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         asset.approve(address(lendingRouter2), defaultDeposit);
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter2.enterPosition(
-            user, address(y), defaultDeposit, defaultBorrow,
-            getDepositData(user, defaultDeposit + defaultBorrow)
+            user, address(y), defaultDeposit, defaultBorrow, getDepositData(user, defaultDeposit + defaultBorrow)
         );
         vm.stopPrank();
     }
@@ -628,12 +625,14 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         (
             uint256 borrowed1,
-            /* uint256 collateralValue1 */,
+            /* uint256 collateralValue1 */
+            ,
             /* uint256 maxBorrow1 */
         ) = lendingRouter.healthFactor(user, address(y));
         (
             uint256 borrowed2,
-            /* uint256 collateralValue2 */,
+            /* uint256 collateralValue2 */
+            ,
             /* uint256 maxBorrow2 */
         ) = lendingRouter2.healthFactor(user, address(y));
 
@@ -661,7 +660,8 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         (
             uint256 borrowed,
-            /* uint256 collateralValue */,
+            /* uint256 collateralValue */
+            ,
             /* uint256 maxBorrow */
         ) = lendingRouter.healthFactor(msg.sender, address(y));
         MarketParams memory marketParams = MorphoLendingRouter(address(lendingRouter)).marketParams(address(y));
@@ -670,7 +670,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         Market memory market = MORPHO.market(id);
 
         assertEq(borrowed, market.totalBorrowAssets - borrowAmount2);
-   }
+    }
 
     function test_migrate_with_zeroBorrow() public {
         address user = msg.sender;
@@ -695,12 +695,14 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         (
             uint256 borrowed1,
-            /* uint256 collateralValue1 */,
+            /* uint256 collateralValue1 */
+            ,
             /* uint256 maxBorrow1 */
         ) = lendingRouter.healthFactor(user, address(y));
         (
             uint256 borrowed2,
-            /* uint256 collateralValue2 */,
+            /* uint256 collateralValue2 */
+            ,
             /* uint256 maxBorrow2 */
         ) = lendingRouter2.healthFactor(user, address(y));
 

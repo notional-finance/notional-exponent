@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.6;
+pragma solidity >=0.8.28;
 
 interface IAsset {
-    // solhint-disable-previous-line no-empty-blocks
+// solhint-disable-previous-line no-empty-blocks
 }
 
 interface IBalancerVault {
@@ -22,6 +22,7 @@ interface IBalancerVault {
         EXACT_BPT_IN_FOR_TOKENS_OUT,
         BPT_IN_FOR_EXACT_TOKENS_OUT,
         MANAGEMENT_FEE_TOKENS_OUT // for ManagedPool
+
     }
     enum ComposableExitKind {
         EXACT_BPT_IN_FOR_ONE_TOKEN_OUT,
@@ -33,25 +34,29 @@ interface IBalancerVault {
         EXACT_BPT_IN_FOR_TOKENS_OUT,
         BPT_IN_FOR_EXACT_TOKENS_OUT,
         MANAGEMENT_FEE_TOKENS_OUT // for InvestmentPool
+
     }
 
-
-    enum UserBalanceOpKind { DEPOSIT_INTERNAL, WITHDRAW_INTERNAL, TRANSFER_INTERNAL, TRANSFER_EXTERNAL }
+    enum UserBalanceOpKind {
+        DEPOSIT_INTERNAL,
+        WITHDRAW_INTERNAL,
+        TRANSFER_INTERNAL,
+        TRANSFER_EXTERNAL
+    }
 
     /**
      * @dev Returns a Pool's contract address and specialization setting.
      */
-    function getPool(bytes32 poolId)
-        external
-        view
-        returns (address, PoolSpecialization);
+    function getPool(bytes32 poolId) external view returns (address, PoolSpecialization);
 
     function joinPool(
         bytes32 poolId,
         address sender,
         address recipient,
         JoinPoolRequest memory request
-    ) external payable;
+    )
+        external
+        payable;
 
     struct JoinPoolRequest {
         IAsset[] assets;
@@ -65,7 +70,8 @@ interface IBalancerVault {
         address sender,
         address payable recipient,
         ExitPoolRequest memory request
-    ) external;
+    )
+        external;
 
     struct ExitPoolRequest {
         IAsset[] assets;
@@ -100,7 +106,10 @@ interface IBalancerVault {
         FundManagement memory funds,
         uint256 limit,
         uint256 deadline
-    ) external payable returns (uint256);
+    )
+        external
+        payable
+        returns (uint256);
 
     struct BatchSwapStep {
         bytes32 poolId;
@@ -117,23 +126,23 @@ interface IBalancerVault {
         FundManagement memory funds,
         int256[] memory limits,
         uint256 deadline
-    ) external payable returns (int256[] memory);
+    )
+        external
+        payable
+        returns (int256[] memory);
 
     function getPoolTokens(bytes32 poolId)
         external
         view
-        returns (
-            address[] memory tokens,
-            uint256[] memory balances,
-            uint256 lastChangeBlock
-        );
+        returns (address[] memory tokens, uint256[] memory balances, uint256 lastChangeBlock);
 
     function flashLoan(
-        address recipient, 
-        address[] calldata tokens, 
-        uint256[] calldata amounts, 
+        address recipient,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
         bytes calldata userData
-    ) external;
+    )
+        external;
 
     struct UserBalanceOp {
         UserBalanceOpKind kind;
