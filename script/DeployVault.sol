@@ -36,7 +36,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     // Used for withdraw manager only exits
     bool public skipExit = false;
 
-    function deployVault() internal virtual returns (address impl);
+    function deployVault() public virtual returns (address impl);
 
     function name() internal pure virtual returns (string memory);
     function symbol() internal pure virtual returns (string memory);
@@ -203,7 +203,7 @@ contract EtherFiStaking is DeployVault {
         return 0.945e18;
     }
 
-    function deployVault() internal override returns (address impl) {
+    function deployVault() public override returns (address impl) {
         vm.startBroadcast();
         impl = address(new StakingStrategy(address(WETH), address(weETH), FEE_RATE));
         vm.stopBroadcast();
@@ -255,7 +255,7 @@ contract EthenaStaking is DeployVault {
         return m;
     }
 
-    function deployVault() internal override returns (address impl) {
+    function deployVault() public override returns (address impl) {
         vm.startBroadcast();
         impl = address(new StakingStrategy(address(USDC), address(sUSDe), FEE_RATE));
         vm.stopBroadcast();

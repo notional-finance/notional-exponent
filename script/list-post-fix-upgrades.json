@@ -1,0 +1,71 @@
+{
+  "chainId": "1",
+  "createdAt": 1757527811000,
+  "meta": {
+    "name": "Transactions Batch",
+    "txBuilderVersion": "1.16.1"
+  },
+  "transactions": [
+    {
+      "contractMethod": {
+        "inputs": [],
+        "name": "fallback",
+        "payable": true
+      },
+      "data": "0x479aa92700000000000000000000000046a2373fb541a5049dc31fc740e8b4036a5a2d74",
+      "to": "0xe335d314BD4eF7DD44F103dC124FEFb7Ce63eC95",
+      "value": "0"
+    },
+    {
+      "contractMethod": {
+        "inputs": [],
+        "name": "fallback",
+        "payable": true
+      },
+      "data": "0x479aa92700000000000000000000000012187d495b833a0b932424703df2361ffb4f1d7c",
+      "to": "0x9a0c630C310030C4602d1A76583a3b16972ecAa0",
+      "value": "0"
+    },
+    {
+      "contractMethod": {
+        "inputs": [],
+        "name": "fallback",
+        "payable": true
+      },
+      "data": "0x479aa927000000000000000000000000ae9646e955727bbf0e4468f1be6c8ea2c1ccd1ec",
+      "to": "0x71ba37c7C0eAB9F86De6D8745771c66fD3962F20",
+      "value": "0"
+    },
+    {
+      "contractMethod": {
+        "inputs": [],
+        "name": "fallback",
+        "payable": true
+      },
+      "data": "0x479aa927000000000000000000000000c643fbc8041b0109ee59a278167c6fbf032f9b5a",
+      "to": "0x8c7C9a45916550C6fE04CDaA139672A1b5803c9F",
+      "value": "0"
+    },
+    {
+      "contractMethod": {
+        "inputs": [],
+        "name": "fallback",
+        "payable": true
+      },
+      "data": "0x479aa927000000000000000000000000aa7c543bae1de85c36841d55f3d6eae7856efca0",
+      "to": "0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae",
+      "value": "0"
+    },
+    {
+      "contractMethod": {
+        "inputs": [],
+        "name": "fallback",
+        "payable": true
+      },
+      "data": "0x479aa9270000000000000000000000005fdc7e6695ec594a721f207574ffd75145c41810",
+      "to": "0xAf14d06A65C91541a5b2db627eCd1c92d7d9C48B",
+      "value": "0"
+    }
+  ],
+  "version": "1.0"
+}

@@ -37,6 +37,8 @@ abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
 }
 
 contract DeployEtherFiWithdrawManager is DeployWithdrawManager {
+    address public constant PROXY = 0x71ba37c7C0eAB9F86De6D8745771c66fD3962F20;
+
     function name() internal pure override returns (string memory) {
         return "EtherFiWithdrawManager";
     }
@@ -47,6 +49,8 @@ contract DeployEtherFiWithdrawManager is DeployWithdrawManager {
 }
 
 contract DeployEthenaWithdrawManager is DeployWithdrawManager {
+    address public constant PROXY = 0x8c7C9a45916550C6fE04CDaA139672A1b5803c9F;
+
     function name() internal pure override returns (string memory) {
         return "EthenaWithdrawManager";
     }
