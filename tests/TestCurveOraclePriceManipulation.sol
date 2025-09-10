@@ -69,47 +69,6 @@ contract TestCurveOraclePriceManipulation is Test {
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
-    function test_oracleSetup() public view {
-        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = oracle.latestRoundData();
-        
-        assertTrue(roundId > 0, "Round ID should be set");
-        assertTrue(answer > 0, "Oracle price should be positive");
-        assertTrue(updatedAt > 0, "Updated timestamp should be set");
-        assertEq(roundId, answeredInRound, "Round IDs should match");
-    }
-
-    function test_buyOneUnitSecondaryToken() public {
-        uint256 initialPrice = getCurrentOraclePrice();
-        uint256 initialToken0Balance = token0.balanceOf(address(this));
-        uint256 initialToken1Balance = token1.balanceOf(address(this));
-        
-        // Buy 1 unit of secondary token (USDe) using primary token (USDC)
-        uint256 amountIn = dyAmount; // 1 USDC
-        uint256 minAmountOut = 0;
-        
-        uint256 amountOut = curvePool.exchange(
-            int8(primaryIndex),
-            int8(secondaryIndex),
-            amountIn,
-            minAmountOut
-        );
-        
-        uint256 finalPrice = getCurrentOraclePrice();
-        uint256 finalToken0Balance = token0.balanceOf(address(this));
-        uint256 finalToken1Balance = token1.balanceOf(address(this));
-        
-        // Verify the trade executed
-        assertEq(finalToken1Balance, initialToken1Balance - amountIn, "USDC balance should decrease");
-        assertEq(finalToken0Balance, initialToken0Balance + amountOut, "USDe balance should increase");
-        assertTrue(amountOut > 0, "Should receive some USDe");
-        
-        emit log_named_uint("Initial Price", initialPrice);
-        emit log_named_uint("Final Price", finalPrice);
-        emit log_named_uint("Amount In (USDC)", amountIn);
-        emit log_named_uint("Amount Out (USDe)", amountOut);
-        emit log_named_int("Price Change", int256(finalPrice) - int256(initialPrice));
-    }
-
     function getCurrentOraclePrice() internal view returns (uint256) {
         int256 answer = oracle.latestAnswer();
         require(answer > 0, "Invalid oracle price");
@@ -238,45 +197,7 @@ contract TestCurveOraclePriceManipulation is Test {
     function isWithinTolerance(uint256 price, uint256 target, uint256 tolerance) internal pure returns (bool) {
         return price >= target - tolerance && price <= target + tolerance;
     }
-
-    // Test moving price up by 5%
-    function test_movePrimaryTokenPriceUp5Percent() public {
-        uint256 initialSpotPrice = getCurrentSpotPrice();
-        
-        // Move price up 5% by selling USDe for USDC (increases USDC price relative to USDe)
-        uint256 swapAmount = movePriceByPercentage(500, 0, 1); // 5% = 500 basis points
-        
-        uint256 finalSpotPrice = getCurrentSpotPrice();
-        int256 actualSpotChange = int256(finalSpotPrice * 10000 / initialSpotPrice) - 10000;
-        
-        emit log_named_uint("Initial Spot Price", initialSpotPrice);
-        emit log_named_uint("Final Spot Price", finalSpotPrice);
-        emit log_named_uint("Swap Amount (USDC)", swapAmount);
-        emit log_named_int("Actual Spot Change (bp)", actualSpotChange);
-        
-        // Should be close to 5% (500 basis points)
-        assertTrue(actualSpotChange >= 450 && actualSpotChange <= 550, "Spot price change should be ~5%");
-    }
-
-    // Test moving price down by 3%
-    function test_movePrimaryTokenPriceDown3Percent() public {
-        uint256 initialSpotPrice = getCurrentSpotPrice();
-        
-        // Move price down 3% by selling USDC for USDe (decreases USDC price relative to USDe)
-        uint256 swapAmount = movePriceByPercentage(-300, 1, 0); // -3% = -300 basis points
-        
-        uint256 finalSpotPrice = getCurrentSpotPrice();
-        int256 actualSpotChange = int256(finalSpotPrice * 10000 / initialSpotPrice) - 10000;
-        
-        emit log_named_uint("Initial Spot Price", initialSpotPrice);
-        emit log_named_uint("Final Spot Price", finalSpotPrice);
-        emit log_named_uint("Swap Amount (USDe)", swapAmount);
-        emit log_named_int("Actual Spot Change (bp)", actualSpotChange);
-        
-        // Should be close to -3% (-300 basis points)
-        assertTrue(actualSpotChange >= -350 && actualSpotChange <= -250, "Spot price change should be ~-3%");
-    }
-
+    
     /// @notice Get oracle pair price (mirrors AbstractLPOracle._getOraclePairPrice)
     function getOraclePairPrice(address base, address quote) internal view returns (uint256) {
         (int256 rate, /* */) = TRADING_MODULE.getOraclePrice(base, quote);

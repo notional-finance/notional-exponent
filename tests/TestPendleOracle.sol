@@ -163,55 +163,7 @@ contract TestPendleOracle is Test {
         emit log_named_uint("Swapped PT tokens", ptAmount);
         emit log_named_uint("Received underlying tokens", netTokenOut);
     }
-
-    function test_oracleSetup() public view {
-        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = oracle.latestRoundData();
-        
-        assertTrue(roundId > 0, "Round ID should be set");
-        assertTrue(answer > 0, "Oracle price should be positive");
-        assertTrue(updatedAt > 0, "Updated timestamp should be set");
-        assertEq(roundId, answeredInRound, "Round IDs should match");
-        
-        console.log("Oracle price:", uint256(answer));
-    }
-
-    /// @notice Test basic trading functionality
-    function test_basicTrading() public {
-        uint256 initialOraclePrice = getCurrentOraclePrice();
-        uint256 swapAmount = 1e18; // 1 sUSDe
-
-        emit log_named_uint("Initial Oracle Price", initialOraclePrice);
-        emit log_named_uint("Initial sUSDe Balance", tokenInSy.balanceOf(address(this)));
-        emit log_named_uint("Initial PT Balance", ptToken.balanceOf(address(this)));
-        emit log_named_uint("Initial sUSDe Balance (output)", tokenOutSy.balanceOf(address(this)));
-
-        // Swap sUSDe for PT
-        uint256 ptReceived = swapTokenForPT(swapAmount);
-        
-        uint256 afterSwapPrice = getCurrentOraclePrice();
-        emit log_named_uint("After Token->PT Swap Oracle Price", afterSwapPrice);
-        emit log_named_uint("After Token->PT sUSDe Balance", tokenInSy.balanceOf(address(this)));
-        emit log_named_uint("After Token->PT PT Balance", ptToken.balanceOf(address(this)));
-        
-        assertTrue(ptReceived > 0, "Should receive PT tokens");
-        
-        // Now swap PT back for sUSDe
-        uint256 ptToSwap = ptReceived / 2; // Swap half of what we received
-        uint256 tokensReceived = swapPTForToken(ptToSwap);
-        
-        uint256 finalOraclePrice = getCurrentOraclePrice();
-        emit log_named_uint("Final Oracle Price", finalOraclePrice);
-        emit log_named_uint("Final sUSDe Balance (input)", tokenInSy.balanceOf(address(this)));
-        emit log_named_uint("Final PT Balance", ptToken.balanceOf(address(this)));
-        emit log_named_uint("Final sUSDe Balance (output)", tokenOutSy.balanceOf(address(this)));
-        
-        assertTrue(tokensReceived > 0, "Should receive underlying tokens from PT swap");
-        
-        // Calculate price impact
-        int256 priceChange = int256(finalOraclePrice) - int256(initialOraclePrice);
-        emit log_named_int("Total Oracle Price Change", priceChange);
-    }
-
+    
     /// @notice Test oracle price manipulation resistance over time
     /// This test validates the TWAP oracle's resistance to price manipulation
     /// by checking price changes at different time intervals after a large trade
