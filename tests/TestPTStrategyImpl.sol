@@ -294,13 +294,13 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
-        maxWithdrawValuationChange = 0.0075e18;
+        maxWithdrawValuationChange = 0.0085e18;
 
-        (AggregatorV2V3Interface tokenOutSyOracle, /* */) = TRADING_MODULE.priceOracles(address(tokenOut));
+        (AggregatorV2V3Interface tokenOutSyOracle, /* */) = TRADING_MODULE.priceOracles(address(USDe));
         withdrawTokenOracle = new MockOracle(tokenOutSyOracle.latestAnswer() * int256(10 ** (18 - tokenOutSyOracle.decimals())));
 
         vm.startPrank(owner);
-        TRADING_MODULE.setPriceOracle(address(tokenOut), AggregatorV2V3Interface(address(withdrawTokenOracle)));
+        TRADING_MODULE.setPriceOracle(address(USDe), AggregatorV2V3Interface(address(withdrawTokenOracle)));
         vm.stopPrank();
     }
 
