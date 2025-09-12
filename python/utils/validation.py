@@ -32,6 +32,17 @@ class InputValidator:
             return decimal_amount
         except (InvalidOperation, TypeError):
             raise ValidationError(f"Invalid amount format: {amount}")
+
+    @staticmethod
+    def validate_integer_amount(amount: str) -> int:
+        """Validate and convert string amount to Integer."""
+        try:
+            integer_amount = int(str(amount))
+            if integer_amount < 0:
+                raise ValidationError("Amount cannot be negative")
+            return integer_amount
+        except (InvalidOperation, TypeError):
+            raise ValidationError(f"Invalid amount format: {amount}")
     
     @staticmethod
     def validate_mode(mode: str) -> str:

@@ -62,10 +62,10 @@ class ActionRunner:
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
             
-            initial_deposit_decimal = InputValidator.validate_decimal_amount(initial_deposit)
-            initial_supply_decimal = InputValidator.validate_decimal_amount(initial_supply)
-            initial_borrow_decimal = InputValidator.validate_decimal_amount(initial_borrow)
-            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            initial_deposit_integer = InputValidator.validate_integer_amount(initial_deposit)
+            initial_supply_integer = InputValidator.validate_integer_amount(initial_supply)
+            initial_borrow_integer = InputValidator.validate_integer_amount(initial_borrow)
+            min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
             vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
@@ -76,27 +76,19 @@ class ActionRunner:
             
             print(f"Using vault implementation for {vault_address}")
             
-            # Scale user inputs to proper decimals
-            scaled_deposit = vault.scale_user_input(initial_deposit_decimal)
-            scaled_supply = vault.scale_user_input(initial_supply_decimal)
-            scaled_borrow = vault.scale_user_input(initial_borrow_decimal)
-            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
-            
-            print(f"Scaled values - Deposit: {scaled_deposit}, Supply: {scaled_supply}, Borrow: {scaled_borrow}, Min Purchase: {scaled_min_purchase}")
-            
             # Get deposit data
-            deposit_data = vault.get_deposit_data(scaled_min_purchase)
+            deposit_data = vault.get_deposit_data(min_purchase_integer)
             deposit_data_hex = EncodingHelper.bytes_to_hex(deposit_data)
             
             print(f"Deposit data: {deposit_data_hex}")
             
             # Build forge command
-            forge_cmd = self._build_forge_command(
+            forge_cmd = self._build_initial_position_forge_command(
                 action_script="script/actions/CreateInitialPosition.sol",
                 vault_address=vault_address,
-                initial_supply=scaled_supply,
-                initial_borrow=scaled_borrow,
-                initial_deposit=scaled_deposit,
+                initial_supply=initial_supply_integer,
+                initial_borrow=initial_borrow_integer,
+                initial_deposit=initial_deposit_integer,
                 data=deposit_data_hex,
                 mode=mode,
                 sender_address=sender_address,
@@ -143,7 +135,7 @@ class ActionRunner:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
-            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
             vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
@@ -151,11 +143,8 @@ class ActionRunner:
                 print(f"Error: No vault implementation found for address {vault_address}")
                 return False
             
-            # Scale user input
-            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
-            
             # Get redeem data
-            redeem_data = vault.get_redeem_data(scaled_min_purchase)
+            redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
             
             # Build and execute forge command
@@ -206,9 +195,9 @@ class ActionRunner:
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
             
-            shares_to_redeem_decimal = InputValidator.validate_decimal_amount(shares_to_redeem)
-            asset_to_repay_decimal = InputValidator.validate_decimal_amount(asset_to_repay)
-            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            shares_to_redeem_integer = InputValidator.validate_integer_amount(shares_to_redeem)
+            asset_to_repay_integer = InputValidator.validate_integer_amount(asset_to_repay)
+            min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
             vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
@@ -218,17 +207,8 @@ class ActionRunner:
             
             print(f"Exiting position for vault {vault_address}")
             
-            # Scale user inputs
-            # shares_to_redeem is in 1e24 precision
-            scaled_shares = int(shares_to_redeem_decimal * (10 ** 24))
-            # asset_to_repay is in native precision
-            scaled_asset_repay = vault.scale_user_input(asset_to_repay_decimal)
-            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
-            
-            print(f"Scaled values - Shares: {scaled_shares}, Asset to Repay: {scaled_asset_repay}, Min Purchase: {scaled_min_purchase}")
-            
             # Get redeem data
-            redeem_data = vault.get_redeem_data(scaled_min_purchase)
+            redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
             
             print(f"Redeem data: {redeem_data_hex}")
@@ -236,8 +216,8 @@ class ActionRunner:
             # Build and execute forge command
             forge_cmd = self._build_exit_position_forge_command(
                 vault_address=vault_address,
-                shares_to_redeem=scaled_shares,
-                asset_to_repay=scaled_asset_repay,
+                shares_to_redeem=shares_to_redeem_integer,
+                asset_to_repay=asset_to_repay_integer,
                 data=redeem_data_hex,
                 mode=mode,
                 sender_address=sender_address,
@@ -282,7 +262,7 @@ class ActionRunner:
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
             rounding_buffer_int = InputValidator.validate_integer_amount(rounding_buffer)
-            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
             vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
@@ -292,11 +272,8 @@ class ActionRunner:
             
             print(f"Calculating max leverage for vault {vault_address}")
             
-            # Scale user input
-            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
-            
             # Get redeem data
-            redeem_data = vault.get_redeem_data(scaled_min_purchase)
+            redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
             
             print(f"Redeem data: {redeem_data_hex}")
@@ -350,9 +327,9 @@ class ActionRunner:
             vault_address = InputValidator.validate_address(vault_address)
             liquidate_account = InputValidator.validate_address(liquidate_account)
             mode = InputValidator.validate_mode(mode)
-            shares_to_liquidate_decimal = InputValidator.validate_decimal_amount(shares_to_liquidate)
-            assets_to_borrow_decimal = InputValidator.validate_decimal_amount(assets_to_borrow)
-            min_purchase_decimal = InputValidator.validate_decimal_amount(min_purchase_amount)
+            shares_to_liquidate_integer = InputValidator.validate_integer_amount(shares_to_liquidate)
+            assets_to_borrow_integer = InputValidator.validate_integer_amount(assets_to_borrow)
+            min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
             vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
@@ -365,13 +342,8 @@ class ActionRunner:
             print(f"Shares to liquidate: {shares_to_liquidate}")
             print(f"Assets to borrow: {assets_to_borrow}")
             
-            # Scale user inputs
-            scaled_shares_to_liquidate = int(shares_to_liquidate_decimal * (10 ** 24))
-            scaled_assets_to_borrow = vault.scale_user_input(assets_to_borrow_decimal)
-            scaled_min_purchase = vault.scale_user_input(min_purchase_decimal)
-            
             # Get redeem data
-            redeem_data = vault.get_redeem_data(scaled_min_purchase)
+            redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
             
             print(f"Redeem data: {redeem_data_hex}")
@@ -380,8 +352,8 @@ class ActionRunner:
             forge_cmd = self._build_flash_liquidate_forge_command(
                 vault_address=vault_address,
                 liquidate_account=liquidate_account,
-                shares_to_liquidate=str(scaled_shares_to_liquidate),
-                assets_to_borrow=str(scaled_assets_to_borrow),
+                shares_to_liquidate=str(shares_to_liquidate_integer),
+                assets_to_borrow=str(assets_to_borrow_integer),
                 data=redeem_data_hex,
                 mode=mode,
                 sender_address=sender_address,
@@ -617,7 +589,7 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
-    def _build_forge_command(self, action_script: str, vault_address: str,
+    def _build_initial_position_forge_command(self, action_script: str, vault_address: str,
                            initial_supply: int, initial_borrow: int,
                            initial_deposit: int, data: str, mode: str,
                            sender_address: Optional[str] = None,

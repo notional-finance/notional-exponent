@@ -39,14 +39,3 @@ class Vault_0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae(BaseVault):
         """Get encoded withdraw data for this vault."""
         return EncodingHelper.encode_empty_bytes()
     
-    def validate_inputs(self, **kwargs) -> Dict[str, Any]:
-        """Validate and process inputs specific to this vault."""
-        validated = super().validate_inputs(**kwargs)
-        
-        # Add any vault-specific validations here
-        if 'min_purchase_amount' in validated:
-            min_amount = validated['min_purchase_amount']
-            if isinstance(min_amount, str):
-                validated['min_purchase_amount'] = self.scale_user_input(Decimal(min_amount))
-        
-        return validated
