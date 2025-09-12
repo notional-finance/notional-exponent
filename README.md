@@ -226,19 +226,19 @@ Before using the action runner, ensure you have:
 
 #### 1. Create Initial Position
 
-Creates a new position in a supported vault.
+Supply to Morpho market and enter position on Notional vault.
 
 **Syntax:**
 ```bash
-python action_runner.py create-position <mode> <vault_address> <initial_deposit> <initial_supply> <initial_borrow> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py create-position <mode> <vault_address> <vault_deposit_amount> <morpho_supply_amount> <morpho_borrow_amount> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
 - `mode` - Execution mode: `sim` (simulation) or `exec` (execute on-chain)
 - `vault_address` - The vault contract address (0x...)
-- `initial_deposit` - Initial deposit amount (integer, pre-scaled to asset decimals, e.g., "1000500000000000000000" for 1000.5 tokens with 18 decimals)
-- `initial_supply` - Initial supply amount (integer, pre-scaled to asset decimals, e.g., "2000000000000000000000" for 2000.0 tokens with 18 decimals)
-- `initial_borrow` - Initial borrow amount (integer, pre-scaled to asset decimals, e.g., "500000000000000000000" for 500.0 tokens with 18 decimals)
+- `vault_deposit_amount` - Vault deposit amount (integer, pre-scaled to asset decimals, e.g., "1000500000000000000000" for 1000.5 tokens with 18 decimals)
+- `morpho_supply_amount` - Morpho supply amount (integer, pre-scaled to asset decimals, e.g., "2000000000000000000000" for 2000.0 tokens with 18 decimals)
+- `morpho_borrow_amount` - Morpho borrow amount (integer, pre-scaled to asset decimals, e.g., "500000000000000000000" for 500.0 tokens with 18 decimals)
 - `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals, e.g., "950000000000000000000")
 
 **Mode-specific options:**
@@ -263,7 +263,7 @@ python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef1
 
 #### 2. Exit Position
 
-Exits a position with specified shares and asset amounts.
+Executes an exit position action on a Notional vault.
 
 **Syntax:**
 ```bash
@@ -297,13 +297,13 @@ python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef123
 python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
-#### 3. Exit Position and Withdraw
+#### 3. Exit Position and Max Withdraw from Morpho
 
-Exits an existing position and withdraws all funds from a vault.
+Fully exits notional vault position and withdraws all supplied funds to the morpho market.
 
 **Syntax:**
 ```bash
-python action_runner.py exit-position-and-withdraw <mode> <vault_address> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py exit-position-and-max-withdraw-from-morpho <mode> <vault_address> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
@@ -322,13 +322,13 @@ python action_runner.py exit-position-and-withdraw <mode> <vault_address> <min_p
 **Examples:**
 ```bash
 # Simulation mode (950.0 tokens with 18 decimals)
-python action_runner.py exit-position-and-withdraw sim 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py exit-position-and-max-withdraw-from-morpho sim 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py exit-position-and-max-withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (20% increase)
-python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
+python action_runner.py exit-position-and-max-withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
 #### 4. Withdraw from Morpho
@@ -397,13 +397,13 @@ python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcde
 python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
 ```
 
-#### 6. Max Leverage
+#### 6. Redeem Vault Shares to Max Leverage
 
-Calculates the maximum leverage for a vault position by analyzing collateral balance, borrow shares, price, and LTV parameters.
+Calculates amount of vault shares to redeem such that account is left at max leverage. Redeems shares and sends asset back to account.
 
 **Syntax:**
 ```bash
-python action_runner.py max-leverage <mode> <vault_address> <rounding_buffer> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py redeem-vault-shares-to-max-leverage <mode> <vault_address> <rounding_buffer> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
@@ -423,13 +423,13 @@ python action_runner.py max-leverage <mode> <vault_address> <rounding_buffer> <m
 **Examples:**
 ```bash
 # Simulation mode (950.0 tokens with 18 decimals)
-python action_runner.py max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py redeem-vault-shares-to-max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (40% increase)
-python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
+python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
 ```
 
 #### 7. Flash Liquidate

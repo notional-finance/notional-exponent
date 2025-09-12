@@ -50,21 +50,21 @@ class ActionRunner:
             print(f"Error: Failed to initialize Web3 connection: {e}")
             sys.exit(1)
     
-    def create_initial_position(self, vault_address: str, initial_deposit: str, 
-                              initial_supply: str, initial_borrow: str,
+    def create_initial_position(self, vault_address: str, vault_deposit_amount: str, 
+                              morpho_supply_amount: str, morpho_borrow_amount: str,
                               min_purchase_amount: str, mode: str, 
                               sender_address: Optional[str] = None,
                               account_name: Optional[str] = None,
                               gas_estimate_multiplier: Optional[int] = None) -> bool:
-        """Execute CreateInitialPosition action."""
+        """Supply to Morpho market and enter position on Notional vault."""
         try:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
             
-            initial_deposit_integer = InputValidator.validate_integer_amount(initial_deposit)
-            initial_supply_integer = InputValidator.validate_integer_amount(initial_supply)
-            initial_borrow_integer = InputValidator.validate_integer_amount(initial_borrow)
+            vault_deposit_integer = InputValidator.validate_integer_amount(vault_deposit_amount)
+            morpho_supply_integer = InputValidator.validate_integer_amount(morpho_supply_amount)
+            morpho_borrow_integer = InputValidator.validate_integer_amount(morpho_borrow_amount)
             min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
@@ -78,9 +78,9 @@ class ActionRunner:
             
             # Define scaling for each input
             value_config = {
-                'initial_deposit': {'value': initial_deposit_integer, 'scale_type': 'asset'},
-                'initial_supply': {'value': initial_supply_integer, 'scale_type': 'asset'},
-                'initial_borrow': {'value': initial_borrow_integer, 'scale_type': 'asset'}
+                'vault_deposit_amount': {'value': vault_deposit_integer, 'scale_type': 'asset'},
+                'morpho_supply_amount': {'value': morpho_supply_integer, 'scale_type': 'asset'},
+                'morpho_borrow_amount': {'value': morpho_borrow_integer, 'scale_type': 'asset'}
             }
             
             # Display and confirm values
@@ -98,9 +98,9 @@ class ActionRunner:
             forge_cmd = self._build_initial_position_forge_command(
                 action_script="script/actions/CreateInitialPosition.sol",
                 vault_address=vault_address,
-                initial_supply=initial_supply_integer,
-                initial_borrow=initial_borrow_integer,
-                initial_deposit=initial_deposit_integer,
+                initial_supply=morpho_supply_integer,
+                initial_borrow=morpho_borrow_integer,
+                initial_deposit=vault_deposit_integer,
                 data=deposit_data_hex,
                 mode=mode,
                 sender_address=sender_address,
@@ -138,11 +138,11 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
-    def exit_position_and_withdraw(self, vault_address: str, min_purchase_amount: str,
+    def exit_position_and_max_withdraw_from_morpho(self, vault_address: str, min_purchase_amount: str,
                                  mode: str, sender_address: Optional[str] = None,
                                  account_name: Optional[str] = None,
                                  gas_estimate_multiplier: Optional[int] = None) -> bool:
-        """Execute ExitPositionAndWithdraw action."""
+        """Fully exits notional vault position and withdraws all supplied funds to the morpho market."""
         try:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
@@ -201,7 +201,7 @@ class ActionRunner:
                      min_purchase_amount: str, mode: str, sender_address: Optional[str] = None,
                      account_name: Optional[str] = None,
                      gas_estimate_multiplier: Optional[int] = None) -> bool:
-        """Execute ExitPosition action."""
+        """Executes an exit position action on a Notional vault."""
         try:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
@@ -276,10 +276,10 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
-    def max_leverage(self, vault_address: str, rounding_buffer: str, min_purchase_amount: str, mode: str,
+    def redeem_vault_shares_to_max_leverage(self, vault_address: str, rounding_buffer: str, min_purchase_amount: str, mode: str,
                     sender_address: Optional[str] = None, account_name: Optional[str] = None,
                     gas_estimate_multiplier: Optional[int] = None) -> bool:
-        """Execute MaxLeverage action."""
+        """Calculates amount of vault shares to redeem such that account is left at max leverage. Redeems shares and sends asset back to account."""
         try:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
@@ -991,16 +991,16 @@ def main():
     create_parser = subparsers.add_parser('create-position', help='Create initial position')
     create_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
     create_parser.add_argument('vault_address', help='Vault contract address')
-    create_parser.add_argument('initial_deposit', help='Initial deposit amount')
-    create_parser.add_argument('initial_supply', help='Initial supply amount')
-    create_parser.add_argument('initial_borrow', help='Initial borrow amount')
+    create_parser.add_argument('vault_deposit_amount', help='Vault deposit amount')
+    create_parser.add_argument('morpho_supply_amount', help='Morpho supply amount')
+    create_parser.add_argument('morpho_borrow_amount', help='Morpho borrow amount')
     create_parser.add_argument('min_purchase_amount', help='Minimum purchase amount for slippage protection')
     create_parser.add_argument('--sender', help='Sender address (for sim mode)')
     create_parser.add_argument('--account', help='Account name (for exec mode)')
     create_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # Exit position and withdraw command
-    exit_and_withdraw_parser = subparsers.add_parser('exit-position-and-withdraw', help='Exit position and withdraw')
+    exit_and_withdraw_parser = subparsers.add_parser('exit-position-and-max-withdraw-from-morpho', help='Fully exits notional vault position and withdraws all supplied funds to the morpho market')
     exit_and_withdraw_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
     exit_and_withdraw_parser.add_argument('vault_address', help='Vault contract address')
     exit_and_withdraw_parser.add_argument('min_purchase_amount', help='Minimum purchase amount')
@@ -1036,7 +1036,7 @@ def main():
     initiate_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # Max leverage command
-    max_leverage_parser = subparsers.add_parser('max-leverage', help='Calculate maximum leverage for a vault position')
+    max_leverage_parser = subparsers.add_parser('redeem-vault-shares-to-max-leverage', help='Calculates amount of vault shares to redeem such that account is left at max leverage. Redeems shares and sends asset back to account')
     max_leverage_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
     max_leverage_parser.add_argument('vault_address', help='Vault contract address')
     max_leverage_parser.add_argument('rounding_buffer', help='Rounding buffer for leverage calculation')
@@ -1094,9 +1094,9 @@ def main():
             
             success = runner.create_initial_position(
                 vault_address=args.vault_address,
-                initial_deposit=args.initial_deposit,
-                initial_supply=args.initial_supply,
-                initial_borrow=args.initial_borrow,
+                vault_deposit_amount=args.vault_deposit_amount,
+                morpho_supply_amount=args.morpho_supply_amount,
+                morpho_borrow_amount=args.morpho_borrow_amount,
                 min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
                 sender_address=args.sender,
@@ -1105,7 +1105,7 @@ def main():
             )
             sys.exit(0 if success else 1)
             
-        elif args.action == 'exit-position-and-withdraw':
+        elif args.action == 'exit-position-and-max-withdraw-from-morpho':
             if args.mode == 'sim' and not args.sender:
                 print("Error: --sender is required for sim mode")
                 sys.exit(1)
@@ -1113,7 +1113,7 @@ def main():
                 print("Error: --account is required for exec mode")
                 sys.exit(1)
             
-            success = runner.exit_position_and_withdraw(
+            success = runner.exit_position_and_max_withdraw_from_morpho(
                 vault_address=args.vault_address,
                 min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
@@ -1177,7 +1177,7 @@ def main():
             )
             sys.exit(0 if success else 1)
             
-        elif args.action == 'max-leverage':
+        elif args.action == 'redeem-vault-shares-to-max-leverage':
             if args.mode == 'sim' and not args.sender:
                 print("Error: --sender is required for sim mode")
                 sys.exit(1)
@@ -1185,7 +1185,7 @@ def main():
                 print("Error: --account is required for exec mode")
                 sys.exit(1)
             
-            success = runner.max_leverage(
+            success = runner.redeem_vault_shares_to_max_leverage(
                 vault_address=args.vault_address,
                 rounding_buffer=args.rounding_buffer,
                 min_purchase_amount=args.min_purchase_amount,
