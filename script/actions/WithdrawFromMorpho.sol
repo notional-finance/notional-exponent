@@ -11,7 +11,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
 
-contract ExitPositionAndWithdraw is Script {
+contract WithdrawFromMorpho is Script {
 
     function run(
         address vaultAddress
