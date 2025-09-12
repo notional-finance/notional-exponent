@@ -76,6 +76,18 @@ class ActionRunner:
             
             print(f"Using vault implementation for {vault_address}")
             
+            # Define scaling for each input
+            value_config = {
+                'initial_deposit': {'value': initial_deposit_integer, 'scale_type': 'asset'},
+                'initial_supply': {'value': initial_supply_integer, 'scale_type': 'asset'},
+                'initial_borrow': {'value': initial_borrow_integer, 'scale_type': 'asset'}
+            }
+            
+            # Display and confirm values
+            if not self._display_and_confirm_values(vault, value_config, mode):
+                print("Transaction cancelled by user.")
+                return False
+            
             # Get deposit data
             deposit_data = vault.get_deposit_data(min_purchase_integer)
             deposit_data_hex = EncodingHelper.bytes_to_hex(deposit_data)
@@ -207,6 +219,17 @@ class ActionRunner:
             
             print(f"Exiting position for vault {vault_address}")
             
+            # Define scaling for each input
+            value_config = {
+                'shares_to_redeem': {'value': shares_to_redeem_integer, 'scale_type': 'vault_share'},
+                'asset_to_repay': {'value': asset_to_repay_integer, 'scale_type': 'asset'}
+            }
+            
+            # Display and confirm values
+            if not self._display_and_confirm_values(vault, value_config, mode):
+                print("Transaction cancelled by user.")
+                return False
+            
             # Get redeem data
             redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
@@ -271,6 +294,16 @@ class ActionRunner:
                 return False
             
             print(f"Calculating max leverage for vault {vault_address}")
+            
+            # Define scaling for each input
+            value_config = {
+                'rounding_buffer': {'value': rounding_buffer_int, 'scale_type': 'asset'}
+            }
+            
+            # Display and confirm values
+            if not self._display_and_confirm_values(vault, value_config, mode):
+                print("Transaction cancelled by user.")
+                return False
             
             # Get redeem data
             redeem_data = vault.get_redeem_data(min_purchase_integer)
@@ -339,8 +372,17 @@ class ActionRunner:
             
             print(f"Performing flash liquidation for vault {vault_address}")
             print(f"Liquidating account: {liquidate_account}")
-            print(f"Shares to liquidate: {shares_to_liquidate}")
-            print(f"Assets to borrow: {assets_to_borrow}")
+            
+            # Define scaling for each input
+            value_config = {
+                'shares_to_liquidate': {'value': shares_to_liquidate_integer, 'scale_type': 'vault_share'},
+                'assets_to_borrow': {'value': assets_to_borrow_integer, 'scale_type': 'asset'}
+            }
+            
+            # Display and confirm values
+            if not self._display_and_confirm_values(vault, value_config, mode):
+                print("Transaction cancelled by user.")
+                return False
             
             # Get redeem data
             redeem_data = vault.get_redeem_data(min_purchase_integer)
@@ -869,6 +911,40 @@ class ActionRunner:
         ])
         
         return cmd
+    
+    def _display_and_confirm_values(self, vault, value_config: dict, mode: str) -> bool:
+        """Display human-readable values and confirm with user for exec mode."""
+        try:
+            # Get decimals from vault
+            asset_decimals, yield_token_decimals, vault_share_decimals = vault.get_decimals()
+            
+            # Map scale types to actual decimals
+            scale_map = {
+                'asset': asset_decimals,
+                'vault_share': vault_share_decimals, 
+                'yield_token': yield_token_decimals
+            }
+            
+            # Display formatted table
+            print("=" * 60)
+            print("TRANSACTION PARAMETERS IN HUMAN READABLE PRECISION")
+            print("=" * 60)
+            for name, config in value_config.items():
+                decimals = scale_map[config['scale_type']]
+                human_value = config['value'] / (10 ** decimals)
+                print(f"{name.replace('_', ' ').title():30} {human_value:>20.6f}")
+            print("=" * 60)
+            
+            # Confirmation prompt for exec mode
+            if mode == 'exec':
+                response = input("Proceed with these values? (y/N): ").strip().lower()
+                return response == 'y'
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error displaying values: {e}")
+            return False
     
     def _build_view_market_details_forge_command(self, vault_address: str,
                                                sender_address: Optional[str] = None) -> list[str]:
