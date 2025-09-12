@@ -236,10 +236,10 @@ python action_runner.py create-position <mode> <vault_address> <initial_deposit>
 **Arguments (in order):**
 - `mode` - Execution mode: `sim` (simulation) or `exec` (execute on-chain)
 - `vault_address` - The vault contract address (0x...)
-- `initial_deposit` - Initial deposit amount (decimal format, e.g., "1000.5")
-- `initial_supply` - Initial supply amount (decimal format, e.g., "2000.0")
-- `initial_borrow` - Initial borrow amount (decimal format, e.g., "500.0")
-- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format, e.g., "950.0")
+- `initial_deposit` - Initial deposit amount (integer, pre-scaled to asset decimals, e.g., "1000500000000000000000" for 1000.5 tokens with 18 decimals)
+- `initial_supply` - Initial supply amount (integer, pre-scaled to asset decimals, e.g., "2000000000000000000000" for 2000.0 tokens with 18 decimals)
+- `initial_borrow` - Initial borrow amount (integer, pre-scaled to asset decimals, e.g., "500000000000000000000" for 500.0 tokens with 18 decimals)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals, e.g., "950000000000000000000")
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required) - Address to simulate transaction from
@@ -251,14 +251,14 @@ python action_runner.py create-position <mode> <vault_address> <initial_deposit>
 
 **Examples:**
 ```bash
-# Simulation mode
-python action_runner.py create-position sim 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+# Simulation mode (amounts pre-scaled for 18 decimal token)
+python action_runner.py create-position sim 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 2000000000000000000000 500000000000000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 2000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (50% increase)
-python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000.0 2000.0 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 150
+python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 2000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 150
 ```
 
 #### 2. Exit Position
@@ -273,9 +273,9 @@ python action_runner.py exit-position <mode> <vault_address> <shares_to_redeem> 
 **Arguments (in order):**
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
-- `shares_to_redeem` - Shares to redeem (1e24 precision, e.g., "1.5" for 1.5 shares)
-- `asset_to_repay` - Asset amount to repay (decimal format)
-- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+- `shares_to_redeem` - Shares to redeem (integer, pre-scaled to vault share decimals, e.g., "1500000000000000000000000" for 1.5 shares with 24 decimals)
+- `asset_to_repay` - Asset amount to repay (integer, pre-scaled to asset decimals)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required)
@@ -287,14 +287,14 @@ python action_runner.py exit-position <mode> <vault_address> <shares_to_redeem> 
 
 **Examples:**
 ```bash
-# Simulation mode
-python action_runner.py exit-position sim 0x1234567890abcdef1234567890abcdef12345678 1.5 500.0 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+# Simulation mode (1.5 shares with 24 decimals, 500.0 asset with 18 decimals)
+python action_runner.py exit-position sim 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 500000000000000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1.5 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (20% increase)
-python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1.5 500.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
+python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
 #### 3. Exit Position and Withdraw
@@ -309,7 +309,7 @@ python action_runner.py exit-position-and-withdraw <mode> <vault_address> <min_p
 **Arguments (in order):**
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
-- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required)
@@ -321,14 +321,14 @@ python action_runner.py exit-position-and-withdraw <mode> <vault_address> <min_p
 
 **Examples:**
 ```bash
-# Simulation mode
-python action_runner.py exit-position-and-withdraw sim 0x1234567890abcdef1234567890abcdef12345678 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+# Simulation mode (950.0 tokens with 18 decimals)
+python action_runner.py exit-position-and-withdraw sim 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (20% increase)
-python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
+python action_runner.py exit-position-and-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
 #### 4. Withdraw from Morpho
@@ -410,7 +410,7 @@ python action_runner.py max-leverage <mode> <vault_address> <rounding_buffer> <m
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
 - `rounding_buffer` - Rounding buffer for leverage calculation (integer format, e.g., "1000000000")
-- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required)
@@ -422,14 +422,14 @@ python action_runner.py max-leverage <mode> <vault_address> <rounding_buffer> <m
 
 **Examples:**
 ```bash
-# Simulation mode
-python action_runner.py max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+# Simulation mode (950.0 tokens with 18 decimals)
+python action_runner.py max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (40% increase)
-python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
+python action_runner.py max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
 ```
 
 #### 7. Flash Liquidate
@@ -445,9 +445,9 @@ python action_runner.py flash-liquidate <mode> <vault_address> <liquidate_accoun
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
 - `liquidate_account` - Address of the account to liquidate (0x...)
-- `shares_to_liquidate` - Shares to liquidate (1e24 precision, e.g., "1.5" for 1.5 shares)
-- `assets_to_borrow` - Assets to borrow via flash loan (decimal format)
-- `min_purchase_amount` - Minimum purchase amount for slippage protection (decimal format)
+- `shares_to_liquidate` - Shares to liquidate (integer, pre-scaled to vault share decimals, e.g., "2000000000000000000000000" for 2.0 shares with 24 decimals)
+- `assets_to_borrow` - Assets to borrow via flash loan (integer, pre-scaled to asset decimals)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required)
@@ -459,14 +459,14 @@ python action_runner.py flash-liquidate <mode> <vault_address> <liquidate_accoun
 
 **Examples:**
 ```bash
-# Simulation mode
-python action_runner.py flash-liquidate sim 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+# Simulation mode (2.0 shares with 24 decimals, 1000.0 assets with 18 decimals)
+python action_runner.py flash-liquidate sim 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 1000000000000000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 1000000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (30% increase)
-python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2.0 1000.0 950.0 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
+python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 1000000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
 #### 8. View Market Details
@@ -518,7 +518,34 @@ python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef1
 python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 10. List Supported Vaults
+#### 10. Get Vault Decimals
+
+Retrieves and displays decimal precision information for a vault, including asset decimals, yield token decimals, and vault share decimals.
+
+**Syntax:**
+```bash
+python action_runner.py get-decimals <vault_address>
+```
+
+**Arguments (in order):**
+- `vault_address` - The vault contract address (0x...)
+
+**Examples:**
+```bash
+# Get decimal information for a vault
+python action_runner.py get-decimals 0x1234567890abcdef1234567890abcdef12345678
+```
+
+**Output:**
+The command displays a formatted table showing:
+- Vault Address: The queried vault address
+- Asset Decimals: Decimal precision of the underlying asset token
+- Yield Token Decimals: Decimal precision of the yield-bearing token
+- Vault Share Decimals: Decimal precision of the vault shares
+
+This information is useful for understanding the proper scaling when providing integer amounts to other commands.
+
+#### 11. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 
@@ -529,13 +556,14 @@ python action_runner.py list-vaults
 
 ### Important Notes
 
-- **Decimal Input Format**: All amount parameters accept decimal notation (e.g., "1000.5", "0.001")
+- **Integer Input Format**: All amount parameters must be provided as pre-scaled integers matching the token's decimal precision (e.g., "1000000000000000000000" for 1000.0 tokens with 18 decimals)
+- **Decimal Precision**: Use the `get-decimals` command to determine the correct decimal precision for each vault's assets, yield tokens, and shares
 - **Address Validation**: All addresses are validated for proper format
 - **Mode Requirements**: 
   - `sim` mode requires `--sender` for transaction simulation
   - `exec` mode requires both `--account` for transaction signing and `--sender` for transaction execution
 - **Error Handling**: The script provides detailed error messages for validation failures and execution errors
-- **Scaling**: User inputs are automatically scaled to the appropriate decimal precision for each vault
+- **No Automatic Scaling**: Users are responsible for providing correctly scaled integer amounts
 
 ### Troubleshooting
 

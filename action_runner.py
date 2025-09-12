@@ -478,6 +478,44 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def get_decimals(self, vault_address: str) -> bool:
+        """Get and display decimal information for a vault."""
+        try:
+            # Validate input
+            vault_address = InputValidator.validate_address(vault_address)
+            
+            print(f"Getting decimal information for vault: {vault_address}")
+            
+            # Get vault instance
+            vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
+            
+            if not vault:
+                print(f"Error: No vault implementation found for address {vault_address}")
+                return False
+            
+            print(f"Using vault implementation for {vault_address}")
+            
+            # Get decimals
+            asset_decimals, yield_token_decimals, vault_share_decimals = vault.get_decimals()
+            
+            print("=" * 60)
+            print(f"VAULT DECIMAL INFORMATION")
+            print("=" * 60)
+            print(f"Vault Address:        {vault_address}")
+            print(f"Asset Decimals:       {asset_decimals}")
+            print(f"Yield Token Decimals: {yield_token_decimals}")
+            print(f"Vault Share Decimals: {vault_share_decimals}")
+            print("=" * 60)
+            
+            return True
+            
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+    
     def withdraw_from_morpho(self, vault_address: str, mode: str,
                            sender_address: Optional[str] = None,
                            account_name: Optional[str] = None,
@@ -954,6 +992,10 @@ def main():
     view_account_parser.add_argument('account_address', help='Account address to query')
     view_account_parser.add_argument('--sender', help='Sender address (optional)')
     
+    # Get decimals command
+    decimals_parser = subparsers.add_parser('get-decimals', help='Get decimal information for a vault')
+    decimals_parser.add_argument('vault_address', help='Vault contract address')
+    
     # List vaults command
     subparsers.add_parser('list-vaults', help='List supported vault addresses')
     
@@ -1111,6 +1153,12 @@ def main():
                 vault_address=args.vault_address,
                 account_address=args.account_address,
                 sender_address=args.sender
+            )
+            sys.exit(0 if success else 1)
+            
+        elif args.action == 'get-decimals':
+            success = runner.get_decimals(
+                vault_address=args.vault_address
             )
             sys.exit(0 if success else 1)
             
