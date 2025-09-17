@@ -8,6 +8,7 @@ import { Trade, TradeType } from "../interfaces/ITradingModule.sol";
 import { SlippageTooHigh } from "../interfaces/Errors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { PendlePTLib } from "./PendlePTLib.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 
 struct PendleDepositParams {
     uint16 dexId;
@@ -27,6 +28,8 @@ struct PendleRedeemParams {
  * Base implementation for Pendle PT vaults
  */
 contract PendlePT is AbstractStakingStrategy {
+    using TokenUtils for ERC20;
+
     IPMarket public immutable MARKET;
     address public immutable TOKEN_OUT_SY;
 
@@ -158,7 +161,7 @@ contract PendlePT is AbstractStakingStrategy {
         // implementation.
         uint256 tokenOutSy = _redeemPT(ptAmount, bytes(""));
 
-        ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
+        ERC20(TOKEN_OUT_SY).checkApprove(address(withdrawRequestManager), tokenOutSy);
         return withdrawRequestManager.initiateWithdraw({
             account: account,
             yieldTokenAmount: tokenOutSy,

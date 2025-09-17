@@ -5,7 +5,7 @@ import { AbstractYieldStrategy } from "../AbstractYieldStrategy.sol";
 import { IWithdrawRequestManager, WithdrawRequest } from "../interfaces/IWithdrawRequestManager.sol";
 import { Trade, TradeType } from "../interfaces/ITradingModule.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 
 struct RedeemParams {
     uint8 dexId;
@@ -24,7 +24,7 @@ struct DepositParams {
  * require some illiquid redemption period.
  */
 abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
-    using SafeERC20 for ERC20;
+    using TokenUtils for ERC20;
 
     address internal immutable withdrawToken;
 
@@ -77,7 +77,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         override
         returns (uint256 requestId)
     {
-        ERC20(yieldToken).approve(address(withdrawRequestManager), yieldTokenAmount);
+        ERC20(yieldToken).checkApprove(address(withdrawRequestManager), yieldTokenAmount);
         requestId = withdrawRequestManager.initiateWithdraw({
             account: account,
             yieldTokenAmount: yieldTokenAmount,
@@ -97,7 +97,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         virtual
         override
     {
-        ERC20(asset).approve(address(withdrawRequestManager), assets);
+        ERC20(asset).checkApprove(address(withdrawRequestManager), assets);
         withdrawRequestManager.stakeTokens(address(asset), assets, depositData);
     }
 
