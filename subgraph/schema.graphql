@@ -418,7 +418,7 @@ type TradingModulePermission @entity(immutable: false) {
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
 
-  sender: Account!
+  sender: Bytes!
   token: Token
   tokenAddress: Bytes!
   name: String!
