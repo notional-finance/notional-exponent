@@ -171,6 +171,19 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         return (totalSupply() - s_escrowedShares + VIRTUAL_SHARES);
     }
 
+    function getInternalStorage()
+        external
+        view
+        returns (
+            uint256 yieldTokenBalance,
+            uint256 escrowedShares,
+            uint256 accruedFeesInYieldToken,
+            uint256 lastFeeAccrualTime
+        )
+    {
+        return (s_yieldTokenBalance, s_escrowedShares, s_accruedFeesInYieldToken, s_lastFeeAccrualTime);
+    }
+
     /**
      * Fee Methods **
      */
