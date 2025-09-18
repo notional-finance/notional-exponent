@@ -121,7 +121,7 @@ function getTradingModulePermissions(sender: Address, token: Address, event: eth
   let permissions = TradingModulePermission.load(id);
   if (permissions == null) {
     permissions = new TradingModulePermission(id);
-    permissions.sender = sender.toHexString();
+    permissions.sender = sender;
     permissions.tokenAddress = token;
     permissions.allowedDexes = new Array<string>();
     permissions.allowedTradeTypes = new Array<string>();
