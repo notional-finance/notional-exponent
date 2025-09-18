@@ -669,6 +669,71 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def force_withdraw(self, vault_address: str, account_address: str, mode: str,
+                      sender_address: Optional[str] = None,
+                      account_name: Optional[str] = None,
+                      gas_estimate_multiplier: Optional[int] = None) -> bool:
+        """Execute ForceWithdraw action."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            account_address = InputValidator.validate_address(account_address)
+            mode = InputValidator.validate_mode(mode)
+            
+            # Get vault implementation
+            vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
+            if not vault:
+                print(f"Error: No vault implementation found for address {vault_address}")
+                return False
+            
+            print(f"Initiating force withdraw for vault {vault_address}")
+            print(f"Account: {account_address}")
+            
+            # Get withdraw data
+            withdraw_data = vault.get_withdraw_data()
+            withdraw_data_hex = EncodingHelper.bytes_to_hex(withdraw_data)
+            
+            print(f"Withdraw data: {withdraw_data_hex}")
+            
+            # Build and execute forge command
+            forge_cmd = self._build_force_withdraw_forge_command(
+                vault_address=vault_address,
+                account_address=account_address,
+                data=withdraw_data_hex,
+                mode=mode,
+                sender_address=sender_address,
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
+            )
+            
+            print("Executing forge command...")
+            
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+            
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+            
+            if result.returncode == 0:
+                print("✓ Force withdraw completed successfully!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+                
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+    
     def _build_initial_position_forge_command(self, action_script: str, vault_address: str,
                            initial_supply: int, initial_borrow: int,
                            initial_deposit: int, data: str, mode: str,
@@ -979,6 +1044,40 @@ class ActionRunner:
         cmd.extend([vault_address, account_address])
         
         return cmd
+    
+    def _build_force_withdraw_forge_command(self, vault_address: str, account_address: str, data: str, mode: str,
+                                          sender_address: Optional[str] = None,
+                                          account_name: Optional[str] = None,
+                                          gas_estimate_multiplier: Optional[int] = None) -> list[str]:
+        """Build forge command arguments for force withdraw."""
+        cmd = [
+            "forge", "script", "script/actions/ForceWithdraw.sol",
+            "--sig", "run(address,address,bytes)"
+        ]
+        
+        if mode == "sim":
+            cmd.extend(["--fork-url", self.rpc_url])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        elif mode == "exec":
+            cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
+            if account_name:
+                cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
+        
+        # Add function arguments
+        cmd.extend([
+            account_address,
+            vault_address,
+            data
+        ])
+        
+        return cmd
 
 
 def main():
@@ -1071,6 +1170,15 @@ def main():
     # Get decimals command
     decimals_parser = subparsers.add_parser('get-decimals', help='Get decimal information for a vault')
     decimals_parser.add_argument('vault_address', help='Vault contract address')
+    
+    # Force withdraw command
+    force_withdraw_parser = subparsers.add_parser('force-withdraw', help='Execute force withdraw for an account')
+    force_withdraw_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
+    force_withdraw_parser.add_argument('vault_address', help='Vault contract address')
+    force_withdraw_parser.add_argument('account_address', help='Account address to force withdraw')
+    force_withdraw_parser.add_argument('--sender', help='Sender address (for sim mode)')
+    force_withdraw_parser.add_argument('--account', help='Account name (for exec mode)')
+    force_withdraw_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
     
     # List vaults command
     subparsers.add_parser('list-vaults', help='List supported vault addresses')
@@ -1235,6 +1343,24 @@ def main():
         elif args.action == 'get-decimals':
             success = runner.get_decimals(
                 vault_address=args.vault_address
+            )
+            sys.exit(0 if success else 1)
+            
+        elif args.action == 'force-withdraw':
+            if args.mode == 'sim' and not args.sender:
+                print("Error: --sender is required for sim mode")
+                sys.exit(1)
+            if args.mode == 'exec' and not args.account:
+                print("Error: --account is required for exec mode")
+                sys.exit(1)
+            
+            success = runner.force_withdraw(
+                vault_address=args.vault_address,
+                account_address=args.account_address,
+                mode=args.mode,
+                sender_address=args.sender,
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
             )
             sys.exit(0 if success else 1)
             
