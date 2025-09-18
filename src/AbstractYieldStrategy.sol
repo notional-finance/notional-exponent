@@ -250,6 +250,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         t_AllowTransfer_Amount = sharesMinted;
         // Transfer the shares to the lending router so it can supply collateral
         _transfer(receiver, t_CurrentLendingRouter, sharesMinted);
+        _checkInvariant();
     }
 
     function burnShares(
@@ -269,6 +270,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         // Send all the assets back to the lending router
         ERC20(asset).safeTransfer(t_CurrentLendingRouter, assetsWithdrawn);
+        _checkInvariant();
     }
 
     function allowTransfer(
@@ -331,6 +333,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         delete t_CurrentAccount;
 
         ADDRESS_REGISTRY.emitAccountNativePosition(liquidator, false);
+        _checkInvariant();
     }
 
     /// @inheritdoc IYieldStrategy
@@ -352,6 +355,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         ERC20(asset).safeTransfer(msg.sender, assetsWithdrawn);
 
         if (sharesHeld == sharesToRedeem) ADDRESS_REGISTRY.emitAccountNativePosition(msg.sender, true);
+        _checkInvariant();
     }
 
     /// @inheritdoc IYieldStrategy
@@ -369,6 +373,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         returns (uint256 requestId)
     {
         requestId = _withdraw(account, sharesHeld, data, forceWithdrawFrom);
+        _checkInvariant();
     }
 
     /// @inheritdoc IYieldStrategy
@@ -376,6 +381,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /// native balance does not require a collateral check.
     function initiateWithdrawNative(bytes memory data) external override nonReentrant returns (uint256 requestId) {
         requestId = _withdraw(msg.sender, balanceOf(msg.sender), data, address(0));
+        _checkInvariant();
     }
 
     function _withdraw(
@@ -446,6 +452,10 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     /**
      * Internal Helper Functions **
      */
+    function _checkInvariant() internal view {
+        require(s_yieldTokenBalance <= ERC20(yieldToken).balanceOf(address(this)));
+    }
+
     function _isWithdrawRequestPending(address account) internal view virtual returns (bool) {
         return address(withdrawRequestManager) != address(0)
             && withdrawRequestManager.isPendingWithdrawRequest(address(this), account);
