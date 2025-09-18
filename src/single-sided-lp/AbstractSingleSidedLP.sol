@@ -37,7 +37,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
 
     /// @notice Addresses of tokens held and decimal places of each token. ETH will always be
     /// recorded in this array as address(0)
-    function TOKENS() internal view virtual returns (ERC20[] memory);
+    function TOKENS() public view virtual returns (ERC20[] memory);
 
     /// @notice Index of the TOKENS() array that refers to the primary borrowed currency by the
     /// leveraged vault. All valuations are done in terms of this currency.

@@ -41,7 +41,7 @@ contract CurveConvex2Token is AbstractSingleSidedLP {
         return _PRIMARY_INDEX;
     }
 
-    function TOKENS() internal view override returns (ERC20[] memory) {
+    function TOKENS() public view override returns (ERC20[] memory) {
         ERC20[] memory tokens = new ERC20[](_NUM_TOKENS);
         tokens[0] = ERC20(TOKEN_1);
         tokens[1] = ERC20(TOKEN_2);
