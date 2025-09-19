@@ -7,7 +7,6 @@ struct VaultPosition {
 }
 
 interface ILendingRouter {
-
     event ApprovalUpdated(address indexed user, address indexed operator, bool approved);
 
     event EnterPosition(
@@ -34,6 +33,8 @@ interface ILendingRouter {
         uint256 borrowSharesRepaid,
         uint256 vaultSharesToLiquidator
     );
+
+    event ForceWithdraw(address indexed account, address indexed vault, uint256 requestId);
 
     /**
      * @dev Returns the name of the lending router.
@@ -75,7 +76,8 @@ interface ILendingRouter {
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) external;
+    )
+        external;
 
     /**
      * @dev Migrates a position to the lending market.
@@ -84,11 +86,7 @@ interface ILendingRouter {
      * @param vault The address of the vault.
      * @param migrateFrom The address of the lending router to migrate the position from.
      */
-    function migratePosition(
-        address onBehalf,
-        address vault,
-        address migrateFrom
-    ) external;
+    function migratePosition(address onBehalf, address vault, address migrateFrom) external;
 
     /**
      * @dev Exits a position in the lending market. Can be called by the user or another lending router
@@ -108,7 +106,8 @@ interface ILendingRouter {
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external;
+    )
+        external;
 
     /**
      * @dev Liquidates a position in the lending market.
@@ -125,8 +124,9 @@ interface ILendingRouter {
         address vault,
         uint256 seizedAssets,
         uint256 repaidShares
-    ) external returns (uint256 sharesToLiquidator);
-
+    )
+        external
+        returns (uint256 sharesToLiquidator);
 
     /**
      * @dev Returns the health factor of a user for a given vault.
@@ -138,7 +138,12 @@ interface ILendingRouter {
      * @return collateralValue The collateral value.
      * @return maxBorrow The max borrow amount.
      */
-    function healthFactor(address borrower, address vault) external returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
+    function healthFactor(
+        address borrower,
+        address vault
+    )
+        external
+        returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
 
     /**
      * @dev Returns the balance of collateral of a user for a given vault.
@@ -179,7 +184,13 @@ interface ILendingRouter {
      *
      * @return requestId The request id.
      */
-    function initiateWithdraw(address onBehalf, address vault, bytes calldata data) external returns (uint256 requestId);
+    function initiateWithdraw(
+        address onBehalf,
+        address vault,
+        bytes calldata data
+    )
+        external
+        returns (uint256 requestId);
 
     /**
      * @dev Forces a withdraw for a user for a given vault, only allowed if the health factor is negative.
@@ -202,4 +213,3 @@ interface ILendingRouter {
      */
     function claimRewards(address onBehalf, address vault) external returns (uint256[] memory rewards);
 }
-

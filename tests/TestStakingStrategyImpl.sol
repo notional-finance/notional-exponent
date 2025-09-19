@@ -13,32 +13,37 @@ import "./Mocks.sol";
 
 contract TestMockStakingStrategy_EtherFi is TestStakingStrategy {
     function getRedeemData(
-        address /* user */,
+        address, /* user */
         uint256 /* shares */
-    ) internal pure override returns (bytes memory redeemData) {
-        return abi.encode(RedeemParams({
-            minPurchaseAmount: 0,
-            dexId: uint8(DexId.CURVE_V2),
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5,
-                fromIndex: 1,
-                toIndex: 0
-            }))
-        }));
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(
+            RedeemParams({
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5, fromIndex: 1, toIndex: 0 })
+                )
+            })
+        );
     }
 
     function deployYieldStrategy() internal override {
         setupWithdrawRequestManager(address(new EtherFiWithdrawRequestManager()));
-        y = new MockStakingStrategy(address(WETH), address(weETH), 0.0010e18);
+        y = new MockStakingStrategy(address(WETH), address(weETH), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
+        (AggregatorV2V3Interface oracle,) = TRADING_MODULE.priceOracles(address(w));
         o = new MockOracle(oracle.latestAnswer());
 
         defaultDeposit = 10e18;
         defaultBorrow = 90e18;
-        maxEntryValuationSlippage = 0.0050e18;
-        maxExitValuationSlippage = 0.0050e18;
+        maxEntryValuationSlippage = 0.005e18;
+        maxExitValuationSlippage = 0.005e18;
 
         withdrawRequest = new TestEtherFiWithdrawRequest();
         canInspectTransientVariables = true;
@@ -49,41 +54,49 @@ contract TestMockStakingStrategy_EtherFi is TestStakingStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(weETH),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true,
+                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
+                tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 }
 
 contract TestStakingStrategy_EtherFi is TestStakingStrategy {
     function getRedeemData(
-        address /* user */,
+        address, /* user */
         uint256 /* shares */
-    ) internal pure override returns (bytes memory redeemData) {
-        return abi.encode(RedeemParams({
-            minPurchaseAmount: 0,
-            dexId: uint8(DexId.CURVE_V2),
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5,
-                fromIndex: 1,
-                toIndex: 0
-            }))
-        }));
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(
+            RedeemParams({
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0xDB74dfDD3BB46bE8Ce6C33dC9D82777BCFc3dEd5, fromIndex: 1, toIndex: 0 })
+                )
+            })
+        );
     }
 
     function deployYieldStrategy() internal override {
         setupWithdrawRequestManager(address(new EtherFiWithdrawRequestManager()));
-        y = new StakingStrategy(address(WETH), address(weETH), 0.0010e18);
+        y = new StakingStrategy(address(WETH), address(weETH), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
+        (AggregatorV2V3Interface oracle,) = TRADING_MODULE.priceOracles(address(w));
         o = new MockOracle(oracle.latestAnswer());
 
         defaultDeposit = 10e18;
         defaultBorrow = 90e18;
-        maxEntryValuationSlippage = 0.0050e18;
-        maxExitValuationSlippage = 0.0050e18;
+        maxEntryValuationSlippage = 0.005e18;
+        maxExitValuationSlippage = 0.005e18;
 
         withdrawRequest = new TestEtherFiWithdrawRequest();
     }
@@ -93,9 +106,12 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(weETH),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true,
+                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
+                tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 
@@ -106,43 +122,58 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
 
 contract TestStakingStrategy_Ethena is TestStakingStrategy {
     function getRedeemData(
-        address /* user */,
+        address, /* user */
         uint256 /* shares */
-    ) internal override returns (bytes memory redeemData) {
+    )
+        internal
+        override
+        returns (bytes memory redeemData)
+    {
         // There is no instant redeem for Ethena
         vm.skip(true);
         return bytes("");
     }
 
     function getDepositData(
-        address /* user */,
+        address, /* user */
         uint256 /* assets */
-    ) internal override returns (bytes memory depositData) {
-        return abi.encode(StakingTradeParams({
-            tradeType: TradeType.EXACT_IN_SINGLE,
-            minPurchaseAmount: 0,
-            dexId: uint8(DexId.CURVE_V2),
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-                fromIndex: 1,
-                toIndex: 0
-            })),
-            stakeData: bytes("")
-        }));
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(
+            StakingTradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72, fromIndex: 1, toIndex: 0 })
+                ),
+                stakeData: bytes("")
+            })
+        );
     }
 
     function deployYieldStrategy() internal override {
         setupWithdrawRequestManager(address(new EthenaWithdrawRequestManager()));
-        y = new StakingStrategy(address(USDC), address(sUSDe), 0.0010e18);
+        y = new StakingStrategy(address(USDC), address(sUSDe), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
+        (AggregatorV2V3Interface oracle,) = TRADING_MODULE.priceOracles(address(w));
         o = new MockOracle(oracle.latestAnswer() * 1e18 / 1e8);
+
+        // Ethena uses USDe as the withdraw token during valuation
+        (oracle,) = TRADING_MODULE.priceOracles(address(USDe));
+        withdrawTokenOracle = new MockOracle(oracle.latestAnswer() * 1e18 / 1e8);
+        vm.prank(owner);
+        TRADING_MODULE.setPriceOracle(address(USDe), AggregatorV2V3Interface(address(withdrawTokenOracle)));
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
-        maxEntryValuationSlippage = 0.0050e18;
-        maxExitValuationSlippage = 0.0050e18;
+        maxEntryValuationSlippage = 0.005e18;
+        maxExitValuationSlippage = 0.005e18;
 
         withdrawRequest = new TestEthenaWithdrawRequest();
     }
@@ -152,9 +183,12 @@ contract TestStakingStrategy_Ethena is TestStakingStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(manager),
             address(USDC),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true,
+                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
+                tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 

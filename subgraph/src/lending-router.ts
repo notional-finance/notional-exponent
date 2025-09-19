@@ -19,11 +19,15 @@ function getBorrowSharePrice(
   underlyingToken: Token,
   borrowShare: Token,
 ): BigInt {
-  return borrowAssets
-    .times(DEFAULT_PRECISION)
-    .times(borrowShare.precision)
-    .div(borrowShares)
-    .div(underlyingToken.precision);
+  if (borrowAssets.gt(BigInt.zero())) {
+    return borrowAssets
+      .times(DEFAULT_PRECISION)
+      .times(borrowShare.precision)
+      .div(borrowShares)
+      .div(underlyingToken.precision);
+  } else {
+    return BigInt.zero();
+  }
 }
 
 export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
@@ -53,6 +57,9 @@ export function handleEnterPosition(event: EnterPosition): void {
       event.address,
       event,
     );
+  } else {
+    // This still initializes the borrow share token object.
+    getBorrowShare(event.params.vault, event.address, event);
   }
 
   if (event.params.vaultSharesReceived.gt(BigInt.zero())) {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC1155} from "@openzeppelin/contracts/interfaces/IERC1155.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC1155 } from "@openzeppelin/contracts/interfaces/IERC1155.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 interface IPirexETH {
     error StatusNotDissolvedOrSlashed();
@@ -23,15 +23,27 @@ interface IPirexETH {
         Dissolved,
         // The validator's status indicating that it has been slashed due to misbehavior.
         // It serves as a meta state encompassing active_slashed, exited_slashed,
-        // and the possibility of starting the withdrawal process (withdrawal_possible) or already completed (withdrawal_done)
+        // and the possibility of starting the withdrawal process (withdrawal_possible) or already completed
+        // (withdrawal_done)
         // with the release of ETH, subject to a penalty for the misbehavior.
         Slashed
     }
 
     function batchId() external view returns (uint256);
-    function initiateRedemption(uint256 assets, address receiver, bool shouldTriggerValidatorExit) external;
+    function initiateRedemption(
+        uint256 assets,
+        address receiver,
+        bool shouldTriggerValidatorExit
+    )
+        external
+        returns (uint256 postFeesAmount, uint256 feeAmount);
     function deposit(address receiver, bool shouldCompound) external payable;
-    function instantRedeemWithPxEth(uint256 _assets, address _receiver) external;
+    function instantRedeemWithPxEth(
+        uint256 _assets,
+        address _receiver
+    )
+        external
+        returns (uint256 postFeesAmount, uint256 feeAmount);
     function redeemWithUpxEth(uint256 _tokenId, uint256 _assets, address _receiver) external;
     function outstandingRedemptions() external view returns (uint256);
 

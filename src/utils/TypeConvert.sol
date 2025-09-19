@@ -2,14 +2,13 @@
 pragma solidity >=0.8.29;
 
 library TypeConvert {
-
     function toUint(int256 x) internal pure returns (uint256) {
         require(x >= 0);
         return uint256(x);
     }
 
     function toInt(uint256 x) internal pure returns (int256) {
-        require (x <= uint256(type(int256).max)); // dev: toInt overflow
+        require(x <= uint256(type(int256).max)); // dev: toInt overflow
         return int256(x);
     }
 
@@ -22,5 +21,4 @@ library TypeConvert {
         require(x <= uint120(type(uint120).max)); // dev: toUint120 overflow
         return uint120(x);
     }
-
 }

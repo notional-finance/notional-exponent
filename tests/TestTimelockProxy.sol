@@ -13,7 +13,7 @@ contract MockInitializable is Initializable {
         return true;
     }
 
-    function _initialize(bytes calldata /* data */) internal override {
+    function _initialize(bytes calldata /* data */ ) internal override {
         didInitialize = true;
     }
 }
@@ -32,13 +32,20 @@ contract TestTimelockProxy is Test {
     function setUp() public {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         upgradeOwner = ADDRESS_REGISTRY.upgradeAdmin();
-        pauseOwner = ADDRESS_REGISTRY.pauseAdmin();
+        pauseOwner = makeAddr("pauseOwner");
         feeReceiver = ADDRESS_REGISTRY.feeReceiver();
+
+        vm.startPrank(upgradeOwner);
+        registry.transferPauseAdmin(pauseOwner);
+        vm.stopPrank();
+
+        vm.startPrank(pauseOwner);
+        registry.acceptPauseAdmin();
+        vm.stopPrank();
 
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(
-            address(impl),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
+            address(impl), abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
     }
 
@@ -63,7 +70,9 @@ contract TestTimelockProxy is Test {
         proxy.initiateUpgrade(address(timelock2));
 
         vm.expectEmit(true, true, true, true);
-        emit TimelockUpgradeableProxy.UpgradeInitiated(address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
+        emit TimelockUpgradeableProxy.UpgradeInitiated(
+            address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY())
+        );
         vm.prank(upgradeOwner);
         proxy.initiateUpgrade(address(timelock2));
 
@@ -78,7 +87,7 @@ contract TestTimelockProxy is Test {
         vm.warp(block.timestamp + proxy.UPGRADE_DELAY() + 1);
         proxy.executeUpgrade(bytes(""));
 
-        assertEq(proxy.newImplementation(), address(timelock2));
+        assertEq(proxy.getImplementation(), address(timelock2));
         vm.stopPrank();
     }
 
@@ -129,7 +138,7 @@ contract TestTimelockProxy is Test {
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
 
-        vm.prank(pauseOwner);
+        vm.prank(upgradeOwner);
         proxy.unpause();
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
@@ -189,5 +198,4 @@ contract TestTimelockProxy is Test {
 
         assertEq(registry.feeReceiver(), newFeeReceiver);
     }
-    
 }

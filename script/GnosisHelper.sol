@@ -38,7 +38,6 @@ contract GnosisHelper is Script {
         }
     }
 
-        
     function _txnTemplate(string memory t) private returns (string memory) {
         string memory method = "contractMethod";
         vm.serializeString(method, "inputs", new string[](0));

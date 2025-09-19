@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {TradeType} from "./ITradingModule.sol";
+import { TradeType } from "./ITradingModule.sol";
 
 /// Each withdraw request manager contract is responsible for managing withdraws of a token
 /// from a specific token (i.e. wstETH, weETH, sUSDe, etc). Each yield strategy can call the
@@ -38,18 +38,20 @@ interface IWithdrawRequestManager {
     );
 
     event WithdrawRequestTokenized(
-        address indexed from,
-        address indexed to,
-        address indexed vault,
-        uint256 requestId,
-        uint256 sharesAmount
+        address indexed from, address indexed to, address indexed vault, uint256 requestId, uint256 sharesAmount
     );
 
     event WithdrawRequestFinalized(
+        address indexed vault, address indexed account, uint256 requestId, uint256 totalWithdraw
+    );
+
+    event WithdrawRequestRedeemed(
         address indexed vault,
         address indexed account,
         uint256 requestId,
-        uint256 totalWithdraw
+        uint256 withdrawYieldTokenAmount,
+        uint256 sharesBurned,
+        bool isCleared
     );
 
     /// @notice Returns the token that will be the result of staking
@@ -85,7 +87,13 @@ interface IWithdrawRequestManager {
     /// @param depositToken the token to stake, will be transferred from the vault
     /// @param amount the amount of tokens to stake
     /// @param data additional data for the stake
-    function stakeTokens(address depositToken, uint256 amount, bytes calldata data) external returns (uint256 yieldTokensMinted);
+    function stakeTokens(
+        address depositToken,
+        uint256 amount,
+        bytes calldata data
+    )
+        external
+        returns (uint256 yieldTokensMinted);
 
     /// @notice Initiates a withdraw request
     /// @dev Only approved vaults can initiate withdraw requests
@@ -99,8 +107,11 @@ interface IWithdrawRequestManager {
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
-        bytes calldata data
-    ) external returns (uint256 requestId);
+        bytes calldata data,
+        address forceWithdrawFrom
+    )
+        external
+        returns (uint256 requestId);
 
     /// @notice Attempts to redeem active withdraw requests during vault exit
     /// @dev Will revert if the withdraw request is not finalized
@@ -112,7 +123,9 @@ interface IWithdrawRequestManager {
         address account,
         uint256 withdrawYieldTokenAmount,
         uint256 sharesToBurn
-    ) external returns (uint256 tokensWithdrawn);
+    )
+        external
+        returns (uint256 tokensWithdrawn);
 
     /// @notice Finalizes withdraw requests outside of a vault exit. This may be required in cases if an
     /// account is negligent in exiting their vault position and letting the withdraw request sit idle
@@ -121,10 +134,7 @@ interface IWithdrawRequestManager {
     /// @dev No access control is enforced on this function but no tokens are transferred off the request
     /// manager either.
     /// @dev Will revert if the withdraw request is not finalized
-    function finalizeRequestManual(
-        address vault,
-        address account
-    ) external returns (uint256 tokensWithdrawn);
+    function finalizeRequestManual(address vault, address account) external returns (uint256 tokensWithdrawn);
 
     /// @notice If an account has an illiquid withdraw request, this method will tokenize their
     /// claim on it during liquidation.
@@ -136,7 +146,9 @@ interface IWithdrawRequestManager {
         address from,
         address to,
         uint256 sharesAmount
-    ) external returns (bool didTokenize);
+    )
+        external
+        returns (bool didTokenize);
 
     /// @notice Allows the emergency exit role to rescue tokens from the withdraw request manager
     /// @param cooldownHolder the cooldown holder to rescue tokens from
@@ -156,7 +168,13 @@ interface IWithdrawRequestManager {
     /// @param account the account to get the withdraw request for
     /// @return w the withdraw request
     /// @return s the tokenized withdraw request
-    function getWithdrawRequest(address vault, address account) external view returns (WithdrawRequest memory w, TokenizedWithdrawRequest memory s);
+    function getWithdrawRequest(
+        address vault,
+        address account
+    )
+        external
+        view
+        returns (WithdrawRequest memory w, TokenizedWithdrawRequest memory s);
 
     /// @notice Returns the value of a withdraw request in terms of the asset
     /// @param vault the vault to get the withdraw request for
@@ -165,10 +183,27 @@ interface IWithdrawRequestManager {
     /// @param shares the amount of shares to get the value for
     /// @return hasRequest whether the account has a withdraw request
     /// @return value the value of the withdraw request in terms of the asset
-    function getWithdrawRequestValue(address vault, address account, address asset, uint256 shares) external view returns (bool hasRequest, uint256 value);
+    function getWithdrawRequestValue(
+        address vault,
+        address account,
+        address asset,
+        uint256 shares
+    )
+        external
+        view
+        returns (bool hasRequest, uint256 value);
 
     /// @notice Returns the protocol reported exchange rate between the yield token
     /// and then withdraw token.
     /// @return exchangeRate the exchange rate of the yield token to the withdraw token
     function getExchangeRate() external view returns (uint256 exchangeRate);
+
+    /// @notice Returns the known amount of withdraw tokens for a withdraw request
+    /// @param requestId the request id of the withdraw request
+    /// @return hasKnownAmount whether the amount is known
+    /// @return amount the amount of withdraw tokens
+    function getKnownWithdrawTokenAmount(uint256 requestId)
+        external
+        view
+        returns (bool hasKnownAmount, uint256 amount);
 }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {DEFAULT_PRECISION} from "../utils/Constants.sol";
-import {InvalidPrice} from "../interfaces/Errors.sol";
-import {TRADING_MODULE} from "../interfaces/ITradingModule.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
+import { DEFAULT_PRECISION } from "../utils/Constants.sol";
+import { InvalidPrice } from "../interfaces/Errors.sol";
+import { TRADING_MODULE } from "../interfaces/ITradingModule.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { AbstractCustomOracle } from "./AbstractCustomOracle.sol";
 
 /// @notice Returns the value of one LP token in terms of the primary index token. Will revert if the spot
 /// price on the pool is not within some deviation tolerance of the implied oracle price. This is intended
@@ -13,7 +13,6 @@ import {AbstractCustomOracle} from "./AbstractCustomOracle.sol";
 /// all the balance claims are withdrawn proportionally and then converted to the primary currency at the
 /// oracle price.
 abstract contract AbstractLPOracle is AbstractCustomOracle {
-
     /// @dev The precision of the pool, generally 1e18
     uint256 internal immutable POOL_PRECISION;
     /// @dev Defines the lower limit of a tolerable price deviation from the oracle price
@@ -34,10 +33,9 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         uint8 _primaryIndex,
         string memory description_,
         address sequencerUptimeOracle_
-    ) AbstractCustomOracle(
-        description_,
-        sequencerUptimeOracle_
-    ) {
+    )
+        AbstractCustomOracle(description_, sequencerUptimeOracle_)
+    {
         require(_lowerLimitMultiplier < DEFAULT_PRECISION);
         require(DEFAULT_PRECISION < _upperLimitMultiplier);
 
@@ -58,7 +56,7 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
     function _getOraclePairPrice(address base, address quote) internal view returns (uint256) {
         // The trading module always returns a positive rate in DEFAULT_PRECISION so we can safely
         // cast to uint256
-        (int256 rate, /* */) = TRADING_MODULE.getOraclePrice(base, quote);
+        (int256 rate, /* */ ) = TRADING_MODULE.getOraclePrice(base, quote);
         return uint256(rate);
     }
 
@@ -71,7 +69,11 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
         uint8[] memory decimals,
         uint256[] memory balances,
         uint256[] memory spotPrices
-    ) internal view returns (uint256) {
+    )
+        internal
+        view
+        returns (uint256)
+    {
         address primaryToken = address(tokens[PRIMARY_INDEX]);
         uint256 primaryDecimals = 10 ** decimals[PRIMARY_INDEX];
         uint256 totalSupply = _totalPoolSupply();
@@ -100,8 +102,7 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
                 uint256 secondaryDecimals = 10 ** decimals[i];
                 // Scale the token claim to primary token precision, DEFAULT_PRECISION is used
                 // to match the precision of the oracle pair price.
-                oneLPValueInPrimary += (tokenClaim * DEFAULT_PRECISION * primaryDecimals) / 
-                    (price * secondaryDecimals);
+                oneLPValueInPrimary += (tokenClaim * DEFAULT_PRECISION * primaryDecimals) / (price * secondaryDecimals);
             }
         }
 

@@ -4,14 +4,13 @@ pragma solidity >=0.8.29;
 import "./TestMorphoYieldStrategy.sol";
 
 contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
-
-    function deployYieldStrategy() internal override virtual {
+    function deployYieldStrategy() internal virtual override {
         w = new MockWrapperERC20(ERC20(address(USDC)), 6);
         o = new MockOracle(1e18);
         y = new MockYieldStrategy(
             address(USDC),
             address(w),
-            0.0010e18 // 0.1% fee rate
+            0.001e18 // 0.1% fee rate
         );
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
@@ -22,7 +21,8 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
         (
-            /* */,
+            /* */
+            ,
             uint256 collateralValue,
             uint256 maxBorrow
         ) = lendingRouter.healthFactor(msg.sender, address(y));
@@ -51,7 +51,6 @@ contract TestLowDecimalYieldStrategy is TestMorphoYieldStrategy {
             totalFeesCollected += y.collectFees();
         }
         console.log("total fees", totalFeesCollected);
-        console.log("implied fee rate", totalFeesCollected * 10000 / initialDeposit, "bps");
+        console.log("implied fee rate", totalFeesCollected * 10_000 / initialDeposit, "bps");
     }
-
 }

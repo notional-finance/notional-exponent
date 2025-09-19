@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import {Unauthorized, InvalidUpgrade, Paused} from "../interfaces/Errors.sol";
-import {ADDRESS_REGISTRY} from "../utils/Constants.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import { Unauthorized, InvalidUpgrade, Paused } from "../interfaces/Errors.sol";
+import { ADDRESS_REGISTRY } from "../utils/Constants.sol";
 
 /// @notice A proxy that allows for a timelocked upgrade and selective pausing of the implementation
 /// @dev All storage slots are offset to avoid conflicts with the implementation
 contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
-
     event UpgradeInitiated(address indexed newImplementation, uint32 upgradeValidAt);
+    event UpgradeExecuted(address indexed newImplementation);
+    event ProxyPaused();
+    event ProxyUnpaused();
+    event WhitelistedSelectors(bytes4[] indexed selectors, bool isWhitelisted);
 
     uint32 public constant UPGRADE_DELAY = 7 days;
 
     /// @notice Mapping of selector to whether it is whitelisted during a paused state
-    mapping(bytes4 => bool) public whitelistedSelectors;
+    mapping(bytes4 selector => bool isWhitelisted) public whitelistedSelectors;
 
     /// @notice The address of the new implementation
     address public newImplementation;
@@ -26,10 +29,7 @@ contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
     /// @notice Whether the proxy is paused
     bool public isPaused;
 
-    constructor(
-        address _logic,
-        bytes memory _data
-    ) ERC1967Proxy(_logic, _data) { }
+    constructor(address _logic, bytes memory _data) ERC1967Proxy(_logic, _data) { }
 
     receive() external payable {
         // Allow ETH transfers to succeed
@@ -56,23 +56,32 @@ contract TimelockUpgradeableProxy layout at (2 ** 128) is ERC1967Proxy {
         if (block.timestamp < upgradeValidAt) revert InvalidUpgrade();
         if (newImplementation == address(0)) revert InvalidUpgrade();
         ERC1967Utils.upgradeToAndCall(newImplementation, data);
+        emit UpgradeExecuted(newImplementation);
+
+        delete newImplementation;
+        delete upgradeValidAt;
     }
 
     function pause() external {
         if (msg.sender != ADDRESS_REGISTRY.pauseAdmin()) revert Unauthorized(msg.sender);
         isPaused = true;
+        emit ProxyPaused();
     }
 
     function unpause() external {
-        if (msg.sender != ADDRESS_REGISTRY.pauseAdmin()) revert Unauthorized(msg.sender);
+        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         isPaused = false;
+        emit ProxyUnpaused();
     }
 
     /// @dev Allows the pause admin to whitelist selectors that can be called even if the proxy is paused, this
     /// is useful for allowing vaults to continue to exit funds but not initiate new entries, for example.
     function whitelistSelectors(bytes4[] calldata selectors, bool isWhitelisted) external {
         if (msg.sender != ADDRESS_REGISTRY.pauseAdmin()) revert Unauthorized(msg.sender);
-        for (uint256 i; i < selectors.length; i++) whitelistedSelectors[selectors[i]] = isWhitelisted;
+        for (uint256 i; i < selectors.length; i++) {
+            whitelistedSelectors[selectors[i]] = isWhitelisted;
+        }
+        emit WhitelistedSelectors(selectors, isWhitelisted);
     }
 
     function getImplementation() external view returns (address) {

@@ -183,6 +183,7 @@ export function createTradeExecutionLineItem(
   lineItem.spotPrice = BigInt.zero();
 
   if (sellAmount.gt(BigInt.zero())) {
+    // NOTE: this is in underlying token precision (buyToken)
     lineItem.realizedPrice = buyAmount.times(sellToken.precision).div(sellAmount);
   } else {
     lineItem.realizedPrice = BigInt.zero();
@@ -217,6 +218,7 @@ export function createWithdrawRequestLineItem(
     vaultAddress.toHexString();
   let v = IYieldStrategy.bind(Address.fromBytes(vaultAddress));
   let y = getToken(v.yieldToken().toHexString());
+  let vToken = getToken(vaultAddress.toHexString());
 
   let lineItem = new ProfitLossLineItem(id);
   lineItem.blockNumber = event.block.number;
@@ -235,11 +237,8 @@ export function createWithdrawRequestLineItem(
     lineItem.underlyingAmountSpot = lineItem.underlyingAmountSpot.neg();
   }
 
-  lineItem.realizedPrice = yieldTokenAmount
-    .times(DEFAULT_PRECISION)
-    .times(DEFAULT_PRECISION)
-    .div(vaultShares)
-    .div(y.precision);
+  // This is in underlying token precision (yieldToken)
+  lineItem.realizedPrice = yieldTokenAmount.times(vToken.precision).div(vaultShares);
 
   lineItem.lineItemType = "WithdrawRequest";
   lineItem.balanceSnapshot = balanceSnapshotId;
@@ -278,11 +277,9 @@ export function createWithdrawRequestFinalizedLineItem(
 
   lineItem.tokenAmount = yieldTokenAmount;
   lineItem.underlyingAmountRealized = withdrawTokenAmount;
-  lineItem.realizedPrice = withdrawTokenAmount
-    .times(DEFAULT_PRECISION)
-    .times(y.precision)
-    .div(yieldTokenAmount)
-    .div(withdrawToken.precision);
+
+  // This is in underlying token precision (withdrawToken)
+  lineItem.realizedPrice = withdrawTokenAmount.times(y.precision).div(yieldTokenAmount);
   lineItem.spotPrice = BigInt.zero();
   lineItem.underlyingAmountSpot = BigInt.zero();
 
@@ -324,12 +321,8 @@ export function setProfitLossLineItem(
   lineItem.spotPrice = spotPrice;
 
   if (tokenAmount.notEqual(BigInt.zero())) {
-    // This is reported in DEFAULT_PRECISION
-    lineItem.realizedPrice = underlyingAmountRealized
-      .times(DEFAULT_PRECISION)
-      .times(token.precision)
-      .div(tokenAmount)
-      .div(underlyingToken.precision);
+    // This is reported in underlying token precision
+    lineItem.realizedPrice = underlyingAmountRealized.times(token.precision).div(tokenAmount);
   } else {
     lineItem.realizedPrice = BigInt.zero();
   }
@@ -429,10 +422,13 @@ function getInterestAccumulator(v: IYieldStrategy, strategy: string): BigInt {
     let wrm = r.getWithdrawRequestManager(yieldToken);
     if (wrm != Address.zero()) {
       let w = IWithdrawRequestManager.bind(wrm);
-      return w.getExchangeRate();
-    } else {
-      return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
+      let r = w.try_getExchangeRate();
+      if (!r.reverted) {
+        return r.value;
+      }
     }
+
+    return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
   } else {
     // NOTE: this can go negative if the price goes down.
     return v.convertToAssets(DEFAULT_PRECISION);
@@ -569,7 +565,7 @@ export function updateSnapshotMetrics(
   snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(tokenAmount);
 
   // This is the total realized cost of the balance in the underlying (i.e. asset token)
-  if (tokenAmount.lt(BigInt.zero())) {
+  if (tokenAmount.lt(BigInt.zero()) && snapshot.previousBalance.gt(BigInt.zero())) {
     // Scale down the cost basis when the token amount decreases
     snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized
       .times(snapshot.currentBalance)

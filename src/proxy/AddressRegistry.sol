@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {Unauthorized, CannotEnterPosition, InvalidVault} from "../interfaces/Errors.sol";
-import {IWithdrawRequestManager} from "../interfaces/IWithdrawRequestManager.sol";
-import {VaultPosition} from "../interfaces/ILendingRouter.sol";
-import {Initializable} from "./Initializable.sol";
+import { Unauthorized, CannotEnterPosition, InvalidVault } from "../interfaces/Errors.sol";
+import { IWithdrawRequestManager } from "../interfaces/IWithdrawRequestManager.sol";
+import { VaultPosition } from "../interfaces/ILendingRouter.sol";
+import { Initializable } from "./Initializable.sol";
 
 /// @notice Registry for the addresses for different components of the protocol.
 contract AddressRegistry is Initializable {
@@ -52,7 +52,8 @@ contract AddressRegistry is Initializable {
     mapping(address account => mapping(address vault => VaultPosition)) internal accountPositions;
 
     function _initialize(bytes calldata data) internal override {
-        (address _upgradeAdmin, address _pauseAdmin, address _feeReceiver) = abi.decode(data, (address, address, address));
+        (address _upgradeAdmin, address _pauseAdmin, address _feeReceiver) =
+            abi.decode(data, (address, address, address));
         upgradeAdmin = _upgradeAdmin;
         pauseAdmin = _pauseAdmin;
         feeReceiver = _feeReceiver;
@@ -97,7 +98,7 @@ contract AddressRegistry is Initializable {
         // Prevent accidental override of a withdraw request manager, this is dangerous
         // as it could lead to withdraw requests being stranded on the deprecated withdraw
         // request manager. Managers can be upgraded using a TimelockUpgradeableProxy.
-        require (withdrawRequestManagers[yieldToken] == address(0), "Withdraw request manager already set");
+        require(withdrawRequestManagers[yieldToken] == address(0), "Withdraw request manager already set");
 
         withdrawRequestManagers[yieldToken] = withdrawRequestManager;
         emit WithdrawRequestManagerSet(yieldToken, withdrawRequestManager);
@@ -147,5 +148,12 @@ contract AddressRegistry is Initializable {
 
         delete accountPositions[account][vault];
         emit AccountPositionCleared(account, vault, msg.sender);
+    }
+
+    function emitAccountNativePosition(address account, bool isCleared) external {
+        // Can only be called by a whitelisted vault
+        require(whitelistedVaults[msg.sender]);
+        if (isCleared) emit AccountPositionCleared(account, msg.sender, address(0));
+        else emit AccountPositionCreated(account, msg.sender, address(0));
     }
 }

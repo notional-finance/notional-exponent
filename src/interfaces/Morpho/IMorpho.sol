@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity >=0.5.0;
+pragma solidity >=0.8.28;
 
 type Id is bytes32;
 
@@ -148,7 +148,9 @@ interface IMorphoBase {
         uint256 shares,
         address onBehalf,
         bytes memory data
-    ) external returns (uint256 assetsSupplied, uint256 sharesSupplied);
+    )
+        external
+        returns (uint256 assetsSupplied, uint256 sharesSupplied);
 
     /// @notice Withdraws `assets` or `shares` on behalf of `onBehalf` and sends the assets to `receiver`.
     /// @dev Either `assets` or `shares` should be zero. To withdraw max, pass the `shares`'s balance of `onBehalf`.
@@ -169,7 +171,9 @@ interface IMorphoBase {
         uint256 shares,
         address onBehalf,
         address receiver
-    ) external returns (uint256 assetsWithdrawn, uint256 sharesWithdrawn);
+    )
+        external
+        returns (uint256 assetsWithdrawn, uint256 sharesWithdrawn);
 
     /// @notice Borrows `assets` or `shares` on behalf of `onBehalf` and sends the assets to `receiver`.
     /// @dev Either `assets` or `shares` should be zero. Most use cases should rely on `assets` as an input so the
@@ -192,7 +196,9 @@ interface IMorphoBase {
         uint256 shares,
         address onBehalf,
         address receiver
-    ) external returns (uint256 assetsBorrowed, uint256 sharesBorrowed);
+    )
+        external
+        returns (uint256 assetsBorrowed, uint256 sharesBorrowed);
 
     /// @notice Repays `assets` or `shares` on behalf of `onBehalf`, optionally calling back the caller's
     /// `onMorphoRepay` function with the given `data`.
@@ -214,7 +220,9 @@ interface IMorphoBase {
         uint256 shares,
         address onBehalf,
         bytes memory data
-    ) external returns (uint256 assetsRepaid, uint256 sharesRepaid);
+    )
+        external
+        returns (uint256 assetsRepaid, uint256 sharesRepaid);
 
     /// @notice Supplies `assets` of collateral on behalf of `onBehalf`, optionally calling back the caller's
     /// `onMorphoSupplyCollateral` function with the given `data`.
@@ -224,7 +232,12 @@ interface IMorphoBase {
     /// @param assets The amount of collateral to supply.
     /// @param onBehalf The address that will own the increased collateral position.
     /// @param data Arbitrary data to pass to the `onMorphoSupplyCollateral` callback. Pass empty data if not needed.
-    function supplyCollateral(MarketParams memory marketParams, uint256 assets, address onBehalf, bytes memory data)
+    function supplyCollateral(
+        MarketParams memory marketParams,
+        uint256 assets,
+        address onBehalf,
+        bytes memory data
+    )
         external;
 
     /// @notice Withdraws `assets` of collateral on behalf of `onBehalf` and sends the assets to `receiver`.
@@ -234,7 +247,12 @@ interface IMorphoBase {
     /// @param assets The amount of collateral to withdraw.
     /// @param onBehalf The address of the owner of the collateral position.
     /// @param receiver The address that will receive the collateral assets.
-    function withdrawCollateral(MarketParams memory marketParams, uint256 assets, address onBehalf, address receiver)
+    function withdrawCollateral(
+        MarketParams memory marketParams,
+        uint256 assets,
+        address onBehalf,
+        address receiver
+    )
         external;
 
     /// @notice Liquidates the given `repaidShares` of debt asset or seize the given `seizedAssets` of collateral on the
@@ -257,7 +275,9 @@ interface IMorphoBase {
         uint256 seizedAssets,
         uint256 repaidShares,
         bytes memory data
-    ) external returns (uint256, uint256);
+    )
+        external
+        returns (uint256, uint256);
 
     /// @notice Executes a flash loan.
     /// @dev Flash loans have access to the whole balance of the contract (the liquidity and deposited collateral of all
@@ -297,7 +317,10 @@ interface IMorphoStaticTyping is IMorphoBase {
     /// @notice The state of the position of `user` on the market corresponding to `id`.
     /// @dev Warning: For `feeRecipient`, `supplyShares` does not contain the accrued shares since the last interest
     /// accrual.
-    function position(Id id, address user)
+    function position(
+        Id id,
+        address user
+    )
         external
         view
         returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral);
@@ -353,7 +376,6 @@ interface IMorpho is IMorphoBase {
 
 IMorpho constant MORPHO = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
 
-
 struct Withdrawal {
     /// @notice The market from which to withdraw.
     MarketParams marketParams;
@@ -364,7 +386,6 @@ struct Withdrawal {
 /// @dev This interface is used for factorizing IPublicAllocatorStaticTyping and IPublicAllocator.
 /// @dev Consider using the IPublicAllocator interface instead of this one.
 interface IPublicAllocator {
-
     /// @notice Reallocates from a list of markets to one market.
     /// @param vault The MetaMorpho vault to reallocate.
     /// @param withdrawals The markets to withdraw from,and the amounts to withdraw.
@@ -374,10 +395,13 @@ interface IPublicAllocator {
     /// @dev Will revert when `withdrawals` contains a duplicate or is not sorted.
     /// @dev Will revert if `withdrawals` contains the supply market.
     /// @dev Will revert if a withdrawal amount is larger than available liquidity.
-    function reallocateTo(address vault, Withdrawal[] calldata withdrawals, MarketParams calldata supplyMarketParams)
+    function reallocateTo(
+        address vault,
+        Withdrawal[] calldata withdrawals,
+        MarketParams calldata supplyMarketParams
+    )
         external
         payable;
-
 }
 
 IPublicAllocator constant PUBLIC_ALLOCATOR = IPublicAllocator(0xfd32fA2ca22c76dD6E550706Ad913FC6CE91c75D);

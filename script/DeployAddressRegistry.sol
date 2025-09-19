@@ -2,22 +2,24 @@
 pragma solidity >=0.8.29;
 
 import "forge-std/src/Script.sol";
-import {AddressRegistry} from "../src/proxy/AddressRegistry.sol";
-import {TimelockUpgradeableProxy} from "../src/proxy/TimelockUpgradeableProxy.sol";
-import {Initializable} from "../src/proxy/Initializable.sol";
+import { AddressRegistry } from "../src/proxy/AddressRegistry.sol";
+import { TimelockUpgradeableProxy } from "../src/proxy/TimelockUpgradeableProxy.sol";
+import { Initializable } from "../src/proxy/Initializable.sol";
 
 // Sepolia: 0xdfb618098fC858F43fe0E5Fb906AdFE96786832f
 contract DeployAddressRegistry is Script {
-    address constant UPGRADE_ADMIN = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
-    address constant PAUSE_ADMIN = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
-    address constant FEE_RECEIVER = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
+    address public constant UPGRADE_ADMIN = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
+    address public constant PAUSE_ADMIN = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
+    address public constant FEE_RECEIVER = 0x02479BFC7Dce53A02e26fE7baea45a0852CB0909;
 
     function run() public {
         vm.startBroadcast();
         address impl = address(new AddressRegistry());
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
             impl,
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(UPGRADE_ADMIN, PAUSE_ADMIN, FEE_RECEIVER))
+            abi.encodeWithSelector(
+                Initializable.initialize.selector, abi.encode(UPGRADE_ADMIN, PAUSE_ADMIN, FEE_RECEIVER)
+            )
         );
         console.log("AddressRegistry deployed at", address(proxy));
         vm.stopBroadcast();

@@ -73,9 +73,7 @@ contract CreateInitialPosition is Script {
         console.log("Initial Borrow", initialBorrow);
 
         vm.startBroadcast();
-        MORPHO_LENDING_ROUTER.enterPosition(
-            msg.sender, address(vault), initialDeposit, initialBorrow, depositData
-        );
+        MORPHO_LENDING_ROUTER.enterPosition(msg.sender, address(vault), initialDeposit, initialBorrow, depositData);
         vm.stopBroadcast();
 
         uint256 balance = MORPHO_LENDING_ROUTER.balanceOfCollateral(msg.sender, address(vault));

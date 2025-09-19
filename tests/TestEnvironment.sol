@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Test.sol";
 
 import "./Mocks.sol";
+import "../src/interfaces/ILendingRouter.sol";
 import "../src/proxy/AddressRegistry.sol";
 import "../src/utils/Constants.sol";
 import "../src/AbstractYieldStrategy.sol";
@@ -22,9 +23,9 @@ abstract contract TestEnvironment is Test {
     ERC20 public asset;
     uint256 public defaultDeposit;
     uint256 public defaultBorrow;
-    uint256 public maxEntryValuationSlippage = 0.0010e18;
+    uint256 public maxEntryValuationSlippage = 0.001e18;
     uint256 public maxExitValuationSlippage = 0.0015e18;
-    uint256 public maxWithdrawValuationChange = 0.0050e18;
+    uint256 public maxWithdrawValuationChange = 0.005e18;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -49,13 +50,13 @@ abstract contract TestEnvironment is Test {
     function checkTransientsCleared() internal view {
         if (!canInspectTransientVariables) return;
 
-        (address currentAccount, address currentLendingRouter, address allowTransferTo, uint256 allowTransferAmount) = MockYieldStrategy(address(y)).transientVariables();
+        (address currentAccount, address currentLendingRouter, address allowTransferTo, uint256 allowTransferAmount) =
+            MockYieldStrategy(address(y)).transientVariables();
         assertEq(currentAccount, address(0), "Current account should be cleared");
         assertEq(currentLendingRouter, address(0), "Current lending router should be cleared");
         assertEq(allowTransferTo, address(0), "Allow transfer to should be cleared");
         assertEq(allowTransferAmount, 0, "Allow transfer amount should be cleared");
     }
-
 
     function setMaxOracleFreshness() internal {
         vm.prank(owner);
@@ -82,6 +83,18 @@ abstract contract TestEnvironment is Test {
         strategyName = "name";
         strategySymbol = "symbol";
         setMaxOracleFreshness();
+        if (address(ADDRESS_REGISTRY).code.length == 0) {
+            address impl = address(new AddressRegistry());
+            deployCodeTo("TimelockUpgradeableProxy.sol", abi.encode(impl, bytes("")), address(ADDRESS_REGISTRY));
+            ADDRESS_REGISTRY.initialize(abi.encode(owner, owner, owner));
+        } else {
+            address impl = address(new AddressRegistry());
+            vm.startPrank(owner);
+            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).initiateUpgrade(impl);
+            vm.warp(block.timestamp + 7 days);
+            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).executeUpgrade(bytes(""));
+            vm.stopPrank();
+        }
 
         deployYieldStrategy();
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
@@ -120,31 +133,44 @@ abstract contract TestEnvironment is Test {
         postDeploySetup();
     }
 
-    /*** Virtual Test Functions ***/
-
+    /**
+     * Virtual Test Functions **
+     */
     function finalizeWithdrawRequest(address user) internal virtual {
-        (WithdrawRequest memory wr, /* */) = manager.getWithdrawRequest(address(y), user);
+        (WithdrawRequest memory wr, /* */ ) = manager.getWithdrawRequest(address(y), user);
         withdrawRequest.finalizeWithdrawRequest(wr.requestId);
     }
 
     function getRedeemData(
-        address /* user */,
+        address, /* user */
         uint256 /* shares */
-    ) internal virtual returns (bytes memory redeemData) {
+    )
+        internal
+        virtual
+        returns (bytes memory redeemData)
+    {
         return "";
     }
 
     function getDepositData(
-        address /* user */,
+        address, /* user */
         uint256 /* depositAmount */
-    ) internal virtual returns (bytes memory depositData) {
+    )
+        internal
+        virtual
+        returns (bytes memory depositData)
+    {
         return "";
     }
 
     function getWithdrawRequestData(
-        address /* user */,
+        address, /* user */
         uint256 /* shares */
-    ) internal virtual returns (bytes memory withdrawRequestData) {
+    )
+        internal
+        virtual
+        returns (bytes memory withdrawRequestData)
+    {
         return bytes("");
     }
 
@@ -153,5 +179,4 @@ abstract contract TestEnvironment is Test {
     function postDeploySetup() internal virtual { }
 
     function setupLendingRouter(uint256 lltv) internal virtual returns (ILendingRouter);
-
 }

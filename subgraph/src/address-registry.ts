@@ -5,17 +5,23 @@ import {
 } from "../generated/AddressRegistry/AddressRegistry";
 import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy";
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager";
-import { LendingRouter, Oracle, Vault, WithdrawRequestManager } from "../generated/schema";
+import { LendingRouter, Oracle, OracleRegistry, Vault, WithdrawRequestManager } from "../generated/schema";
 import { createERC20TokenAsset } from "./entities/token";
-import { UNDERLYING, VAULT_SHARE } from "./constants";
+import { ORACLE_REGISTRY_ID, UNDERLYING, VAULT_SHARE } from "./constants";
 import {
   Vault as VaultTemplate,
   WithdrawRequestManager as WithdrawRequestManagerTemplate,
   LendingRouter as LendingRouterTemplate,
 } from "../generated/templates";
-import { getOracleRegistry, updateChainlinkOracle, updateVaultOracles } from "./entities/oracles";
+import {
+  getOracleRegistry,
+  updateChainlinkOracle,
+  updateVaultOracles,
+  updateWithdrawRequestManagerOracles,
+} from "./entities/oracles";
 import { Address, ethereum } from "@graphprotocol/graph-ts";
 import { ILendingRouter } from "../generated/AddressRegistry/ILendingRouter";
+import { handleInitialOracles } from "./trading-module";
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {
   const id = event.params.lendingRouter.toHexString();
@@ -43,36 +49,43 @@ export function handleLendingRouterSet(event: LendingRouterSet): void {
   r.save();
 }
 
-export function handleWhitelistedVault(event: WhitelistedVault): void {
-  const id = event.params.vault.toHexString();
+export function createVault(address: Address, event: ethereum.Event, isWhitelisted: boolean): Vault {
+  const id = address.toHexString();
   let vault = Vault.load(id);
-  if (!vault) {
-    vault = new Vault(id);
-    vault.firstUpdateBlockNumber = event.block.number;
-    vault.firstUpdateTimestamp = event.block.timestamp.toI32();
-    vault.firstUpdateTransactionHash = event.transaction.hash;
-  }
+  if (vault) return vault;
 
-  vault.isWhitelisted = event.params.isWhitelisted;
+  vault = new Vault(id);
+  vault.firstUpdateBlockNumber = event.block.number;
+  vault.firstUpdateTimestamp = event.block.timestamp.toI32();
+  vault.firstUpdateTransactionHash = event.transaction.hash;
+
+  vault.isWhitelisted = isWhitelisted;
   vault.lastUpdateBlockNumber = event.block.number;
   vault.lastUpdateTimestamp = event.block.timestamp.toI32();
   vault.lastUpdateTransactionHash = event.transaction.hash;
 
-  let yieldStrategy = IYieldStrategy.bind(event.params.vault);
+  let yieldStrategy = IYieldStrategy.bind(address);
   vault.feeRate = yieldStrategy.feeRate();
   vault.yieldToken = createERC20TokenAsset(yieldStrategy.yieldToken(), event, UNDERLYING).id;
   vault.asset = createERC20TokenAsset(yieldStrategy.asset(), event, UNDERLYING).id;
   vault.strategyType = yieldStrategy.strategy();
 
-  let vaultToken = createERC20TokenAsset(event.params.vault, event, VAULT_SHARE);
+  let vaultToken = createERC20TokenAsset(address, event, VAULT_SHARE);
   vault.vaultToken = vaultToken.id;
-  vaultToken.vaultAddress = event.params.vault;
+  vaultToken.vaultAddress = address;
   vaultToken.underlying = vault.asset;
   vaultToken.save();
 
   // These will be listed on approval
   vault.withdrawRequestManagers = [];
+  vault.save();
 
+  return vault;
+}
+
+export function handleWhitelistedVault(event: WhitelistedVault): void {
+  let vault = createVault(event.params.vault, event, event.params.isWhitelisted);
+  vault.isWhitelisted = event.params.isWhitelisted;
   vault.save();
 
   VaultTemplate.create(event.params.vault);
@@ -115,6 +128,9 @@ export function handleWithdrawRequestManagerSet(event: WithdrawRequestManagerSet
 }
 
 export function handleBlockOracleUpdate(block: ethereum.Block): void {
+  let r = OracleRegistry.load(ORACLE_REGISTRY_ID);
+  if (r === null) handleInitialOracles(block);
+
   let registry = getOracleRegistry();
   registry.lastRefreshBlockNumber = block.number;
   registry.lastRefreshTimestamp = block.timestamp.toI32();
@@ -130,9 +146,9 @@ export function handleBlockOracleUpdate(block: ethereum.Block): void {
     updateVaultOracles(Address.fromBytes(registry.listedVaults[i]), block, registry.lendingRouters);
   }
 
-  // for (let i = 0; i < registry.withdrawRequestManager.length; i++) {
-  //   updateWithdrawRequestManagerOracles(Address.fromBytes(registry.withdrawRequestManager[i]), block);
-  // }
+  for (let i = 0; i < registry.withdrawRequestManager.length; i++) {
+    updateWithdrawRequestManagerOracles(Address.fromBytes(registry.withdrawRequestManager[i]), block);
+  }
 }
 
 // export function handleFeeReceiverTransferred(

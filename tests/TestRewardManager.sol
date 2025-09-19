@@ -7,10 +7,11 @@ import "../src/interfaces/IRewardManager.sol";
 import "../src/utils/Constants.sol";
 import "../src/interfaces/IWithdrawRequestManager.sol";
 import "../src/withdraws/GenericERC20.sol";
-import {AbstractRewardManager, RewardPoolStorage} from "../src/rewards/AbstractRewardManager.sol";
-import {RewardManagerMixin} from "../src/rewards/RewardManagerMixin.sol";
-import {ConvexRewardManager} from "../src/rewards/ConvexRewardManager.sol";
-import {MORPHO} from "../src/interfaces/Morpho/IMorpho.sol";
+import { AbstractRewardManager } from "../src/rewards/AbstractRewardManager.sol";
+import { RewardPoolStorage } from "../src/interfaces/IRewardManager.sol";
+import { RewardManagerMixin } from "../src/rewards/RewardManagerMixin.sol";
+import { ConvexRewardManager } from "../src/rewards/ConvexRewardManager.sol";
+import { MORPHO } from "../src/interfaces/Morpho/IMorpho.sol";
 
 contract TestRewardManager is TestMorphoYieldStrategy {
     IRewardManager rm;
@@ -32,7 +33,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         y = new MockRewardVault(
             address(USDC),
             address(w),
-            0.0010e18, // 0.1% fee rate
+            0.001e18, // 0.1% fee rate
             address(rmImpl)
         );
     }
@@ -48,12 +49,10 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Set the initial reward pool
         vm.startPrank(owner);
         emissionsToken = new MockERC20("MockEmissionsToken", "MET");
-        emissionsToken.transfer(address(rm), 100_0000e18);
-        rm.migrateRewardPool(address(USDC), RewardPoolStorage({
-            rewardPool: address(w),
-            forceClaimAfter: 0,
-            lastClaimTimestamp: 0
-        }));
+        emissionsToken.transfer(address(rm), 1_000_000e18);
+        rm.migrateRewardPool(
+            address(USDC), RewardPoolStorage({ rewardPool: address(w), forceClaimAfter: 0, lastClaimTimestamp: 0 })
+        );
         rm.updateRewardToken(0, address(rewardToken), 0, 0);
 
         withdrawRequestManager.setApprovedVault(address(y), true);
@@ -64,16 +63,16 @@ contract TestRewardManager is TestMorphoYieldStrategy {
     function test_migrateRewardPool() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         assertGt(y.totalSupply(), 0);
-        
 
         address newRewardPool = address(new MockRewardPool(address(USDC)));
-        address newVault = address(new MockRewardVault(
-            address(USDC),
-            address(newRewardPool),
-            0.0010e18, // 0.1% fee rate
-            address(rmImpl)
-        ));
-
+        address newVault = address(
+            new MockRewardVault(
+                address(USDC),
+                address(newRewardPool),
+                0.001e18, // 0.1% fee rate
+                address(rmImpl)
+            )
+        );
 
         MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
@@ -83,12 +82,13 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         TimelockUpgradeableProxy(payable(address(y))).initiateUpgrade(address(newVault));
         vm.warp(block.timestamp + 7 days);
-        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade(abi.encodeWithSelector(
-            AbstractRewardManager.migrateRewardPool.selector, address(USDC), RewardPoolStorage({
-                rewardPool: address(newRewardPool),
-                forceClaimAfter: 0,
-                lastClaimTimestamp: 0
-        })));
+        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade(
+            abi.encodeWithSelector(
+                AbstractRewardManager.migrateRewardPool.selector,
+                address(USDC),
+                RewardPoolStorage({ rewardPool: address(newRewardPool), forceClaimAfter: 0, lastClaimTimestamp: 0 })
+            )
+        );
 
         rm.updateRewardToken(1, address(MockRewardPool(address(newRewardPool)).rewardToken()), 0, 0);
         vm.stopPrank();
@@ -140,11 +140,20 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // Both users can exit the pool
         vm.startPrank(msg.sender);
-        lendingRouter.exitPosition(msg.sender, address(y), msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)), type(uint256).max, "");
+        lendingRouter.exitPosition(
+            msg.sender,
+            address(y),
+            msg.sender,
+            lendingRouter.balanceOfCollateral(msg.sender, address(y)),
+            type(uint256).max,
+            ""
+        );
         vm.stopPrank();
 
         vm.startPrank(user);
-        lendingRouter.exitPosition(user, address(y), user, lendingRouter.balanceOfCollateral(user, address(y)), type(uint256).max, "");
+        lendingRouter.exitPosition(
+            user, address(y), user, lendingRouter.balanceOfCollateral(user, address(y)), type(uint256).max, ""
+        );
         vm.stopPrank();
     }
 
@@ -189,7 +198,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         if (hasRewards) {
             assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Rewards are claimed");
-            assertApproxEqRel(rm.getRewardDebt(address(rewardToken), msg.sender), expectedRewards, 0.0001e18, "Reward debt is updated");
+            assertApproxEqRel(
+                rm.getRewardDebt(address(rewardToken), msg.sender), expectedRewards, 0.0001e18, "Reward debt is updated"
+            );
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
             assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0, "Reward debt is empty");
@@ -197,7 +208,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         if (hasEmissions) {
             assertApproxEqRel(emissionsToken.balanceOf(msg.sender), 1e18, 0.0001e18, "Emissions tokens are claimed");
-            assertApproxEqRel(rm.getRewardDebt(address(emissionsToken), msg.sender), 1e18, 0.0001e18, "Emissions debt is updated");
+            assertApproxEqRel(
+                rm.getRewardDebt(address(emissionsToken), msg.sender), 1e18, 0.0001e18, "Emissions debt is updated"
+            );
         }
 
         vm.prank(msg.sender);
@@ -207,7 +220,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         if (hasRewards) {
             assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Rewards are claimed");
-            assertApproxEqRel(rm.getRewardDebt(address(rewardToken), msg.sender), expectedRewards, 0.0001e18, "Reward debt is updated");
+            assertApproxEqRel(
+                rm.getRewardDebt(address(rewardToken), msg.sender), expectedRewards, 0.0001e18, "Reward debt is updated"
+            );
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0);
             assertEq(rm.getRewardDebt(address(rewardToken), msg.sender), 0);
@@ -215,7 +230,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         if (hasEmissions) {
             assertApproxEqRel(emissionsToken.balanceOf(msg.sender), 1e18, 0.0001e18, "Emissions tokens are claimed");
-            assertApproxEqRel(rm.getRewardDebt(address(emissionsToken), msg.sender), 1e18, 0.0001e18, "Emissions debt is updated");
+            assertApproxEqRel(
+                rm.getRewardDebt(address(emissionsToken), msg.sender), 1e18, 0.0001e18, "Emissions debt is updated"
+            );
         }
 
         _enterPosition(msg.sender, defaultDeposit, 0);
@@ -226,12 +243,19 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         vm.prank(msg.sender);
         lendingRouter.claimRewards(msg.sender, address(y));
         if (hasRewards) {
-            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewardsAfter, 0.0001e18, "Rewards are claimed");
+            assertApproxEqRel(
+                rewardToken.balanceOf(msg.sender),
+                expectedRewards + expectedRewardsAfter,
+                0.0001e18,
+                "Rewards are claimed"
+            );
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         }
         // No additional emissions tokens are claimed
-        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender), 1e18, 0.0001e18, "Emissions tokens are claimed");
+        if (hasEmissions) {
+            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), 1e18, 0.0001e18, "Emissions tokens are claimed");
+        }
     }
 
     function test_exitPosition_withRewards(bool isFullExit, bool hasRewards, bool hasEmissions) public {
@@ -281,7 +305,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
 
         if (hasEmissions) {
-            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Emissions tokens are claimed");
+            assertApproxEqRel(
+                emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.001e18, "Emissions tokens are claimed"
+            );
         }
 
         if (isFullExit) {
@@ -306,13 +332,20 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         }
 
         if (hasRewards) {
-            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewardsAfter, 0.0001e18, "Rewards are claimed");
+            assertApproxEqRel(
+                rewardToken.balanceOf(msg.sender),
+                expectedRewards + expectedRewardsAfter,
+                0.0001e18,
+                "Rewards are claimed"
+            );
         } else {
             assertEq(rewardToken.balanceOf(msg.sender), 0, "Rewards are empty");
         }
 
         if (hasEmissions) {
-            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Emissions tokens are claimed");
+            assertApproxEqRel(
+                emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.001e18, "Emissions tokens are claimed"
+            );
         }
 
         if (isFullExit) {
@@ -334,7 +367,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         if (hasEmissions) {
             uint256 emissionsForOwner = 7e18 - emissionsForUser;
-            assertApproxEqRel(emissionsToken.balanceOf(owner), emissionsForOwner, 0.0010e18, "Emissions tokens are claimed for owner");
+            assertApproxEqRel(
+                emissionsToken.balanceOf(owner), emissionsForOwner, 0.001e18, "Emissions tokens are claimed for owner"
+            );
         }
     }
 
@@ -351,11 +386,11 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         if (hasEmissions) vm.warp(block.timestamp + 1 days);
         else vm.warp(block.timestamp + 6 minutes);
-        
+
         vm.prank(owner);
         asset.transfer(liquidator, defaultDeposit + defaultBorrow);
 
-        o.setPrice(originalPrice * 0.90e18 / 1e18);
+        o.setPrice(originalPrice * 0.9e18 / 1e18);
 
         if (hasRewards) MockRewardPool(address(w)).setRewardAmount(y.convertSharesToYieldToken(y.totalSupply()));
 
@@ -369,9 +404,15 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), sharesToLiquidate, 0);
         vm.stopPrank();
 
-        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account shares");
+        if (hasRewards) {
+            assertApproxEqRel(
+                rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account shares"
+            );
+        }
         if (hasEmissions) {
-            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Liquidated account emissions");
+            assertApproxEqRel(
+                emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.001e18, "Liquidated account emissions"
+            );
         }
 
         assertEq(rewardToken.balanceOf(liquidator), 0, "Liquidator account rewards");
@@ -387,16 +428,38 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         RewardManagerMixin(address(rm)).claimAccountRewards(liquidator, type(uint256).max);
 
         uint256 expectedRewardsForLiquidator = hasRewards ? y.convertSharesToYieldToken(sharesToLiquidator) : 0;
-        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(liquidator), expectedRewardsForLiquidator, 0.0001e18, "Liquidator account rewards");
-        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.0010e18, "Liquidator account emissions");
+        if (hasRewards) {
+            assertApproxEqRel(
+                rewardToken.balanceOf(liquidator), expectedRewardsForLiquidator, 0.0001e18, "Liquidator account rewards"
+            );
+        }
+        if (hasEmissions) {
+            assertApproxEqRel(
+                emissionsToken.balanceOf(liquidator), emissionsForLiquidator, 0.001e18, "Liquidator account emissions"
+            );
+        }
 
         vm.prank(msg.sender);
         lendingRouter.claimRewards(msg.sender, address(y));
         uint256 sharesAfterUser = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 emissionsForUserAfter = 1e18 * sharesAfterUser / y.totalSupply();
 
-        if (hasRewards) assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards + expectedRewards - expectedRewardsForLiquidator, 0.0001e18, "Liquidated account rewards");
-        if (hasEmissions) assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser + emissionsForUserAfter, 0.0010e18, "Liquidated account emissions");
+        if (hasRewards) {
+            assertApproxEqRel(
+                rewardToken.balanceOf(msg.sender),
+                expectedRewards + expectedRewards - expectedRewardsForLiquidator,
+                0.0001e18,
+                "Liquidated account rewards"
+            );
+        }
+        if (hasEmissions) {
+            assertApproxEqRel(
+                emissionsToken.balanceOf(msg.sender),
+                emissionsForUser + emissionsForUserAfter,
+                0.001e18,
+                "Liquidated account emissions"
+            );
+        }
     }
 
     function test_migrate_withRewards(bool hasEmissions, bool hasRewards) public {
@@ -434,7 +497,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // Assert that rewards are claimed on the position during migration
         assertApproxEqRel(rewardToken.balanceOf(user), expectedRewards, 0.0001e18, "Rewards are claimed");
-        assertApproxEqRel(emissionsToken.balanceOf(user), expectedEmissions, 0.0010e18, "Emissions are claimed");
+        assertApproxEqRel(emissionsToken.balanceOf(user), expectedEmissions, 0.001e18, "Emissions are claimed");
     }
 
     function test_withdrawRequest_exitPosition_withRewards(bool hasEmissions, bool hasRewards) public {
@@ -593,16 +656,20 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         vm.stopPrank();
 
         if (hasRewards) {
-            assertApproxEqRel(rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account rewards");
+            assertApproxEqRel(
+                rewardToken.balanceOf(msg.sender), expectedRewards, 0.0001e18, "Liquidated account rewards"
+            );
         }
         if (hasEmissions) {
-            assertApproxEqRel(emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.0010e18, "Liquidated account emissions");
+            assertApproxEqRel(
+                emissionsToken.balanceOf(msg.sender), emissionsForUser, 0.001e18, "Liquidated account emissions"
+            );
         }
 
         vm.prank(owner);
         asset.transfer(liquidator, defaultDeposit + defaultBorrow);
 
-        o.setPrice(originalPrice * 0.90e18 / 1e18);
+        o.setPrice(originalPrice * 0.9e18 / 1e18);
 
         vm.startPrank(liquidator);
         asset.approve(address(lendingRouter), type(uint256).max);
@@ -632,7 +699,9 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         // No claims here because inside a withdraw request
         if (hasRewards) assertEq(rewardToken.balanceOf(msg.sender), initialRewards, "Liquidated account rewards 2");
-        if (hasEmissions) assertEq(emissionsToken.balanceOf(msg.sender), initialEmissions, "Liquidated account emissions 2");
+        if (hasEmissions) {
+            assertEq(emissionsToken.balanceOf(msg.sender), initialEmissions, "Liquidated account emissions 2");
+        }
     }
 
     function test_withdrawRequest_migratePosition_withRewards(bool hasEmissions, bool hasRewards) public {
@@ -655,9 +724,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         // Initiate a withdraw request on the first position
         vm.startPrank(user);
         lendingRouter.initiateWithdraw(
-            user,
-            address(y),
-            getWithdrawRequestData(user, lendingRouter.balanceOfCollateral(user, address(y)))
+            user, address(y), getWithdrawRequestData(user, lendingRouter.balanceOfCollateral(user, address(y)))
         );
         vm.stopPrank();
 
@@ -771,15 +838,15 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         vm.assume(deposit < defaultDeposit);
         vm.assume(deposit > 0);
-  
+
         _enterPosition(msg.sender, deposit, 0);
-  
+
         vm.warp(block.timestamp + 1 days);
-  
+
         vm.prank(msg.sender);
-        uint[] memory rewards = lendingRouter.claimRewards(msg.sender, address(y));
-        vm.assertApproxEqRel(rewards[1], 1_000e6, 0.001e18);
-    }  
+        uint256[] memory rewards = lendingRouter.claimRewards(msg.sender, address(y));
+        vm.assertApproxEqRel(rewards[1], 1000e6, 0.001e18);
+    }
 
     function test_claimRewards_as_Morpho() public {
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
@@ -804,4 +871,28 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         lendingRouter.claimRewards(msg.sender, address(y));
     }
 
+    function test_rewardEmissions_noShares() public {
+        vm.prank(owner);
+        rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
+        deal(address(emissionsToken), address(rm), 365e18);
+        VaultRewardState[] memory rewardStates;
+        (rewardStates, /* */ ) = rm.getRewardSettings();
+        assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 0);
+
+        vm.warp(block.timestamp + 30 days);
+
+        _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
+        (rewardStates, /* */ ) = rm.getRewardSettings();
+        assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 0);
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.prank(msg.sender);
+        lendingRouter.claimRewards(msg.sender, address(y));
+        (rewardStates, /* */ ) = rm.getRewardSettings();
+        assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 9_999_999_999_999);
+
+        uint256 emissions = emissionsToken.balanceOf(msg.sender);
+        assertApproxEqRel(emissions, 1e18, 0.001e18);
+    }
 }
