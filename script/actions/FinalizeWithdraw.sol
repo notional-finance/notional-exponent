@@ -21,7 +21,7 @@ contract FinalizeWithdraw is Script {
     ) public {
         console.log("Finalizing withdraw for vault", vaultAddress);
         console.log("Account: ", account);
-        console.log("WRM: ", wrm);
+        console.log("WRM: ", wrmAddress);
         finalizeWithdraw(account, vaultAddress, wrmAddress);
     }
 
@@ -31,15 +31,12 @@ contract FinalizeWithdraw is Script {
         address wrmAddress
     ) internal {
 
-        wrm = IWithdrawRequestManager(wrmAddress);
+        IWithdrawRequestManager wrm = IWithdrawRequestManager(wrmAddress);
 
         vm.startBroadcast();
-        uint256 tokensWithdrawn, bool finalized = wrm.finalizeRequestManual(
-            vaultAddress, account
-        );
+        uint256 tokensWithdrawn = wrm.finalizeRequestManual(vaultAddress, account);
         vm.stopBroadcast();
 
         console.log("Tokens Withdrawn: ", tokensWithdrawn);
-        console.log("Finalized: ", finalized);
     }
 }
