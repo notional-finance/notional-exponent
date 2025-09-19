@@ -545,7 +545,102 @@ The command displays a formatted table showing:
 
 This information is useful for understanding the proper scaling when providing integer amounts to other commands.
 
-#### 11. List Supported Vaults
+#### 11. Force Withdraw
+
+Forces the withdrawal of vault shares.
+
+**Syntax:**
+```bash
+python action_runner.py force-withdraw <mode> <vault_address> <shares_to_redeem> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+- `shares_to_redeem` - Shares to redeem (integer, pre-scaled to vault share decimals)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py force-withdraw sim 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py force-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+```
+
+#### 12. Finalize Withdraw
+
+Finalizes a previously initiated withdraw request.
+
+**Syntax:**
+```bash
+python action_runner.py finalize-withdraw <mode> <vault_address> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py finalize-withdraw sim 0x1234567890abcdef1234567890abcdef12345678 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py finalize-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+```
+
+#### 13. Liquidate
+
+Liquidates an account's position in a vault.
+
+**Syntax:**
+```bash
+python action_runner.py liquidate <mode> <vault_address> <liquidate_account> <shares_to_liquidate> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+- `liquidate_account` - Address of the account to liquidate (0x...)
+- `shares_to_liquidate` - Shares to liquidate (integer, pre-scaled to vault share decimals)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode
+python action_runner.py liquidate sim 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+```
+
+#### 14. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 
