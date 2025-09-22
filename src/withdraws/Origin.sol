@@ -6,11 +6,16 @@ import { WETH } from "../utils/Constants.sol";
 import { IOriginVault, OriginVault, oETH, wOETH } from "../interfaces/IOrigin.sol";
 
 contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
-    constructor() AbstractWithdrawRequestManager(address(WETH), address(wOETH), address(WETH)) { }
+    bool internal immutable IS_WRAPPED_OETH;
+
+    constructor(address yieldToken) AbstractWithdrawRequestManager(address(WETH), yieldToken, address(WETH)) {
+        IS_WRAPPED_OETH = YIELD_TOKEN == address(wOETH);
+        if (!IS_WRAPPED_OETH) require(yieldToken == address(oETH), "Invalid yield token");
+    }
 
     function _initiateWithdrawImpl(
         address, /* account */
-        uint256 woETHToWithdraw,
+        uint256 amountToWithdraw,
         bytes calldata, /* data */
         address /* forceWithdrawFrom */
     )
@@ -18,9 +23,12 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 requestId)
     {
-        uint256 oethRedeemed = wOETH.redeem(woETHToWithdraw, address(this), address(this));
-        oETH.approve(address(OriginVault), oethRedeemed);
-        (requestId,) = OriginVault.requestWithdrawal(oethRedeemed);
+        if (IS_WRAPPED_OETH) {
+            amountToWithdraw = wOETH.redeem(amountToWithdraw, address(this), address(this));
+        }
+
+        oETH.approve(address(OriginVault), amountToWithdraw);
+        (requestId,) = OriginVault.requestWithdrawal(amountToWithdraw);
     }
 
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {
@@ -31,8 +39,10 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
         OriginVault.mint(address(WETH), amount, minAmountOut);
         uint256 oethAfter = oETH.balanceOf(address(this));
 
-        oETH.approve(address(wOETH), oethAfter - oethBefore);
-        wOETH.deposit(oethAfter - oethBefore, address(this));
+        if (IS_WRAPPED_OETH) {
+            oETH.approve(address(wOETH), oethAfter - oethBefore);
+            wOETH.deposit(oethAfter - oethBefore, address(this));
+        }
     }
 
     function _finalizeWithdrawImpl(
@@ -58,5 +68,11 @@ contract OriginWithdrawRequestManager is AbstractWithdrawRequestManager {
         bool notClaimed = request.claimed == false;
 
         return claimDelayMet && queueLiquidityAvailable && notClaimed;
+    }
+
+    function getExchangeRate() public view override returns (uint256) {
+        if (IS_WRAPPED_OETH) return super.getExchangeRate();
+        // If the yield token is oETH then we can just return 1e18 for a 1-1 exchange rate
+        return 1e18;
     }
 }

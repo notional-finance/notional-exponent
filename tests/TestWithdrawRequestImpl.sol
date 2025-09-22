@@ -93,6 +93,24 @@ contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
     }
 }
 
+contract TestWrappedOriginWithdrawRequest is TestWithdrawRequest {
+    function finalizeWithdrawRequest(uint256 /* requestId */ ) public override {
+        uint256 claimDelay = OriginVault.withdrawalClaimDelay();
+        vm.warp(block.timestamp + claimDelay);
+
+        deal(address(WETH), address(OriginVault), 2000e18);
+        OriginVault.addWithdrawalQueueLiquidity();
+    }
+
+    function deployManager() public override {
+        manager = new OriginWithdrawRequestManager(address(wOETH));
+        allowedDepositTokens.push(ERC20(address(WETH)));
+        WETH.deposit{ value: 10e18 }();
+        depositCallData = "";
+        withdrawCallData = "";
+    }
+}
+
 contract TestOriginWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 /* requestId */ ) public override {
         uint256 claimDelay = OriginVault.withdrawalClaimDelay();
@@ -103,7 +121,7 @@ contract TestOriginWithdrawRequest is TestWithdrawRequest {
     }
 
     function deployManager() public override {
-        manager = new OriginWithdrawRequestManager();
+        manager = new OriginWithdrawRequestManager(address(oETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
         WETH.deposit{ value: 10e18 }();
         depositCallData = "";
