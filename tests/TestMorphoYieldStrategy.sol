@@ -672,6 +672,20 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(borrowed, market.totalBorrowAssets - borrowAmount2);
     }
 
+    function test_cannot_exitPosition_with_zeroBorrow_and_max_assetToRepay() public {
+        address user = msg.sender;
+        _enterPosition(user, defaultDeposit, 0);
+
+        vm.warp(block.timestamp + 6 minutes);
+
+        vm.startPrank(user);
+        uint256 sharesToExit = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        bytes memory redeemData = getRedeemData(msg.sender, sharesToExit);
+        vm.expectRevert();
+        lendingRouter.exitPosition(msg.sender, address(y), msg.sender, sharesToExit, type(uint256).max, redeemData);
+        vm.stopPrank();
+    }
+
     function test_migrate_with_zeroBorrow() public {
         address user = msg.sender;
         _enterPosition(user, defaultDeposit, 0);
