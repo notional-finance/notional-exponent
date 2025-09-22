@@ -155,10 +155,13 @@ function updateBalanceSnapshotForFinalized(
   // for the first time.
   if (snapshot._accumulatedBalance.notEqual(BigInt.fromI32(0))) {
     let underlying = getToken(vaultShare.underlying!);
-    let price = convertPrice(
-      IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
-      underlying,
-    );
+    let _price = IYieldStrategy.bind(Address.fromString(w.vault)).try_price1(Address.fromString(w.account));
+    let price: BigInt;
+    if (!_price.reverted) {
+      price = convertPrice(_price.value, underlying);
+    } else {
+      price = BigInt.zero();
+    }
     updateSnapshotMetrics(vaultShare, underlying, snapshot, BigInt.zero(), BigInt.zero(), price, balance, event);
     snapshot.save();
   }
