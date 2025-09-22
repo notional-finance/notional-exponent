@@ -4,10 +4,13 @@ pragma solidity >=0.8.29;
 import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 
 /// @dev Used for ERC4626s that can be staked and unstaked on demand without any additional
 /// time constraints.
 contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager {
+    using TokenUtils for ERC20;
+
     uint256 private currentRequestId;
     mapping(uint256 requestId => uint256 sharesToWithdraw) private s_withdrawRequestShares;
 
@@ -30,7 +33,7 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
     }
 
     function _stakeTokens(uint256 amount, bytes memory /* stakeData */ ) internal override {
-        ERC20(STAKING_TOKEN).approve(address(YIELD_TOKEN), amount);
+        ERC20(STAKING_TOKEN).checkApprove(address(YIELD_TOKEN), amount);
         IERC4626(YIELD_TOKEN).deposit(amount, address(this));
     }
 
