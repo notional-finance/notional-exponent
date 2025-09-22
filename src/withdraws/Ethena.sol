@@ -5,6 +5,7 @@ import { IsUSDe, sUSDe, USDe } from "../interfaces/IEthena.sol";
 import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
 import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { ADDRESS_REGISTRY } from "../utils/Constants.sol";
 
 contract EthenaCooldownHolder is ClonedCoolDownHolder {
     uint256 public instantRedeemBalance;
@@ -58,6 +59,11 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
     address public HOLDER_IMPLEMENTATION;
 
     constructor() AbstractWithdrawRequestManager(address(USDe), address(sUSDe), address(USDe)) { }
+
+    function redeployHolder() external {
+        require(msg.sender == ADDRESS_REGISTRY.upgradeAdmin());
+        HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
+    }
 
     function _initialize(bytes calldata /* data */ ) internal override {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
