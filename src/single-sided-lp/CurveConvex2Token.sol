@@ -276,12 +276,13 @@ contract CurveConvexLib is BaseLPLib {
                 );
             } else {
                 exitBalances[_PRIMARY_INDEX] = ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity_one_coin(
-                    // Last two parameters are useEth = true and receiver = this contract
-                    // Return ETH in this case so that we can wrap it back into WETH if required.
+                    // Last two parameters are useEth and receiver = this contract. In the CurveV2 code,
+                    // the ETH_INDEX is hardcoded to 0 so we check if the first token is ETH and have it return
+                    // ETH in this case so that we can wrap it back into WETH if required.
                     poolClaim,
                     _PRIMARY_INDEX,
                     _minAmounts[_PRIMARY_INDEX],
-                    true,
+                    TOKEN_1 == ETH_ADDRESS,
                     address(this)
                 );
             }
@@ -307,11 +308,12 @@ contract CurveConvexLib is BaseLPLib {
                 // Remove liquidity on CurveV2 does not return the exit amounts so we have to measure
                 // them before and after.
                 ICurve2TokenPoolV2(CURVE_POOL).remove_liquidity(
-                    // Last two parameters are useEth = true and receiver = this contract
-                    // Return ETH in this case so that we can wrap it back into WETH if required.
+                    // Last two parameters are useEth and receiver = this contract. In the CurveV2 code,
+                    // the ETH_INDEX is hardcoded to 0 so we check if the first token is ETH and have it return
+                    // ETH in this case so that we can wrap it back into WETH if required.
                     poolClaim,
                     minAmounts,
-                    true,
+                    TOKEN_1 == ETH_ADDRESS,
                     address(this)
                 );
                 exitBalances[0] = TokenUtils.tokenBalance(TOKEN_1) - exitBalances[0];
