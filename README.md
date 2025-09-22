@@ -333,16 +333,17 @@ python action_runner.py exit-position-and-max-withdraw-from-morpho exec 0x123456
 
 #### 4. Withdraw from Morpho
 
-Withdraws all supplied assets from a Morpho market associated with a vault.
+Withdraws a specified amount of shares from a Morpho market associated with a vault.
 
 **Syntax:**
 ```bash
-python action_runner.py withdraw-from-morpho <mode> <vault_address> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py withdraw-from-morpho <mode> <vault_address> <shares_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
+- `shares_amount` - Shares amount to withdraw (integer, pre-scaled)
 
 **Mode-specific options:**
 - For `sim` mode: `--sender ADDRESS` (required)
@@ -354,14 +355,14 @@ python action_runner.py withdraw-from-morpho <mode> <vault_address> [--sender AD
 
 **Examples:**
 ```bash
-# Simulation mode
-python action_runner.py withdraw-from-morpho sim 0x1234567890abcdef1234567890abcdef12345678 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+# Simulation mode (withdrawing 1000.0 shares with 18 decimals)
+python action_runner.py withdraw-from-morpho sim 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (30% increase)
-python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
+python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
 #### 5. Initiate Withdraw

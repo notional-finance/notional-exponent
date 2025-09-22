@@ -558,7 +558,7 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
-    def withdraw_from_morpho(self, vault_address: str, mode: str,
+    def withdraw_from_morpho(self, vault_address: str, shares_amount: str, mode: str,
                            sender_address: Optional[str] = None,
                            account_name: Optional[str] = None,
                            gas_estimate_multiplier: Optional[int] = None) -> bool:
@@ -567,12 +567,15 @@ class ActionRunner:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
+            shares_amount_integer = InputValidator.validate_integer_amount(shares_amount)
             
             print(f"Withdrawing from Morpho for vault {vault_address}")
+            print(f"Shares amount: {shares_amount_integer}")
             
             # Build and execute forge command
             forge_cmd = self._build_morpho_withdraw_forge_command(
                 vault_address=vault_address,
+                shares_amount=shares_amount_integer,
                 mode=mode,
                 sender_address=sender_address,
                 account_name=account_name,
@@ -930,14 +933,14 @@ class ActionRunner:
         
         return cmd
     
-    def _build_morpho_withdraw_forge_command(self, vault_address: str, mode: str,
+    def _build_morpho_withdraw_forge_command(self, vault_address: str, shares_amount: int, mode: str,
                                            sender_address: Optional[str] = None,
                                            account_name: Optional[str] = None,
                                            gas_estimate_multiplier: Optional[int] = None) -> list[str]:
         """Build forge command arguments for Morpho withdraw."""
         cmd = [
             "forge", "script", "script/actions/WithdrawFromMorpho.sol",
-            "--sig", "run(address)"
+            "--sig", "run(address,uint256)"
         ]
         
         if mode == "sim":
@@ -957,7 +960,8 @@ class ActionRunner:
         
         # Add function arguments
         cmd.extend([
-            vault_address
+            vault_address,
+            str(shares_amount)
         ])
         
         return cmd
@@ -1315,6 +1319,7 @@ def main():
     morpho_parser = subparsers.add_parser('withdraw-from-morpho', help='Withdraw assets from Morpho market')
     morpho_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
     morpho_parser.add_argument('vault_address', help='Vault contract address')
+    morpho_parser.add_argument('shares_amount', help='Shares amount to withdraw (integer, pre-scaled)')
     morpho_parser.add_argument('--sender', help='Sender address (for sim mode)')
     morpho_parser.add_argument('--account', help='Account name (for exec mode)')
     morpho_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
@@ -1474,6 +1479,7 @@ def main():
             
             success = runner.withdraw_from_morpho(
                 vault_address=args.vault_address,
+                shares_amount=args.shares_amount,
                 mode=args.mode,
                 sender_address=args.sender,
                 account_name=args.account,

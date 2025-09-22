@@ -22,12 +22,17 @@ contract Views is Script {
         address vaultAddress
     ) public view {
         MarketParams memory marketParams = MORPHO_LENDING_ROUTER.marketParams(vaultAddress);
+        Id id = Id.wrap(keccak256(abi.encode(marketParams)));
         console.log("Market Params:");
         console.log("Loan Token: ", marketParams.loanToken);
         console.log("Collateral Token: ", marketParams.collateralToken); 
         console.log("Oracle: ", marketParams.oracle);
         console.log("Interest Rate Model: ", marketParams.irm);
         console.log("LLTV: ", marketParams.lltv);
+        console.log("Total Supply Assets: ", MORPHO.market(id).totalSupplyAssets);
+        console.log("Total Borrow Assets: ", MORPHO.market(id).totalBorrowAssets);
+        console.log("Total Supply Shares: ", MORPHO.market(id).totalSupplyShares);
+        console.log("Total Borrow Shares: ", MORPHO.market(id).totalBorrowShares);
     }
 
     function getAccountDetails(

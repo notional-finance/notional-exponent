@@ -14,15 +14,17 @@ MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c6
 contract WithdrawFromMorpho is Script {
 
     function run(
-        address vaultAddress
+        address vaultAddress,
+        uint256 sharesAmount
     ) public {
         console.log("Withdrawing from Morpho");
         IYieldStrategy vault = IYieldStrategy(vaultAddress);
-        withdrawFromMorpho(vault);
+        withdrawFromMorpho(vault, sharesAmount);
     }
 
     function withdrawFromMorpho(
-        IYieldStrategy vault
+        IYieldStrategy vault,
+        uint256 sharesAmount
     ) internal {
         ERC20 asset = ERC20(vault.asset());
 
@@ -35,13 +37,9 @@ contract WithdrawFromMorpho is Script {
         uint256 assetBalance = asset.balanceOf(msg.sender);
         console.log("Asset Balance Before: ", assetBalance);
 
-        Position memory p = MORPHO.position(id, msg.sender);
-        uint256 supplyShares = p.supplyShares;
-        console.log("Supply Shares: ", supplyShares);
-
         console.log("Withdrawing assets from market");
         vm.startBroadcast();
-        MORPHO.withdraw(marketParams, 0, supplyShares, msg.sender, msg.sender);
+        MORPHO.withdraw(marketParams, 0, sharesAmount, msg.sender, msg.sender);
         vm.stopBroadcast();
 
         assetBalance = asset.balanceOf(msg.sender);
