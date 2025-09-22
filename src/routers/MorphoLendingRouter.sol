@@ -236,9 +236,8 @@ contract MorphoLendingRouter is
         if (assetToRepay == 0 && sharesToRepay == 0) {
             // Allows migration in the edge case where the user has no debt but
             // still wants to migrate their position.
-            profitsWithdrawn = _redeemShares(
-                onBehalf, vault, asset, _isMigrate(receiver) ? receiver : address(0), sharesToRedeem, redeemData
-            );
+            require(_isMigrate(receiver));
+            profitsWithdrawn = _redeemShares(onBehalf, vault, asset, receiver, sharesToRedeem, redeemData);
         } else {
             bytes memory repayData =
                 abi.encode(onBehalf, vault, asset, receiver, sharesToRedeem, redeemData, _isMigrate(receiver));
