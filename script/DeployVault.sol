@@ -49,6 +49,10 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     function getDepositData(address user, uint256 amount) internal view virtual returns (bytes memory);
     function getRedeemData(address user, uint256 amount) internal view virtual returns (bytes memory);
 
+    function deployCustomOracle() internal virtual returns (address oracle, address oracleToken) {
+        return (address(0), address(0));
+    }
+
     function run() public {
         address impl = deployVault();
         console.log("Vault implementation deployed at", impl);
@@ -153,11 +157,24 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         );
     }
 
-    function postDeploySetup() internal view virtual returns (MethodCall[] memory calls) {
+    function postDeploySetup() internal virtual returns (MethodCall[] memory calls) {
         IWithdrawRequestManager[] memory m = managers();
         bytes[] memory t = tradePermissions();
+        (address oracle, address oracleToken) = deployCustomOracle();
+
         uint256 callIndex = 0;
-        calls = new MethodCall[](m.length + t.length + 1);
+        uint256 totalCalls = m.length + t.length + 1;
+        if (oracle != address(0)) totalCalls++;
+        calls = new MethodCall[](totalCalls);
+
+        if (oracle != address(0)) {
+            calls[callIndex++] = MethodCall({
+                to: address(TRADING_MODULE),
+                value: 0,
+                callData: abi.encodeWithSelector(TRADING_MODULE.setPriceOracle.selector, oracleToken, oracle)
+            });
+        }
+
         for (uint256 i = 0; i < m.length; i++) {
             calls[callIndex++] = MethodCall({
                 to: address(m[i]),

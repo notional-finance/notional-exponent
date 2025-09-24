@@ -95,37 +95,28 @@ abstract contract DeployPTVault is DeployVault {
                 })
             );
         }
-
-        // NOTE: is tokenOut the right token to use here?
-        (AggregatorV2V3Interface baseToUSDOracle,) = TRADING_MODULE.priceOracles(address(tokenOut));
-        pendleOracle = new PendlePTOracle({
-            pendleMarket_: market,
-            baseToUSDOracle_: baseToUSDOracle,
-            invertBase_: false,
-            useSyOracleRate_: useSyOracleRate,
-            twapDuration_: 15 minutes,
-            description_: string(abi.encodePacked(name(), " Oracle")),
-            sequencerUptimeOracle_: address(0),
-            ptOraclePrecision_: 1e18
-        });
-
         vm.stopBroadcast();
     }
 
-    function postDeploySetup() internal view override returns (MethodCall[] memory calls) {
-        MethodCall[] memory superCalls = super.postDeploySetup();
-        calls = new MethodCall[](superCalls.length + 1);
-        for (uint256 i = 0; i < superCalls.length; i++) {
-            calls[i] = superCalls[i];
-        }
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        // NOTE: is tokenOut the right token to use here?
+        (AggregatorV2V3Interface baseToUSDOracle,) = TRADING_MODULE.priceOracles(address(tokenOut));
 
-        calls[superCalls.length - 1] = MethodCall({
-            to: address(TRADING_MODULE),
-            value: 0,
-            callData: abi.encodeWithSelector(
-                TRADING_MODULE.setPriceOracle.selector, address(ptToken), AggregatorV2V3Interface(address(pendleOracle))
-            )
-        });
+        oracleToken = address(ptToken);
+        vm.startBroadcast();
+        oracle = address(
+            new PendlePTOracle({
+                pendleMarket_: market,
+                baseToUSDOracle_: baseToUSDOracle,
+                invertBase_: false,
+                useSyOracleRate_: useSyOracleRate,
+                twapDuration_: 15 minutes,
+                description_: string(abi.encodePacked(name(), " Oracle")),
+                sequencerUptimeOracle_: address(0),
+                ptOraclePrecision_: 1e18
+            })
+        );
+        vm.stopBroadcast();
     }
 
     function tradePermissions() internal view virtual override returns (bytes[] memory t) {
@@ -198,7 +189,7 @@ contract DeployPTVault_sUSDe_26NOV2025 is DeployPTVault {
             address(USDe), // tokenIn
             address(sUSDe), // tokenOut
             0xe6A934089BBEe34F832060CE98848359883749B3, // ptToken
-            0.001e18, // feeRate
+            0.0025e18, // feeRate
             0.915e18, // MORPHO_LLTV
             true, // useSyOracleRate
             address(0) // proxy
