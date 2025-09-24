@@ -189,12 +189,12 @@ contract LP_Convex_OETH_WETH is DeployLPVault {
             "WETH", // token2Symbol
             0.915e18, // MORPHO_LLTV
             address(WETH), // asset
-            address(0x94B17476A93b3262d87B9a326965D1E91f9c13E7), // lpToken
+            address(0xcc7d5785AD5755B6164e21495E07aDb0Ff11C2A8), // lpToken
             address(0), // curveGauge
-            address(0x24b65DC1cf053A8D96872c323d29e86ec43eB33A), // rewardPool
-            CurveInterface.V1, // curveInterface
+            address(0xAc15ffFdCA77fc86770bEAbA20cbC1bc2D00494c), // rewardPool
+            CurveInterface.StableSwapNG, // curveInterface
             100e18, // maxPoolShare
-            1e9, // dyAmount
+            1e16, // dyAmount
             0.95e18, // lowerLimitMultiplier
             1.05e18, // upperLimitMultiplier
             0.005e18, // feeRate

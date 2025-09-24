@@ -28,10 +28,10 @@ contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
 
 contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
-        lpToken = ERC20(0x94B17476A93b3262d87B9a326965D1E91f9c13E7);
-        rewardPool = 0x24b65DC1cf053A8D96872c323d29e86ec43eB33A;
+        lpToken = ERC20(0xcc7d5785AD5755B6164e21495E07aDb0Ff11C2A8);
+        rewardPool = 0xAc15ffFdCA77fc86770bEAbA20cbC1bc2D00494c;
         asset = ERC20(address(WETH));
-        curveInterface = CurveInterface.V1;
+        curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
         maxPoolShare = 100e18;
         dyAmount = 1e9;
