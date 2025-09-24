@@ -4,7 +4,7 @@ source .env
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <action> <contract-name|vault-address> [--broadcast]"
-    echo "  actions: WithdrawRequestManager, LendingRouter, Vault, CreateInitialPosition"
+    echo "  actions: WithdrawRequestManager, LendingRouter, Vault, PTVault, LPVault, CreateInitialPosition"
     echo "  --broadcast: broadcast the transaction"
     exit 1
 fi
@@ -23,6 +23,10 @@ elif [ "$1" = "LendingRouter" ]; then
     SCRIPT_NAME="DeployLendingRouter"
 elif [ "$1" = "Vault" ]; then
     SCRIPT_NAME="DeployVault"
+elif [ "$1" = "PTVault" ]; then
+    SCRIPT_NAME="DeployPTVault"
+elif [ "$1" = "LPVault" ]; then
+    SCRIPT_NAME="DeployLPVault"
 elif [ "$1" = "CreateInitialPosition" ]; then
     SCRIPT_NAME="CreateInitialPosition"
     # The vault address is passed as an argument to the script
