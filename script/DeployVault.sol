@@ -4,6 +4,7 @@ pragma solidity >=0.8.29;
 import "forge-std/src/Script.sol";
 import "forge-std/src/Test.sol";
 import "./GnosisHelper.sol";
+import "./DeployWithdrawManager.sol";
 import { ProxyHelper } from "./ProxyHelper.sol";
 import { AddressRegistry } from "../src/proxy/AddressRegistry.sol";
 import { TimelockUpgradeableProxy } from "../src/proxy/TimelockUpgradeableProxy.sol";
@@ -17,7 +18,7 @@ import { MorphoLendingRouter } from "../src/routers/MorphoLendingRouter.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AggregatorV2V3Interface } from "../src/interfaces/AggregatorV2V3Interface.sol";
 import { weETH } from "../src/interfaces/IEtherFi.sol";
-import { sUSDe } from "../src/interfaces/IEthena.sol";
+import { sUSDe, USDe } from "../src/interfaces/IEthena.sol";
 import "../src/staking/StakingStrategy.sol";
 import { IWithdrawRequestManager, StakingTradeParams } from "../src/interfaces/IWithdrawRequestManager.sol";
 import { IYieldStrategy } from "../src/interfaces/IYieldStrategy.sol";
@@ -33,15 +34,16 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     uint256 public depositAmount;
     uint256 public supplyAmount;
     uint256 public borrowAmount;
+    uint256 public feeRate;
+    uint256 public MORPHO_LLTV;
     // Used for withdraw manager only exits
     bool public skipExit = false;
 
     function deployVault() public virtual returns (address impl);
 
-    function name() internal pure virtual returns (string memory);
-    function symbol() internal pure virtual returns (string memory);
-    function MORPHO_LLTV() internal view virtual returns (uint256);
-    function managers() internal view virtual returns (address[] memory);
+    function name() internal view virtual returns (string memory);
+    function symbol() internal view virtual returns (string memory);
+    function managers() internal view virtual returns (IWithdrawRequestManager[] memory);
     function tradePermissions() internal view virtual returns (bytes[] memory);
 
     function getDepositData(address user, uint256 amount) internal view virtual returns (bytes memory);
@@ -50,6 +52,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     function run() public {
         address impl = deployVault();
         console.log("Vault implementation deployed at", impl);
+        require(feeRate > 0, "Fee rate must be greater than 0");
 
         MethodCall[] memory calls;
         bool isUpgrade = false;
@@ -132,14 +135,32 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         vm.stopPrank();
     }
 
+    function getTokenPermission(
+        address sender,
+        address token,
+        uint8 dexId
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(
+            TRADING_MODULE.setTokenPermissions.selector,
+            sender,
+            token,
+            ITradingModule.TokenPermissions({ allowSell: true, dexFlags: uint32(1 << dexId), tradeTypeFlags: 1 })
+        );
+    }
+
     function postDeploySetup() internal view virtual returns (MethodCall[] memory calls) {
-        address[] memory m = managers();
+        IWithdrawRequestManager[] memory m = managers();
         bytes[] memory t = tradePermissions();
         uint256 callIndex = 0;
         calls = new MethodCall[](m.length + t.length + 1);
         for (uint256 i = 0; i < m.length; i++) {
             calls[callIndex++] = MethodCall({
-                to: m[i],
+                to: address(m[i]),
                 value: 0,
                 callData: abi.encodeWithSelector(IWithdrawRequestManager.setApprovedVault.selector, proxy, true)
             });
@@ -152,21 +173,18 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         calls[callIndex++] = MethodCall({
             to: address(MORPHO_LENDING_ROUTER),
             value: 0,
-            callData: abi.encodeWithSelector(
-                MorphoLendingRouter.initializeMarket.selector, proxy, MORPHO_IRM, MORPHO_LLTV()
-            )
+            callData: abi.encodeWithSelector(MorphoLendingRouter.initializeMarket.selector, proxy, MORPHO_IRM, MORPHO_LLTV)
         });
     }
 }
 
 contract EtherFiStaking is DeployVault {
-    uint256 public constant FEE_RATE = 0.0015e18;
-
     constructor() {
         depositAmount = 10e18;
         supplyAmount = 100e18;
         borrowAmount = 90e18;
         proxy = 0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae;
+        MORPHO_LLTV = 0.945e18;
     }
 
     function getDepositData(address, /* user */ uint256 /* amount */ ) internal pure override returns (bytes memory) {
@@ -193,47 +211,32 @@ contract EtherFiStaking is DeployVault {
         return "n-st-weETH";
     }
 
-    function managers() internal pure override returns (address[] memory m) {
-        m = new address[](1);
-        m[0] = 0x71ba37c7C0eAB9F86De6D8745771c66fD3962F20;
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(weETH));
         return m;
-    }
-
-    function MORPHO_LLTV() internal pure override returns (uint256) {
-        return 0.945e18;
     }
 
     function deployVault() public override returns (address impl) {
         vm.startBroadcast();
-        impl = address(new StakingStrategy(address(WETH), address(weETH), FEE_RATE));
+        impl = address(new StakingStrategy(address(WETH), address(weETH), feeRate));
         vm.stopBroadcast();
     }
 
     function tradePermissions() internal view override returns (bytes[] memory t) {
         t = new bytes[](1);
-        t[0] = abi.encodeWithSelector(
-            TRADING_MODULE.setTokenPermissions.selector,
-            proxy,
-            address(weETH),
-            ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), // forge-lint: disable-line
-                // Exact in single and exact in batch
-                tradeTypeFlags: 5
-            })
-        );
+        t[0] = getTokenPermission(proxy, address(weETH), uint8(DexId.CURVE_V2));
         return t;
     }
 }
 
 contract EthenaStaking is DeployVault {
-    uint256 public constant FEE_RATE = 0.0025e18;
-
     constructor() {
         depositAmount = 10_000e6;
         supplyAmount = 100_000e6;
         borrowAmount = 90_000e6;
         skipExit = true;
+        MORPHO_LLTV = 0.915e18;
         proxy = 0xAf14d06A65C91541a5b2db627eCd1c92d7d9C48B;
     }
 
@@ -245,36 +248,25 @@ contract EthenaStaking is DeployVault {
         return "n-st-sUSDe";
     }
 
-    function MORPHO_LLTV() internal pure override returns (uint256) {
-        return 0.915e18;
-    }
-
-    function managers() internal pure override returns (address[] memory m) {
-        m = new address[](1);
-        m[0] = 0x8c7C9a45916550C6fE04CDaA139672A1b5803c9F;
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(sUSDe));
         return m;
     }
 
     function deployVault() public override returns (address impl) {
         vm.startBroadcast();
-        impl = address(new StakingStrategy(address(USDC), address(sUSDe), FEE_RATE));
+        impl = address(new StakingStrategy(address(USDC), address(sUSDe), feeRate));
         vm.stopBroadcast();
     }
 
-    function tradePermissions() internal pure override returns (bytes[] memory t) {
-        address[] memory m = managers();
-        t = new bytes[](1);
-        t[0] = abi.encodeWithSelector(
-            TRADING_MODULE.setTokenPermissions.selector,
-            m[0],
-            address(USDC),
-            ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), // forge-lint: disable-line
-                // Exact in single and exact in batch
-                tradeTypeFlags: 5
-            })
-        );
+    function tradePermissions() internal view override returns (bytes[] memory t) {
+        IWithdrawRequestManager[] memory m = managers();
+        t = new bytes[](3);
+        t[0] = getTokenPermission(proxy, address(USDC), uint8(DexId.CURVE_V2));
+        t[1] = getTokenPermission(address(m[0]), address(USDC), uint8(DexId.CURVE_V2));
+        // For exiting after withdraw request finalized
+        t[2] = getTokenPermission(proxy, address(USDe), uint8(DexId.CURVE_V2));
         return t;
     }
 

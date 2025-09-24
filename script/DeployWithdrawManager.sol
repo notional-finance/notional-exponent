@@ -11,6 +11,8 @@ import { EtherFiWithdrawRequestManager } from "../src/withdraws/EtherFi.sol";
 import { EthenaWithdrawRequestManager } from "../src/withdraws/Ethena.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TimelockUpgradeableProxy } from "../src/proxy/TimelockUpgradeableProxy.sol";
+import { OriginWithdrawRequestManager, oETH } from "../src/withdraws/Origin.sol";
+import { WETH } from "../src/utils/Constants.sol";
 
 abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
     address payable public PROXY;
@@ -95,5 +97,29 @@ contract DeployEthenaWithdrawManager is DeployWithdrawManager {
         vm.stopPrank();
 
         assert(EthenaWithdrawRequestManager(PROXY).HOLDER_IMPLEMENTATION() != holder);
+    }
+}
+
+contract DeployWETHWithdrawManager is DeployWithdrawManager {
+    constructor() { }
+
+    function name() internal pure override returns (string memory) {
+        return "WETHWithdrawManager";
+    }
+
+    function deployWithdrawManager() internal override returns (address impl) {
+        impl = address(new GenericERC20WithdrawRequestManager(address(WETH)));
+    }
+}
+
+contract DeployOriginWithdrawManager is DeployWithdrawManager {
+    constructor() { }
+
+    function name() internal pure override returns (string memory) {
+        return "OriginWithdrawManager";
+    }
+
+    function deployWithdrawManager() internal override returns (address impl) {
+        impl = address(new OriginWithdrawRequestManager(address(oETH)));
     }
 }
