@@ -8,6 +8,7 @@ import "../src/oracles/Curve2TokenOracle.sol";
 import "../src/rewards/ConvexRewardManager.sol";
 import "../src/rewards/CurveRewardManager.sol";
 import { IRewardManager, RewardPoolStorage } from "../src/interfaces/IRewardManager.sol";
+import { ChainlinkUSDOracle } from "../src/oracles/ChainlinkUSDOracle.sol";
 
 abstract contract DeployLPVault is DeployVault {
     string internal token1Symbol;
@@ -217,4 +218,21 @@ contract LP_Convex_OETH_WETH is DeployLPVault {
     function tradePermissions() internal pure override returns (bytes[] memory) {
         return new bytes[](0);
     }
+
+    // TODO: we need to deploy this oracle on mainnet
+    // function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+    //     oracleToken = address(oETH);
+    //     vm.startBroadcast();
+    //     oracle = address(new ChainlinkUSDOracle({
+    //         // OETH/ETH Oracle
+    //         baseToUSDOracle_: AggregatorV2V3Interface(0x703118C4CbccCBF2AB31913e0f8075fbbb15f563),
+    //         // ETH/USD Oracle
+    //         quoteToUSDOracle_: AggregatorV2V3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419),
+    //         invertBase_: false,
+    //         invertQuote_: true,
+    //         description_: "oETH/USD Oracle",
+    //         sequencerUptimeOracle_: address(0)
+    //     }));
+    //     vm.stopBroadcast();
+    // }
 }
