@@ -386,3 +386,72 @@ contract TestStakingStrategy_PT_eUSDe_13AUG2025 is TestStakingStrategy_PT {
         assertEq(y.accountingAsset(), address(USDe));
     }
 }
+
+contract TestStakingStrategy_PT_sUSDe_26NOV2025 is TestStakingStrategy_PT {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 23_421_250;
+    }
+
+    function setMarketVariables() internal override {
+        market = 0xb6aC3d5da138918aC4E84441e924a20daA60dBdd;
+        tokenIn = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        tokenOut = address(sUSDe);
+        withdrawToken = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+        ptToken = 0xe6A934089BBEe34F832060CE98848359883749B3;
+        manager = new EthenaWithdrawRequestManager();
+        TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
+            address(manager), abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))
+        );
+        manager = EthenaWithdrawRequestManager(address(proxy));
+
+        withdrawRequest = new TestEthenaWithdrawRequest();
+        defaultDexId = uint8(DexId.CURVE_V2);
+        defaultDepositExchangeData = abi.encode(
+            CurveV2SingleData({ pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72, fromIndex: 1, toIndex: 0 })
+        );
+        defaultRedeemExchangeData = abi.encode(
+            CurveV2SingleData({
+                pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
+                fromIndex: 0, // DAI
+                toIndex: 1 // USDC
+             })
+        );
+        defaultWithdrawRequestExchangeData = abi.encode(
+            CurveV2SingleData({
+                // Sells via the USDe/USDC pool
+                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
+                fromIndex: 0,
+                toIndex: 1
+            })
+        );
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+        maxWithdrawValuationChange = 0.015e18;
+
+        (AggregatorV2V3Interface tokenOutSyOracle, /* */ ) = TRADING_MODULE.priceOracles(address(USDe));
+        withdrawTokenOracle =
+            new MockOracle(tokenOutSyOracle.latestAnswer() * int256(10 ** (18 - tokenOutSyOracle.decimals())));
+
+        vm.startPrank(owner);
+        TRADING_MODULE.setPriceOracle(address(USDe), AggregatorV2V3Interface(address(withdrawTokenOracle)));
+        vm.stopPrank();
+    }
+
+    function getWithdrawRequestData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        override
+        returns (bytes memory withdrawRequestData)
+    {
+        // Warp to expiry
+        vm.warp(1_764_201_600 + 1);
+        return bytes("");
+    }
+
+    function test_accountingAsset() public view {
+        assertEq(y.accountingAsset(), address(USDe));
+    }
+}

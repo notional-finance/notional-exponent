@@ -14,7 +14,7 @@ import "./TestWithdrawRequest.sol";
 
 abstract contract TestEnvironment is Test {
     string RPC_URL = vm.envString("RPC_URL");
-    uint256 FORK_BLOCK = vm.envUint("FORK_BLOCK");
+    uint256 FORK_BLOCK = 23_027_757;
 
     ERC20 public w;
     MockOracle public o;
@@ -63,6 +63,10 @@ abstract contract TestEnvironment is Test {
         TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
     }
 
+    function setExistingWithdrawRequestManager(address yieldToken) internal {
+        manager = IWithdrawRequestManager(ADDRESS_REGISTRY.getWithdrawRequestManager(yieldToken));
+    }
+
     function setupWithdrawRequestManager(address impl) internal virtual {
         TimelockUpgradeableProxy proxy = new TimelockUpgradeableProxy(
             address(impl), abi.encodeWithSelector(Initializable.initialize.selector, bytes(""))
@@ -72,6 +76,8 @@ abstract contract TestEnvironment is Test {
         if (address(ADDRESS_REGISTRY.getWithdrawRequestManager(manager.YIELD_TOKEN())) == address(0)) {
             vm.prank(ADDRESS_REGISTRY.upgradeAdmin());
             ADDRESS_REGISTRY.setWithdrawRequestManager(address(manager));
+        } else {
+            setExistingWithdrawRequestManager(manager.YIELD_TOKEN());
         }
     }
 
