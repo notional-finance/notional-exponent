@@ -168,6 +168,10 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         calls = new MethodCall[](totalCalls);
 
         if (oracle != address(0)) {
+            console.log("Custom oracle: ", AggregatorV2V3Interface(oracle).description(), " deployed at", oracle);
+            console.log("Custom oracle token: ", ERC20(oracleToken).symbol(), oracleToken);
+            console.log("Custom oracle price: ", AggregatorV2V3Interface(oracle).latestAnswer());
+
             calls[callIndex++] = MethodCall({
                 to: address(TRADING_MODULE),
                 value: 0,

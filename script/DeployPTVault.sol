@@ -179,10 +179,10 @@ abstract contract DeployPTVault is DeployVault {
     }
 }
 
-contract DeployPTVault_sUSDe_26NOV2025 is DeployPTVault {
+contract PT_sUSDe_27NOV2025 is DeployPTVault {
     constructor()
         DeployPTVault(
-            "26NOV2025", // expiryDate
+            "27NOV2025", // expiryDate
             "sUSDe", // pendleTokenSymbol
             address(USDC), // asset
             0xb6aC3d5da138918aC4E84441e924a20daA60dBdd, // market
