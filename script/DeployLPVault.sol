@@ -2,7 +2,12 @@
 pragma solidity >=0.8.29;
 
 import "./DeployVault.sol";
-import { DepositParams, RedeemParams as SingleSidedRedeemParams } from "../src/interfaces/ISingleSidedLP.sol";
+import {
+    DepositParams,
+    RedeemParams as SingleSidedRedeemParams,
+    TradeParams,
+    TradeType
+} from "../src/interfaces/ISingleSidedLP.sol";
 import "../src/single-sided-lp/CurveConvex2Token.sol";
 import "../src/oracles/Curve2TokenOracle.sol";
 import "../src/rewards/ConvexRewardManager.sol";
@@ -38,6 +43,7 @@ abstract contract DeployLPVault is DeployVault {
         string memory _token1Symbol,
         string memory _token2Symbol,
         uint256 _morphoLLTV,
+        uint8 _primaryIndex,
         address _asset,
         address _lpToken,
         address _curveGauge,
@@ -66,6 +72,7 @@ abstract contract DeployLPVault is DeployVault {
         asset = _asset;
         feeRate = _feeRate;
         MORPHO_LLTV = _morphoLLTV;
+        primaryIndex = _primaryIndex;
     }
 
     function name() internal view override returns (string memory) {
@@ -85,11 +92,13 @@ abstract contract DeployLPVault is DeployVault {
             rewardManager = address(new CurveRewardManager());
         }
 
+        address yieldToken = rewardPool == address(0) ? address(curveGauge) : address(rewardPool);
+
         impl = address(
             new CurveConvex2Token({
                 _maxPoolShare: maxPoolShare,
                 _asset: address(asset),
-                _yieldToken: address(lpToken),
+                _yieldToken: yieldToken,
                 _feeRate: feeRate,
                 _rewardManager: rewardManager,
                 params: DeploymentParams({
@@ -106,7 +115,8 @@ abstract contract DeployLPVault is DeployVault {
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
         (AggregatorV2V3Interface baseToUSDOracle, /* */ ) = TRADING_MODULE.priceOracles(address(asset));
-        oracleToken = address(lpToken);
+        // This needs to match the yield token above
+        oracleToken = rewardPool == address(0) ? address(curveGauge) : address(rewardPool);
 
         vm.startBroadcast();
         oracle = address(
@@ -129,7 +139,11 @@ abstract contract DeployLPVault is DeployVault {
         MethodCall[] memory superCalls = super.postDeploySetup();
         calls = new MethodCall[](superCalls.length + 1 + rewardTokens.length);
 
-        calls[superCalls.length - 1] = MethodCall({
+        for (uint256 i = 0; i < superCalls.length; i++) {
+            calls[i] = superCalls[i];
+        }
+
+        calls[superCalls.length] = MethodCall({
             to: address(proxy),
             value: 0,
             callData: abi.encodeWithSelector(
@@ -140,7 +154,7 @@ abstract contract DeployLPVault is DeployVault {
         });
 
         for (uint256 i = 0; i < rewardTokens.length; i++) {
-            calls[superCalls.length + i] = MethodCall({
+            calls[superCalls.length + 1 + i] = MethodCall({
                 to: address(proxy),
                 value: 0,
                 callData: abi.encodeWithSelector(
@@ -188,6 +202,7 @@ contract LP_Convex_OETH_WETH is DeployLPVault {
             "OETH", // token1Symbol
             "WETH", // token2Symbol
             0.915e18, // MORPHO_LLTV
+            1, // primaryIndex
             address(WETH), // asset
             address(0xcc7d5785AD5755B6164e21495E07aDb0Ff11C2A8), // lpToken
             address(0), // curveGauge
@@ -206,6 +221,33 @@ contract LP_Convex_OETH_WETH is DeployLPVault {
         rewardTokens.push(0xD533a949740bb3306d119CC777fa900bA034cd52);
         // CVX
         rewardTokens.push(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
+
+        supplyAmount = 100e18;
+        borrowAmount = 90e18;
+        depositAmount = 10e18;
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* depositAmount */
+    )
+        internal
+        view
+        virtual
+        override
+        returns (bytes memory depositData)
+    {
+        TradeParams[] memory depositTrades = new TradeParams[](2);
+        depositTrades[0] = TradeParams({
+            tradeType: TradeType.STAKE_TOKEN,
+            dexId: 0,
+            tradeAmount: 50e18,
+            minPurchaseAmount: 0,
+            exchangeData: bytes("")
+        });
+
+        DepositParams memory d = DepositParams({ minPoolClaim: 0, depositTrades: depositTrades });
+        return abi.encode(d);
     }
 
     function managers() internal view override returns (IWithdrawRequestManager[] memory) {
@@ -218,21 +260,4 @@ contract LP_Convex_OETH_WETH is DeployLPVault {
     function tradePermissions() internal pure override returns (bytes[] memory) {
         return new bytes[](0);
     }
-
-    // TODO: we need to deploy this oracle on mainnet
-    // function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
-    //     oracleToken = address(oETH);
-    //     vm.startBroadcast();
-    //     oracle = address(new ChainlinkUSDOracle({
-    //         // OETH/ETH Oracle
-    //         baseToUSDOracle_: AggregatorV2V3Interface(0x703118C4CbccCBF2AB31913e0f8075fbbb15f563),
-    //         // ETH/USD Oracle
-    //         quoteToUSDOracle_: AggregatorV2V3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419),
-    //         invertBase_: false,
-    //         invertQuote_: true,
-    //         description_: "oETH/USD Oracle",
-    //         sequencerUptimeOracle_: address(0)
-    //     }));
-    //     vm.stopBroadcast();
-    // }
 }
