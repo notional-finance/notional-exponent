@@ -81,6 +81,10 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         isAuthorized(onBehalf, vault)
         nonReentrant
     {
+        _migratePosition(onBehalf, vault, migrateFrom);
+    }
+
+    function _migratePosition(address onBehalf, address vault, address migrateFrom) internal {
         if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
         // Borrow amount is set to the amount of debt owed to the previous lending router
         (uint256 borrowAmount, /* */, /* */ ) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);

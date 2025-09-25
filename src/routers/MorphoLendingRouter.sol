@@ -114,7 +114,7 @@ contract MorphoLendingRouter is
         nonReentrant
     {
         _allocate(vault, allocationData);
-        enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData);
+        _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
     function allocateAndMigratePosition(
@@ -129,7 +129,7 @@ contract MorphoLendingRouter is
         nonReentrant
     {
         _allocate(vault, allocationData);
-        migratePosition(onBehalf, vault, migrateFrom);
+        _migratePosition(onBehalf, vault, migrateFrom);
     }
 
     function _flashBorrowAndEnter(
