@@ -53,3 +53,7 @@ sepolia = "https://ethereum-sepolia-rpc.publicnode.com"
 [lint]
 ignore = ["tests/**/*.sol"]
 severity = ["high", "med", "low", "gas"]
+
+libraries = [
+  "src/staking/PendlePTLib.sol:PendlePTLib:0xE3C8fBAcB252f5d771D6533f28095975088E9795",
+]
