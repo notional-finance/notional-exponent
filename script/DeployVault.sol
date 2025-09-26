@@ -162,6 +162,11 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         bytes[] memory t = tradePermissions();
         (address oracle, address oracleToken) = deployCustomOracle();
 
+        if (m.length == 0) console.log("No withdraw request managers");
+        for (uint256 i = 0; i < m.length; i++) {
+            console.log("Withdraw Request Manager for ", ERC20(m[i].YIELD_TOKEN()).symbol(), " at", address(m[i]));
+        }
+
         uint256 callIndex = 0;
         uint256 totalCalls = m.length + t.length + 1;
         if (oracle != address(0)) totalCalls++;

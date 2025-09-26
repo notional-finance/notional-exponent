@@ -101,7 +101,9 @@ contract DeployEthenaWithdrawManager is DeployWithdrawManager {
 }
 
 contract DeployWETHWithdrawManager is DeployWithdrawManager {
-    constructor() { }
+    constructor() {
+        PROXY = payable(0xe854ceB7e57988b083b93195D092d289feD1d0ff);
+    }
 
     function name() internal pure override returns (string memory) {
         return "WETHWithdrawManager";
@@ -113,7 +115,9 @@ contract DeployWETHWithdrawManager is DeployWithdrawManager {
 }
 
 contract DeployOriginWithdrawManager is DeployWithdrawManager {
-    constructor() { }
+    constructor() {
+        PROXY = payable(0x59aA04B190eC76C95a1Eb02d9a184b7fdD64b9fB);
+    }
 
     function name() internal pure override returns (string memory) {
         return "OriginWithdrawManager";
