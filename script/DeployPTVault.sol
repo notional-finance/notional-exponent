@@ -192,7 +192,7 @@ contract PT_sUSDe_27NOV2025 is DeployPTVault {
             0.0025e18, // feeRate
             0.915e18, // MORPHO_LLTV
             true, // useSyOracleRate
-            address(0) // proxy
+            0x0e61E810f0918081CBFD2aC8c97E5866DAF3F622 // proxy
         )
     {
         defaultDexId = uint8(DexId.CURVE_V2);

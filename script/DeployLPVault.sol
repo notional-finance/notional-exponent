@@ -214,7 +214,7 @@ contract LP_Convex_OETH_WETH is DeployLPVault {
             1.05e18, // upperLimitMultiplier
             0.005e18, // feeRate
             false, // invertBase
-            address(0) // proxy
+            0x2716561755154Eef59Bc48Eb13712510b27F167F // proxy
         )
     {
         // CRV

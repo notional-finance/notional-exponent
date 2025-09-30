@@ -211,6 +211,7 @@ contract EtherFiStaking is DeployVault {
         borrowAmount = 90e18;
         proxy = 0x7f723feE1E65A7d26bE51A05AF0B5eFEE4a7d5ae;
         MORPHO_LLTV = 0.945e18;
+        feeRate = 0.0015e18;
     }
 
     function getDepositData(address, /* user */ uint256 /* amount */ ) internal pure override returns (bytes memory) {
@@ -264,6 +265,7 @@ contract EthenaStaking is DeployVault {
         skipExit = true;
         MORPHO_LLTV = 0.915e18;
         proxy = 0xAf14d06A65C91541a5b2db627eCd1c92d7d9C48B;
+        feeRate = 0.0025e18;
     }
 
     function name() internal pure override returns (string memory) {
