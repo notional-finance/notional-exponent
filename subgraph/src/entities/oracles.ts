@@ -63,12 +63,13 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
     let id = vault.toHexString() + ":" + Address.fromBytes(lendingRouters[i]).toHexString();
     let borrowShare = Token.load(id);
     if (borrowShare) {
-      let latestRate = l.convertBorrowSharesToAssets(vault, borrowShare.precision);
+      let latestRate = l.try_convertBorrowSharesToAssets(vault, borrowShare.precision);
+      if (latestRate.reverted) continue;
       let borrowShareOracle = getOracle(borrowShare, asset, "BorrowShareOracleRate");
       borrowShareOracle.decimals = asset.decimals;
       borrowShareOracle.ratePrecision = asset.precision;
       borrowShareOracle.oracleAddress = l._address;
-      updateExchangeRate(borrowShareOracle, latestRate, block);
+      updateExchangeRate(borrowShareOracle, latestRate.value, block);
     }
   }
 }
@@ -126,7 +127,7 @@ export function registerChainlinkOracle(
   }
 }
 
-function getOracle(base: Token, quote: Token, oracleType: string): Oracle {
+export function getOracle(base: Token, quote: Token, oracleType: string): Oracle {
   let id = base.id + ":" + quote.id + ":" + oracleType;
   let oracle = Oracle.load(id);
   if (oracle == null) {
@@ -141,7 +142,7 @@ function getOracle(base: Token, quote: Token, oracleType: string): Oracle {
   return oracle as Oracle;
 }
 
-function updateExchangeRate(oracle: Oracle, rate: BigInt, block: ethereum.Block): void {
+export function updateExchangeRate(oracle: Oracle, rate: BigInt, block: ethereum.Block): void {
   let ts = block.timestamp.minus(block.timestamp.mod(SIX_HOURS));
   let id = oracle.id + ":" + ts.toString();
 

@@ -6,7 +6,7 @@ import {
 import { IYieldStrategy } from "../generated/AddressRegistry/IYieldStrategy";
 import { IWithdrawRequestManager } from "../generated/AddressRegistry/IWithdrawRequestManager";
 import { LendingRouter, Oracle, OracleRegistry, Vault, WithdrawRequestManager } from "../generated/schema";
-import { createERC20TokenAsset } from "./entities/token";
+import { createERC20TokenAsset, getBorrowShare, getToken } from "./entities/token";
 import { ORACLE_REGISTRY_ID, UNDERLYING, VAULT_SHARE } from "./constants";
 import {
   Vault as VaultTemplate,
@@ -14,14 +14,17 @@ import {
   LendingRouter as LendingRouterTemplate,
 } from "../generated/templates";
 import {
+  getOracle,
   getOracleRegistry,
   updateChainlinkOracle,
+  updateExchangeRate,
   updateVaultOracles,
   updateWithdrawRequestManagerOracles,
 } from "./entities/oracles";
 import { Address, ethereum } from "@graphprotocol/graph-ts";
 import { ILendingRouter } from "../generated/AddressRegistry/ILendingRouter";
 import { handleInitialOracles } from "./trading-module";
+import { getMarketParams } from "./entities/market";
 
 export function handleLendingRouterSet(event: LendingRouterSet): void {
   const id = event.params.lendingRouter.toHexString();
@@ -95,6 +98,22 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
   l.push(event.params.vault);
   r.listedVaults = l;
   r.save();
+
+  for (let i = 0; i < r.lendingRouters.length; i++) {
+    // Create the initial borrow share entity for the vault / lending router combination.
+    let v = IYieldStrategy.bind(event.params.vault);
+    let borrowShare = getBorrowShare(event.params.vault, Address.fromBytes(r.lendingRouters[i]), event);
+    getMarketParams(Address.fromBytes(r.lendingRouters[i]), event.params.vault, event);
+
+    // Create the initial borrow share oracle for the vault / lending router combination. The price
+    // is set to 1-1 with the asset.
+    let asset = getToken(v.asset().toHexString());
+    let borrowShareOracle = getOracle(borrowShare, asset, "BorrowShareOracleRate");
+    borrowShareOracle.decimals = asset.decimals;
+    borrowShareOracle.ratePrecision = asset.precision;
+    borrowShareOracle.oracleAddress = Address.fromBytes(r.lendingRouters[i]);
+    updateExchangeRate(borrowShareOracle, asset.precision, event.block);
+  }
 }
 
 export function handleWithdrawRequestManagerSet(event: WithdrawRequestManagerSet): void {

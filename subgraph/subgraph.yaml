@@ -37,6 +37,8 @@ dataSources:
           file: ./abis/ITradingModule.json
         - name: IPPrincipalToken
           file: ./abis/IPPrincipalToken.json
+        - name: MorphoLendingRouter
+          file: ./abis/MorphoLendingRouter.json
       eventHandlers:
         # - event: AccountPositionCleared(indexed address,indexed address,indexed address)
         #   handler: handleAccountPositionCleared
