@@ -12,7 +12,7 @@ import {FlashLiquidator} from "../../src/FlashLiquidator.sol";
 
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
 
-FlashLiquidator constant FLASH_LIQUIDATOR = FlashLiquidator(0x239156969FAb8a83D8f1eBd13BEaf1f272922275);
+FlashLiquidator constant FLASH_LIQUIDATOR = FlashLiquidator(0x13C6d8484B61982AfaD3F88A6e9121800E4A3a83);
 
 contract FlashLiquidate is Script {
 
@@ -30,12 +30,17 @@ contract FlashLiquidate is Script {
         console.log("Assets to Borrow: ", assetsToBorrow);
         console.log("Redeem Data Length: ", redeemData.length);
 
+        address[] memory liquidateAccounts = new address[](1);
+        liquidateAccounts[0] = liquidateAccount;
+        uint256[] memory sharesToLiquidateList = new uint256[](1);
+        sharesToLiquidateList[0] = sharesToLiquidate;
+
         IYieldStrategy vault = IYieldStrategy(vaultAddress);
         ERC20 asset = ERC20(vault.asset());
         uint256 balanceBefore = asset.balanceOf(msg.sender);
 
         vm.startBroadcast();
-        FLASH_LIQUIDATOR.flashLiquidate(vaultAddress, liquidateAccount, sharesToLiquidate, assetsToBorrow, redeemData);
+        FLASH_LIQUIDATOR.flashLiquidate(vaultAddress, liquidateAccounts, sharesToLiquidateList, assetsToBorrow, redeemData);
         vm.stopBroadcast();
 
         uint256 balanceAfter = asset.balanceOf(msg.sender);

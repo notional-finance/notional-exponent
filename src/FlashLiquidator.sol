@@ -12,8 +12,8 @@ contract FlashLiquidator {
 
     function flashLiquidate(
         address vaultAddress,
-        address liquidateAccount,
-        uint256 sharesToLiquidate,
+        address[] memory liquidateAccounts,
+        uint256[] memory sharesToLiquidate,
         uint256 assetsToBorrow,
         bytes memory redeemData
     ) external {
@@ -21,7 +21,7 @@ contract FlashLiquidator {
         address asset = vault.asset();
 
         bytes memory flashLoanData = abi.encode(
-            liquidateAccount, vaultAddress, sharesToLiquidate, redeemData
+            vaultAddress, liquidateAccounts, sharesToLiquidate, redeemData
         );
 
         MORPHO.flashLoan(
@@ -39,24 +39,22 @@ contract FlashLiquidator {
     }
 
     function onMorphoFlashLoan(
-        uint256 assetsToBorrow,
+        uint256 /* assetsToBorrow */,
         bytes memory flashLoanData
     ) external {
         (
-            address liquidateAccount,
             address vaultAddress,
-            uint256 sharesToLiquidate,
+            address[] memory liquidateAccounts,
+            uint256[] memory sharesToLiquidate,
             bytes memory redeemData
-        ) = abi.decode(flashLoanData, (address, address, uint256, bytes));
+        ) = abi.decode(flashLoanData, (address, address[], uint256[], bytes));
+
+        for (uint256 i = 0; i < liquidateAccounts.length; i++) {
+            MORPHO_LENDING_ROUTER.liquidate(liquidateAccounts[i], vaultAddress, sharesToLiquidate[i], 0);
+        }
 
         IYieldStrategy vault = IYieldStrategy(vaultAddress);
-        ERC20 asset = ERC20(vault.asset());
-
-        asset.approve(address(MORPHO_LENDING_ROUTER), assetsToBorrow);
-        asset.approve(address(MORPHO), assetsToBorrow);
-        
-        MORPHO_LENDING_ROUTER.liquidate(liquidateAccount, address(vault), sharesToLiquidate, 0);
-        
-        vault.redeemNative(sharesToLiquidate, redeemData);
+        uint256 sharesToRedeem = vault.balanceOf(address(this));
+        vault.redeemNative(sharesToRedeem, redeemData);
     }
 }
