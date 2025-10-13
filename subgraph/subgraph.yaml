@@ -132,10 +132,6 @@ templates:
         - event: LiquidatePosition(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleLiquidatePosition
           receipt: true
-      # callHandlers:
-      #   - function: claimRewards(address)
-      #     handler: handleClaimRewards
-      #     receipt: true
   - name: WithdrawRequestManager
     kind: ethereum/contract
     network: mainnet
@@ -194,3 +190,5 @@ templates:
       eventHandlers:
         - event: VaultRewardUpdate(indexed address,uint128,uint32)
           handler: handleVaultRewardUpdate
+        - event: VaultRewardTransfer(indexed address,indexed address,uint256)
+          handler: handleVaultRewardTransfer

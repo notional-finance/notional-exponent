@@ -7,7 +7,7 @@ import {
 } from "../generated/templates/LendingRouter/ILendingRouter";
 import { createERC20TokenAsset, getBorrowShare, getToken } from "./entities/token";
 import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrategy";
-import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
+import { createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
 import { loadAccount } from "./entities/account";
 import { Account, Token } from "../generated/schema";
 import { DEFAULT_PRECISION, ZERO_ADDRESS } from "./constants";
@@ -205,17 +205,16 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
     let _log = event.receipt!.logs[i];
     if (_log.address.toHexString() != vaultAddress.toHexString()) continue;
 
-    if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
-      // We do this here because we don't know the current lending router in order
-      // to get the proper balance snapshot so these need to be done after the balance
-      // snapshots are updated.
-      let rewardToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
-      let account = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
-      let amount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.reverse()));
-      createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
-    } else if (
-      _log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))
-    ) {
+    // if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
+    //   // We do this here because we don't know the current lending router in order
+    //   // to get the proper balance snapshot so these need to be done after the balance
+    //   // snapshots are updated.
+    //   let rewardToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+    //   let account = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
+    //   let amount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.reverse()));
+    //   createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
+    // } else
+    if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
       // NOTE: the account is the one doing the trade here.
       let sellToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
       let buyToken = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
