@@ -127,6 +127,8 @@ export function createSnapshotForIncentives(
   incentiveSnapshot.transactionHash = snapshot.transactionHash;
   incentiveSnapshot.balanceSnapshot = snapshot.id;
   incentiveSnapshot.rewardToken = rewardToken.toHexString();
+  incentiveSnapshot.account = account.id;
+  incentiveSnapshot.amountClaimed = amount;
 
   incentiveSnapshot.totalClaimed = BigInt.zero();
   incentiveSnapshot.adjustedClaimed = BigInt.zero();
@@ -153,6 +155,7 @@ export function createSnapshotForIncentives(
     );
   }
 
+  snapshot.save();
   incentiveSnapshot.save();
 }
 
@@ -319,6 +322,15 @@ export function setProfitLossLineItem(
     .div(DEFAULT_PRECISION)
     .div(token.precision);
   lineItem.spotPrice = spotPrice;
+
+  if (token.tokenType == VAULT_SHARE) {
+    // Sets the yield token amount if the token is a vault share
+    let vault = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
+    let result = vault.try_convertSharesToYieldToken(tokenAmount.abs());
+    if (!result.reverted) {
+      lineItem.yieldTokenAmount = result.value;
+    }
+  }
 
   if (tokenAmount.notEqual(BigInt.zero())) {
     // This is reported in underlying token precision

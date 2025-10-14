@@ -86,6 +86,8 @@ type ProfitLossLineItem @entity(immutable: true) {
   tokenAmount: BigInt!
   underlyingAmountRealized: BigInt!
   underlyingAmountSpot: BigInt!
+  "Amount of yield tokens if token amount is a vault share"
+  yieldTokenAmount: BigInt
 
   realizedPrice: BigInt!
   spotPrice: BigInt!
@@ -380,6 +382,9 @@ type IncentiveSnapshot @entity(immutable: true) {
   timestamp: Int!
   transactionHash: Bytes!
 
+  "Address of the account that holds this balance"
+  account: Account!
+
   "Link back to the balance snapshot for this secondary incentive"
   balanceSnapshot: BalanceSnapshot!
 
@@ -390,6 +395,8 @@ type IncentiveSnapshot @entity(immutable: true) {
   totalClaimed: BigInt!
   "Reward earnings adjusted for balance changes"
   adjustedClaimed: BigInt!
+  "Claimed amount in the current transaction"
+  amountClaimed: BigInt!
 }
 
 ### Trading Module ###
