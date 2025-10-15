@@ -175,19 +175,19 @@ export function createTradeExecutionLineItem(
   lineItem.blockNumber = event.block.number;
   lineItem.timestamp = event.block.timestamp.toI32();
   lineItem.transactionHash = event.transaction.hash;
-  lineItem.token = sellToken.id;
+  lineItem.token = buyToken.id;
   lineItem.account = account.id;
-  lineItem.underlyingToken = buyToken.id;
+  lineItem.underlyingToken = sellToken.id;
 
-  lineItem.tokenAmount = sellAmount;
-  lineItem.underlyingAmountRealized = buyAmount;
+  lineItem.tokenAmount = buyAmount;
+  lineItem.underlyingAmountRealized = sellAmount;
   // Spot prices are not known on chain for trades
   lineItem.underlyingAmountSpot = BigInt.zero();
   lineItem.spotPrice = BigInt.zero();
 
   if (sellAmount.gt(BigInt.zero())) {
-    // NOTE: this is in underlying token precision (buyToken)
-    lineItem.realizedPrice = buyAmount.times(sellToken.precision).div(sellAmount);
+    // NOTE: this is in underlying token precision (sellToken)
+    lineItem.realizedPrice = sellAmount.times(buyToken.precision).div(buyAmount);
   } else {
     lineItem.realizedPrice = BigInt.zero();
   }
