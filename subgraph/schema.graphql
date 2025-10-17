@@ -272,9 +272,14 @@ type Balance @entity(immutable: false) {
   lastUpdateTransactionHash: Bytes!
 
   current: BalanceSnapshot!
+
+  lendingRouter: LendingRouter
+
+  _lastIncentiveSnapshotBlockNumber: BigInt
   "Link to the withdraw requests that this balance is associated with"
   withdrawRequest: [WithdrawRequest!]
   snapshots: [BalanceSnapshot!] @derivedFrom(field: "balance")
+  incentives: [IncentiveSnapshot!] @derivedFrom(field: "balance")
 }
 
 type BalanceSnapshot @entity(immutable: true) {
@@ -316,8 +321,6 @@ type BalanceSnapshot @entity(immutable: true) {
   _lastVaultFeeAccumulator: BigInt!
 
   profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "balanceSnapshot")
-  "Snapshots of the secondary incentives"
-  incentives: [IncentiveSnapshot!] @derivedFrom(field: "balanceSnapshot")
 }
 
 type WithdrawRequest @entity(immutable: false) {
@@ -385,8 +388,11 @@ type IncentiveSnapshot @entity(immutable: true) {
   "Address of the account that holds this balance"
   account: Account!
 
-  "Link back to the balance snapshot for this secondary incentive"
-  balanceSnapshot: BalanceSnapshot!
+  "Link back to the balance for this secondary incentive"
+  balance: Balance!
+
+  "Link back to the previous incentive snapshot"
+  previousIncentiveSnapshot: IncentiveSnapshot
 
   "Reward token associated with this snapshot"
   rewardToken: Token!

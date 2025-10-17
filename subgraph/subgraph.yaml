@@ -185,6 +185,8 @@ templates:
           file: ./abis/IYieldStrategy.json
         - name: IERC20Metadata
           file: ./abis/IERC20Metadata.json
+        - name: ILendingRouter
+          file: ./abis/ILendingRouter.json
       entities:
         - Vault
       eventHandlers:

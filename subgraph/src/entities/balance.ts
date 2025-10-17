@@ -26,6 +26,20 @@ import { getToken } from "./token";
 import { AddressRegistry } from "../../generated/AddressRegistry/AddressRegistry";
 import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
 
+function getVaultShareBalance(balance: Balance): BigInt {
+  if (balance.lendingRouter === null) {
+    // Get the balance using the native balance on the vault
+    let v = IERC20Metadata.bind(Address.fromBytes(Address.fromHexString(balance.token)));
+    return v.balanceOf(Address.fromBytes(Address.fromHexString(balance.account)));
+  } else {
+    let l = ILendingRouter.bind(Address.fromBytes(Address.fromHexString(balance.lendingRouter as string)));
+    return l.balanceOfCollateral(
+      Address.fromBytes(Address.fromHexString(balance.account)),
+      Address.fromBytes(Address.fromHexString(balance.token)),
+    );
+  }
+}
+
 export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): BalanceSnapshot {
   let id = balance.id + ":" + event.block.number.toString();
   let snapshot = BalanceSnapshot.load(id);
@@ -117,15 +131,13 @@ export function createSnapshotForIncentives(
   let balanceId = account.id + ":" + vaultAddress.toHexString();
   let balance = Balance.load(balanceId);
   if (balance === null) return;
+  let incentiveSnapshotId = balance.id + ":" + event.block.number.toString() + ":" + rewardToken.toHexString();
 
-  let snapshot = getBalanceSnapshot(balance, event);
-  let id = snapshot.id + ":" + rewardToken.toHexString();
-
-  let incentiveSnapshot = new IncentiveSnapshot(id);
-  incentiveSnapshot.blockNumber = snapshot.blockNumber;
-  incentiveSnapshot.timestamp = snapshot.timestamp;
-  incentiveSnapshot.transactionHash = snapshot.transactionHash;
-  incentiveSnapshot.balanceSnapshot = snapshot.id;
+  let incentiveSnapshot = new IncentiveSnapshot(incentiveSnapshotId);
+  incentiveSnapshot.blockNumber = event.block.number;
+  incentiveSnapshot.timestamp = event.block.timestamp.toI32();
+  incentiveSnapshot.transactionHash = event.transaction.hash;
+  incentiveSnapshot.balance = balance.id;
   incentiveSnapshot.rewardToken = rewardToken.toHexString();
   incentiveSnapshot.account = account.id;
   incentiveSnapshot.amountClaimed = amount;
@@ -133,18 +145,39 @@ export function createSnapshotForIncentives(
   incentiveSnapshot.totalClaimed = BigInt.zero();
   incentiveSnapshot.adjustedClaimed = BigInt.zero();
 
-  if (snapshot.previousSnapshot) {
-    let prevSnapshot = IncentiveSnapshot.load((snapshot.previousSnapshot as string) + ":" + rewardToken.toHexString());
-
-    if (prevSnapshot) {
-      incentiveSnapshot.totalClaimed = prevSnapshot.totalClaimed;
-      incentiveSnapshot.adjustedClaimed = prevSnapshot.adjustedClaimed;
+  if (balance._lastIncentiveSnapshotBlockNumber) {
+    let previousIncentiveSnapshotId =
+      balance.id +
+      ":" +
+      (balance._lastIncentiveSnapshotBlockNumber as BigInt).toString() +
+      ":" +
+      rewardToken.toHexString();
+    let previousIncentiveSnapshot = IncentiveSnapshot.load(previousIncentiveSnapshotId);
+    if (previousIncentiveSnapshot) {
+      incentiveSnapshot.previousIncentiveSnapshot = previousIncentiveSnapshotId;
+      incentiveSnapshot.totalClaimed = previousIncentiveSnapshot.totalClaimed;
+      incentiveSnapshot.adjustedClaimed = previousIncentiveSnapshot.adjustedClaimed;
     }
   }
 
   incentiveSnapshot.totalClaimed = incentiveSnapshot.totalClaimed.plus(amount);
   incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.plus(amount);
-  if (snapshot.currentBalance.lt(snapshot.previousBalance)) {
+
+  let snapshot = BalanceSnapshot.load(balance.current);
+  let currentBalance = BigInt.zero();
+  let previousBalance = BigInt.zero();
+  if (snapshot === null) return;
+  if (snapshot.blockNumber.equals(event.block.number)) {
+    // In this case the snapshot is up to date.
+    currentBalance = snapshot.currentBalance;
+    previousBalance = snapshot.previousBalance;
+  } else {
+    // In this case the snapshot is not up to date and we fetch the latest balance
+    currentBalance = getVaultShareBalance(balance);
+    previousBalance = snapshot.currentBalance;
+  }
+
+  if (currentBalance.lt(previousBalance)) {
     // On vault share decrease apply this adjustment after the above line
     // adjustedClaimed = adjustedClaimed - (prevBalance - currentBalance) * adjustedClaimed / prevBalance
     incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.minus(
@@ -155,7 +188,8 @@ export function createSnapshotForIncentives(
     );
   }
 
-  snapshot.save();
+  balance._lastIncentiveSnapshotBlockNumber = event.block.number;
+  balance.save();
   incentiveSnapshot.save();
 }
 
@@ -370,15 +404,14 @@ function updateBalance(
   let accountAddress = Address.fromBytes(Address.fromHexString(account.id));
   let snapshot = getBalanceSnapshot(balance, event);
 
+  if (lendingRouter == ZERO_ADDRESS) {
+    balance.lendingRouter = null;
+  } else {
+    balance.lendingRouter = lendingRouter.toHexString();
+  }
+
   if (token.tokenType == VAULT_SHARE && token.vaultAddress !== null) {
-    if (lendingRouter == ZERO_ADDRESS) {
-      // Get the balance using the native balance on the vault
-      let v = IERC20Metadata.bind(Address.fromBytes(token.vaultAddress!));
-      snapshot.currentBalance = v.balanceOf(accountAddress);
-    } else {
-      let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfCollateral(accountAddress, Address.fromBytes(token.vaultAddress!));
-    }
+    snapshot.currentBalance = getVaultShareBalance(balance);
   } else if (token.tokenType == VAULT_DEBT && token.vaultAddress !== null) {
     if (lendingRouter == ZERO_ADDRESS) {
       snapshot.currentBalance = BigInt.zero();
