@@ -62,24 +62,22 @@ export function handleEnterPosition(event: EnterPosition): void {
     getBorrowShare(event.params.vault, event.address, event);
   }
 
-  if (event.params.vaultSharesReceived.gt(BigInt.zero())) {
-    let vaultShare = getToken(event.params.vault.toHexString());
-    // This comes in as 1e36 so divide it by 1e18 to get the price in the correct precision
-    let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
-    let underlyingAmountRealized = borrowAssets.plus(event.params.depositAssets);
+  let vaultShare = getToken(event.params.vault.toHexString());
+  // This comes in as 1e36 so divide it by 1e18 to get the price in the correct precision
+  let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
+  let underlyingAmountRealized = borrowAssets.plus(event.params.depositAssets);
 
-    setProfitLossLineItem(
-      account,
-      vaultShare,
-      underlyingToken,
-      event.params.vaultSharesReceived,
-      underlyingAmountRealized,
-      oraclePrice,
-      event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
-      event.address,
-      event,
-    );
-  }
+  setProfitLossLineItem(
+    account,
+    vaultShare,
+    underlyingToken,
+    event.params.vaultSharesReceived,
+    underlyingAmountRealized,
+    oraclePrice,
+    event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
+    event.address,
+    event,
+  );
 
   parseVaultEvents(account, event.params.vault, event);
 
@@ -117,23 +115,21 @@ export function handleExitPosition(event: ExitPosition): void {
     );
   }
 
-  if (event.params.vaultSharesBurned.gt(BigInt.zero())) {
-    let vaultShare = getToken(event.params.vault.toHexString());
-    let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
+  let vaultShare = getToken(event.params.vault.toHexString());
+  let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
 
-    setProfitLossLineItem(
-      account,
-      vaultShare,
-      underlyingToken,
-      // Negative because we are burning vault shares
-      event.params.vaultSharesBurned.neg(),
-      event.params.profitsWithdrawn.plus(borrowAssetsRepaid).neg(),
-      oraclePrice,
-      "ExitPosition",
-      event.address,
-      event,
-    );
-  }
+  setProfitLossLineItem(
+    account,
+    vaultShare,
+    underlyingToken,
+    // Negative because we are burning vault shares
+    event.params.vaultSharesBurned.neg(),
+    event.params.profitsWithdrawn.plus(borrowAssetsRepaid).neg(),
+    oraclePrice,
+    "ExitPosition",
+    event.address,
+    event,
+  );
 
   parseVaultEvents(account, event.params.vault, event);
 }
