@@ -108,7 +108,7 @@ export function handleWhitelistedVault(event: WhitelistedVault): void {
     // Create the initial borrow share oracle for the vault / lending router combination. The price
     // is set to 1-1 with the asset.
     let asset = getToken(v.asset().toHexString());
-    let borrowShareOracle = getOracle(borrowShare, asset, "BorrowShareOracleRate");
+    let borrowShareOracle = getOracle(asset, borrowShare, "BorrowShareOracleRate");
     borrowShareOracle.decimals = asset.decimals;
     borrowShareOracle.ratePrecision = asset.precision;
     borrowShareOracle.oracleAddress = Address.fromBytes(r.lendingRouters[i]);

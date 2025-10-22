@@ -65,7 +65,7 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
     if (borrowShare) {
       let latestRate = l.try_convertBorrowSharesToAssets(vault, borrowShare.precision);
       if (latestRate.reverted) continue;
-      let borrowShareOracle = getOracle(borrowShare, asset, "BorrowShareOracleRate");
+      let borrowShareOracle = getOracle(asset, borrowShare, "BorrowShareOracleRate");
       borrowShareOracle.decimals = asset.decimals;
       borrowShareOracle.ratePrecision = asset.precision;
       borrowShareOracle.oracleAddress = l._address;
