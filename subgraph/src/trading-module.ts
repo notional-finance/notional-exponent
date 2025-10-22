@@ -106,6 +106,8 @@ export function handleInitialOracles(block: ethereum.Block): void {
     Address.fromHexString("0xf1c9acdc66974dfb6decb12aa385b9cd01190e38"),
     // crvUSD
     Address.fromHexString("0xf939e0a03fb07f59a73314e73794be0e57ac1b4e"),
+    // sDAI
+    Address.fromHexString("0x83F20F44975D03b1b09e64809B757c47f942BEeA"),
   ];
   let usdBaseAsset = getUSDAsset(event);
 
