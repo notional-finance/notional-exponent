@@ -10,10 +10,33 @@ MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c6
 
 contract FlashLiquidator {
 
+    address private owner;
+
+    constructor() {
+        owner = msg.sender;
+        ERC20 usdc = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        ERC20 weth = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+        usdc.approve(address(MORPHO_LENDING_ROUTER), type(uint256).max);
+        weth.approve(address(MORPHO_LENDING_ROUTER), type(uint256).max);
+        usdc.approve(address(MORPHO), type(uint256).max);
+        weth.approve(address(MORPHO), type(uint256).max);
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+
+    function approve(address asset) external onlyOwner {
+        ERC20(asset).approve(address(MORPHO_LENDING_ROUTER), type(uint256).max);
+        ERC20(asset).approve(address(MORPHO), type(uint256).max);
+    }
+
     function flashLiquidate(
         address vaultAddress,
         address[] memory liquidateAccounts,
         uint256[] memory sharesToLiquidate,
+        uint256[] memory borrowSharesToRepay,
         uint256 assetsToBorrow,
         bytes memory redeemData
     ) external {
@@ -21,7 +44,7 @@ contract FlashLiquidator {
         address asset = vault.asset();
 
         bytes memory flashLoanData = abi.encode(
-            vaultAddress, liquidateAccounts, sharesToLiquidate, redeemData
+            vaultAddress, liquidateAccounts, sharesToLiquidate, borrowSharesToRepay, redeemData
         );
 
         MORPHO.flashLoan(
@@ -46,11 +69,12 @@ contract FlashLiquidator {
             address vaultAddress,
             address[] memory liquidateAccounts,
             uint256[] memory sharesToLiquidate,
+            uint256[] memory borrowSharesToRepay,
             bytes memory redeemData
-        ) = abi.decode(flashLoanData, (address, address[], uint256[], bytes));
+        ) = abi.decode(flashLoanData, (address, address[], uint256[], uint256[], bytes));
 
         for (uint256 i = 0; i < liquidateAccounts.length; i++) {
-            MORPHO_LENDING_ROUTER.liquidate(liquidateAccounts[i], vaultAddress, sharesToLiquidate[i], 0);
+            MORPHO_LENDING_ROUTER.liquidate(liquidateAccounts[i], vaultAddress, sharesToLiquidate[i], borrowSharesToRepay[i]);
         }
 
         IYieldStrategy vault = IYieldStrategy(vaultAddress);

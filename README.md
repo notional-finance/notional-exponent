@@ -400,17 +400,16 @@ python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcde
 
 #### 6. Redeem Vault Shares to Max Leverage
 
-Calculates amount of vault shares to redeem such that account is left at max leverage. Redeems shares and sends asset back to account.
+Calculates the precise amount of vault shares to redeem such that the account is left at maximum leverage. Uses Morpho's exact collateral calculation to determine the optimal redemption amount without requiring a rounding buffer.
 
 **Syntax:**
 ```bash
-python action_runner.py redeem-vault-shares-to-max-leverage <mode> <vault_address> <rounding_buffer> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+python action_runner.py redeem-vault-shares-to-max-leverage <mode> <vault_address> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
 ```
 
 **Arguments (in order):**
 - `mode` - Execution mode: `sim` or `exec`
 - `vault_address` - The vault contract address (0x...)
-- `rounding_buffer` - Rounding buffer for leverage calculation (integer format, e.g., "1000000000")
 - `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals)
 
 **Mode-specific options:**
@@ -424,14 +423,16 @@ python action_runner.py redeem-vault-shares-to-max-leverage <mode> <vault_addres
 **Examples:**
 ```bash
 # Simulation mode (950.0 tokens with 18 decimals)
-python action_runner.py redeem-vault-shares-to-max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py redeem-vault-shares-to-max-leverage sim 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # Execution mode
-python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 
 # With gas estimate multiplier (40% increase)
-python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 1000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
+python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 140
 ```
+
+**Note:** This command now uses precise mathematical calculations based on Morpho's health factor logic, eliminating the need for manual rounding buffers and providing exact leverage calculations.
 
 #### 7. Flash Liquidate
 

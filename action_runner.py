@@ -276,7 +276,7 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
-    def redeem_vault_shares_to_max_leverage(self, vault_address: str, rounding_buffer: str, min_purchase_amount: str, mode: str,
+    def redeem_vault_shares_to_max_leverage(self, vault_address: str, min_purchase_amount: str, mode: str,
                     sender_address: Optional[str] = None, account_name: Optional[str] = None,
                     gas_estimate_multiplier: Optional[int] = None) -> bool:
         """Calculates amount of vault shares to redeem such that account is left at max leverage. Redeems shares and sends asset back to account."""
@@ -284,7 +284,6 @@ class ActionRunner:
             # Validate inputs
             vault_address = InputValidator.validate_address(vault_address)
             mode = InputValidator.validate_mode(mode)
-            rounding_buffer_int = InputValidator.validate_integer_amount(rounding_buffer)
             min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
             
             # Get vault implementation
@@ -295,15 +294,8 @@ class ActionRunner:
             
             print(f"Calculating max leverage for vault {vault_address}")
             
-            # Define scaling for each input
-            value_config = {
-                'rounding_buffer': {'value': rounding_buffer_int, 'scale_type': 'asset'}
-            }
-            
-            # Display and confirm values
-            if not self._display_and_confirm_values(vault, value_config, mode):
-                print("Transaction cancelled by user.")
-                return False
+            # No additional parameters to display for this action
+            print(f"Calculating max leverage for vault {vault_address}")
             
             # Get redeem data
             redeem_data = vault.get_redeem_data(min_purchase_integer)
@@ -314,7 +306,6 @@ class ActionRunner:
             # Build and execute forge command
             forge_cmd = self._build_max_leverage_forge_command(
                 vault_address=vault_address,
-                rounding_buffer=str(rounding_buffer_int),
                 data=redeem_data_hex,
                 mode=mode,
                 sender_address=sender_address,
@@ -1035,14 +1026,14 @@ class ActionRunner:
         
         return cmd
     
-    def _build_max_leverage_forge_command(self, vault_address: str, rounding_buffer: str, data: str, mode: str,
+    def _build_max_leverage_forge_command(self, vault_address: str, data: str, mode: str,
                                         sender_address: Optional[str] = None,
                                         account_name: Optional[str] = None,
                                         gas_estimate_multiplier: Optional[int] = None) -> list[str]:
         """Build forge command arguments for max leverage calculation."""
         cmd = [
             "forge", "script", "script/actions/MaxLeverage.sol",
-            "--sig", "run(address,uint256,bytes)"
+            "--sig", "run(address,bytes)"
         ]
         
         if mode == "sim":
@@ -1063,7 +1054,6 @@ class ActionRunner:
         # Add function arguments
         cmd.extend([
             vault_address,
-            rounding_buffer,
             data
         ])
         
@@ -1336,7 +1326,6 @@ def main():
     max_leverage_parser = subparsers.add_parser('redeem-vault-shares-to-max-leverage', help='Calculates amount of vault shares to redeem such that account is left at max leverage. Redeems shares and sends asset back to account')
     max_leverage_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
     max_leverage_parser.add_argument('vault_address', help='Vault contract address')
-    max_leverage_parser.add_argument('rounding_buffer', help='Rounding buffer for leverage calculation')
     max_leverage_parser.add_argument('min_purchase_amount', help='Minimum purchase amount for slippage protection')
     max_leverage_parser.add_argument('--sender', help='Sender address (for sim mode)')
     max_leverage_parser.add_argument('--account', help='Account name (for exec mode)')
@@ -1514,7 +1503,6 @@ def main():
             
             success = runner.redeem_vault_shares_to_max_leverage(
                 vault_address=args.vault_address,
-                rounding_buffer=args.rounding_buffer,
                 min_purchase_amount=args.min_purchase_amount,
                 mode=args.mode,
                 sender_address=args.sender,

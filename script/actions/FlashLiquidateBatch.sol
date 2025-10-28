@@ -14,33 +14,32 @@ MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c6
 
 FlashLiquidator constant FLASH_LIQUIDATOR = FlashLiquidator(0xD77Ce5587e0dd3b9239C8c0836a3Dc47b9188ACd);
 
-contract FlashLiquidate is Script {
+contract FlashLiquidateBatch is Script {
 
     function run(
         address vaultAddress,
-        address liquidateAccount,
-        uint256 sharesToLiquidate,
+        address[] memory liquidateAccounts,
+        uint256[] memory sharesToLiquidate,
         uint256 assetsToBorrow,
         bytes memory redeemData
     ) public {
         console.log("=== Flash Liquidate Started ===");
         console.log("Vault Address: ", vaultAddress);
-        console.log("Liquidate Account: ", liquidateAccount);
-        console.log("Shares to Liquidate: ", sharesToLiquidate);
+        for (uint256 i = 0; i < liquidateAccounts.length; i++) {
+            console.log("Liquidate Account: ", liquidateAccounts[i]);
+        }
+        for (uint256 i = 0; i < sharesToLiquidate.length; i++) {
+            console.log("Shares to Liquidate: ", sharesToLiquidate[i]);
+        }
         console.log("Assets to Borrow: ", assetsToBorrow);
         console.log("Redeem Data Length: ", redeemData.length);
-
-        address[] memory liquidateAccounts = new address[](1);
-        liquidateAccounts[0] = liquidateAccount;
-        uint256[] memory sharesToLiquidateList = new uint256[](1);
-        sharesToLiquidateList[0] = sharesToLiquidate;
 
         IYieldStrategy vault = IYieldStrategy(vaultAddress);
         ERC20 asset = ERC20(vault.asset());
         uint256 balanceBefore = asset.balanceOf(msg.sender);
 
         vm.startBroadcast();
-        FLASH_LIQUIDATOR.flashLiquidate(vaultAddress, liquidateAccounts, sharesToLiquidateList, assetsToBorrow, redeemData);
+        FLASH_LIQUIDATOR.flashLiquidate(vaultAddress, liquidateAccounts, sharesToLiquidate, assetsToBorrow, redeemData);
         vm.stopBroadcast();
 
         uint256 balanceAfter = asset.balanceOf(msg.sender);
