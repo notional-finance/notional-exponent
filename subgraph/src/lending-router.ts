@@ -31,7 +31,9 @@ function getBorrowSharePrice(
 }
 
 export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
-  return price.times(underlyingToken.precision).div(DEFAULT_PRECISION);
+  // Convert the price to 18 decimals precision
+  let pow: u8 = ((18 - underlyingToken.decimals) as u8) + 12;
+  return price.div(BigInt.fromI32(10).pow(pow));
 }
 
 export function handleEnterPosition(event: EnterPosition): void {

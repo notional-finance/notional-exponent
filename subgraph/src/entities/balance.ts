@@ -564,7 +564,7 @@ export function updateSnapshotMetrics(
         interestAccruedSinceLastSnapshot = interestAccumulator
           .minus(snapshot._lastInterestAccumulator)
           .times(snapshot._accumulatedBalance)
-          .div(DEFAULT_PRECISION);
+          .div(token.precision);
       }
 
       // This is the number of yield tokens per vault share, it is decreasing over time. Convert this
