@@ -181,10 +181,7 @@ export function createSnapshotForIncentives(
     // On vault share decrease apply this adjustment after the above line
     // adjustedClaimed = adjustedClaimed - (prevBalance - currentBalance) * adjustedClaimed / prevBalance
     incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.minus(
-      snapshot.previousBalance
-        .minus(snapshot.currentBalance)
-        .times(incentiveSnapshot.adjustedClaimed)
-        .div(snapshot.previousBalance),
+      previousBalance.minus(currentBalance).times(incentiveSnapshot.adjustedClaimed).div(previousBalance),
     );
   }
 
@@ -497,26 +494,17 @@ export function getPendleInterestAccrued(
   let y = getToken(yieldToken.toHexString());
   let asset = getToken(accountingAsset.toHexString());
 
-  log.info("timeToExpiry: {}", [timeToExpiry.toString()]);
-  log.info("x: {}", [v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toString()]);
-
   let x: f64 =
     (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
     (SECONDS_IN_YEAR.times(RATE_PRECISION).toI64() as f64);
-  log.info("x: {}", [x.toString()]);
 
   let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
   let marginalPtAtMaturity = ptTokens.times(RATE_PRECISION).div(discountFactor);
   // On entry look for the sellToken and on exit look for the buyToken that equals the accounting asset
   let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, event, tokenAmount.gt(BigInt.zero()));
-  log.info("discountFactor: {}", [discountFactor.toString()]);
-  log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
-  log.info("tokenInAmount: {}", [tokenInAmount.toString()]);
   let tokenInAmountScaled = tokenInAmount.times(y.precision).div(asset.precision);
   // This is the new value of the accumulator
   let newInterestAccumulator = marginalPtAtMaturity.minus(tokenInAmountScaled);
-  log.info("tokenInAmountScaled: {}", [tokenInAmountScaled.toString()]);
-  log.info("newInterestAccumulator: {}", [newInterestAccumulator.toString()]);
 
   let timeSinceLastSnapshot = event.block.timestamp.minus(lastSnapshotTimestamp);
   let timeToExpiryBefore = expiry.minus(lastSnapshotTimestamp);
