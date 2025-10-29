@@ -1,6 +1,11 @@
 specVersion: 1.3.0
 indexerHints:
   prune: auto
+features:
+  - grafting
+# graft:
+#   base: QmVtZ8Cv8Vxb8Y69bSyRDJxBxCZkvdCW7YcZT4ruVER6Fw
+#   block: 23683716
 schema:
   file: ./schema.graphql
 dataSources:

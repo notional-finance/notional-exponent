@@ -72,10 +72,11 @@ export function createVault(address: Address, event: ethereum.Event, isWhitelist
   vault.yieldToken = createERC20TokenAsset(yieldStrategy.yieldToken(), event, UNDERLYING).id;
   vault.asset = createERC20TokenAsset(yieldStrategy.asset(), event, UNDERLYING).id;
   vault.strategyType = yieldStrategy.strategy();
+  vault.accountingAsset = createERC20TokenAsset(yieldStrategy.accountingAsset(), event, UNDERLYING).id;
 
   let vaultToken = createERC20TokenAsset(address, event, VAULT_SHARE);
   vault.vaultToken = vaultToken.id;
-  vaultToken.vaultAddress = address;
+  vaultToken.vaultAddress = address.toHexString();
   vaultToken.underlying = vault.asset;
   vaultToken.save();
 

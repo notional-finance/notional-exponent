@@ -110,7 +110,7 @@ export function getBorrowShare(vault: Address, lendingRouter: Address, event: et
   borrowShare.precision = BigInt.fromI32(10).pow(decimals as u8);
   borrowShare.tokenInterface = "ERC1155";
   borrowShare.tokenAddress = lendingRouter;
-  borrowShare.vaultAddress = vault;
+  borrowShare.vaultAddress = vault.toHexString();
   borrowShare.tokenType = "VaultDebt";
   borrowShare.underlying = asset.id;
 

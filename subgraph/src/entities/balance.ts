@@ -356,7 +356,7 @@ export function setProfitLossLineItem(
 
   if (token.tokenType == VAULT_SHARE) {
     // Sets the yield token amount if the token is a vault share
-    let vault = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
+    let vault = IYieldStrategy.bind(Address.fromBytes(Address.fromHexString(token.vaultAddress!)));
     let result = vault.try_convertSharesToYieldToken(tokenAmount.abs());
     if (!result.reverted) {
       lineItem.yieldTokenAmount = result.value;
@@ -414,7 +414,10 @@ function updateBalance(
       snapshot.currentBalance = BigInt.zero();
     } else {
       let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfBorrowShares(accountAddress, Address.fromBytes(token.vaultAddress!));
+      snapshot.currentBalance = l.balanceOfBorrowShares(
+        accountAddress,
+        Address.fromBytes(Address.fromHexString(token.vaultAddress!)),
+      );
     }
   }
 
@@ -527,7 +530,7 @@ export function updateSnapshotMetrics(
   event: ethereum.Event,
 ): void {
   if (token.tokenType == VAULT_SHARE) {
-    let v = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
+    let v = IYieldStrategy.bind(Address.fromBytes(Address.fromHexString(token.vaultAddress!)));
     let y = getToken(v.yieldToken().toHexString());
     let strategy = v.strategy();
 

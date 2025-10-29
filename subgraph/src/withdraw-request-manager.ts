@@ -81,7 +81,7 @@ function updateBalanceSnapshotForWithdrawRequest(
 
   createWithdrawRequestLineItem(
     account,
-    Address.fromBytes(vaultShare.vaultAddress!),
+    Address.fromBytes(Address.fromHexString(vaultShare.vaultAddress!)),
     sharesAmount,
     yieldTokenAmount,
     snapshot.id,
