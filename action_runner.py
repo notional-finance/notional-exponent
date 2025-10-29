@@ -601,6 +601,58 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def deposit_to_morpho(self, vault_address: str, asset_amount: str, mode: str,
+                        sender_address: Optional[str] = None,
+                        account_name: Optional[str] = None,
+                        gas_estimate_multiplier: Optional[int] = None) -> bool:
+        """Execute DepositToMorpho action."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            mode = InputValidator.validate_mode(mode)
+            asset_amount_integer = InputValidator.validate_integer_amount(asset_amount)
+
+            print(f"Depositing to Morpho for vault {vault_address}")
+            print(f"Asset amount: {asset_amount_integer}")
+
+            # Build and execute forge command
+            forge_cmd = self._build_deposit_to_morpho_forge_command(
+                vault_address=vault_address,
+                asset_amount=asset_amount_integer,
+                mode=mode,
+                sender_address=sender_address,
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
+            )
+
+            print("Executing forge command...")
+
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+
+            if result.returncode == 0:
+                print("✓ Successfully deposited to Morpho!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+
     def initiate_withdraw(self, vault_address: str, mode: str,
                         sender_address: Optional[str] = None,
                         account_name: Optional[str] = None,
@@ -957,6 +1009,39 @@ class ActionRunner:
         
         return cmd
     
+    def _build_deposit_to_morpho_forge_command(self, vault_address: str, asset_amount: int, mode: str,
+                                             sender_address: Optional[str] = None,
+                                             account_name: Optional[str] = None,
+                                             gas_estimate_multiplier: Optional[int] = None) -> list[str]:
+        """Build forge command arguments for Morpho deposit."""
+        cmd = [
+            "forge", "script", "script/actions/DepositToMorpho.sol",
+            "--sig", "run(address,uint256)"
+        ]
+
+        if mode == "sim":
+            cmd.extend(["--fork-url", self.rpc_url])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        elif mode == "exec":
+            cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
+            if account_name:
+                cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
+
+        # Add function arguments
+        cmd.extend([
+            vault_address,
+            str(asset_amount)
+        ])
+
+        return cmd
+
     def _build_initiate_withdraw_forge_command(self, vault_address: str, data: str, mode: str,
                                              sender_address: Optional[str] = None,
                                              account_name: Optional[str] = None,
@@ -1313,7 +1398,16 @@ def main():
     morpho_parser.add_argument('--sender', help='Sender address (for sim mode)')
     morpho_parser.add_argument('--account', help='Account name (for exec mode)')
     morpho_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
-    
+
+    # Deposit to Morpho command
+    deposit_morpho_parser = subparsers.add_parser('deposit-to-morpho', help='Deposit assets to Morpho market')
+    deposit_morpho_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
+    deposit_morpho_parser.add_argument('vault_address', help='Vault contract address')
+    deposit_morpho_parser.add_argument('asset_amount', help='Asset amount to deposit (integer, pre-scaled)')
+    deposit_morpho_parser.add_argument('--sender', help='Sender address (for sim mode)')
+    deposit_morpho_parser.add_argument('--account', help='Account name (for exec mode)')
+    deposit_morpho_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
+
     # Initiate withdraw command
     initiate_parser = subparsers.add_parser('initiate-withdraw', help='Initiate withdraw request for vault assets')
     initiate_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
@@ -1465,7 +1559,7 @@ def main():
             if args.mode == 'exec' and not args.account:
                 print("Error: --account is required for exec mode")
                 sys.exit(1)
-            
+
             success = runner.withdraw_from_morpho(
                 vault_address=args.vault_address,
                 shares_amount=args.shares_amount,
@@ -1475,7 +1569,25 @@ def main():
                 gas_estimate_multiplier=args.gas_estimate_multiplier
             )
             sys.exit(0 if success else 1)
-            
+
+        elif args.action == 'deposit-to-morpho':
+            if args.mode == 'sim' and not args.sender:
+                print("Error: --sender is required for sim mode")
+                sys.exit(1)
+            if args.mode == 'exec' and not args.account:
+                print("Error: --account is required for exec mode")
+                sys.exit(1)
+
+            success = runner.deposit_to_morpho(
+                vault_address=args.vault_address,
+                asset_amount=args.asset_amount,
+                mode=args.mode,
+                sender_address=args.sender,
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
+            )
+            sys.exit(0 if success else 1)
+
         elif args.action == 'initiate-withdraw':
             if args.mode == 'sim' and not args.sender:
                 print("Error: --sender is required for sim mode")

@@ -365,7 +365,41 @@ python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890ab
 python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
-#### 5. Initiate Withdraw
+#### 5. Deposit to Morpho
+
+Deposits a specified amount of assets directly to a Morpho market associated with a vault.
+
+**Syntax:**
+```bash
+python action_runner.py deposit-to-morpho <mode> <vault_address> <asset_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` or `exec`
+- `vault_address` - The vault contract address (0x...)
+- `asset_amount` - Asset amount to deposit (integer, pre-scaled to asset decimals)
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required)
+- For `exec` mode: `--account NAME` (required)
+- For `exec` mode: `--sender ADDRESS` (required)
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode (depositing 1000.0 tokens with 18 decimals)
+python action_runner.py deposit-to-morpho sim 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py deposit-to-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# With gas estimate multiplier (25% increase)
+python action_runner.py deposit-to-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
+```
+
+#### 6. Initiate Withdraw
 
 Initiates a withdraw request for vault assets using vault-specific withdraw data.
 
@@ -398,7 +432,7 @@ python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcde
 python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
 ```
 
-#### 6. Redeem Vault Shares to Max Leverage
+#### 7. Redeem Vault Shares to Max Leverage
 
 Calculates the precise amount of vault shares to redeem such that the account is left at maximum leverage. Uses Morpho's exact collateral calculation to determine the optimal redemption amount without requiring a rounding buffer.
 
@@ -434,7 +468,7 @@ python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abc
 
 **Note:** This command now uses precise mathematical calculations based on Morpho's health factor logic, eliminating the need for manual rounding buffers and providing exact leverage calculations.
 
-#### 7. Flash Liquidate
+#### 8. Flash Liquidate
 
 Performs flash liquidation of an account using Morpho's flash loan functionality to liquidate collateral and repay borrowed assets.
 
@@ -471,7 +505,7 @@ python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef1
 python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 1000000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
-#### 8. View Market Details
+#### 9. View Market Details
 
 Queries and displays market parameters for a vault (simulation only).
 
@@ -495,7 +529,7 @@ python action_runner.py view-market-details 0x1234567890abcdef1234567890abcdef12
 python action_runner.py view-market-details 0x1234567890abcdef1234567890abcdef12345678 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 9. View Account Details
+#### 10. View Account Details
 
 Queries and displays account details including balances and health factors for a specific account in a vault (simulation only).
 
@@ -520,7 +554,7 @@ python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef1
 python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 10. Get Vault Decimals
+#### 11. Get Vault Decimals
 
 Retrieves and displays decimal precision information for a vault, including asset decimals, yield token decimals, and vault share decimals.
 
@@ -547,7 +581,7 @@ The command displays a formatted table showing:
 
 This information is useful for understanding the proper scaling when providing integer amounts to other commands.
 
-#### 11. Force Withdraw
+#### 12. Force Withdraw
 
 Forces the withdrawal of vault shares for a specific account.
 
@@ -578,7 +612,7 @@ python action_runner.py force-withdraw sim 0x1234567890abcdef1234567890abcdef123
 python action_runner.py force-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 12. Finalize Withdraw
+#### 13. Finalize Withdraw
 
 Finalizes a previously initiated withdraw request for a specific account.
 
@@ -610,7 +644,7 @@ python action_runner.py finalize-withdraw sim 0x1234567890abcdef1234567890abcdef
 python action_runner.py finalize-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 0xabcdef1234567890abcdef1234567890abcdef12 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 13. Liquidate
+#### 14. Liquidate
 
 Liquidates an account's position in a vault.
 
@@ -642,7 +676,7 @@ python action_runner.py liquidate sim 0x1234567890abcdef1234567890abcdef12345678
 python action_runner.py liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 14. List Supported Vaults
+#### 15. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 

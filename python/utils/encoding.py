@@ -1,4 +1,5 @@
 from eth_abi import encode
+from eth_abi.packed import encode_packed
 
 
 class EncodingHelper:
@@ -45,3 +46,27 @@ class EncodingHelper:
     def bytes_to_hex(data: bytes) -> str:
         """Convert bytes to hex string with 0x prefix."""
         return '0x' + data.hex()
+
+    @staticmethod
+    def encode_single_sided_exit(primary_index: int, min_purchase_amount: int) -> bytes:
+        """Encode RedeemParams struct for single-sided exit.
+
+        Args:
+            primary_index: Index (0 or 1) where min_purchase_amount should be placed
+            min_purchase_amount: Minimum amount expected for slippage control
+
+        Returns:
+            Encoded RedeemParams struct with minAmounts and empty redemptionTrades
+        """
+        # Create minAmounts array with min_purchase_amount at primary_index, 0 at other
+        min_amounts = [0, 0]
+        min_amounts[primary_index] = min_purchase_amount
+
+        # Encode RedeemParams: (uint256[] minAmounts, TradeParams[] redemptionTrades)
+        # TradeParams structure: (uint256 tradeAmount, uint16 dexId, uint8 tradeType,
+        #                         uint256 minPurchaseAmount, bytes exchangeData)
+        # For single-sided exit, redemptionTrades is empty
+        return encode(
+            ['(uint256[],(uint256,uint16,uint8,uint256,bytes)[])'],
+            [(min_amounts, [])]
+        )
