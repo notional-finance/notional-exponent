@@ -57,7 +57,7 @@ contract FlashLiquidator {
         uint256 finalBalance = assetToken.balanceOf(address(this));
         
         if (finalBalance > 0) {
-            assetToken.transfer(msg.sender, finalBalance);
+            assetToken.transfer(owner, finalBalance);
         }
     }
 

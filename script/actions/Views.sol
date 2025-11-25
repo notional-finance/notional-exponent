@@ -86,37 +86,36 @@ contract Views is Script {
             } else {
                 console.log("No Withdraw Request");
             }
-        }
-        // } else if (keccak256(abi.encodePacked(strategy)) == keccak256(abi.encodePacked("CurveConvex2Token"))) {
-        //     address[2] memory tokens = CurveConvex2Token(vaultAddress).TOKENS();
+        } else if (keccak256(abi.encodePacked(strategy)) == keccak256(abi.encodePacked("CurveConvex2Token"))) {
+            ERC20[] memory tokens = CurveConvex2Token(vaultAddress).TOKENS();
             
-        //     // Replace address(0) with WETH
-        //     address token0 = tokens[0] == address(0) ? 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 : tokens[0]; // WETH mainnet
-        //     address token1 = tokens[1] == address(0) ? 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 : tokens[1]; // WETH mainnet
+            // Replace address(0) with WETH
+            address token0 = address(tokens[0]) == address(0) ? 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 : address(tokens[0]); // WETH mainnet
+            address token1 = address(tokens[1]) == address(0) ? 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 : address(tokens[1]); // WETH mainnet
             
-        //     IWithdrawRequestManager wrm_one = ADDRESS_REGISTRY.getWithdrawRequestManager(token0);
-        //     IWithdrawRequestManager wrm_two = ADDRESS_REGISTRY.getWithdrawRequestManager(token1);
+            IWithdrawRequestManager wrm_one = ADDRESS_REGISTRY.getWithdrawRequestManager(token0);
+            IWithdrawRequestManager wrm_two = ADDRESS_REGISTRY.getWithdrawRequestManager(token1);
 
-        //     console.log("WRM One Address: ", address(wrm_one));
-        //     console.log("WRM Two Address: ", address(wrm_two));
-        //     (WithdrawRequest memory w, TokenizedWithdrawRequest memory s) = wrm_one.getWithdrawRequest(vaultAddress, account);
-        //     if (w.requestId != 0) {
-        //         console.log("Withdraw Request One ID: ", w.requestId);
-        //         console.log("Withdraw Request One Yield Token Amount: ", w.yieldTokenAmount);
-        //         console.log("Withdraw Request One Shares Amount: ", w.sharesAmount);
-        //         console.log("Withdraw Request One Finalized: ", s.finalized);
-        //     } else {
-        //         console.log("No Withdraw Request");
-        //     }
-        //     (w, s) = wrm_two.getWithdrawRequest(vaultAddress, account);
-        //     if (w.requestId != 0) {
-        //         console.log("Withdraw Request Two ID: ", w.requestId);
-        //         console.log("Withdraw Request Two Yield Token Amount: ", w.yieldTokenAmount);
-        //         console.log("Withdraw Request Two Shares Amount: ", w.sharesAmount);
-        //         console.log("Withdraw Request Two Finalized: ", s.finalized);
-        //     } else {
-        //         console.log("No Withdraw Request");
-        //     }
-        // }
+            console.log("WRM One Address: ", address(wrm_one));
+            console.log("WRM Two Address: ", address(wrm_two));
+            (WithdrawRequest memory w, TokenizedWithdrawRequest memory s) = wrm_one.getWithdrawRequest(vaultAddress, account);
+            if (w.requestId != 0) {
+                console.log("Withdraw Request One ID: ", w.requestId);
+                console.log("Withdraw Request One Yield Token Amount: ", w.yieldTokenAmount);
+                console.log("Withdraw Request One Shares Amount: ", w.sharesAmount);
+                console.log("Withdraw Request One Finalized: ", s.finalized);
+            } else {
+                console.log("No Withdraw Request");
+            }
+            (w, s) = wrm_two.getWithdrawRequest(vaultAddress, account);
+            if (w.requestId != 0) {
+                console.log("Withdraw Request Two ID: ", w.requestId);
+                console.log("Withdraw Request Two Yield Token Amount: ", w.yieldTokenAmount);
+                console.log("Withdraw Request Two Shares Amount: ", w.sharesAmount);
+                console.log("Withdraw Request Two Finalized: ", s.finalized);
+            } else {
+                console.log("No Withdraw Request");
+            }
+        }
     }
 }

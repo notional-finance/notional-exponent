@@ -138,6 +138,89 @@ class ActionRunner:
             print(f"Unexpected error: {e}")
             return False
     
+    def enter_position(self, vault_address: str, deposit_asset_amount: str,
+                      borrow_amount: str, min_purchase_amount: str, mode: str,
+                      sender_address: Optional[str] = None,
+                      account_name: Optional[str] = None,
+                      gas_estimate_multiplier: Optional[int] = None) -> bool:
+        """Enter position on Notional vault by borrowing from Morpho and depositing to vault."""
+        try:
+            # Validate inputs
+            vault_address = InputValidator.validate_address(vault_address)
+            mode = InputValidator.validate_mode(mode)
+
+            deposit_asset_integer = InputValidator.validate_integer_amount(deposit_asset_amount)
+            borrow_integer = InputValidator.validate_integer_amount(borrow_amount)
+            min_purchase_integer = InputValidator.validate_integer_amount(min_purchase_amount)
+
+            # Get vault implementation
+            vault = self.vault_registry.create_vault(vault_address, self.web3_helper)
+            if not vault:
+                print(f"Error: No vault implementation found for address {vault_address}")
+                print(f"Supported vaults: {self.vault_registry.list_supported_vaults()}")
+                return False
+
+            print(f"Using vault implementation for {vault_address}")
+
+            # Define scaling for each input
+            value_config = {
+                'deposit_asset_amount': {'value': deposit_asset_integer, 'scale_type': 'asset'},
+                'borrow_amount': {'value': borrow_integer, 'scale_type': 'asset'}
+            }
+
+            # Display and confirm values
+            if not self._display_and_confirm_values(vault, value_config, mode):
+                print("Transaction cancelled by user.")
+                return False
+
+            # Get deposit data
+            deposit_data = vault.get_deposit_data(min_purchase_integer)
+            deposit_data_hex = EncodingHelper.bytes_to_hex(deposit_data)
+
+            print(f"Deposit data: {deposit_data_hex}")
+
+            # Build forge command
+            forge_cmd = self._build_enter_position_forge_command(
+                vault_address=vault_address,
+                deposit_asset_amount=deposit_asset_integer,
+                borrow_amount=borrow_integer,
+                data=deposit_data_hex,
+                mode=mode,
+                sender_address=sender_address,
+                account_name=account_name,
+                gas_estimate_multiplier=gas_estimate_multiplier
+            )
+
+            # Execute forge command
+            print("Executing forge command...")
+            print(" ".join(forge_cmd))
+
+            # Set environment variables for forge
+            env = os.environ.copy()
+            if self.etherscan_token:
+                env['ETHERSCAN_TOKEN'] = self.etherscan_token
+            if self.rpc_url:
+                env['RPC_URL'] = self.rpc_url
+
+            result = subprocess.run(forge_cmd, capture_output=True, text=True, env=env)
+
+            if result.returncode == 0:
+                print("✓ Position entered successfully!")
+                print(result.stdout)
+                return True
+            else:
+                print("✗ Error executing forge command:")
+                print("STDOUT:", result.stdout)
+                print("STDERR:", result.stderr)
+                return False
+
+        except ValidationError as e:
+            print(f"Validation error: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            return False
+
     def exit_position_and_max_withdraw_from_morpho(self, vault_address: str, min_purchase_amount: str,
                                  mode: str, sender_address: Optional[str] = None,
                                  account_name: Optional[str] = None,
@@ -229,13 +312,17 @@ class ActionRunner:
             if not self._display_and_confirm_values(vault, value_config, mode):
                 print("Transaction cancelled by user.")
                 return False
-            
+
             # Get redeem data
-            redeem_data = vault.get_redeem_data(min_purchase_integer)
+            # For Pendle vault, pass shares_to_redeem to calculate yield tokens
+            if vault_address.lower() == '0x0e61e810f0918081cbfd2ac8c97e5866daf3f622':
+                redeem_data = vault.get_redeem_data(min_purchase_integer, shares_to_redeem_integer)
+            else:
+                redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
-            
+
             print(f"Redeem data: {redeem_data_hex}")
-            
+
             # Build and execute forge command
             forge_cmd = self._build_exit_position_forge_command(
                 vault_address=vault_address,
@@ -293,12 +380,16 @@ class ActionRunner:
                 return False
             
             print(f"Calculating max leverage for vault {vault_address}")
-            
+
             # No additional parameters to display for this action
             print(f"Calculating max leverage for vault {vault_address}")
-            
+
             # Get redeem data
-            redeem_data = vault.get_redeem_data(min_purchase_integer)
+            # For Pendle vault, pass 0 shares since MaxLeverageExecutor calculates the amount
+            if vault_address.lower() == '0x0e61e810f0918081cbfd2ac8c97e5866daf3f622':
+                redeem_data = vault.get_redeem_data(min_purchase_integer, 0)
+            else:
+                redeem_data = vault.get_redeem_data(min_purchase_integer)
             redeem_data_hex = EncodingHelper.bytes_to_hex(redeem_data)
             
             print(f"Redeem data: {redeem_data_hex}")
@@ -942,7 +1033,43 @@ class ActionRunner:
         ])
         
         return cmd
-    
+
+    def _build_enter_position_forge_command(self, vault_address: str, deposit_asset_amount: int,
+                                           borrow_amount: int, data: str, mode: str,
+                                           sender_address: Optional[str] = None,
+                                           account_name: Optional[str] = None,
+                                           gas_estimate_multiplier: Optional[int] = None) -> list[str]:
+        """Build forge command arguments for enter position."""
+        cmd = [
+            "forge", "script", "script/actions/EnterPosition.sol",
+            "--sig", "run(address,uint256,uint256,bytes)"
+        ]
+
+        if mode == "sim":
+            cmd.extend(["--fork-url", self.rpc_url])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+        elif mode == "exec":
+            cmd.extend(["--rpc-url", self.rpc_url, "--broadcast"])
+            if account_name:
+                cmd.extend(["--account", account_name])
+            if sender_address:
+                cmd.extend(["--sender", sender_address])
+
+        # Add gas estimate multiplier if provided
+        if gas_estimate_multiplier:
+            cmd.extend(["--gas-estimate-multiplier", str(gas_estimate_multiplier)])
+
+        # Add function arguments
+        cmd.extend([
+            vault_address,
+            str(deposit_asset_amount),
+            str(borrow_amount),
+            data
+        ])
+
+        return cmd
+
     def _build_exit_forge_command(self, vault_address: str, data: str, mode: str,
                                 sender_address: Optional[str] = None,
                                 account_name: Optional[str] = None,
@@ -1221,7 +1348,7 @@ class ActionRunner:
         cmd = [
             "forge", "script", "script/actions/Views.sol",
             "--sig", "getMarketDetails(address)",
-            "--fork-url", self.rpc_url
+            "--fork-url", self.rpc_url, "--via-ir"
         ]
         
         if sender_address:
@@ -1238,7 +1365,7 @@ class ActionRunner:
         cmd = [
             "forge", "script", "script/actions/Views.sol",
             "--sig", "getAccountDetails(address,address)",
-            "--fork-url", self.rpc_url
+            "--fork-url", self.rpc_url, "--via-ir"
         ]
         
         if sender_address:
@@ -1369,7 +1496,18 @@ def main():
     create_parser.add_argument('--sender', help='Sender address (for sim mode)')
     create_parser.add_argument('--account', help='Account name (for exec mode)')
     create_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
-    
+
+    # Enter position command
+    enter_parser = subparsers.add_parser('enter-position', help='Enter position on vault by borrowing from Morpho')
+    enter_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
+    enter_parser.add_argument('vault_address', help='Vault contract address')
+    enter_parser.add_argument('deposit_asset_amount', help='Asset amount to deposit to vault')
+    enter_parser.add_argument('borrow_amount', help='Amount to borrow from Morpho')
+    enter_parser.add_argument('min_purchase_amount', help='Minimum purchase amount for slippage protection')
+    enter_parser.add_argument('--sender', help='Sender address (for sim mode)')
+    enter_parser.add_argument('--account', help='Account name (for exec mode)')
+    enter_parser.add_argument('--gas-estimate-multiplier', type=int, help='Gas estimate multiplier (>100, e.g., 150 for 50%% increase)')
+
     # Exit position and withdraw command
     exit_and_withdraw_parser = subparsers.add_parser('exit-position-and-max-withdraw-from-morpho', help='Fully exits notional vault position and withdraws all supplied funds to the morpho market')
     exit_and_withdraw_parser.add_argument('mode', choices=['sim', 'exec'], help='Execution mode')
@@ -1513,7 +1651,27 @@ def main():
                 gas_estimate_multiplier=args.gas_estimate_multiplier
             )
             sys.exit(0 if success else 1)
-            
+
+        elif args.action == 'enter-position':
+            if args.mode == 'sim' and not args.sender:
+                print("Error: --sender is required for sim mode")
+                sys.exit(1)
+            if args.mode == 'exec' and not args.account:
+                print("Error: --account is required for exec mode")
+                sys.exit(1)
+
+            success = runner.enter_position(
+                vault_address=args.vault_address,
+                deposit_asset_amount=args.deposit_asset_amount,
+                borrow_amount=args.borrow_amount,
+                min_purchase_amount=args.min_purchase_amount,
+                mode=args.mode,
+                sender_address=args.sender,
+                account_name=args.account,
+                gas_estimate_multiplier=args.gas_estimate_multiplier
+            )
+            sys.exit(0 if success else 1)
+
         elif args.action == 'exit-position-and-max-withdraw-from-morpho':
             if args.mode == 'sim' and not args.sender:
                 print("Error: --sender is required for sim mode")

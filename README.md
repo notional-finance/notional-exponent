@@ -261,7 +261,43 @@ python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef1
 python action_runner.py create-position exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 2000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 150
 ```
 
-#### 2. Exit Position
+#### 2. Enter Position
+
+Enter position on Notional vault by borrowing from Morpho and depositing to vault (without supplying to Morpho first).
+
+**Syntax:**
+```bash
+python action_runner.py enter-position <mode> <vault_address> <deposit_asset_amount> <borrow_amount> <min_purchase_amount> [--sender ADDRESS] [--account NAME] [--gas-estimate-multiplier MULTIPLIER]
+```
+
+**Arguments (in order):**
+- `mode` - Execution mode: `sim` (simulation) or `exec` (execute on-chain)
+- `vault_address` - The vault contract address (0x...)
+- `deposit_asset_amount` - Asset amount to deposit to vault (integer, pre-scaled to asset decimals, e.g., "1000000000000000000000" for 1000.0 tokens with 18 decimals)
+- `borrow_amount` - Amount to borrow from Morpho (integer, pre-scaled to asset decimals, e.g., "500000000000000000000" for 500.0 tokens with 18 decimals)
+- `min_purchase_amount` - Minimum purchase amount for slippage protection (integer, pre-scaled to asset decimals, e.g., "950000000000000000000")
+
+**Mode-specific options:**
+- For `sim` mode: `--sender ADDRESS` (required) - Address to simulate transaction from
+- For `exec` mode: `--account NAME` (required) - Named account for transaction signing
+- For `exec` mode: `--sender ADDRESS` (required) - Address to send transaction from
+
+**Optional parameters:**
+- `--gas-estimate-multiplier MULTIPLIER` - Gas estimate multiplier (integer >100, e.g., 150 for 50% increase)
+
+**Examples:**
+```bash
+# Simulation mode (amounts pre-scaled for 18 decimal token)
+python action_runner.py enter-position sim 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 500000000000000000000 950000000000000000000 --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# Execution mode
+python action_runner.py enter-position exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
+
+# With gas estimate multiplier (30% increase)
+python action_runner.py enter-position exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
+```
+
+#### 3. Exit Position
 
 Executes an exit position action on a Notional vault.
 
@@ -297,7 +333,7 @@ python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef123
 python action_runner.py exit-position exec 0x1234567890abcdef1234567890abcdef12345678 1500000000000000000000000 500000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
-#### 3. Exit Position and Max Withdraw from Morpho
+#### 4. Exit Position and Max Withdraw from Morpho
 
 Fully exits notional vault position and withdraws all supplied funds to the morpho market.
 
@@ -331,7 +367,7 @@ python action_runner.py exit-position-and-max-withdraw-from-morpho exec 0x123456
 python action_runner.py exit-position-and-max-withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 120
 ```
 
-#### 4. Withdraw from Morpho
+#### 5. Withdraw from Morpho
 
 Withdraws a specified amount of shares from a Morpho market associated with a vault.
 
@@ -365,7 +401,7 @@ python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890ab
 python action_runner.py withdraw-from-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
-#### 5. Deposit to Morpho
+#### 6. Deposit to Morpho
 
 Deposits a specified amount of assets directly to a Morpho market associated with a vault.
 
@@ -399,7 +435,7 @@ python action_runner.py deposit-to-morpho exec 0x1234567890abcdef1234567890abcde
 python action_runner.py deposit-to-morpho exec 0x1234567890abcdef1234567890abcdef12345678 1000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
 ```
 
-#### 6. Initiate Withdraw
+#### 7. Initiate Withdraw
 
 Initiates a withdraw request for vault assets using vault-specific withdraw data.
 
@@ -432,7 +468,7 @@ python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcde
 python action_runner.py initiate-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 125
 ```
 
-#### 7. Redeem Vault Shares to Max Leverage
+#### 8. Redeem Vault Shares to Max Leverage
 
 Calculates the precise amount of vault shares to redeem such that the account is left at maximum leverage. Uses Morpho's exact collateral calculation to determine the optimal redemption amount without requiring a rounding buffer.
 
@@ -468,7 +504,7 @@ python action_runner.py redeem-vault-shares-to-max-leverage exec 0x1234567890abc
 
 **Note:** This command now uses precise mathematical calculations based on Morpho's health factor logic, eliminating the need for manual rounding buffers and providing exact leverage calculations.
 
-#### 8. Flash Liquidate
+#### 9. Flash Liquidate
 
 Performs flash liquidation of an account using Morpho's flash loan functionality to liquidate collateral and repay borrowed assets.
 
@@ -505,7 +541,7 @@ python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef1
 python action_runner.py flash-liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 1000000000000000000000 950000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12 --gas-estimate-multiplier 130
 ```
 
-#### 9. View Market Details
+#### 10. View Market Details
 
 Queries and displays market parameters for a vault (simulation only).
 
@@ -529,7 +565,7 @@ python action_runner.py view-market-details 0x1234567890abcdef1234567890abcdef12
 python action_runner.py view-market-details 0x1234567890abcdef1234567890abcdef12345678 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 10. View Account Details
+#### 11. View Account Details
 
 Queries and displays account details including balances and health factors for a specific account in a vault (simulation only).
 
@@ -554,7 +590,7 @@ python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef1
 python action_runner.py view-account-details 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 11. Get Vault Decimals
+#### 12. Get Vault Decimals
 
 Retrieves and displays decimal precision information for a vault, including asset decimals, yield token decimals, and vault share decimals.
 
@@ -581,7 +617,7 @@ The command displays a formatted table showing:
 
 This information is useful for understanding the proper scaling when providing integer amounts to other commands.
 
-#### 12. Force Withdraw
+#### 13. Force Withdraw
 
 Forces the withdrawal of vault shares for a specific account.
 
@@ -612,7 +648,7 @@ python action_runner.py force-withdraw sim 0x1234567890abcdef1234567890abcdef123
 python action_runner.py force-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 13. Finalize Withdraw
+#### 14. Finalize Withdraw
 
 Finalizes a previously initiated withdraw request for a specific account.
 
@@ -644,7 +680,7 @@ python action_runner.py finalize-withdraw sim 0x1234567890abcdef1234567890abcdef
 python action_runner.py finalize-withdraw exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 0xabcdef1234567890abcdef1234567890abcdef12 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 14. Liquidate
+#### 15. Liquidate
 
 Liquidates an account's position in a vault.
 
@@ -676,7 +712,7 @@ python action_runner.py liquidate sim 0x1234567890abcdef1234567890abcdef12345678
 python action_runner.py liquidate exec 0x1234567890abcdef1234567890abcdef12345678 0x9876543210fedcba9876543210fedcba98765432 2000000000000000000000000 --account my-wallet --sender 0xabcdef1234567890abcdef1234567890abcdef12
 ```
 
-#### 15. List Supported Vaults
+#### 16. List Supported Vaults
 
 Shows all vault addresses that have registered implementations.
 
