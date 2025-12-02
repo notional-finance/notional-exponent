@@ -160,7 +160,13 @@
     "type": "function",
     "name": "collectFees",
     "inputs": [],
-    "outputs": [],
+    "outputs": [
+      {
+        "name": "feesCollected",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable"
   },
   {

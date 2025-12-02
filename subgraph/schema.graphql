@@ -61,7 +61,7 @@ type Token @entity(immutable: false) {
   "Maturities are only set for some token types"
   maturity: BigInt
   "Vault address is set for vault token types"
-  vaultAddress: Bytes
+  vaultAddress: Vault
 
   "Set to the ERC20 address or Notional Proxy for ERC1155 addresses"
   tokenAddress: Bytes!
@@ -86,6 +86,8 @@ type ProfitLossLineItem @entity(immutable: true) {
   tokenAmount: BigInt!
   underlyingAmountRealized: BigInt!
   underlyingAmountSpot: BigInt!
+  "Amount of yield tokens if token amount is a vault share"
+  yieldTokenAmount: BigInt
 
   realizedPrice: BigInt!
   spotPrice: BigInt!
@@ -115,7 +117,9 @@ type Account @entity(immutable: false) {
 enum OracleType {
   Chainlink
   VaultShareOracleRate
-  VaultShareInterestAccrued
+  VaultFeeAccrualRate
+  BorrowShareOracleRate
+  WithdrawTokenExchangeRate
 }
 
 type OracleRegistry @entity(immutable: false) {
@@ -152,7 +156,7 @@ type Oracle @entity(immutable: false) {
   historicalRates: [ExchangeRate!] @derivedFrom(field: "oracle")
 }
 
-type ExchangeRate @entity(timeseries: true) {
+type ExchangeRate @entity(immutable: true) {
   "External Oracle ID:Timestamp"
   id: ID!
   blockNumber: BigInt!
@@ -183,12 +187,19 @@ type Vault @entity(immutable: false) {
   yieldToken: Token!
   "Token that represents the vault"
   vaultToken: Token!
+  "Token that the vault uses for accounting"
+  accountingAsset: Token!
 
   "Fee rate of the vault"
   feeRate: BigInt!
 
+  "Strategy type of the vault"
+  strategyType: String!
+
   withdrawRequestManagers: [WithdrawRequestManager!]!
   withdrawRequests: [WithdrawRequest!] @derivedFrom(field: "vault")
+
+  markets: [Market!] @derivedFrom(field: "vault")
 }
 
 type LendingRouter @entity(immutable: false) {
@@ -200,6 +211,29 @@ type LendingRouter @entity(immutable: false) {
   lastUpdateBlockNumber: BigInt!
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
+
+  name: String!
+
+  markets: [Market!] @derivedFrom(field: "lendingRouter")
+}
+
+"Only set on the first entry for a lending router / vault combination"
+type Market @entity(immutable: false) {
+  "Vault:LendingRouter"
+  id: ID!
+  firstUpdateBlockNumber: BigInt!
+  firstUpdateTimestamp: Int!
+  firstUpdateTransactionHash: Bytes!
+
+  lastUpdateBlockNumber: BigInt!
+  lastUpdateTimestamp: Int!
+  lastUpdateTransactionHash: Bytes!
+
+  lendingRouter: LendingRouter!
+  vault: Vault!
+
+  "Generic abi-encoded params for the market"
+  params: Bytes!
 }
 
 type WithdrawRequestManager @entity(immutable: false) {
@@ -240,9 +274,14 @@ type Balance @entity(immutable: false) {
   lastUpdateTransactionHash: Bytes!
 
   current: BalanceSnapshot!
+
+  lendingRouter: LendingRouter
+
+  _lastIncentiveSnapshotBlockNumber: BigInt
   "Link to the withdraw requests that this balance is associated with"
   withdrawRequest: [WithdrawRequest!]
   snapshots: [BalanceSnapshot!] @derivedFrom(field: "balance")
+  incentives: [IncentiveSnapshot!] @derivedFrom(field: "balance")
 }
 
 type BalanceSnapshot @entity(immutable: true) {
@@ -284,8 +323,6 @@ type BalanceSnapshot @entity(immutable: true) {
   _lastVaultFeeAccumulator: BigInt!
 
   profitLossLineItems: [ProfitLossLineItem!] @derivedFrom(field: "balanceSnapshot")
-  "Snapshots of the secondary incentives"
-  incentives: [IncentiveSnapshot!] @derivedFrom(field: "balanceSnapshot")
 }
 
 type WithdrawRequest @entity(immutable: false) {
@@ -350,8 +387,14 @@ type IncentiveSnapshot @entity(immutable: true) {
   timestamp: Int!
   transactionHash: Bytes!
 
-  "Link back to the balance snapshot for this secondary incentive"
-  balanceSnapshot: BalanceSnapshot!
+  "Address of the account that holds this balance"
+  account: Account!
+
+  "Link back to the balance for this secondary incentive"
+  balance: Balance!
+
+  "Link back to the previous incentive snapshot"
+  previousIncentiveSnapshot: IncentiveSnapshot
 
   "Reward token associated with this snapshot"
   rewardToken: Token!
@@ -360,6 +403,8 @@ type IncentiveSnapshot @entity(immutable: true) {
   totalClaimed: BigInt!
   "Reward earnings adjusted for balance changes"
   adjustedClaimed: BigInt!
+  "Claimed amount in the current transaction"
+  amountClaimed: BigInt!
 }
 
 ### Trading Module ###
@@ -388,7 +433,7 @@ type TradingModulePermission @entity(immutable: false) {
   lastUpdateTimestamp: Int!
   lastUpdateTransactionHash: Bytes!
 
-  sender: Account!
+  sender: Bytes!
   token: Token
   tokenAddress: Bytes!
   name: String!

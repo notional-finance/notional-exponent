@@ -1,4 +1,4 @@
-import { ethereum, BigInt, log, Address, ByteArray, crypto } from "@graphprotocol/graph-ts";
+import { ethereum, BigInt, log, Address, ByteArray, crypto, Bytes } from "@graphprotocol/graph-ts";
 import {
   Account,
   Balance,
@@ -8,6 +8,7 @@ import {
   Token,
 } from "../../generated/schema";
 import {
+  ADDRESS_REGISTRY,
   DEFAULT_PRECISION,
   RATE_PRECISION,
   SECONDS_IN_YEAR,
@@ -22,6 +23,22 @@ import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
 import { ITradingModule } from "../../generated/AddressRegistry/ITradingModule";
 import { IPPrincipalToken } from "../../generated/AddressRegistry/IPPrincipalToken";
 import { getToken } from "./token";
+import { AddressRegistry } from "../../generated/AddressRegistry/AddressRegistry";
+import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
+
+function getVaultShareBalance(balance: Balance): BigInt {
+  if (balance.lendingRouter === null) {
+    // Get the balance using the native balance on the vault
+    let v = IERC20Metadata.bind(Address.fromBytes(Address.fromHexString(balance.token)));
+    return v.balanceOf(Address.fromBytes(Address.fromHexString(balance.account)));
+  } else {
+    let l = ILendingRouter.bind(Address.fromBytes(Address.fromHexString(balance.lendingRouter as string)));
+    return l.balanceOfCollateral(
+      Address.fromBytes(Address.fromHexString(balance.account)),
+      Address.fromBytes(Address.fromHexString(balance.token)),
+    );
+  }
+}
 
 export function getBalanceSnapshot(balance: Balance, event: ethereum.Event): BalanceSnapshot {
   let id = balance.id + ":" + event.block.number.toString();
@@ -114,42 +131,62 @@ export function createSnapshotForIncentives(
   let balanceId = account.id + ":" + vaultAddress.toHexString();
   let balance = Balance.load(balanceId);
   if (balance === null) return;
+  let incentiveSnapshotId = balance.id + ":" + event.block.number.toString() + ":" + rewardToken.toHexString();
 
-  let snapshot = getBalanceSnapshot(balance, event);
-  let id = snapshot.id + ":" + rewardToken.toHexString();
-
-  let incentiveSnapshot = new IncentiveSnapshot(id);
-  incentiveSnapshot.blockNumber = snapshot.blockNumber;
-  incentiveSnapshot.timestamp = snapshot.timestamp;
-  incentiveSnapshot.transactionHash = snapshot.transactionHash;
-  incentiveSnapshot.balanceSnapshot = snapshot.id;
+  let incentiveSnapshot = new IncentiveSnapshot(incentiveSnapshotId);
+  incentiveSnapshot.blockNumber = event.block.number;
+  incentiveSnapshot.timestamp = event.block.timestamp.toI32();
+  incentiveSnapshot.transactionHash = event.transaction.hash;
+  incentiveSnapshot.balance = balance.id;
   incentiveSnapshot.rewardToken = rewardToken.toHexString();
+  incentiveSnapshot.account = account.id;
+  incentiveSnapshot.amountClaimed = amount;
 
   incentiveSnapshot.totalClaimed = BigInt.zero();
   incentiveSnapshot.adjustedClaimed = BigInt.zero();
 
-  if (snapshot.previousSnapshot) {
-    let prevSnapshot = IncentiveSnapshot.load((snapshot.previousSnapshot as string) + ":" + rewardToken.toHexString());
-
-    if (prevSnapshot) {
-      incentiveSnapshot.totalClaimed = prevSnapshot.totalClaimed;
-      incentiveSnapshot.adjustedClaimed = prevSnapshot.adjustedClaimed;
+  if (balance._lastIncentiveSnapshotBlockNumber) {
+    let previousIncentiveSnapshotId =
+      balance.id +
+      ":" +
+      (balance._lastIncentiveSnapshotBlockNumber as BigInt).toString() +
+      ":" +
+      rewardToken.toHexString();
+    let previousIncentiveSnapshot = IncentiveSnapshot.load(previousIncentiveSnapshotId);
+    if (previousIncentiveSnapshot) {
+      incentiveSnapshot.previousIncentiveSnapshot = previousIncentiveSnapshotId;
+      incentiveSnapshot.totalClaimed = previousIncentiveSnapshot.totalClaimed;
+      incentiveSnapshot.adjustedClaimed = previousIncentiveSnapshot.adjustedClaimed;
     }
   }
 
   incentiveSnapshot.totalClaimed = incentiveSnapshot.totalClaimed.plus(amount);
   incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.plus(amount);
-  if (snapshot.currentBalance.lt(snapshot.previousBalance)) {
+
+  let snapshot = BalanceSnapshot.load(balance.current);
+  let currentBalance = BigInt.zero();
+  let previousBalance = BigInt.zero();
+  if (snapshot === null) return;
+  if (snapshot.blockNumber.equals(event.block.number)) {
+    // In this case the snapshot is up to date.
+    currentBalance = snapshot.currentBalance;
+    previousBalance = snapshot.previousBalance;
+  } else {
+    // In this case the snapshot is not up to date and we fetch the latest balance
+    currentBalance = getVaultShareBalance(balance);
+    previousBalance = snapshot.currentBalance;
+  }
+
+  if (currentBalance.lt(previousBalance)) {
     // On vault share decrease apply this adjustment after the above line
     // adjustedClaimed = adjustedClaimed - (prevBalance - currentBalance) * adjustedClaimed / prevBalance
     incentiveSnapshot.adjustedClaimed = incentiveSnapshot.adjustedClaimed.minus(
-      snapshot.previousBalance
-        .minus(snapshot.currentBalance)
-        .times(incentiveSnapshot.adjustedClaimed)
-        .div(snapshot.previousBalance),
+      previousBalance.minus(currentBalance).times(incentiveSnapshot.adjustedClaimed).div(previousBalance),
     );
   }
 
+  balance._lastIncentiveSnapshotBlockNumber = event.block.number;
+  balance.save();
   incentiveSnapshot.save();
 }
 
@@ -169,18 +206,19 @@ export function createTradeExecutionLineItem(
   lineItem.blockNumber = event.block.number;
   lineItem.timestamp = event.block.timestamp.toI32();
   lineItem.transactionHash = event.transaction.hash;
-  lineItem.token = sellToken.id;
+  lineItem.token = buyToken.id;
   lineItem.account = account.id;
-  lineItem.underlyingToken = buyToken.id;
+  lineItem.underlyingToken = sellToken.id;
 
-  lineItem.tokenAmount = sellAmount;
-  lineItem.underlyingAmountRealized = buyAmount;
+  lineItem.tokenAmount = buyAmount;
+  lineItem.underlyingAmountRealized = sellAmount;
   // Spot prices are not known on chain for trades
   lineItem.underlyingAmountSpot = BigInt.zero();
   lineItem.spotPrice = BigInt.zero();
 
   if (sellAmount.gt(BigInt.zero())) {
-    lineItem.realizedPrice = buyAmount.times(sellToken.precision).div(sellAmount);
+    // NOTE: this is in underlying token precision (sellToken)
+    lineItem.realizedPrice = sellAmount.times(buyToken.precision).div(buyAmount);
   } else {
     lineItem.realizedPrice = BigInt.zero();
   }
@@ -214,6 +252,7 @@ export function createWithdrawRequestLineItem(
     vaultAddress.toHexString();
   let v = IYieldStrategy.bind(Address.fromBytes(vaultAddress));
   let y = getToken(v.yieldToken().toHexString());
+  let vToken = getToken(vaultAddress.toHexString());
 
   let lineItem = new ProfitLossLineItem(id);
   lineItem.blockNumber = event.block.number;
@@ -232,11 +271,8 @@ export function createWithdrawRequestLineItem(
     lineItem.underlyingAmountSpot = lineItem.underlyingAmountSpot.neg();
   }
 
-  lineItem.realizedPrice = yieldTokenAmount
-    .times(DEFAULT_PRECISION)
-    .times(DEFAULT_PRECISION)
-    .div(vaultShares)
-    .div(y.precision);
+  // This is in underlying token precision (yieldToken)
+  lineItem.realizedPrice = yieldTokenAmount.times(vToken.precision).div(vaultShares);
 
   lineItem.lineItemType = "WithdrawRequest";
   lineItem.balanceSnapshot = balanceSnapshotId;
@@ -275,11 +311,9 @@ export function createWithdrawRequestFinalizedLineItem(
 
   lineItem.tokenAmount = yieldTokenAmount;
   lineItem.underlyingAmountRealized = withdrawTokenAmount;
-  lineItem.realizedPrice = withdrawTokenAmount
-    .times(DEFAULT_PRECISION)
-    .times(y.precision)
-    .div(yieldTokenAmount)
-    .div(withdrawToken.precision);
+
+  // This is in underlying token precision (withdrawToken)
+  lineItem.realizedPrice = withdrawTokenAmount.times(y.precision).div(yieldTokenAmount);
   lineItem.spotPrice = BigInt.zero();
   lineItem.underlyingAmountSpot = BigInt.zero();
 
@@ -320,13 +354,18 @@ export function setProfitLossLineItem(
     .div(token.precision);
   lineItem.spotPrice = spotPrice;
 
+  if (token.tokenType == VAULT_SHARE) {
+    // Sets the yield token amount if the token is a vault share
+    let vault = IYieldStrategy.bind(Address.fromBytes(Address.fromHexString(token.vaultAddress!)));
+    let result = vault.try_convertSharesToYieldToken(tokenAmount.abs());
+    if (!result.reverted) {
+      lineItem.yieldTokenAmount = result.value;
+    }
+  }
+
   if (tokenAmount.notEqual(BigInt.zero())) {
-    // This is reported in DEFAULT_PRECISION
-    lineItem.realizedPrice = underlyingAmountRealized
-      .times(DEFAULT_PRECISION)
-      .times(token.precision)
-      .div(tokenAmount)
-      .div(underlyingToken.precision);
+    // This is reported in underlying token precision
+    lineItem.realizedPrice = underlyingAmountRealized.times(token.precision).div(tokenAmount);
   } else {
     lineItem.realizedPrice = BigInt.zero();
   }
@@ -362,21 +401,23 @@ function updateBalance(
   let accountAddress = Address.fromBytes(Address.fromHexString(account.id));
   let snapshot = getBalanceSnapshot(balance, event);
 
+  if (lendingRouter == ZERO_ADDRESS) {
+    balance.lendingRouter = null;
+  } else {
+    balance.lendingRouter = lendingRouter.toHexString();
+  }
+
   if (token.tokenType == VAULT_SHARE && token.vaultAddress !== null) {
-    if (lendingRouter == ZERO_ADDRESS) {
-      // Get the balance using the native balance on the vault
-      let v = IERC20Metadata.bind(Address.fromBytes(token.vaultAddress!));
-      snapshot.currentBalance = v.balanceOf(accountAddress);
-    } else {
-      let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfCollateral(accountAddress, Address.fromBytes(token.vaultAddress!));
-    }
+    snapshot.currentBalance = getVaultShareBalance(balance);
   } else if (token.tokenType == VAULT_DEBT && token.vaultAddress !== null) {
     if (lendingRouter == ZERO_ADDRESS) {
       snapshot.currentBalance = BigInt.zero();
     } else {
       let l = ILendingRouter.bind(lendingRouter);
-      snapshot.currentBalance = l.balanceOfBorrowShares(accountAddress, Address.fromBytes(token.vaultAddress!));
+      snapshot.currentBalance = l.balanceOfBorrowShares(
+        accountAddress,
+        Address.fromBytes(Address.fromHexString(token.vaultAddress!)),
+      );
     }
   }
 
@@ -389,8 +430,8 @@ function updateBalance(
 function findPendleTokenInAmount(
   vaultAddress: Address,
   tokenInSy: Address,
-  ptToken: Address,
   event: ethereum.Event,
+  isEntry: boolean,
 ): BigInt {
   if (event.receipt === null) return BigInt.zero();
 
@@ -399,14 +440,15 @@ function findPendleTokenInAmount(
     if (_log.address.toHexString() != vaultAddress.toHexString()) continue;
 
     if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
-      let sellToken = Address.fromBytes(_log.topics[1]);
-      let buyToken = Address.fromBytes(_log.topics[2]);
+      let sellToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+      let buyToken = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
       let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
       let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 
-      if (sellToken == tokenInSy && buyToken == ptToken) {
+      // Only look for the tokenInSy on the sell side if it is an entry, buyToken on exit
+      if (sellToken == tokenInSy && isEntry) {
         return sellAmount;
-      } else if (sellToken == ptToken && buyToken == tokenInSy) {
+      } else if (buyToken == tokenInSy && !isEntry) {
         return buyAmount;
       }
     }
@@ -415,52 +457,67 @@ function findPendleTokenInAmount(
   return BigInt.zero();
 }
 
-function getInterestAccumulator(
-  v: IYieldStrategy,
-  tokenAmount: BigInt,
-  strategy: string,
-  event: ethereum.Event,
-): BigInt {
+function getInterestAccumulator(v: IYieldStrategy, strategy: string): BigInt {
   let yieldToken = v.yieldToken();
   let accountingAsset = v.accountingAsset();
   let t = ITradingModule.bind(Address.fromBytes(TRADING_MODULE));
 
   if (strategy == "Staking") {
+    let r = AddressRegistry.bind(changetype<Address>(ADDRESS_REGISTRY));
+    let wrm = r.getWithdrawRequestManager(yieldToken);
+    if (wrm != Address.zero()) {
+      let w = IWithdrawRequestManager.bind(wrm);
+      let r = w.try_getExchangeRate();
+      if (!r.reverted) {
+        return r.value;
+      }
+    }
+
     return t.getOraclePrice(yieldToken, accountingAsset).getAnswer();
-  } else if (strategy == "PendlePT") {
-    let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
-    let expiry = pt.expiry();
-    let timeToExpiry = expiry.minus(event.block.timestamp);
-    let ptTokens = v.convertSharesToYieldToken(tokenAmount);
-    let y = getToken(yieldToken.toHexString());
-    let asset = getToken(accountingAsset.toHexString());
-
-    log.info("timeToExpiry: {}", [timeToExpiry.toString()]);
-    log.info("x: {}", [v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toString()]);
-
-    let x: f64 =
-      (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
-      (SECONDS_IN_YEAR.times(RATE_PRECISION).toI64() as f64);
-    log.info("x: {}", [x.toString()]);
-
-    let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
-    let marginalPtAtMaturity = ptTokens.times(RATE_PRECISION).div(discountFactor);
-    let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, yieldToken, event);
-    log.info("discountFactor: {}", [discountFactor.toString()]);
-    log.info("marginalPtAtMaturity: {}", [marginalPtAtMaturity.toString()]);
-    log.info("tokenInAmount: {}", [tokenInAmount.toString()]);
-    let tokenInAmountScaled = tokenInAmount.times(y.precision).div(asset.precision);
-    let marginalRemainingInterest = marginalPtAtMaturity.minus(tokenInAmountScaled);
-    log.info("tokenInAmountScaled: {}", [tokenInAmountScaled.toString()]);
-    log.info("marginalRemainingInterest: {}", [marginalRemainingInterest.toString()]);
-    // TODO: is the ratio upside down?
-    let acc = marginalRemainingInterest.times(SECONDS_IN_YEAR).div(timeToExpiry);
-    log.info("acc: {}", [acc.toString()]);
-    return acc;
   } else {
     // NOTE: this can go negative if the price goes down.
     return v.convertToAssets(DEFAULT_PRECISION);
   }
+}
+
+export function getPendleInterestAccrued(
+  v: IYieldStrategy,
+  tokenAmount: BigInt,
+  lastInterestAccumulator: BigInt,
+  lastSnapshotTimestamp: BigInt,
+  event: ethereum.Event,
+): BigInt[] {
+  let yieldToken = v.yieldToken();
+  let accountingAsset = v.accountingAsset();
+
+  let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
+  let expiry = pt.expiry();
+  let timeToExpiry = expiry.minus(event.block.timestamp);
+  // This must be a positive number, it can be negative on exit
+  let ptTokens = v.convertSharesToYieldToken(tokenAmount.abs());
+  let y = getToken(yieldToken.toHexString());
+  let asset = getToken(accountingAsset.toHexString());
+
+  let x: f64 =
+    (v.feeRate().times(RATE_PRECISION).times(timeToExpiry).div(DEFAULT_PRECISION).toI64() as f64) /
+    (SECONDS_IN_YEAR.times(RATE_PRECISION).toI64() as f64);
+
+  let discountFactor = BigInt.fromI64(Math.floor(Math.exp(x) * (RATE_PRECISION.toI64() as f64)) as i64);
+  let marginalPtAtMaturity = ptTokens.times(RATE_PRECISION).div(discountFactor);
+  // On entry look for the sellToken and on exit look for the buyToken that equals the accounting asset
+  let tokenInAmount = findPendleTokenInAmount(v._address, accountingAsset, event, tokenAmount.gt(BigInt.zero()));
+  let tokenInAmountScaled = tokenInAmount.times(y.precision).div(asset.precision);
+  // This is the new value of the accumulator
+  let newInterestAccumulator = marginalPtAtMaturity.minus(tokenInAmountScaled);
+
+  let timeSinceLastSnapshot = event.block.timestamp.minus(lastSnapshotTimestamp);
+  let timeToExpiryBefore = expiry.minus(lastSnapshotTimestamp);
+  // Use the minimum of the time since the last snapshot and the time to expiry
+  let interestAccrueTime = timeSinceLastSnapshot.lt(timeToExpiryBefore) ? timeSinceLastSnapshot : timeToExpiryBefore;
+  let interestAccrued = lastInterestAccumulator.times(interestAccrueTime).div(timeToExpiryBefore);
+  // Adjust the new interest accumulator based on the interest accrued since the last snapshot
+  newInterestAccumulator = newInterestAccumulator.plus(lastInterestAccumulator).minus(interestAccrued);
+  return [interestAccrued, newInterestAccumulator];
 }
 
 export function updateSnapshotMetrics(
@@ -474,42 +531,49 @@ export function updateSnapshotMetrics(
   event: ethereum.Event,
 ): void {
   if (token.tokenType == VAULT_SHARE) {
-    let v = IYieldStrategy.bind(Address.fromBytes(token.vaultAddress!));
+    let v = IYieldStrategy.bind(Address.fromBytes(Address.fromHexString(token.vaultAddress!)));
     let y = getToken(v.yieldToken().toHexString());
     let strategy = v.strategy();
 
     let interestAccumulator: BigInt;
     let vaultFeeAccumulator: BigInt;
+    let interestAccruedSinceLastSnapshot: BigInt;
+    let vaultFeesAccruedSinceLastSnapshot: BigInt;
     if (balance.withdrawRequest === null) {
-      // This is the value of one vault share in the underlying token.
-      // the problem is that this includes both interest accrued as well as some
-      // aspects of mark to market pnl.
-      interestAccumulator = getInterestAccumulator(v, tokenAmount, strategy, event);
-
       if (strategy == "PendlePT") {
-        interestAccumulator = snapshot._lastInterestAccumulator.plus(interestAccumulator);
-        snapshot._lastInterestAccumulator = BigInt.zero();
+        let r = getPendleInterestAccrued(
+          v,
+          tokenAmount,
+          snapshot._lastInterestAccumulator,
+          BigInt.fromI32(snapshot.timestamp),
+          event,
+        );
+        interestAccruedSinceLastSnapshot = r[0];
+        interestAccumulator = r[1];
+      } else {
+        interestAccumulator = getInterestAccumulator(v, strategy);
+        // This accumulator is in the underlying basis.
+        interestAccruedSinceLastSnapshot = interestAccumulator
+          .minus(snapshot._lastInterestAccumulator)
+          .times(snapshot._accumulatedBalance)
+          .div(token.precision);
       }
 
       // This is the number of yield tokens per vault share, it is decreasing over time. Convert this
       // to default precision
       vaultFeeAccumulator = v.convertSharesToYieldToken(DEFAULT_PRECISION).times(DEFAULT_PRECISION).div(y.precision);
+      // This accumulator is in a yield token basis.
+      vaultFeesAccruedSinceLastSnapshot = snapshot._lastVaultFeeAccumulator
+        .minus(vaultFeeAccumulator)
+        .times(snapshot._accumulatedBalance)
+        .div(DEFAULT_PRECISION);
     } else {
       // Pause the interest accrual and vault fees accrual during a withdraw request
       interestAccumulator = snapshot._lastInterestAccumulator;
+      interestAccruedSinceLastSnapshot = BigInt.zero();
       vaultFeeAccumulator = snapshot._lastVaultFeeAccumulator;
+      vaultFeesAccruedSinceLastSnapshot = BigInt.zero();
     }
-
-    // This accumulator is in the underlying basis.
-    let interestAccruedSinceLastSnapshot = interestAccumulator
-      .minus(snapshot._lastInterestAccumulator)
-      .times(snapshot._accumulatedBalance)
-      .div(DEFAULT_PRECISION);
-    // This accumulator is in a yield token basis.
-    let vaultFeesAccruedSinceLastSnapshot = snapshot._lastVaultFeeAccumulator
-      .minus(vaultFeeAccumulator)
-      .times(snapshot._accumulatedBalance)
-      .div(DEFAULT_PRECISION);
 
     snapshot.totalInterestAccrualAtSnapshot = snapshot.totalInterestAccrualAtSnapshot.plus(
       interestAccruedSinceLastSnapshot,
@@ -538,7 +602,14 @@ export function updateSnapshotMetrics(
   snapshot._accumulatedBalance = snapshot._accumulatedBalance.plus(tokenAmount);
 
   // This is the total realized cost of the balance in the underlying (i.e. asset token)
-  snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(underlyingAmountRealized);
+  if (tokenAmount.lt(BigInt.zero()) && snapshot.previousBalance.gt(BigInt.zero())) {
+    // Scale down the cost basis when the token amount decreases
+    snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized
+      .times(snapshot.currentBalance)
+      .div(snapshot.previousBalance);
+  } else {
+    snapshot._accumulatedCostRealized = snapshot._accumulatedCostRealized.plus(underlyingAmountRealized);
+  }
 
   // This is the average cost basis of the balance in the underlying token precision
   if (snapshot._accumulatedBalance.gt(BigInt.zero())) {

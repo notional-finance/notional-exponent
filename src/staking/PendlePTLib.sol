@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../interfaces/IPendle.sol";
-import "../utils/Constants.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "../utils/TokenUtils.sol";
+import { IPRouter, IPPrincipalToken, IPYieldToken, IStandardizedYield, PENDLE_ROUTER } from "../interfaces/IPendle.sol";
+import { ETH_ADDRESS } from "../utils/Constants.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 
 struct PendleDepositData {
     uint256 minPtOut;
@@ -26,7 +26,9 @@ library PendlePTLib {
         address pt,
         uint256 tokenInAmount,
         bytes calldata pendleData
-    ) external {
+    )
+        external
+    {
         ERC20(tokenInSy).checkApprove(address(PENDLE_ROUTER), tokenInAmount);
         uint256 msgValue = tokenInSy == ETH_ADDRESS ? tokenInAmount : 0;
         PendleDepositData memory data = abi.decode(pendleData, (PendleDepositData));
@@ -39,13 +41,8 @@ library PendlePTLib {
         // empty data. This means that the vault must hold the underlying sy
         // token when we begin the execution.
 
-        (uint256 netPtOut, , ) = PENDLE_ROUTER.swapExactTokenForPt{value: msgValue}(
-            address(this),
-            address(market),
-            data.minPtOut,
-            data.approxParams,
-            tokenInput,
-            data.limitOrderData
+        (uint256 netPtOut,,) = PENDLE_ROUTER.swapExactTokenForPt{ value: msgValue }(
+            address(this), address(market), data.minPtOut, data.approxParams, tokenInput, data.limitOrderData
         );
         emit TradeExecuted(tokenInSy, pt, tokenInAmount, netPtOut);
     }
@@ -56,7 +53,10 @@ library PendlePTLib {
         address tokenOutSy,
         uint256 netPtIn,
         bytes calldata data
-    ) external returns (uint256 netTokenOut) {
+    )
+        external
+        returns (uint256 netTokenOut)
+    {
         ERC20(pt).checkApprove(address(PENDLE_ROUTER), netPtIn);
 
         IPRouter.TokenOutput memory tokenOutput;
@@ -69,13 +69,8 @@ library PendlePTLib {
             limitOrderData = abi.decode(data, (IPRouter.LimitOrderData));
         }
 
-        (netTokenOut, , ) = PENDLE_ROUTER.swapExactPtForToken(
-            address(this),
-            address(market),
-            netPtIn,
-            tokenOutput,
-            limitOrderData
-        );
+        (netTokenOut,,) =
+            PENDLE_ROUTER.swapExactPtForToken(address(this), address(market), netPtIn, tokenOutput, limitOrderData);
         emit TradeExecuted(address(pt), tokenOutSy, netPtIn, netTokenOut);
     }
 
@@ -85,9 +80,12 @@ library PendlePTLib {
         IStandardizedYield sy,
         address tokenOutSy,
         uint256 netPtIn
-    ) external returns (uint256 netTokenOut) {
+    )
+        external
+        returns (uint256 netTokenOut)
+    {
         // PT Tokens are known to be ERC20 compliant
-        pt.transfer(address(yt), netPtIn);
+        pt.transfer(address(yt), netPtIn); // forge-lint: disable-line
         uint256 netSyOut = yt.redeemPY(address(sy));
         netTokenOut = sy.redeem(address(this), netSyOut, tokenOutSy, 0, true);
         emit TradeExecuted(address(pt), tokenOutSy, netPtIn, netTokenOut);

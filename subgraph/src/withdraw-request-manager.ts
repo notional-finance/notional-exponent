@@ -1,4 +1,4 @@
-import { ethereum, store, Address, BigInt } from "@graphprotocol/graph-ts";
+import { ethereum, store, Address, BigInt, log } from "@graphprotocol/graph-ts";
 import {
   ApprovedVault,
   InitiateWithdrawRequest,
@@ -19,6 +19,7 @@ import { loadAccount } from "./entities/account";
 import { convertPrice } from "./lending-router";
 import { IYieldStrategy } from "../generated/templates/WithdrawRequestManager/IYieldStrategy";
 import { UNDERLYING } from "./constants";
+import { createVault } from "./address-registry";
 
 function getWithdrawRequest(
   withdrawRequestManager: Address,
@@ -34,6 +35,8 @@ function getWithdrawRequest(
     withdrawRequest.account = account.toHexString();
     withdrawRequest.vault = vault.toHexString();
     withdrawRequest.balance = account.toHexString() + ":" + vault.toHexString();
+    withdrawRequest.yieldTokenAmount = BigInt.zero();
+    withdrawRequest.sharesAmount = BigInt.zero();
   }
   withdrawRequest.lastUpdateBlockNumber = event.block.number;
   withdrawRequest.lastUpdateTimestamp = event.block.timestamp.toI32();
@@ -43,8 +46,11 @@ function getWithdrawRequest(
 }
 
 export function handleApprovedVault(event: ApprovedVault): void {
+  // Create the vault if it is approved before being whitelisted
   let vault = Vault.load(event.params.vault.toHexString());
-  if (!vault) return;
+  if (!vault) {
+    vault = createVault(event.params.vault, event, false);
+  }
 
   let managers = vault.withdrawRequestManagers;
   if (event.params.isApproved) {
@@ -75,7 +81,7 @@ function updateBalanceSnapshotForWithdrawRequest(
 
   createWithdrawRequestLineItem(
     account,
-    Address.fromBytes(vaultShare.vaultAddress!),
+    Address.fromBytes(Address.fromHexString(vaultShare.vaultAddress!)),
     sharesAmount,
     yieldTokenAmount,
     snapshot.id,
@@ -149,10 +155,13 @@ function updateBalanceSnapshotForFinalized(
   // for the first time.
   if (snapshot._accumulatedBalance.notEqual(BigInt.fromI32(0))) {
     let underlying = getToken(vaultShare.underlying!);
-    let price = convertPrice(
-      IYieldStrategy.bind(Address.fromString(w.vault)).price1(Address.fromString(w.account)),
-      underlying,
-    );
+    let _price = IYieldStrategy.bind(Address.fromString(w.vault)).try_price1(Address.fromString(w.account));
+    let price: BigInt;
+    if (!_price.reverted) {
+      price = convertPrice(_price.value, underlying);
+    } else {
+      price = BigInt.zero();
+    }
     updateSnapshotMetrics(vaultShare, underlying, snapshot, BigInt.zero(), BigInt.zero(), price, balance, event);
     snapshot.save();
   }
@@ -197,10 +206,9 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   twr.totalWithdraw = toW.getS().totalWithdraw;
   twr.finalized = toW.getS().finalized;
 
-  let yieldTokenAmount = twr.totalYieldTokenAmount.times(event.params.sharesAmount).div(toW.getW().sharesAmount);
-
   // Update the withdraw requests
   let toWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.to, event);
+  let toYieldTokenAmountBefore = toWithdrawRequest.yieldTokenAmount;
   toWithdrawRequest.requestId = event.params.requestId;
   toWithdrawRequest.yieldTokenAmount = toW.getW().yieldTokenAmount;
   toWithdrawRequest.sharesAmount = toW.getW().sharesAmount;
@@ -209,6 +217,10 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   if (!holders.includes(toWithdrawRequest.id)) {
     holders.push(toWithdrawRequest.id);
   }
+
+  // This is calculated as the change in the yield token amount on the
+  // to withdraw request before and after the tokenization
+  let yieldTokenAmount = toWithdrawRequest.yieldTokenAmount.minus(toYieldTokenAmountBefore);
   updateBalanceSnapshotForWithdrawRequest(toWithdrawRequest, event.params.sharesAmount, yieldTokenAmount, event);
 
   // Update the from withdraw request

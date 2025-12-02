@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "./AbstractStakingStrategy.sol";
-import "../interfaces/IPendle.sol";
-import {SlippageTooHigh} from "../interfaces/Errors.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {PendlePTLib} from "./PendlePTLib.sol";
+import { AbstractStakingStrategy } from "./AbstractStakingStrategy.sol";
+import { IPMarket, IStandardizedYield, IPPrincipalToken, IPYieldToken } from "../interfaces/IPendle.sol";
+import { IWithdrawRequestManager } from "../interfaces/IWithdrawRequestManager.sol";
+import { Trade, TradeType } from "../interfaces/ITradingModule.sol";
+import { SlippageTooHigh } from "../interfaces/Errors.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { PendlePTLib } from "./PendlePTLib.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 
 struct PendleDepositParams {
     uint16 dexId;
@@ -21,15 +24,19 @@ struct PendleRedeemParams {
     bytes limitOrderData;
 }
 
-/** Base implementation for Pendle PT vaults */
+/**
+ * Base implementation for Pendle PT vaults
+ */
 contract PendlePT is AbstractStakingStrategy {
+    using TokenUtils for ERC20;
+
     IPMarket public immutable MARKET;
     address public immutable TOKEN_OUT_SY;
 
     address public immutable TOKEN_IN_SY;
-    IStandardizedYield immutable SY;
-    IPPrincipalToken immutable PT;
-    IPYieldToken immutable YT;
+    IStandardizedYield public immutable SY;
+    IPPrincipalToken public immutable PT;
+    IPYieldToken public immutable YT;
 
     constructor(
         address market,
@@ -39,7 +46,9 @@ contract PendlePT is AbstractStakingStrategy {
         address yieldToken,
         uint256 feeRate,
         IWithdrawRequestManager withdrawRequestManager
-    ) AbstractStakingStrategy(asset, yieldToken, feeRate, withdrawRequestManager) {
+    )
+        AbstractStakingStrategy(asset, yieldToken, feeRate, withdrawRequestManager)
+    {
         MARKET = IPMarket(market);
         (address sy, address pt, address yt) = MARKET.readTokens();
         SY = IStandardizedYield(sy);
@@ -67,12 +76,14 @@ contract PendlePT is AbstractStakingStrategy {
 
     function _mintYieldTokens(
         uint256 assets,
-        address /* receiver */,
+        address,
+        /* receiver */
         bytes memory data
-    ) internal override {
+    )
+        internal
+        override
+    {
         require(!PT.isExpired(), "Expired");
-        // TODO: need to handle WETH inside here somehow
-
         PendleDepositParams memory params = abi.decode(data, (PendleDepositParams));
         uint256 tokenInAmount;
 
@@ -94,9 +105,7 @@ contract PendlePT is AbstractStakingStrategy {
             tokenInAmount = assets;
         }
 
-        PendlePTLib.swapExactTokenForPt(
-            TOKEN_IN_SY, address(MARKET), address(PT), tokenInAmount, params.pendleData
-        );
+        PendlePTLib.swapExactTokenForPt(TOKEN_IN_SY, address(MARKET), address(PT), tokenInAmount, params.pendleData);
     }
 
     /// @notice Handles PT redemption whether it is expired or not
@@ -104,16 +113,20 @@ contract PendlePT is AbstractStakingStrategy {
         if (PT.isExpired()) {
             netTokenOut = PendlePTLib.redeemExpiredPT(PT, YT, SY, TOKEN_OUT_SY, netPtIn);
         } else {
-            netTokenOut = PendlePTLib.swapExactPtForToken(
-                address(PT), address(MARKET), TOKEN_OUT_SY, netPtIn, limitOrderData
-            );
+            netTokenOut =
+                PendlePTLib.swapExactPtForToken(address(PT), address(MARKET), TOKEN_OUT_SY, netPtIn, limitOrderData);
         }
     }
 
     function _executeInstantRedemption(
         uint256 yieldTokensToRedeem,
         bytes memory redeemData
-    ) internal override virtual returns (uint256 assetsPurchased) {
+    )
+        internal
+        virtual
+        override
+        returns (uint256 assetsPurchased)
+    {
         PendleRedeemParams memory params = abi.decode(redeemData, (PendleRedeemParams));
         uint256 netTokenOut = _redeemPT(yieldTokensToRedeem, params.limitOrderData);
 
@@ -141,8 +154,13 @@ contract PendlePT is AbstractStakingStrategy {
         address account,
         uint256 ptAmount,
         uint256 sharesHeld,
-        bytes memory data
-    ) internal override returns (uint256 requestId) {
+        bytes memory data,
+        address forceWithdrawFrom
+    )
+        internal
+        override
+        returns (uint256 requestId)
+    {
         // Withdraws can only be initiated for expired PTs
         require(PT.isExpired(), "Cannot initiate withdraw for non-expired PTs");
         // When doing a direct withdraw for PTs, we first redeem the expired PT
@@ -151,9 +169,13 @@ contract PendlePT is AbstractStakingStrategy {
         // implementation.
         uint256 tokenOutSy = _redeemPT(ptAmount, bytes(""));
 
-        ERC20(TOKEN_OUT_SY).approve(address(withdrawRequestManager), tokenOutSy);
+        ERC20(TOKEN_OUT_SY).checkApprove(address(withdrawRequestManager), tokenOutSy);
         return withdrawRequestManager.initiateWithdraw({
-            account: account, yieldTokenAmount: tokenOutSy, sharesAmount: sharesHeld, data: data
+            account: account,
+            yieldTokenAmount: tokenOutSy,
+            sharesAmount: sharesHeld,
+            data: data,
+            forceWithdrawFrom: forceWithdrawFrom
         });
     }
 }

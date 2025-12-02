@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 interface IweETH is IERC20 {
     function wrap(uint256 eETHDeposit) external returns (uint256 weETHMinted);
     function unwrap(uint256 weETHDeposit) external returns (uint256 eETHMinted);
+    function getRate() external view returns (uint256);
 }
 
 interface ILiquidityPool {

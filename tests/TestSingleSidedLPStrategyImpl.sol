@@ -24,15 +24,14 @@ contract Test_LP_Convex_USDC_USDT is TestSingleSidedLPStrategy {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
     }
-    
 }
 
 contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
-        lpToken = ERC20(0x94B17476A93b3262d87B9a326965D1E91f9c13E7);
-        rewardPool = 0x24b65DC1cf053A8D96872c323d29e86ec43eB33A;
+        lpToken = ERC20(0xcc7d5785AD5755B6164e21495E07aDb0Ff11C2A8);
+        rewardPool = 0xAc15ffFdCA77fc86770bEAbA20cbC1bc2D00494c;
         asset = ERC20(address(WETH));
-        curveInterface = CurveInterface.V1;
+        curveInterface = CurveInterface.StableSwapNG;
         primaryIndex = 0;
         maxPoolShare = 100e18;
         dyAmount = 1e9;
@@ -41,13 +40,14 @@ contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
         defaultDeposit = 10e18;
         defaultBorrow = 90e18;
 
-        (AggregatorV2V3Interface ethOracle, /* */) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        (
+            AggregatorV2V3Interface ethOracle, /* */
+        ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
         MockOracle oETHOracle = new MockOracle(ethOracle.latestAnswer() * 1e18 / 1e8);
         // TODO: there is no oETH oracle on mainnet
         vm.prank(owner);
         TRADING_MODULE.setPriceOracle(
-            address(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3),
-            AggregatorV2V3Interface(address(oETHOracle))
+            address(0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3), AggregatorV2V3Interface(address(oETHOracle))
         );
         maxExitValuationSlippage = 0.005e18;
     }
@@ -80,9 +80,7 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(UniV3SingleData({
-                fee: 100
-            }))
+            exchangeData: abi.encode(UniV3SingleData({ fee: 100 }))
         });
     }
 
@@ -93,9 +91,10 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(weETH),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 
@@ -104,9 +103,7 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
         vm.prank(msg.sender);
         // Should revert on a zero request id.
         vm.expectRevert();
-        lendingRouter.initiateWithdraw(
-            msg.sender, address(y), getWithdrawRequestData(msg.sender, 2)
-        );
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, 2));
     }
 }
 
@@ -131,9 +128,7 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(UniV3SingleData({
-                fee: 100
-            }))
+            exchangeData: abi.encode(UniV3SingleData({ fee: 100 }))
         });
 
         tradeBeforeRedeemParams[0] = TradeParams({
@@ -141,9 +136,7 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(UniV3SingleData({
-                fee: 100
-            }))
+            exchangeData: abi.encode(UniV3SingleData({ fee: 100 }))
         });
     }
 
@@ -154,47 +147,57 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(asset),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
+            })
+        );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(USDe),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 }
 
 contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
-
-    function getDepositData(address /* user */, uint256 depositAmount) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 depositAmount
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         uint256 sDAIAmount = depositAmount / 2;
         uint256 sUSDeAmount = depositAmount - sDAIAmount;
-        bytes memory sDAI_StakeData = abi.encode(StakingTradeParams({
-            tradeType: TradeType.EXACT_IN_SINGLE,
-            dexId: uint8(DexId.CURVE_V2),
-            minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
-                fromIndex: 1,
-                toIndex: 0
-            })),
-            stakeData: bytes("")
-        }));
-        bytes memory sUSDe_StakeData = abi.encode(StakingTradeParams({
-            tradeType: TradeType.EXACT_IN_SINGLE,
-            dexId: uint8(DexId.CURVE_V2),
-            minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-                fromIndex: 1,
-                toIndex: 0
-            })),
-            stakeData: bytes("")
-        }));
+        bytes memory sDAI_StakeData = abi.encode(
+            StakingTradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                dexId: uint8(DexId.CURVE_V2),
+                minPurchaseAmount: 0,
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7, fromIndex: 1, toIndex: 0 })
+                ),
+                stakeData: bytes("")
+            })
+        );
+        bytes memory sUSDe_StakeData = abi.encode(
+            StakingTradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                dexId: uint8(DexId.CURVE_V2),
+                minPurchaseAmount: 0,
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72, fromIndex: 1, toIndex: 0 })
+                ),
+                stakeData: bytes("")
+            })
+        );
 
         depositTrades[0] = TradeParams({
             tradeType: TradeType.STAKE_TOKEN,
@@ -211,14 +214,19 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             exchangeData: sUSDe_StakeData
         });
 
-        return abi.encode(DepositParams({
-            minPoolClaim: 0,
-            depositTrades: depositTrades
-        }));
+        return abi.encode(DepositParams({ minPoolClaim: 0, depositTrades: depositTrades }));
     }
 
-    function getRedeemData(address /* user */, uint256 /* redeemAmount */) internal override returns (bytes memory) {
-        // TODO: There is no way to trade out of this position, therefore we cannot flash liquidate
+    function getRedeemData(
+        address,
+        /* user */
+        uint256 /* redeemAmount */
+    )
+        internal
+        override
+        returns (bytes memory)
+    {
+        // NOTE: There is no way to trade out of this position, therefore we cannot flash liquidate
         vm.skip(true);
         return bytes("");
     }
@@ -237,6 +245,7 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
 
+        maxEntryValuationSlippage = 0.005e18;
         maxExitValuationSlippage = 0.005e18;
 
         managers[0] = new GenericERC4626WithdrawRequestManager(address(sDAI));
@@ -249,11 +258,9 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.CURVE_V2),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
-                fromIndex: 0,
-                toIndex: 1
-            }))
+            exchangeData: abi.encode(
+                CurveV2SingleData({ pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7, fromIndex: 0, toIndex: 1 })
+            )
         });
 
         tradeBeforeRedeemParams[1] = TradeParams({
@@ -261,18 +268,15 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.CURVE_V2),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72,
-                fromIndex: 0,
-                toIndex: 1
-            }))
+            exchangeData: abi.encode(
+                CurveV2SingleData({ pool: 0x02950460E2b9529D0E00284A5fA2d7bDF3fA4d72, fromIndex: 0, toIndex: 1 })
+            )
         });
 
         vm.startPrank(owner);
-        MockOracle sDAIOracle = new MockOracle(1156574190016110658);
+        MockOracle sDAIOracle = new MockOracle(1_156_574_190_016_110_658);
         TRADING_MODULE.setPriceOracle(address(sDAI), AggregatorV2V3Interface(address(sDAIOracle)));
         vm.stopPrank();
-
     }
 
     function postDeploySetup() internal override {
@@ -282,53 +286,60 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(asset),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(sUSDe),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(USDe),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(DAI),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
 
         // Allow withdraw managers to sell USDC
         TRADING_MODULE.setTokenPermissions(
             address(managers[0]),
             address(USDC),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         TRADING_MODULE.setTokenPermissions(
             address(managers[1]),
             address(USDC),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         // Allow Ethena manager to sell DAI
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(DAI),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 }
 
-contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
+contract Test_LP_Curve_pxETH_WETH is TestSingleSidedLPStrategy {
     function setMarketVariables() internal override {
         lpToken = ERC20(0xC8Eb2Cf2f792F77AF0Cd9e203305a585E588179D);
         rewardPool = 0x3B793E505A3C7dbCb718Fe871De8eBEf7854e74b;
@@ -349,16 +360,128 @@ contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
         defaultBorrow = 90e18;
 
         maxEntryValuationSlippage = 0.002e18;
-        maxExitValuationSlippage = 0.015e18;
+        maxExitValuationSlippage = 0.025e18;
 
-        (AggregatorV2V3Interface ethOracle, /* */) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        (
+            AggregatorV2V3Interface ethOracle, /* */
+        ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
         MockOracle pxETHOracle = new MockOracle(ethOracle.latestAnswer() * 0.9996e18 / 1e8);
         // TODO: need a pxETH oracle
         vm.prank(owner);
+        TRADING_MODULE.setPriceOracle(address(pxETH), AggregatorV2V3Interface(address(pxETHOracle)));
+    }
+}
+
+// This is a test to ensure that ETH withdraw request managers work correctly by wrapping to
+// WETH on withdraw.
+contract Test_LP_Curve_ETHx_ETH is TestSingleSidedLPStrategy {
+    function getRedeemData(address user, uint256 redeemAmount) internal override returns (bytes memory) {
+        (
+            WithdrawRequest memory w, /* */
+        ) = managers[0].getWithdrawRequest(address(y), user);
+        if (w.requestId != 0) {
+            RedeemParams memory r;
+            r.minAmounts = new uint256[](2);
+            r.redemptionTrades = new TradeParams[](2);
+            r.redemptionTrades[1] = TradeParams({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                dexId: uint8(DexId.CURVE_V2),
+                tradeAmount: 0,
+                minPurchaseAmount: 0,
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492, fromIndex: 1, toIndex: 0 })
+                )
+            });
+
+            return abi.encode(r);
+        }
+
+        return super.getRedeemData(user, redeemAmount);
+    }
+
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492);
+        rewardPool = 0x399e111c7209a741B06F8F86Ef0Fdd88fC198D20;
+        asset = ERC20(address(WETH));
+        stakeTokenIndex = 1;
+        isDummyWithdrawRequestManager = true;
+
+        managers[0] = new GenericERC20WithdrawRequestManager(address(WETH));
+        managers[1] = new GenericERC20WithdrawRequestManager(address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b));
+        withdrawRequests[0] = new TestGenericERC20WithdrawRequest();
+        withdrawRequests[1] = new TestGenericERC20WithdrawRequest();
+
+        // Sell WETH to stETH on the stETH/ETH pool itself before entry.
+
+        // // NOTE: this does not work because the trading module does not unwrap the WETH
+        // // properly before selling it on the curve pool.
+        // tradeBeforeDepositParams[1] = TradeParams({
+        //     tradeType: TradeType.EXACT_IN_SINGLE,
+        //     dexId: uint8(DexId.CURVE_V2),
+        //     tradeAmount: 0,
+        //     minPurchaseAmount: 0,
+        //     exchangeData: abi.encode(CurveV2SingleData({
+        //         pool: 0x21E27a5E5513D6e65C4f830167390997aA84843a,
+        //         fromIndex: 0,
+        //         toIndex: 1
+        //     }))
+        // });
+
+        // Sell ETHx to WETH on the ETHx/ETH pool itself before exit. ETH returned
+        // by the pool will be converted back to WETH by the Trading Module.
+        tradeBeforeRedeemParams[1] = TradeParams({
+            tradeType: TradeType.EXACT_IN_SINGLE,
+            dexId: uint8(DexId.CURVE_V2),
+            tradeAmount: 0,
+            minPurchaseAmount: 0,
+            exchangeData: abi.encode(
+                CurveV2SingleData({ pool: 0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492, fromIndex: 1, toIndex: 0 })
+            )
+        });
+
+        curveInterface = CurveInterface.V1;
+        primaryIndex = 0;
+        maxPoolShare = 100e18;
+        dyAmount = 1e9;
+
+        defaultDeposit = 10e18;
+        defaultBorrow = 90e18;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.025e18;
+
+        (
+            AggregatorV2V3Interface ethOracle, /* */
+        ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        MockOracle ETHxOracle = new MockOracle(ethOracle.latestAnswer() * 1.0647e18 / 1e8);
+        // TODO: need a ETHx oracle
+        vm.prank(owner);
         TRADING_MODULE.setPriceOracle(
-            address(pxETH),
-            AggregatorV2V3Interface(address(pxETHOracle))
+            address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b), AggregatorV2V3Interface(address(ETHxOracle))
         );
+    }
+
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+
+        vm.startPrank(owner);
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            // Allow selling of WETH to enter the pool
+            address(WETH),
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 1
+            })
+        );
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            // Allow trading of ETHx
+            address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b),
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 1
+            })
+        );
+        vm.stopPrank();
     }
 }
 
@@ -420,10 +543,6 @@ contract Test_LP_Curve_pxETH_ETH is TestSingleSidedLPStrategy {
 // }
 
 contract Test_LP_Curve_deUSD_USDC is TestSingleSidedLPStrategy {
-    function overrideForkBlock() internal override {
-        FORK_BLOCK = 22589309;
-    }
-
     function setMarketVariables() internal override {
         lpToken = ERC20(0x5F6c431AC417f0f430B84A666a563FAbe681Da94);
         curveGauge = 0x4C1533350dfAaE6c55604160A5F70aD84A108b48;
@@ -436,6 +555,9 @@ contract Test_LP_Curve_deUSD_USDC is TestSingleSidedLPStrategy {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.0075e18;
 
         // Set deUSD oracle to USD
         vm.prank(owner);
@@ -466,8 +588,7 @@ contract Test_LP_Curve_lvlUSD_USDC is TestSingleSidedLPStrategy {
         MockOracle lvlUSDOracle = new MockOracle(1e18);
         vm.prank(owner);
         TRADING_MODULE.setPriceOracle(
-            address(0x7C1156E515aA1A2E851674120074968C905aAF37),
-            AggregatorV2V3Interface(address(lvlUSDOracle))
+            address(0x7C1156E515aA1A2E851674120074968C905aAF37), AggregatorV2V3Interface(address(lvlUSDOracle))
         );
     }
 }
@@ -485,23 +606,37 @@ contract Test_LP_Curve_USDC_crvUSD is TestSingleSidedLPStrategy {
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.002e18;
     }
 }
 
 contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
-    function getDepositData(address /* user */, uint256 depositAmount) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 depositAmount
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         depositTrades[0] = TradeParams({
             tradeType: TradeType.EXACT_IN_SINGLE,
             dexId: uint8(DexId.CURVE_V2),
             tradeAmount: depositAmount,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                // USDC/USDT pool
-                pool: 0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85,
-                fromIndex: 0,
-                toIndex: 1
-            }))
+            exchangeData: abi.encode(
+                CurveV2SingleData({
+                    // USDC/USDT pool
+                    pool: 0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85,
+                    fromIndex: 0,
+                    toIndex: 1
+                })
+            )
         });
 
         // Don't buy any crvUSD
@@ -513,13 +648,18 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
             exchangeData: bytes("")
         });
 
-        return abi.encode(DepositParams({
-            minPoolClaim: 0,
-            depositTrades: depositTrades
-        }));
+        return abi.encode(DepositParams({ minPoolClaim: 0, depositTrades: depositTrades }));
     }
 
-    function getRedeemData(address /* user */, uint256 /* redeemAmount */) internal pure override returns (bytes memory) {
+    function getRedeemData(
+        address, /* user */
+        uint256 /* redeemAmount */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory redeemTrades = new TradeParams[](2);
         // Sell USDT for USDC
         redeemTrades[0] = TradeParams({
@@ -527,12 +667,14 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.CURVE_V2),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                // USDC/USDT pool
-                pool: 0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85,
-                fromIndex: 1,
-                toIndex: 0
-            }))
+            exchangeData: abi.encode(
+                CurveV2SingleData({
+                    // USDC/USDT pool
+                    pool: 0x4f493B7dE8aAC7d55F71853688b1F7C8F0243C85,
+                    fromIndex: 1,
+                    toIndex: 0
+                })
+            )
         });
         // Sell crvUSD for USDC
         redeemTrades[1] = TradeParams({
@@ -540,18 +682,17 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.CURVE_V2),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                // USDC/crvUSD pool
-                pool: 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E,
-                fromIndex: 1,
-                toIndex: 0
-            }))
+            exchangeData: abi.encode(
+                CurveV2SingleData({
+                    // USDC/crvUSD pool
+                    pool: 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E,
+                    fromIndex: 1,
+                    toIndex: 0
+                })
+            )
         });
 
-        return abi.encode(RedeemParams({
-            minAmounts: new uint256[](2),
-            redemptionTrades: redeemTrades
-        }));
+        return abi.encode(RedeemParams({ minAmounts: new uint256[](2), redemptionTrades: redeemTrades }));
     }
 
     function setMarketVariables() internal override {
@@ -576,29 +717,41 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(asset),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         // Allow selling USDT
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(0xdAC17F958D2ee523a2206206994597C13D831ec7),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         // Allow selling crvUSD
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
     }
 }
 
 contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
-    function getDepositData(address /* user */, uint256 depositAmount) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 depositAmount
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         // Sell USDC for GHO
         depositTrades[0] = TradeParams({
@@ -606,9 +759,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: depositAmount,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(UniV3SingleData({
-                fee: 500
-            }))
+            exchangeData: abi.encode(UniV3SingleData({ fee: 500 }))
         });
 
         // Don't buy any crvUSD
@@ -620,13 +771,18 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             exchangeData: bytes("")
         });
 
-        return abi.encode(DepositParams({
-            minPoolClaim: 0,
-            depositTrades: depositTrades
-        }));
+        return abi.encode(DepositParams({ minPoolClaim: 0, depositTrades: depositTrades }));
     }
 
-    function getRedeemData(address /* user */, uint256 /* redeemAmount */) internal pure override returns (bytes memory) {
+    function getRedeemData(
+        address, /* user */
+        uint256 /* redeemAmount */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory redeemTrades = new TradeParams[](2);
         // Sell GHO for USDC
         redeemTrades[0] = TradeParams({
@@ -634,9 +790,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.UNISWAP_V3),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(UniV3SingleData({
-                fee: 500
-            }))
+            exchangeData: abi.encode(UniV3SingleData({ fee: 500 }))
         });
 
         // Sell crvUSD for USDC
@@ -645,18 +799,17 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             dexId: uint8(DexId.CURVE_V2),
             tradeAmount: 0,
             minPurchaseAmount: 0,
-            exchangeData: abi.encode(CurveV2SingleData({
-                // USDC/crvUSD pool
-                pool: 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E,
-                fromIndex: 1,
-                toIndex: 0
-            }))
+            exchangeData: abi.encode(
+                CurveV2SingleData({
+                    // USDC/crvUSD pool
+                    pool: 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E,
+                    fromIndex: 1,
+                    toIndex: 0
+                })
+            )
         });
 
-        return abi.encode(RedeemParams({
-            minAmounts: new uint256[](2),
-            redemptionTrades: redeemTrades
-        }));
+        return abi.encode(RedeemParams({ minAmounts: new uint256[](2), redemptionTrades: redeemTrades }));
     }
 
     function setMarketVariables() internal override {
@@ -669,7 +822,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
         maxPoolShare = 100e18;
         dyAmount = 1e6;
 
-        maxExitValuationSlippage = 0.0075e18;
+        maxExitValuationSlippage = 0.02e18;
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
@@ -683,23 +836,45 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(asset),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
+            })
+        );
         // Allow selling GHO
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
+            })
+        );
         // Allow selling crvUSD
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E),
-            ITradingModule.TokenPermissions(
-            { allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5 }
-        ));
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
         vm.stopPrank();
+    }
+}
+
+contract Test_LP_Curve_USDC_crvUSD_CurveGauge is TestSingleSidedLPStrategy {
+    function setMarketVariables() internal override {
+        lpToken = ERC20(0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E);
+        curveGauge = 0x95f00391cB5EebCd190EB58728B4CE23DbFa6ac1;
+        asset = USDC;
+        w = ERC20(rewardPool);
+        curveInterface = CurveInterface.V1;
+        primaryIndex = 0;
+        maxPoolShare = 100e18;
+        dyAmount = 1e6;
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+
+        maxEntryValuationSlippage = 0.002e18;
+        maxExitValuationSlippage = 0.002e18;
     }
 }

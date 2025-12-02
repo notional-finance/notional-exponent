@@ -46,6 +46,10 @@ let manager = Address.fromString("0x0000000000000000000000000000000000000ccc");
 let USDC_PRECISION = BigInt.fromI32(10).pow(6);
 let BORROW_SHARE_PRECISION = BigInt.fromI32(10).pow(12);
 
+function padHexString(hexString: string): string {
+  return "0x" + hexString.slice(2).padStart(64, "0");
+}
+
 function createEnterPositionEvent(
   user: Address,
   vault: Address,
@@ -248,10 +252,11 @@ describe("enter position with borrow shares", () => {
     // Add TradeExecuted log
     let tradeExecutedLog = newLog();
     tradeExecutedLog.address = vault;
+    log.info("padded asset {}", [padHexString(asset.toHexString())]);
     tradeExecutedLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
-      Bytes.fromHexString(asset.toHexString()),
-      Bytes.fromHexString(yieldToken.toHexString()),
+      Bytes.fromHexString(padHexString(asset.toHexString())),
+      Bytes.fromHexString(padHexString(yieldToken.toHexString())),
     ];
     tradeExecutedLog.data = ethereum.encode(
       ethereum.Value.fromTuple(
@@ -266,8 +271,8 @@ describe("enter position with borrow shares", () => {
     incentiveTransferLog.address = vault;
     incentiveTransferLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-      Bytes.fromHexString(asset.toHexString()),
-      Bytes.fromHexString(account.toHexString()),
+      Bytes.fromHexString(padHexString(asset.toHexString())),
+      Bytes.fromHexString(padHexString(account.toHexString())),
     ];
     incentiveTransferLog.data = ethereum.encode(ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION))!;
 
@@ -453,8 +458,8 @@ describe("enter position with borrow shares", () => {
       incentiveTransferLog.address = vault;
       incentiveTransferLog.topics = [
         Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-        Bytes.fromHexString(asset.toHexString()),
-        Bytes.fromHexString(account.toHexString()),
+        Bytes.fromHexString(padHexString(asset.toHexString())),
+        Bytes.fromHexString(padHexString(account.toHexString())),
       ];
       incentiveTransferLog.data = ethereum.encode(
         ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(2))),
@@ -607,8 +612,8 @@ describe("enter position with borrow shares", () => {
       incentiveTransferLog.address = vault;
       incentiveTransferLog.topics = [
         Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))),
-        Bytes.fromHexString(asset.toHexString()),
-        Bytes.fromHexString(account.toHexString()),
+        Bytes.fromHexString(padHexString(asset.toHexString())),
+        Bytes.fromHexString(padHexString(account.toHexString())),
       ];
       incentiveTransferLog.data = ethereum.encode(
         ethereum.Value.fromUnsignedBigInt(DEFAULT_PRECISION.times(BigInt.fromI32(2))),
@@ -686,10 +691,10 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1007200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008208");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1008090081");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
       // Negative PnL includes loss from the initial deposit
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "-8200000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "-9090081");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "9090081");
@@ -719,11 +724,11 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", borrowSharesMinted.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "817200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008888");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "818100000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1010000");
 
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "9000000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "9000000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "8100000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "8100000");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastInterestAccumulator", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", BigInt.zero().toString());
@@ -781,9 +786,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1007200000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1008208");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "1790000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "1008090081");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "899919");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "19080081");
@@ -940,9 +945,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", previousBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "912700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1014111");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "23300000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "908189262");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "27810738");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "17189262");
@@ -1021,11 +1026,11 @@ describe("enter position with borrow shares", () => {
         borrowSharesMinted.minus(borrowSharesRepaid).toString(),
       );
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "722700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1003750");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "727200000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1010000");
 
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "33300000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "33300000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "28800000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "28800000");
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastInterestAccumulator", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalVaultFeesAtSnapshot", BigInt.zero().toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_lastVaultFeeAccumulator", BigInt.zero().toString());
@@ -1068,9 +1073,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
 
       assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.toString());
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "99000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "997000000000000000");
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "1000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.toString());
       assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
     });
@@ -1085,9 +1090,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingToken", yieldToken.toHexString());
 
       assert.fieldEquals("ProfitLossLineItem", pnlId, "tokenAmount", vaultShareBalance.neg().toString());
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-900000000000000000000");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountRealized", "-99000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "spotPrice", "997000000000000000");
-      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "9090909090909090909");
+      assert.fieldEquals("ProfitLossLineItem", pnlId, "realizedPrice", "1000000000000000000");
       assert.fieldEquals("ProfitLossLineItem", pnlId, "underlyingAmountSpot", vaultShareBalance.neg().toString());
       assert.fieldEquals("ProfitLossLineItem", pnlId, "lineItemType", "WithdrawRequest");
     });
@@ -1171,9 +1176,9 @@ describe("enter position with borrow shares", () => {
       assert.fieldEquals("BalanceSnapshot", snapshotId, "currentBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "previousBalance", currentBalance.toString());
       assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedBalance", currentBalance.toString());
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "912700000");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1014111");
-      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "23300000");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "_accumulatedCostRealized", "908189262");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "adjustedCostBasis", "1009099");
+      assert.fieldEquals("BalanceSnapshot", snapshotId, "currentProfitAndLossAtSnapshot", "27810738");
 
       // These both get adjusted downwards because of the redemption
       assert.fieldEquals("BalanceSnapshot", snapshotId, "totalInterestAccrualAtSnapshot", "17189262");
@@ -1344,8 +1349,8 @@ describe("enter pendle pt position interest accrual", () => {
     tradeExecutedLog.address = vault;
     tradeExecutedLog.topics = [
       Bytes.fromByteArray(crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))),
-      Bytes.fromHexString(accountingAsset.toHexString()),
-      Bytes.fromHexString(yieldToken.toHexString()),
+      Bytes.fromHexString(padHexString(accountingAsset.toHexString())),
+      Bytes.fromHexString(padHexString(yieldToken.toHexString())),
     ];
     tradeExecutedLog.data = ethereum.encode(
       ethereum.Value.fromTuple(

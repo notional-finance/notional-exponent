@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >=0.8.0;
+pragma solidity >=0.8.28;
+
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 event OrderFilledV2(
     bytes32 indexed orderHash,
@@ -19,9 +21,13 @@ interface IPOracle {
 
     function getPtToSyRate(address market, uint32 duration) external view returns (uint256);
 
-    function getOracleState(address market, uint32 duration) external view returns (
-        bool increaseCardinalityRequired, uint16 cardinalityRequired, bool oldestObservationSatisfied
-    );
+    function getOracleState(
+        address market,
+        uint32 duration
+    )
+        external
+        view
+        returns (bool increaseCardinalityRequired, uint16 cardinalityRequired, bool oldestObservationSatisfied);
 }
 
 interface IPRouter {
@@ -101,7 +107,8 @@ interface IPRouter {
         uint256 guessMax;
         uint256 guessOffchain; // pass 0 in to skip this variable
         uint256 maxIteration; // every iteration, the diff between guessMin and guessMax will be divided by 2
-        uint256 eps; // the max eps between the returned result & the correct result, base 1e18. Normally this number will be set
+        uint256 eps; // the max eps between the returned result & the correct result, base 1e18. Normally this number
+        // will be set
         // to 1e15 (1e18/1000 = 0.1%)
     }
 
@@ -112,7 +119,10 @@ interface IPRouter {
         ApproxParams calldata guessPtOut,
         TokenInput calldata input,
         LimitOrderData calldata limit
-    ) external payable returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm);
+    )
+        external
+        payable
+        returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm);
 
     function swapExactPtForToken(
         address receiver,
@@ -120,14 +130,18 @@ interface IPRouter {
         uint256 exactPtIn,
         TokenOutput calldata output,
         LimitOrderData calldata limit
-    ) external returns (uint256 netTokenOut, uint256 netSyFee, uint256 netSyInterm);
+    )
+        external
+        returns (uint256 netTokenOut, uint256 netSyFee, uint256 netSyInterm);
 
     function redeemPyToToken(
         address receiver,
         address YT,
         uint256 netPyIn,
         TokenOutput calldata output
-    ) external returns (uint256 netTokenOut, uint256 netSyInterm);
+    )
+        external
+        returns (uint256 netTokenOut, uint256 netSyInterm);
 }
 
 interface IPMarket {
@@ -135,25 +149,33 @@ interface IPMarket {
         address receiver,
         uint256 netSyDesired,
         uint256 netPtDesired
-    ) external returns (uint256 netLpOut, uint256 netSyUsed, uint256 netPtUsed);
+    )
+        external
+        returns (uint256 netLpOut, uint256 netSyUsed, uint256 netPtUsed);
 
     function burn(
         address receiverSy,
         address receiverPt,
         uint256 netLpToBurn
-    ) external returns (uint256 netSyOut, uint256 netPtOut);
+    )
+        external
+        returns (uint256 netSyOut, uint256 netPtOut);
 
     function swapExactPtForSy(
         address receiver,
         uint256 exactPtIn,
         bytes calldata data
-    ) external returns (uint256 netSyOut, uint256 netSyFee);
+    )
+        external
+        returns (uint256 netSyOut, uint256 netSyFee);
 
     function swapSyForExactPt(
         address receiver,
         uint256 exactPtOut,
         bytes calldata data
-    ) external returns (uint256 netSyIn, uint256 netSyFee);
+    )
+        external
+        returns (uint256 netSyIn, uint256 netSyFee);
 
     function redeemRewards(address user) external returns (uint256[] memory);
 
@@ -171,9 +193,10 @@ interface IPMarket {
 
     function expiry() external view returns (uint256);
 
-    function observations(
-        uint256 index
-    ) external view returns (uint32 blockTimestamp, uint216 lnImpliedRateCumulative, bool initialized);
+    function observations(uint256 index)
+        external
+        view
+        returns (uint32 blockTimestamp, uint216 lnImpliedRateCumulative, bool initialized);
 
     function _storage()
         external
@@ -187,8 +210,6 @@ interface IPMarket {
             uint16 observationCardinalityNext
         );
 }
-
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 interface IStandardizedYield is IERC20Metadata {
     /// @dev Emitted when any base tokens is deposited to mint shares
@@ -235,7 +256,10 @@ interface IStandardizedYield is IERC20Metadata {
         address tokenIn,
         uint256 amountTokenToDeposit,
         uint256 minSharesOut
-    ) external payable returns (uint256 amountSharesOut);
+    )
+        external
+        payable
+        returns (uint256 amountSharesOut);
 
     /**
      * @notice redeems an amount of base tokens by burning some shares
@@ -256,14 +280,16 @@ interface IStandardizedYield is IERC20Metadata {
         address tokenOut,
         uint256 minTokenOut,
         bool burnFromInternalBalance
-    ) external returns (uint256 amountTokenOut);
+    )
+        external
+        returns (uint256 amountTokenOut);
 
     /**
      * @notice exchangeRate * syBalance / 1e18 must return the asset balance of the account
      * @notice vice-versa, if a user uses some amount of tokens equivalent to X asset, the amount of sy
-     he can mint must be X * exchangeRate / 1e18
+     *  he can mint must be X * exchangeRate / 1e18
      * @dev SYUtils's assetToSy & syToAsset should be used instead of raw multiplication
-     & division
+     *  & division
      */
     function exchangeRate() external view returns (uint256 res);
 
@@ -315,17 +341,24 @@ interface IStandardizedYield is IERC20Metadata {
     function previewDeposit(
         address tokenIn,
         uint256 amountTokenToDeposit
-    ) external view returns (uint256 amountSharesOut);
+    )
+        external
+        view
+        returns (uint256 amountSharesOut);
 
     function previewRedeem(
         address tokenOut,
         uint256 amountSharesToRedeem
-    ) external view returns (uint256 amountTokenOut);
+    )
+        external
+        view
+        returns (uint256 amountTokenOut);
 
     /**
      * @notice This function contains information to interpret what the asset is
      * @return assetType the type of the asset (0 for ERC20 tokens, 1 for AMM liquidity tokens,
-        2 for bridged yield bearing tokens like wstETH, rETH on Arbi whose the underlying asset doesn't exist on the chain)
+     *     2 for bridged yield bearing tokens like wstETH, rETH on Arbi whose the underlying asset doesn't exist on the
+     * chain)
      * @return assetAddress the address of the asset
      * @return assetDecimals the decimals of the asset
      */
@@ -376,13 +409,17 @@ interface IPYieldToken is IERC20Metadata {
     function redeemPYMulti(
         address[] calldata receivers,
         uint256[] calldata amountPYToRedeems
-    ) external returns (uint256[] memory amountSyOuts);
+    )
+        external
+        returns (uint256[] memory amountSyOuts);
 
     function redeemDueInterestAndRewards(
         address user,
         bool redeemInterest,
         bool redeemRewards
-    ) external returns (uint256 interestOut, uint256[] memory rewardsOut);
+    )
+        external
+        returns (uint256 interestOut, uint256[] memory rewardsOut);
 
     function rewardIndexesCurrent() external returns (uint256[] memory);
 

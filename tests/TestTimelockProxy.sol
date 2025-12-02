@@ -13,12 +13,20 @@ contract MockInitializable is Initializable {
         return true;
     }
 
-    function _initialize(bytes calldata /* data */) internal override {
+    function _initialize(
+        bytes calldata /* data */
+    )
+        internal
+        override
+    {
         didInitialize = true;
     }
 }
 
 contract TestTimelockProxy is Test {
+    string RPC_URL = vm.envString("RPC_URL");
+    uint256 FORK_BLOCK = vm.envUint("FORK_BLOCK");
+
     Initializable public impl;
     TimelockUpgradeableProxy public proxy;
     address public upgradeOwner;
@@ -26,30 +34,23 @@ contract TestTimelockProxy is Test {
     address public feeReceiver;
     AddressRegistry public registry = ADDRESS_REGISTRY;
 
-    function deployAddressRegistry() public {
-        address deployer = makeAddr("deployer");
-        vm.prank(deployer);
-        address addressRegistry = address(new AddressRegistry());
-        TimelockUpgradeableProxy p = new TimelockUpgradeableProxy(
-            address(addressRegistry),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode(upgradeOwner, pauseOwner, feeReceiver))
-        );
-        registry = AddressRegistry(address(p));
-
-        assertEq(address(registry), address(ADDRESS_REGISTRY), "AddressRegistry is incorrect");
-    }
-
     function setUp() public {
-        upgradeOwner = makeAddr("upgradeOwner");
+        vm.createSelectFork(RPC_URL, FORK_BLOCK);
+        upgradeOwner = ADDRESS_REGISTRY.upgradeAdmin();
         pauseOwner = makeAddr("pauseOwner");
-        feeReceiver = makeAddr("feeReceiver");
+        feeReceiver = ADDRESS_REGISTRY.feeReceiver();
 
-        deployAddressRegistry();
+        vm.startPrank(upgradeOwner);
+        registry.transferPauseAdmin(pauseOwner);
+        vm.stopPrank();
+
+        vm.startPrank(pauseOwner);
+        registry.acceptPauseAdmin();
+        vm.stopPrank();
 
         impl = new MockInitializable();
         proxy = new TimelockUpgradeableProxy(
-            address(impl),
-            abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
+            address(impl), abi.encodeWithSelector(Initializable.initialize.selector, abi.encode("name", "symbol"))
         );
     }
 
@@ -74,7 +75,9 @@ contract TestTimelockProxy is Test {
         proxy.initiateUpgrade(address(timelock2));
 
         vm.expectEmit(true, true, true, true);
-        emit TimelockUpgradeableProxy.UpgradeInitiated(address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY()));
+        emit TimelockUpgradeableProxy.UpgradeInitiated(
+            address(timelock2), uint32(block.timestamp + proxy.UPGRADE_DELAY())
+        );
         vm.prank(upgradeOwner);
         proxy.initiateUpgrade(address(timelock2));
 
@@ -89,7 +92,7 @@ contract TestTimelockProxy is Test {
         vm.warp(block.timestamp + proxy.UPGRADE_DELAY() + 1);
         proxy.executeUpgrade(bytes(""));
 
-        assertEq(proxy.newImplementation(), address(timelock2));
+        assertEq(proxy.getImplementation(), address(timelock2));
         vm.stopPrank();
     }
 
@@ -140,7 +143,7 @@ contract TestTimelockProxy is Test {
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
 
-        vm.prank(pauseOwner);
+        vm.prank(upgradeOwner);
         proxy.unpause();
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
@@ -200,5 +203,4 @@ contract TestTimelockProxy is Test {
 
         assertEq(registry.feeReceiver(), newFeeReceiver);
     }
-    
 }

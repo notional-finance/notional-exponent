@@ -77,6 +77,8 @@ describe("Whitelist lending router assertions", () => {
   beforeAll(() => {
     let lendingRouter = Address.fromString("0x0000000000000000000000000000000000000001");
     let newLendingRouterSetEvent = createLendingRouterSetEvent(lendingRouter);
+    createMockedFunction(lendingRouter, "name", "name():(string)").returns([ethereum.Value.fromString("Morpho")]);
+
     handleLendingRouterSet(newLendingRouterSetEvent);
   });
 
@@ -115,6 +117,7 @@ describe("Whitelist vault assertions", () => {
     createMockedFunction(vault, "name", "name():(string)").returns([ethereum.Value.fromString("Vault")]);
     createMockedFunction(vault, "symbol", "symbol():(string)").returns([ethereum.Value.fromString("VAULT")]);
     createMockedFunction(vault, "decimals", "decimals():(uint8)").returns([ethereum.Value.fromI32(18)]);
+    createMockedFunction(vault, "strategy", "strategy():(string)").returns([ethereum.Value.fromString("Staking")]);
 
     createMockedFunction(yieldToken, "name", "name():(string)").returns([ethereum.Value.fromString("Yield Token")]);
     createMockedFunction(yieldToken, "symbol", "symbol():(string)").returns([ethereum.Value.fromString("YIELD")]);

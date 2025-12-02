@@ -1,22 +1,28 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import "../interfaces/IWithdrawRequestManager.sol";
-import {Initializable} from "../proxy/Initializable.sol";
-import {ClonedCoolDownHolder} from "./ClonedCoolDownHolder.sol";
+import {
+    IWithdrawRequestManager,
+    WithdrawRequest,
+    TokenizedWithdrawRequest,
+    StakingTradeParams
+} from "../interfaces/IWithdrawRequestManager.sol";
+import { Initializable } from "../proxy/Initializable.sol";
+import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
 import {
     Unauthorized,
     ExistingWithdrawRequest,
     NoWithdrawRequest,
     InvalidWithdrawRequestTokenization
 } from "../interfaces/Errors.sol";
-import {TypeConvert} from "../utils/TypeConvert.sol";
-import {TokenUtils} from "../utils/TokenUtils.sol";
-import {ADDRESS_REGISTRY, DEFAULT_PRECISION} from "../utils/Constants.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfaces/ITradingModule.sol";
-
+import { TypeConvert } from "../utils/TypeConvert.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
+import { ADDRESS_REGISTRY, DEFAULT_PRECISION } from "../utils/Constants.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Trade, TradeType, TRADING_MODULE, nProxy, ITradingModule } from "../interfaces/ITradingModule.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 /**
  * Library to handle potentially illiquid withdraw requests of staking tokens where there
@@ -28,7 +34,7 @@ import {Trade, TradeType, TRADING_MODULE, nProxy, TradeFailed} from "../interfac
  * request. It also allows for the withdraw request to be "tokenized" so that shares of the withdraw
  * request can be liquidated.
  */
-abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Initializable {
+abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Initializable, ReentrancyGuardTransient {
     using SafeERC20 for ERC20;
     using TypeConvert for uint256;
 
@@ -39,9 +45,9 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     /// @inheritdoc IWithdrawRequestManager
     address public immutable override STAKING_TOKEN;
 
-    mapping(address => bool) public override isApprovedVault;
+    mapping(address vault => bool isApproved) public override isApprovedVault;
     mapping(address vault => mapping(address account => WithdrawRequest)) private s_accountWithdrawRequest;
-    mapping(uint256 requestId => TokenizedWithdrawRequest) private s_tokenizedWithdrawRequest;
+    mapping(uint256 requestId => TokenizedWithdrawRequest tokenizedWithdrawRequest) private s_tokenizedWithdrawRequest;
 
     constructor(address _withdrawToken, address _yieldToken, address _stakingToken) Initializable() {
         WITHDRAW_TOKEN = _withdrawToken;
@@ -61,8 +67,15 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
     }
 
     /// @inheritdoc IWithdrawRequestManager
-    function getWithdrawRequest(address vault, address account) public view override
-        returns (WithdrawRequest memory w, TokenizedWithdrawRequest memory s) {
+    function getWithdrawRequest(
+        address vault,
+        address account
+    )
+        public
+        view
+        override
+        returns (WithdrawRequest memory w, TokenizedWithdrawRequest memory s)
+    {
         w = s_accountWithdrawRequest[vault][account];
         s = s_tokenizedWithdrawRequest[w.requestId];
     }
@@ -83,7 +96,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address depositToken,
         uint256 amount,
         bytes calldata data
-    ) external override onlyApprovedVault returns (uint256 yieldTokensMinted) {
+    )
+        external
+        override
+        onlyApprovedVault
+        nonReentrant
+        returns (uint256 yieldTokensMinted)
+    {
         uint256 initialYieldTokenBalance = ERC20(YIELD_TOKEN).balanceOf(address(this));
         ERC20(depositToken).safeTransferFrom(msg.sender, address(this), amount);
         (uint256 stakeTokenAmount, bytes memory stakeData) = _preStakingTrade(depositToken, amount, data);
@@ -91,6 +110,9 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
         yieldTokensMinted = ERC20(YIELD_TOKEN).balanceOf(address(this)) - initialYieldTokenBalance;
         ERC20(YIELD_TOKEN).safeTransfer(msg.sender, yieldTokensMinted);
+
+        // Emits the amount of staking tokens for the yield token at this point in time.
+        emit ITradingModule.TradeExecuted(STAKING_TOKEN, YIELD_TOKEN, stakeTokenAmount, yieldTokensMinted);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -98,22 +120,29 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         uint256 yieldTokenAmount,
         uint256 sharesAmount,
-        bytes calldata data
-    ) external override onlyApprovedVault returns (uint256 requestId) {
+        bytes calldata data,
+        address forceWithdrawFrom
+    )
+        external
+        override
+        onlyApprovedVault
+        nonReentrant
+        returns (uint256 requestId)
+    {
         WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
-        if (accountWithdraw.requestId != 0) revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
+        if (accountWithdraw.requestId != 0) {
+            revert ExistingWithdrawRequest(msg.sender, account, accountWithdraw.requestId);
+        }
 
         // Receive the requested amount of yield tokens from the approved vault.
         ERC20(YIELD_TOKEN).safeTransferFrom(msg.sender, address(this), yieldTokenAmount);
 
-        requestId = _initiateWithdrawImpl(account, yieldTokenAmount, data);
+        requestId = _initiateWithdrawImpl(account, yieldTokenAmount, data, forceWithdrawFrom);
         accountWithdraw.requestId = requestId;
         accountWithdraw.yieldTokenAmount = yieldTokenAmount.toUint120();
         accountWithdraw.sharesAmount = sharesAmount.toUint120();
         s_tokenizedWithdrawRequest[requestId] = TokenizedWithdrawRequest({
-            totalYieldTokenAmount: yieldTokenAmount.toUint120(),
-            totalWithdraw: 0,
-            finalized: false
+            totalYieldTokenAmount: yieldTokenAmount.toUint120(), totalWithdraw: 0, finalized: false
         });
 
         emit InitiateWithdrawRequest(account, msg.sender, yieldTokenAmount, sharesAmount, requestId);
@@ -124,38 +153,52 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         uint256 withdrawYieldTokenAmount,
         uint256 sharesToBurn
-    ) external override onlyApprovedVault returns (uint256 tokensWithdrawn, bool finalized) {
+    )
+        external
+        override
+        onlyApprovedVault
+        nonReentrant
+        returns (uint256 tokensWithdrawn)
+    {
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][account];
-        if (s_withdraw.requestId == 0) return (0, false);
+        if (s_withdraw.requestId == 0) return 0;
 
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, msg.sender, s_withdraw);
+        tokensWithdrawn = _finalizeWithdraw(account, msg.sender, s_withdraw);
 
-        if (finalized) {
-            // Allows for partial withdrawal of yield tokens
-            if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
-                tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
-                s_withdraw.sharesAmount -= sharesToBurn.toUint120();
-                s_withdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
-            } else {
-                require(s_withdraw.yieldTokenAmount == withdrawYieldTokenAmount);
-                delete s_accountWithdrawRequest[msg.sender][account];
-            }
-
-            ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
+        // Allows for partial withdrawal of yield tokens
+        uint256 requestId = s_withdraw.requestId;
+        bool isCleared = false;
+        if (withdrawYieldTokenAmount < s_withdraw.yieldTokenAmount) {
+            tokensWithdrawn = tokensWithdrawn * withdrawYieldTokenAmount / s_withdraw.yieldTokenAmount;
+            s_withdraw.sharesAmount -= sharesToBurn.toUint120();
+            s_withdraw.yieldTokenAmount -= withdrawYieldTokenAmount.toUint120();
+        } else {
+            require(s_withdraw.yieldTokenAmount == withdrawYieldTokenAmount);
+            delete s_accountWithdrawRequest[msg.sender][account];
+            isCleared = true;
         }
+
+        emit WithdrawRequestRedeemed(msg.sender, account, requestId, withdrawYieldTokenAmount, sharesToBurn, isCleared);
+
+        ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
     }
 
     /// @inheritdoc IWithdrawRequestManager
     function finalizeRequestManual(
         address vault,
         address account
-    ) external override returns (uint256 tokensWithdrawn, bool finalized) {
+    )
+        external
+        override
+        nonReentrant
+        returns (uint256 tokensWithdrawn)
+    {
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[vault][account];
         if (s_withdraw.requestId == 0) revert NoWithdrawRequest(vault, account);
 
         // Do not transfer any tokens off of this method here. Withdrawn tokens will be held in the
         // tokenized withdraw request until the vault calls this contract to withdraw the tokens.
-        (tokensWithdrawn, finalized) = _finalizeWithdraw(account, vault, s_withdraw);
+        tokensWithdrawn = _finalizeWithdraw(account, vault, s_withdraw);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -163,7 +206,13 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address _from,
         address _to,
         uint256 sharesAmount
-    ) external override onlyApprovedVault returns (bool didTokenize) {
+    )
+        external
+        override
+        onlyApprovedVault
+        nonReentrant
+        returns (bool didTokenize)
+    {
         if (_from == _to) revert();
 
         WithdrawRequest storage s_withdraw = s_accountWithdrawRequest[msg.sender][_from];
@@ -205,8 +254,15 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
 
     /// @inheritdoc IWithdrawRequestManager
     function rescueTokens(
-        address cooldownHolder, address token, address receiver, uint256 amount
-    ) external override onlyOwner {
+        address cooldownHolder,
+        address token,
+        address receiver,
+        uint256 amount
+    )
+        external
+        override
+        onlyOwner
+    {
         ClonedCoolDownHolder(cooldownHolder).rescueTokens(ERC20(token), receiver, amount);
     }
 
@@ -216,58 +272,69 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         address account,
         address vault,
         WithdrawRequest memory w
-    ) internal returns (uint256 tokensWithdrawn, bool finalized) {
+    )
+        internal
+        returns (uint256 tokensWithdrawn)
+    {
         TokenizedWithdrawRequest storage s = s_tokenizedWithdrawRequest[w.requestId];
 
         // If the tokenized request was already finalized in a different transaction
         // then return the values here and we can short circuit the withdraw impl
         if (s.finalized) {
-            return (
-                uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount),
-                true
-            );
+            return uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
         }
 
         // These values are the total tokens claimed from the withdraw request, does not
         // account for potential tokenization.
-        (tokensWithdrawn, finalized) = _finalizeWithdrawImpl(account, w.requestId);
+        tokensWithdrawn = _finalizeWithdrawImpl(account, w.requestId);
 
-        if (finalized) {
-            s.totalWithdraw = tokensWithdrawn.toUint120();
-            // Safety check to ensure that we do not override a finalized tokenized withdraw request
-            require(s.finalized == false);
-            s.finalized = true;
+        s.totalWithdraw = tokensWithdrawn.toUint120();
+        // Safety check to ensure that we do not override a finalized tokenized withdraw request
+        require(s.finalized == false);
+        s.finalized = true;
 
-            tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
-            emit WithdrawRequestFinalized(vault, account, w.requestId, s.totalWithdraw);
-        } else {
-            // No tokens claimed if not finalized
-            require(tokensWithdrawn == 0);
-        }
+        tokensWithdrawn = uint256(s.totalWithdraw) * uint256(w.yieldTokenAmount) / uint256(s.totalYieldTokenAmount);
+        emit WithdrawRequestFinalized(vault, account, w.requestId, s.totalWithdraw);
     }
-
 
     /// @notice Required implementation to begin the withdraw request
     /// @return requestId some identifier of the withdraw request
     function _initiateWithdrawImpl(
         address account,
         uint256 yieldTokenAmount,
-        bytes calldata data
-    ) internal virtual returns (uint256 requestId);
+        bytes calldata data,
+        address forceWithdrawFrom
+    )
+        internal
+        virtual
+        returns (uint256 requestId);
 
     /// @notice Required implementation to finalize the withdraw
+    /// @dev Must revert if the withdraw request is not finalized
     /// @return tokensWithdrawn total tokens claimed as a result of the withdraw, does not
     /// necessarily represent the tokens that go to the account if the request has been
     /// tokenized due to liquidation
-    /// @return finalized returns true if the withdraw has been finalized
-    function _finalizeWithdrawImpl(address account, uint256 requestId) internal virtual returns (uint256 tokensWithdrawn, bool finalized);
+    function _finalizeWithdrawImpl(
+        address account,
+        uint256 requestId
+    )
+        internal
+        virtual
+        returns (uint256 tokensWithdrawn);
 
     /// @notice Required implementation to stake the deposit token to the yield token
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal virtual;
 
     /// @dev Allows for the deposit token to be traded into the staking token prior to staking, i.e.
     /// enables USDC to USDe trades before staking into sUSDe.
-    function _preStakingTrade(address depositToken, uint256 depositAmount, bytes calldata data) internal returns (uint256 amountBought, bytes memory stakeData) {
+    function _preStakingTrade(
+        address depositToken,
+        uint256 depositAmount,
+        bytes calldata data
+    )
+        internal
+        returns (uint256 amountBought, bytes memory stakeData)
+    {
         if (depositToken == STAKING_TOKEN) {
             amountBought = depositAmount;
             stakeData = data;
@@ -275,22 +342,28 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             StakingTradeParams memory params = abi.decode(data, (StakingTradeParams));
             stakeData = params.stakeData;
 
-            (/* */, amountBought) = _executeTrade(Trade({
-                tradeType: TradeType.EXACT_IN_SINGLE,
-                sellToken: depositToken,
-                buyToken: STAKING_TOKEN,
-                amount: depositAmount,
-                exchangeData: params.exchangeData,
-                limit: params.minPurchaseAmount,
-                deadline: block.timestamp
-            }), params.dexId);
+            (/* */, amountBought) = _executeTrade(
+                Trade({
+                    tradeType: TradeType.EXACT_IN_SINGLE,
+                    sellToken: depositToken,
+                    buyToken: STAKING_TOKEN,
+                    amount: depositAmount,
+                    exchangeData: params.exchangeData,
+                    limit: params.minPurchaseAmount,
+                    deadline: block.timestamp
+                }),
+                params.dexId
+            );
         }
     }
 
     function _executeTrade(
         Trade memory trade,
         uint16 dexId
-    ) internal returns (uint256 amountSold, uint256 amountBought) {
+    )
+        internal
+        returns (uint256 amountSold, uint256 amountBought)
+    {
         (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
             .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
         if (!success) {
@@ -305,40 +378,69 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
+    function getKnownWithdrawTokenAmount(
+        uint256 /* requestId */
+    )
+        public
+        view
+        virtual
+        override
+        returns (bool hasKnownAmount, uint256 amount)
+    {
+        return (false, 0);
+    }
+
     /// @inheritdoc IWithdrawRequestManager
     function getWithdrawRequestValue(
         address vault,
         address account,
         address asset,
         uint256 shares
-    ) external view override returns (bool hasRequest, uint256 valueInAsset) {
+    )
+        external
+        view
+        override
+        returns (bool hasRequest, uint256 valueInAsset)
+    {
         WithdrawRequest memory w = s_accountWithdrawRequest[vault][account];
         if (w.requestId == 0) return (false, 0);
 
         TokenizedWithdrawRequest memory s = s_tokenizedWithdrawRequest[w.requestId];
 
+        (bool hasKnownAmount, uint256 knownAmount) = getKnownWithdrawTokenAmount(w.requestId);
         int256 tokenRate;
         uint256 tokenAmount;
         uint256 tokenDecimals;
         uint256 assetDecimals = TokenUtils.getDecimals(asset);
-        if (s.finalized) {
+        if (s.finalized || hasKnownAmount) {
             // If finalized the withdraw request is locked to the tokens withdrawn
-            (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
+            (
+                tokenRate, /* */
+            ) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
             tokenDecimals = TokenUtils.getDecimals(WITHDRAW_TOKEN);
-            tokenAmount = (uint256(w.yieldTokenAmount) * uint256(s.totalWithdraw)) / uint256(s.totalYieldTokenAmount);
+            uint256 totalWithdraw = s.finalized ? uint256(s.totalWithdraw) : knownAmount;
+            tokenAmount = (uint256(w.yieldTokenAmount) * totalWithdraw) / uint256(s.totalYieldTokenAmount);
         } else {
             // Otherwise we use the yield token rate
-            (tokenRate, /* */) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
+            (
+                tokenRate, /* */
+            ) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
             tokenDecimals = TokenUtils.getDecimals(YIELD_TOKEN);
             tokenAmount = w.yieldTokenAmount;
         }
 
         // The trading module always returns a positive rate in 18 decimals so we can safely
         // cast to uint256
-        uint256 totalValue = (uint256(tokenRate) * tokenAmount * (10 ** assetDecimals)) /
-            ((10 ** tokenDecimals) * DEFAULT_PRECISION);
+        uint256 totalValue =
+            (uint256(tokenRate) * tokenAmount * (10 ** assetDecimals)) / ((10 ** tokenDecimals) * DEFAULT_PRECISION);
         // NOTE: returns the normalized value given the shares input
         return (true, totalValue * shares / w.sharesAmount);
     }
 
+    /// @inheritdoc IWithdrawRequestManager
+    function getExchangeRate() public view virtual override returns (uint256) {
+        // Covers the base case where the yield token is an ERC4626 vault and returns
+        // the exchange rate of the yield token back to the staking token.
+        return IERC4626(YIELD_TOKEN).convertToAssets(10 ** ERC20(YIELD_TOKEN).decimals());
+    }
 }

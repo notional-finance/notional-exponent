@@ -8,6 +8,7 @@ import "../src/withdraws/GenericERC4626.sol";
 import "../src/withdraws/GenericERC20.sol";
 import "../src/withdraws/Origin.sol";
 import "../src/withdraws/Dinero.sol";
+import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) public override {
@@ -18,7 +19,7 @@ contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function deployManager() public override {
         manager = new EtherFiWithdrawRequestManager();
         allowedDepositTokens.push(ERC20(address(WETH)));
-        WETH.deposit{value: 10e18}();
+        WETH.deposit{ value: 10e18 }();
         depositCallData = "";
         withdrawCallData = "";
     }
@@ -39,10 +40,39 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
         depositCallData = "";
         withdrawCallData = "";
     }
+
+    function test_zero_cooldown_duration() public approveVaultAndStakeTokens {
+        vm.startPrank(sUSDe.owner());
+        sUSDe.setCooldownDuration(0);
+        vm.stopPrank();
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId = manager.initiateWithdraw(
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        assertEq(manager.canFinalizeWithdrawRequest(requestId), true);
+
+        // Now we should be able to finalize the withdraw request and get the full amount back
+        uint256 tokensWithdrawn =
+            manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+        assertGt(tokensWithdrawn, 0);
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+    }
 }
 
 contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */) public pure override {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        pure
+        override
+    {
         return;
     }
 
@@ -56,7 +86,13 @@ contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */) public pure override {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        pure
+        override
+    {
         return;
     }
 
@@ -69,78 +105,105 @@ contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
     }
 }
 
-contract TestOriginWithdrawRequest is TestWithdrawRequest {
-
-    function finalizeWithdrawRequest(uint256 /* requestId */) public override {
+contract TestWrappedOriginWithdrawRequest is TestWithdrawRequest {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        override
+    {
         uint256 claimDelay = OriginVault.withdrawalClaimDelay();
         vm.warp(block.timestamp + claimDelay);
 
-        deal(address(WETH), address(OriginVault), 1_000e18);
+        deal(address(WETH), address(OriginVault), 2000e18);
         OriginVault.addWithdrawalQueueLiquidity();
     }
 
     function deployManager() public override {
-        manager = new OriginWithdrawRequestManager();
+        manager = new OriginWithdrawRequestManager(address(wOETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
-        WETH.deposit{value: 10e18}();
+        WETH.deposit{ value: 10e18 }();
+        depositCallData = "";
+        withdrawCallData = "";
+    }
+}
+
+contract TestOriginWithdrawRequest is TestWithdrawRequest {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        override
+    {
+        uint256 claimDelay = OriginVault.withdrawalClaimDelay();
+        vm.warp(block.timestamp + claimDelay);
+
+        deal(address(WETH), address(OriginVault), 2000e18);
+        OriginVault.addWithdrawalQueueLiquidity();
+    }
+
+    function deployManager() public override {
+        manager = new OriginWithdrawRequestManager(address(oETH));
+        allowedDepositTokens.push(ERC20(address(WETH)));
+        WETH.deposit{ value: 10e18 }();
         depositCallData = "";
         withdrawCallData = "";
     }
 }
 
 contract TestDinero_pxETH_WithdrawRequest is TestWithdrawRequest {
-
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         address rewardRecipient = PirexETH.rewardRecipient();
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
             bytes memory validator = PirexETH.batchIdToValidator(i);
             vm.record();
             PirexETH.status(validator);
-            (bytes32[] memory reads, ) = vm.accesses(address(PirexETH));
+            (bytes32[] memory reads,) = vm.accesses(address(PirexETH));
             vm.store(address(PirexETH), reads[0], bytes32(uint256(IPirexETH.ValidatorStatus.Withdrawable)));
 
             deal(rewardRecipient, 32e18);
             vm.prank(rewardRecipient);
-            PirexETH.dissolveValidator{value: 32e18}(validator);
+            PirexETH.dissolveValidator{ value: 32e18 }(validator);
         }
     }
 
     function deployManager() public override {
         manager = new DineroWithdrawRequestManager(address(pxETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
-        WETH.deposit{value: 45e18}();
+        WETH.deposit{ value: 45e18 }();
         depositCallData = "";
         withdrawCallData = "";
     }
 }
 
 contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
-
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 initialBatchId = requestId >> 120 & type(uint120).max;
-        uint256 finalBatchId = requestId & type(uint120).max;
+        DineroCooldownHolder holder = DineroCooldownHolder(payable(address(uint160(requestId))));
+        uint256 initialBatchId = holder.initialBatchId();
+        uint256 finalBatchId = holder.finalBatchId();
         address rewardRecipient = PirexETH.rewardRecipient();
 
         for (uint256 i = initialBatchId; i <= finalBatchId; i++) {
             bytes memory validator = PirexETH.batchIdToValidator(i);
             vm.record();
             PirexETH.status(validator);
-            (bytes32[] memory reads, ) = vm.accesses(address(PirexETH));
+            (bytes32[] memory reads,) = vm.accesses(address(PirexETH));
             vm.store(address(PirexETH), reads[0], bytes32(uint256(IPirexETH.ValidatorStatus.Withdrawable)));
 
             deal(rewardRecipient, 32e18);
             vm.prank(rewardRecipient);
-            PirexETH.dissolveValidator{value: 32e18}(validator);
+            PirexETH.dissolveValidator{ value: 32e18 }(validator);
         }
     }
 
     function deployManager() public override {
         manager = new DineroWithdrawRequestManager(address(apxETH));
         allowedDepositTokens.push(ERC20(address(WETH)));
-        WETH.deposit{value: 45e18}();
+        WETH.deposit{ value: 45e18 }();
         depositCallData = "";
         withdrawCallData = "";
     }

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {ILendingRouter, VaultPosition} from "../interfaces/ILendingRouter.sol";
+import { ILendingRouter, VaultPosition } from "../interfaces/ILendingRouter.sol";
 import {
     NotAuthorized,
     CannotExitPositionWithinCooldownPeriod,
-    CannotInitiateWithdraw,
     CannotForceWithdraw,
     InvalidLendingRouter,
     NoExistingPosition,
@@ -14,21 +13,23 @@ import {
     CannotLiquidateZeroShares,
     InsufficientSharesHeld
 } from "../interfaces/Errors.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {TokenUtils} from "../utils/TokenUtils.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IYieldStrategy} from "../interfaces/IYieldStrategy.sol";
-import {RewardManagerMixin} from "../rewards/RewardManagerMixin.sol";
-import {ILendingRouter} from "../interfaces/ILendingRouter.sol";
-import {ADDRESS_REGISTRY, COOLDOWN_PERIOD} from "../utils/Constants.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IYieldStrategy } from "../interfaces/IYieldStrategy.sol";
+import { RewardManagerMixin } from "../rewards/RewardManagerMixin.sol";
+import { ADDRESS_REGISTRY, COOLDOWN_PERIOD } from "../utils/Constants.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
-abstract contract AbstractLendingRouter is ILendingRouter {
+abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransient {
     using SafeERC20 for ERC20;
     using TokenUtils for ERC20;
 
     mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
 
-    /*** Authorization Methods ***/
+    /**
+     * Authorization Methods **
+     */
     modifier isAuthorized(address onBehalf, address vault) {
         // In this case msg.sender is the operator
         if (msg.sender != onBehalf && !isApproved(onBehalf, msg.sender)) {
@@ -60,7 +61,12 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
-    ) public override isAuthorized(onBehalf, vault) {
+    )
+        public
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
         _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
@@ -69,10 +75,22 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         address migrateFrom
-    ) public override isAuthorized(onBehalf, vault) {
+    )
+        public
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
+        _migratePosition(onBehalf, vault, migrateFrom);
+    }
+
+    function _migratePosition(address onBehalf, address vault, address migrateFrom) internal {
         if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
         // Borrow amount is set to the amount of debt owed to the previous lending router
-        (uint256 borrowAmount, /* */, /* */) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
+        (
+            uint256 borrowAmount,
+            /* */, /* */
+        ) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
 
         _enterPosition(onBehalf, vault, 0, borrowAmount, bytes(""), migrateFrom);
     }
@@ -84,7 +102,9 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 borrowAmount,
         bytes memory depositData,
         address migrateFrom
-    ) internal {
+    )
+        internal
+    {
         address asset = IYieldStrategy(vault).asset();
         // Cannot enter a position if the account already has a native share balance
         if (IYieldStrategy(vault).balanceOf(onBehalf) > 0) revert CannotEnterPosition();
@@ -97,7 +117,7 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 borrowShares;
         uint256 vaultSharesReceived;
         if (borrowAmount > 0) {
-            _flashBorrowAndEnter(
+            (vaultSharesReceived, borrowShares) = _flashBorrowAndEnter(
                 onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateFrom
             );
         } else {
@@ -106,7 +126,9 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         ADDRESS_REGISTRY.setPosition(onBehalf, vault);
 
-        emit EnterPosition(onBehalf, vault, depositAssetAmount, borrowShares, vaultSharesReceived, migrateFrom != address(0));
+        emit EnterPosition(
+            onBehalf, vault, depositAssetAmount, borrowShares, vaultSharesReceived, migrateFrom != address(0)
+        );
     }
 
     /// @inheritdoc ILendingRouter
@@ -117,18 +139,23 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes calldata redeemData
-    ) external override isAuthorized(onBehalf, vault) {
+    )
+        external
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
         _checkExit(onBehalf, vault);
 
         address asset = IYieldStrategy(vault).asset();
         uint256 borrowSharesRepaid;
         uint256 profitsWithdrawn;
         if (0 < assetToRepay) {
-            (borrowSharesRepaid, profitsWithdrawn) = _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
+            (borrowSharesRepaid, profitsWithdrawn) =
+                _exitWithRepay(onBehalf, vault, asset, receiver, sharesToRedeem, assetToRepay, redeemData);
         } else {
-            // TODO: on migrate assetToRepay is always set to uint256.max so we can remove this call
-            address migrateTo = _isMigrate(receiver) ? receiver : address(0);
-            profitsWithdrawn = _redeemShares(onBehalf, vault, asset, migrateTo, sharesToRedeem, redeemData);
+            // Migrate to is always set to address(0) since assetToRepay is always set to uint256.max
+            profitsWithdrawn = _redeemShares(onBehalf, vault, asset, address(0), sharesToRedeem, redeemData);
             if (0 < profitsWithdrawn) ERC20(asset).safeTransfer(receiver, profitsWithdrawn);
         }
 
@@ -145,7 +172,12 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address vault,
         uint256 sharesToLiquidate,
         uint256 debtToRepay
-    ) external override returns (uint256 sharesToLiquidator) {
+    )
+        external
+        override
+        nonReentrant
+        returns (uint256 sharesToLiquidator)
+    {
         if (sharesToLiquidate == 0) revert CannotLiquidateZeroShares();
 
         address liquidator = msg.sender;
@@ -163,7 +195,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
 
         // After this call, address(this) will have the liquidated shares
         uint256 borrowSharesRepaid;
-        (sharesToLiquidator, borrowSharesRepaid) = _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);
+        (sharesToLiquidator, borrowSharesRepaid) =
+            _liquidate(liquidator, vault, liquidateAccount, sharesToLiquidate, debtToRepay);
 
         // Transfers the shares to the liquidator from the lending router and does any post liquidation logic. The
         // current account is cleared in this method.
@@ -187,38 +220,78 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address onBehalf,
         address vault,
         bytes calldata data
-    ) external override isAuthorized(onBehalf, vault) returns (uint256 requestId) {
-        requestId = _initiateWithdraw(vault, onBehalf, data);
+    )
+        external
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+        returns (uint256 requestId)
+    {
+        requestId = _initiateWithdraw(vault, onBehalf, data, false);
     }
 
     /// @inheritdoc ILendingRouter
-    function forceWithdraw(address account, address vault, bytes calldata data) external returns (uint256 requestId) {
+    function forceWithdraw(
+        address account,
+        address vault,
+        bytes calldata data
+    )
+        external
+        nonReentrant
+        returns (uint256 requestId)
+    {
         // Can only force a withdraw if health factor is negative, this allows a liquidator to
         // force a withdraw and liquidate a position at a later time.
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
+        (uint256 borrowed,/* */, uint256 maxBorrow) = healthFactor(account, vault);
         if (borrowed <= maxBorrow) revert CannotForceWithdraw(account);
 
-        requestId = _initiateWithdraw(vault, account, data);
+        requestId = _initiateWithdraw(vault, account, data, true);
 
         // Clear the current account since this method is not called using isAuthorized
         IYieldStrategy(vault).clearCurrentAccount();
+
+        emit ForceWithdraw(account, vault, requestId);
     }
 
     /// @inheritdoc ILendingRouter
-    function claimRewards(address vault) external returns (uint256[] memory rewards) {
-        return RewardManagerMixin(vault).claimAccountRewards(msg.sender, balanceOfCollateral(msg.sender, vault));
+    function claimRewards(
+        address onBehalf,
+        address vault
+    )
+        external
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+        returns (uint256[] memory rewards)
+    {
+        return RewardManagerMixin(vault).claimAccountRewards(onBehalf, balanceOfCollateral(onBehalf, vault));
     }
 
     /// @inheritdoc ILendingRouter
-    function healthFactor(address borrower, address vault) public override virtual returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
+    function healthFactor(
+        address borrower,
+        address vault
+    )
+        public
+        virtual
+        override
+        returns (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow);
 
     /// @inheritdoc ILendingRouter
-    function balanceOfCollateral(address account, address vault) public override view virtual returns (uint256 collateralBalance);
+    function balanceOfCollateral(
+        address account,
+        address vault
+    )
+        public
+        view
+        virtual
+        override
+        returns (uint256 collateralBalance);
 
-
-    /*** Internal Methods ***/
-
-    function _checkExit(address onBehalf, address vault) internal view  {
+    /**
+     * Internal Methods **
+     */
+    function _checkExit(address onBehalf, address vault) internal view {
         VaultPosition memory position = ADDRESS_REGISTRY.getVaultPosition(onBehalf, vault);
         if (position.lendingRouter != address(this)) revert NoExistingPosition();
         if (block.timestamp - position.lastEntryTime < COOLDOWN_PERIOD) {
@@ -239,18 +312,20 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 assetAmount,
         bytes memory depositData,
         address migrateFrom
-    ) internal returns (uint256 sharesReceived) {
+    )
+        internal
+        returns (uint256 sharesReceived)
+    {
         if (migrateFrom != address(0)) {
             // Allow the previous lending router to repay the debt from assets held here.
             ERC20(asset).checkApprove(migrateFrom, assetAmount);
             sharesReceived = ILendingRouter(migrateFrom).balanceOfCollateral(onBehalf, vault);
 
             // Must migrate the entire position
-            ILendingRouter(migrateFrom).exitPosition(
-                onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes("")
-            );
+            ILendingRouter(migrateFrom)
+                .exitPosition(onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes(""));
         } else {
-            ERC20(asset).approve(vault, assetAmount);
+            ERC20(asset).checkApprove(vault, assetAmount);
             sharesReceived = IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
         }
 
@@ -265,19 +340,22 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address migrateTo,
         uint256 sharesToRedeem,
         bytes memory redeemData
-    ) internal returns (uint256 assetsWithdrawn) {
+    )
+        internal
+        returns (uint256 assetsWithdrawn)
+    {
         address receiver = migrateTo == address(0) ? sharesOwner : migrateTo;
         uint256 sharesHeld = balanceOfCollateral(sharesOwner, vault);
 
         // Allows the transfer from the lending market to the sharesOwner
-        IYieldStrategy(vault).allowTransfer(receiver, sharesToRedeem, sharesOwner);
-        _withdrawCollateral(vault, asset, sharesToRedeem, sharesOwner, receiver);
+        if (0 < sharesToRedeem) {
+            IYieldStrategy(vault).allowTransfer(receiver, sharesToRedeem, sharesOwner);
+            _withdrawCollateral(vault, asset, sharesToRedeem, sharesOwner, receiver);
+        }
 
         // If we are not migrating then burn the shares
         if (migrateTo == address(0)) {
-            assetsWithdrawn = IYieldStrategy(vault).burnShares(
-                sharesOwner, sharesToRedeem, sharesHeld, redeemData
-            );
+            assetsWithdrawn = IYieldStrategy(vault).burnShares(sharesOwner, sharesToRedeem, sharesHeld, redeemData);
         }
     }
 
@@ -285,14 +363,20 @@ abstract contract AbstractLendingRouter is ILendingRouter {
     function _initiateWithdraw(
         address vault,
         address account,
-        bytes calldata data
-    ) internal returns (uint256 requestId) {
+        bytes calldata data,
+        bool isForce
+    )
+        internal
+        returns (uint256 requestId)
+    {
         uint256 sharesHeld = balanceOfCollateral(account, vault);
         if (sharesHeld == 0) revert InsufficientSharesHeld();
-        return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data);
+        return IYieldStrategy(vault).initiateWithdraw(account, sharesHeld, data, isForce ? msg.sender : address(0));
     }
 
-    /*** Virtual Methods (lending market specific) ***/
+    /**
+     * Virtual Methods (lending market specific) **
+     */
 
     /// @dev Flash borrows the assets and enters a position
     function _flashBorrowAndEnter(
@@ -303,12 +387,13 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 borrowAmount,
         bytes memory depositData,
         address migrateFrom
-    ) internal virtual returns (uint256 vaultSharesReceived, uint256 borrowShares);
+    )
+        internal
+        virtual
+        returns (uint256 vaultSharesReceived, uint256 borrowShares);
 
     /// @dev Supplies collateral in the amount of shares received to the lending market
-    function _supplyCollateral(
-        address onBehalf, address vault, address asset, uint256 sharesReceived
-    ) internal virtual;
+    function _supplyCollateral(address onBehalf, address vault, address asset, uint256 sharesReceived) internal virtual;
 
     /// @dev Withdraws collateral from the lending market
     function _withdrawCollateral(
@@ -317,7 +402,9 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToRedeem,
         address sharesOwner,
         address receiver
-    ) internal virtual;
+    )
+        internal
+        virtual;
 
     /// @dev Liquidates a position on the lending market
     function _liquidate(
@@ -326,7 +413,10 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         address liquidateAccount,
         uint256 sharesToLiquidate,
         uint256 debtToRepay
-    ) internal virtual returns (uint256 sharesToLiquidator, uint256 borrowSharesRepaid);
+    )
+        internal
+        virtual
+        returns (uint256 sharesToLiquidator, uint256 borrowSharesRepaid);
 
     /// @dev Exits a position with a debt repayment
     function _exitWithRepay(
@@ -337,6 +427,8 @@ abstract contract AbstractLendingRouter is ILendingRouter {
         uint256 sharesToRedeem,
         uint256 assetToRepay,
         bytes memory redeemData
-    ) internal virtual returns (uint256 borrowSharesRepaid, uint256 profitsWithdrawn);
-
+    )
+        internal
+        virtual
+        returns (uint256 borrowSharesRepaid, uint256 profitsWithdrawn);
 }

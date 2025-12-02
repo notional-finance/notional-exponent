@@ -1,4 +1,4 @@
-import { Address, BigInt, ByteArray, crypto, ethereum } from "@graphprotocol/graph-ts";
+import { Address, BigInt, ByteArray, Bytes, crypto, ethereum } from "@graphprotocol/graph-ts";
 import {
   EnterPosition,
   ExitPosition,
@@ -7,10 +7,11 @@ import {
 } from "../generated/templates/LendingRouter/ILendingRouter";
 import { createERC20TokenAsset, getBorrowShare, getToken } from "./entities/token";
 import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrategy";
-import { createSnapshotForIncentives, createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
+import { createTradeExecutionLineItem, setProfitLossLineItem } from "./entities/balance";
 import { loadAccount } from "./entities/account";
 import { Account, Token } from "../generated/schema";
 import { DEFAULT_PRECISION, ZERO_ADDRESS } from "./constants";
+import { getMarketParams } from "./entities/market";
 
 function getBorrowSharePrice(
   borrowAssets: BigInt,
@@ -18,15 +19,21 @@ function getBorrowSharePrice(
   underlyingToken: Token,
   borrowShare: Token,
 ): BigInt {
-  return borrowAssets
-    .times(DEFAULT_PRECISION)
-    .times(borrowShare.precision)
-    .div(borrowShares)
-    .div(underlyingToken.precision);
+  if (borrowAssets.gt(BigInt.zero())) {
+    return borrowAssets
+      .times(DEFAULT_PRECISION)
+      .times(borrowShare.precision)
+      .div(borrowShares)
+      .div(underlyingToken.precision);
+  } else {
+    return BigInt.zero();
+  }
 }
 
 export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
-  return price.times(underlyingToken.precision).div(DEFAULT_PRECISION);
+  // Convert the price to 18 decimals precision
+  let pow: u8 = ((18 - underlyingToken.decimals) as u8) + 12;
+  return price.div(BigInt.fromI32(10).pow(pow));
 }
 
 export function handleEnterPosition(event: EnterPosition): void {
@@ -52,28 +59,33 @@ export function handleEnterPosition(event: EnterPosition): void {
       event.address,
       event,
     );
+  } else {
+    // This still initializes the borrow share token object.
+    getBorrowShare(event.params.vault, event.address, event);
   }
 
-  if (event.params.vaultSharesReceived.gt(BigInt.zero())) {
-    let vaultShare = getToken(event.params.vault.toHexString());
-    // This comes in as 1e36 so divide it by 1e18 to get the price in the correct precision
-    let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
-    let underlyingAmountRealized = borrowAssets.plus(event.params.depositAssets);
+  let vaultShare = getToken(event.params.vault.toHexString());
+  // This comes in as 1e36 so divide it by 1e18 to get the price in the correct precision
+  let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
+  let underlyingAmountRealized = borrowAssets.plus(event.params.depositAssets);
 
-    setProfitLossLineItem(
-      account,
-      vaultShare,
-      underlyingToken,
-      event.params.vaultSharesReceived,
-      underlyingAmountRealized,
-      oraclePrice,
-      event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
-      event.address,
-      event,
-    );
-  }
+  setProfitLossLineItem(
+    account,
+    vaultShare,
+    underlyingToken,
+    event.params.vaultSharesReceived,
+    underlyingAmountRealized,
+    oraclePrice,
+    event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
+    event.address,
+    event,
+  );
 
   parseVaultEvents(account, event.params.vault, event);
+
+  // Get any initial market params for the lending router / vault (market) combination.
+  // Since the subgraph has to stay generic, we need to do this on the first entry.
+  getMarketParams(event.address, event.params.vault, event);
 }
 
 export function handleExitPosition(event: ExitPosition): void {
@@ -105,23 +117,21 @@ export function handleExitPosition(event: ExitPosition): void {
     );
   }
 
-  if (event.params.vaultSharesBurned.gt(BigInt.zero())) {
-    let vaultShare = getToken(event.params.vault.toHexString());
-    let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
+  let vaultShare = getToken(event.params.vault.toHexString());
+  let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
 
-    setProfitLossLineItem(
-      account,
-      vaultShare,
-      underlyingToken,
-      // Negative because we are burning vault shares
-      event.params.vaultSharesBurned.neg(),
-      event.params.profitsWithdrawn.plus(borrowAssetsRepaid).neg(),
-      oraclePrice,
-      "ExitPosition",
-      event.address,
-      event,
-    );
-  }
+  setProfitLossLineItem(
+    account,
+    vaultShare,
+    underlyingToken,
+    // Negative because we are burning vault shares
+    event.params.vaultSharesBurned.neg(),
+    event.params.profitsWithdrawn.plus(borrowAssetsRepaid).neg(),
+    oraclePrice,
+    "ExitPosition",
+    event.address,
+    event,
+  );
 
   parseVaultEvents(account, event.params.vault, event);
 }
@@ -193,20 +203,19 @@ function parseVaultEvents(account: Account, vaultAddress: Address, event: ethere
     let _log = event.receipt!.logs[i];
     if (_log.address.toHexString() != vaultAddress.toHexString()) continue;
 
-    if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
-      // We do this here because we don't know the current lending router in order
-      // to get the proper balance snapshot so these need to be done after the balance
-      // snapshots are updated.
-      let rewardToken = Address.fromBytes(_log.topics[1]);
-      let account = Address.fromBytes(_log.topics[2]);
-      let amount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.reverse()));
-      createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
-    } else if (
-      _log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))
-    ) {
+    // if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("VaultRewardTransfer(address,address,uint256)"))) {
+    //   // We do this here because we don't know the current lending router in order
+    //   // to get the proper balance snapshot so these need to be done after the balance
+    //   // snapshots are updated.
+    //   let rewardToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+    //   let account = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
+    //   let amount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.reverse()));
+    //   createSnapshotForIncentives(loadAccount(account.toHexString(), event), vaultAddress, rewardToken, amount, event);
+    // } else
+    if (_log.topics[0] == crypto.keccak256(ByteArray.fromUTF8("TradeExecuted(address,address,uint256,uint256)"))) {
       // NOTE: the account is the one doing the trade here.
-      let sellToken = Address.fromBytes(_log.topics[1]);
-      let buyToken = Address.fromBytes(_log.topics[2]);
+      let sellToken = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
+      let buyToken = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
       let sellAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(0, 32).reverse()));
       let buyAmount = BigInt.fromUnsignedBytes(changetype<ByteArray>(_log.data.slice(32).reverse()));
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.29;
 
-import {InvalidInitialization} from "../interfaces/Errors.sol";
+import { InvalidInitialization } from "../interfaces/Errors.sol";
 
 contract Initializable {
     bool private initialized;
@@ -16,5 +16,7 @@ contract Initializable {
         _initialize(data);
     }
 
+    /* solhint-disable no-empty-blocks */
     function _initialize(bytes calldata data) internal virtual { }
+    /* solhint-enable no-empty-blocks */
 }

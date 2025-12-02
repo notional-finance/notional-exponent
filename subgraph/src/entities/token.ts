@@ -61,6 +61,15 @@ export function createERC20TokenAsset(tokenAddress: Address, event: ethereum.Eve
     token.precision = BigInt.fromI32(10).pow(decimals as u8);
   }
 
+  // Need to override the decimals for the two initially deployed vaults
+  if (
+    tokenAddress == Address.fromHexString("0xaf14d06a65c91541a5b2db627ecd1c92d7d9c48b") ||
+    tokenAddress == Address.fromHexString("0x7f723fee1e65a7d26be51a05af0b5efee4a7d5ae")
+  ) {
+    token.decimals = 24;
+    token.precision = BigInt.fromI32(10).pow(24 as u8);
+  }
+
   token.tokenInterface = "ERC20";
   token.tokenAddress = tokenAddress;
   token.tokenType = tokenType;
@@ -85,9 +94,10 @@ export function getBorrowShare(vault: Address, lendingRouter: Address, event: et
   let l = ILendingRouter.bind(lendingRouter);
   let name = l.name();
   let decimals = 18;
+  let v = IYieldStrategy.bind(Address.fromBytes(vault));
+  let asset = getToken(v.asset().toHexString());
+
   if (name == "Morpho") {
-    let v = IYieldStrategy.bind(Address.fromBytes(vault));
-    let asset = getToken(v.asset().toHexString());
     // Morpho borrow shares are 6 decimals more than the asset to account
     // for the virtual shares.
     decimals = asset.decimals + 6;
@@ -100,8 +110,9 @@ export function getBorrowShare(vault: Address, lendingRouter: Address, event: et
   borrowShare.precision = BigInt.fromI32(10).pow(decimals as u8);
   borrowShare.tokenInterface = "ERC1155";
   borrowShare.tokenAddress = lendingRouter;
-  borrowShare.vaultAddress = vault;
+  borrowShare.vaultAddress = vault.toHexString();
   borrowShare.tokenType = "VaultDebt";
+  borrowShare.underlying = asset.id;
 
   borrowShare.lastUpdateBlockNumber = event.block.number;
   borrowShare.lastUpdateTimestamp = event.block.timestamp.toI32();
