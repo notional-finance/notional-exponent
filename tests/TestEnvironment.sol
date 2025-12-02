@@ -14,7 +14,7 @@ import "./TestWithdrawRequest.sol";
 
 abstract contract TestEnvironment is Test {
     string RPC_URL = vm.envString("RPC_URL");
-    uint256 FORK_BLOCK = 23_027_757;
+    uint256 FORK_BLOCK = vm.envUint("FORK_BLOCK");
 
     ERC20 public w;
     MockOracle public o;
