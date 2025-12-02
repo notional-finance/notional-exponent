@@ -13,7 +13,9 @@ abstract contract TestDilutionAttack is TestEnvironment {
         if (asset == USDC) {
             o = new MockOracle(1e18);
         } else {
-            (AggregatorV2V3Interface ethOracle, /* */ ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+            (
+                AggregatorV2V3Interface ethOracle, /* */
+            ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
             o = new MockOracle(ethOracle.latestAnswer() * 1e18 / 1e8);
         }
 

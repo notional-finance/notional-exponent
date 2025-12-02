@@ -38,14 +38,8 @@ contract ChainlinkUSDOracle is AbstractCustomOracle {
     }
 
     function _getQuoteRate() internal view virtual returns (int256 quoteRate) {
-        (
-            /* roundId */
-            ,
-            quoteRate,
-            /* uint256 startedAt */
-            ,
-            /* updatedAt */
-            ,
+        (/* roundId */,
+            quoteRate,/* uint256 startedAt */,/* updatedAt */,
             /* answeredInRound */
         ) = quoteToUSDOracle.latestRoundData();
         require(quoteRate > 0, "Chainlink Rate Error");

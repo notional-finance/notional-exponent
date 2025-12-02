@@ -184,13 +184,7 @@ interface ILendingRouter {
      *
      * @return requestId The request id.
      */
-    function initiateWithdraw(
-        address onBehalf,
-        address vault,
-        bytes calldata data
-    )
-        external
-        returns (uint256 requestId);
+    function initiateWithdraw(address onBehalf, address vault, bytes calldata data) external returns (uint256 requestId);
 
     /**
      * @dev Forces a withdraw for a user for a given vault, only allowed if the health factor is negative.

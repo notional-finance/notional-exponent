@@ -74,7 +74,15 @@ contract PendlePT is AbstractStakingStrategy {
         return "PendlePT";
     }
 
-    function _mintYieldTokens(uint256 assets, address, /* receiver */ bytes memory data) internal override {
+    function _mintYieldTokens(
+        uint256 assets,
+        address,
+        /* receiver */
+        bytes memory data
+    )
+        internal
+        override
+    {
         require(!PT.isExpired(), "Expired");
         PendleDepositParams memory params = abi.decode(data, (PendleDepositParams));
         uint256 tokenInAmount;
@@ -92,7 +100,7 @@ contract PendlePT is AbstractStakingStrategy {
 
             // Executes a trade on the given Dex, the vault must have permissions set for
             // each dex and token it wants to sell.
-            ( /* */ , tokenInAmount) = _executeTrade(trade, params.dexId);
+            (/* */, tokenInAmount) = _executeTrade(trade, params.dexId);
         } else {
             tokenInAmount = assets;
         }
@@ -135,7 +143,7 @@ contract PendlePT is AbstractStakingStrategy {
 
             // Executes a trade on the given Dex, the vault must have permissions set for
             // each dex and token it wants to sell.
-            ( /* */ , assetsPurchased) = _executeTrade(trade, params.dexId);
+            (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
         } else {
             if (params.minPurchaseAmount > netTokenOut) revert SlippageTooHigh(netTokenOut, params.minPurchaseAmount);
             assetsPurchased = netTokenOut;

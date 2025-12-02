@@ -142,13 +142,7 @@ interface IWithdrawRequestManager {
     /// @param from the account that is being liquidated
     /// @param to the liquidator
     /// @param sharesAmount the amount of shares to the liquidator
-    function tokenizeWithdrawRequest(
-        address from,
-        address to,
-        uint256 sharesAmount
-    )
-        external
-        returns (bool didTokenize);
+    function tokenizeWithdrawRequest(address from, address to, uint256 sharesAmount) external returns (bool didTokenize);
 
     /// @notice Allows the emergency exit role to rescue tokens from the withdraw request manager
     /// @param cooldownHolder the cooldown holder to rescue tokens from
@@ -202,8 +196,5 @@ interface IWithdrawRequestManager {
     /// @param requestId the request id of the withdraw request
     /// @return hasKnownAmount whether the amount is known
     /// @return amount the amount of withdraw tokens
-    function getKnownWithdrawTokenAmount(uint256 requestId)
-        external
-        view
-        returns (bool hasKnownAmount, uint256 amount);
+    function getKnownWithdrawTokenAmount(uint256 requestId) external view returns (bool hasKnownAmount, uint256 amount);
 }

@@ -34,7 +34,9 @@ contract DeployMorphoLendingRouter is ProxyHelper, GnosisHelper {
             calls[0] = MethodCall({
                 to: PROXY,
                 value: 0,
-                callData: abi.encodeWithSelector(TimelockUpgradeableProxy.initiateUpgrade.selector, address(lendingRouter))
+                callData: abi.encodeWithSelector(
+                    TimelockUpgradeableProxy.initiateUpgrade.selector, address(lendingRouter)
+                )
             });
             generateBatch("./script/upgrade-morpho-lending-router.json", calls);
         }

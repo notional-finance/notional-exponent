@@ -114,7 +114,9 @@ abstract contract DeployLPVault is DeployVault {
     }
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
-        (AggregatorV2V3Interface baseToUSDOracle, /* */ ) = TRADING_MODULE.priceOracles(address(asset));
+        (
+            AggregatorV2V3Interface baseToUSDOracle, /* */
+        ) = TRADING_MODULE.priceOracles(address(asset));
         // This needs to match the yield token above
         oracleToken = rewardPool == address(0) ? address(curveGauge) : address(rewardPool);
 

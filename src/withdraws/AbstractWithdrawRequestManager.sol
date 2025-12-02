@@ -142,9 +142,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         accountWithdraw.yieldTokenAmount = yieldTokenAmount.toUint120();
         accountWithdraw.sharesAmount = sharesAmount.toUint120();
         s_tokenizedWithdrawRequest[requestId] = TokenizedWithdrawRequest({
-            totalYieldTokenAmount: yieldTokenAmount.toUint120(),
-            totalWithdraw: 0,
-            finalized: false
+            totalYieldTokenAmount: yieldTokenAmount.toUint120(), totalWithdraw: 0, finalized: false
         });
 
         emit InitiateWithdrawRequest(account, msg.sender, yieldTokenAmount, sharesAmount, requestId);
@@ -344,7 +342,7 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
             StakingTradeParams memory params = abi.decode(data, (StakingTradeParams));
             stakeData = params.stakeData;
 
-            ( /* */ , amountBought) = _executeTrade(
+            (/* */, amountBought) = _executeTrade(
                 Trade({
                     tradeType: TradeType.EXACT_IN_SINGLE,
                     sellToken: depositToken,
@@ -366,9 +364,8 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         internal
         returns (uint256 amountSold, uint256 amountBought)
     {
-        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation().delegatecall(
-            abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade)
-        );
+        (bool success, bytes memory result) = nProxy(payable(address(TRADING_MODULE))).getImplementation()
+            .delegatecall(abi.encodeWithSelector(TRADING_MODULE.executeTrade.selector, dexId, trade));
         if (!success) {
             assembly {
                 // Copy the return data to memory
@@ -381,7 +378,9 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         (amountSold, amountBought) = abi.decode(result, (uint256, uint256));
     }
 
-    function getKnownWithdrawTokenAmount(uint256 /* requestId */ )
+    function getKnownWithdrawTokenAmount(
+        uint256 /* requestId */
+    )
         public
         view
         virtual
@@ -415,13 +414,17 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         uint256 assetDecimals = TokenUtils.getDecimals(asset);
         if (s.finalized || hasKnownAmount) {
             // If finalized the withdraw request is locked to the tokens withdrawn
-            (tokenRate, /* */ ) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
+            (
+                tokenRate, /* */
+            ) = TRADING_MODULE.getOraclePrice(WITHDRAW_TOKEN, asset);
             tokenDecimals = TokenUtils.getDecimals(WITHDRAW_TOKEN);
             uint256 totalWithdraw = s.finalized ? uint256(s.totalWithdraw) : knownAmount;
             tokenAmount = (uint256(w.yieldTokenAmount) * totalWithdraw) / uint256(s.totalYieldTokenAmount);
         } else {
             // Otherwise we use the yield token rate
-            (tokenRate, /* */ ) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
+            (
+                tokenRate, /* */
+            ) = TRADING_MODULE.getOraclePrice(YIELD_TOKEN, asset);
             tokenDecimals = TokenUtils.getDecimals(YIELD_TOKEN);
             tokenAmount = w.yieldTokenAmount;
         }

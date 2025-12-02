@@ -14,7 +14,6 @@ enum DexId {
     NOTIONAL_VAULT, // flag = 64, enum = 6
     CURVE_V2, // flag = 128, enum = 7
     CAMELOT_V3 // flag = 256, enum = 8
-
 }
 
 enum TradeType {
@@ -23,7 +22,6 @@ enum TradeType {
     EXACT_IN_BATCH, // flag = 4
     EXACT_OUT_BATCH, // flag = 8
     STAKE_TOKEN // flag = 16
-
 }
 
 struct UniV3SingleData {

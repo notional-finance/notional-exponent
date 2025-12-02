@@ -40,7 +40,10 @@ contract PendlePTOracle is AbstractCustomOracle {
         invertBase = invertBase_;
 
         uint8 _baseDecimals = baseToUSDOracle_.decimals();
-        ( /* */ , address pt, /* */ ) = IPMarket(pendleMarket_).readTokens();
+        (
+            /* */,
+            address pt, /* */
+        ) = IPMarket(pendleMarket_).readTokens();
         uint8 _ptDecimals = ERC20(pt).decimals();
         // There are times when the SY is not in 18 decimals, the PT oracle
         // will be returned in different decimals due to the exchange rate difference.

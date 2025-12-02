@@ -175,7 +175,15 @@ contract MockRewardPool is ERC20 {
         return true;
     }
 
-    function deposit(uint256, /* poolId */ uint256 amount, bool /* stake */ ) external returns (bool success) {
+    function deposit(
+        uint256,
+        /* poolId */
+        uint256 amount,
+        bool /* stake */
+    )
+        external
+        returns (bool success)
+    {
         depositToken.transferFrom(msg.sender, address(this), amount);
         _mint(msg.sender, amount * 1e18 / 1e6);
         success = true;
@@ -235,7 +243,9 @@ contract MockRewardVault is RewardManagerMixin {
         override
     {
         if (isEscrowed) {
-            (WithdrawRequest memory w, /* */ ) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
+            (
+                WithdrawRequest memory w, /* */
+            ) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
 
             if (w.requestId != 0) {
                 uint256 yieldTokenAmount = w.yieldTokenAmount * sharesToRedeem / w.sharesAmount;
@@ -298,7 +308,9 @@ contract MockRewardVault is RewardManagerMixin {
 }
 
 contract MockStakingStrategy is StakingStrategy {
-    constructor(address _asset, address _yieldToken, uint256 _feeRate) StakingStrategy(_asset, _yieldToken, _feeRate) { }
+    constructor(address _asset, address _yieldToken, uint256 _feeRate)
+        StakingStrategy(_asset, _yieldToken, _feeRate)
+    { }
 
     function transientVariables() external view returns (address, address, address, uint256) {
         return (t_CurrentAccount, t_CurrentLendingRouter, t_AllowTransfer_To, t_AllowTransfer_Amount);

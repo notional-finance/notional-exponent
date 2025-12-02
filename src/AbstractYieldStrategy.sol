@@ -162,7 +162,9 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function convertYieldTokenToAsset() public view returns (uint256) {
         // The trading module always returns a positive rate in 18 decimals so we can safely
         // cast to uint256
-        (int256 rate, /* */ ) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
+        (
+            int256 rate, /* */
+        ) = TRADING_MODULE.getOraclePrice(yieldToken, asset);
         return uint256(rate);
     }
 
@@ -420,8 +422,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
 
         uint256 preFeeUserHeldYieldTokens = s_yieldTokenBalance * _feeAdjustmentPrecision - s_accruedFeesInYieldToken;
         // Taylor approximation of e ^ x = 1 + x + x^2 / 2! + x^3 / 3! + ...
-        uint256 eToTheX = DEFAULT_PRECISION + x + (x * x) / (2 * DEFAULT_PRECISION)
-            + (x * x * x) / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
+        uint256 eToTheX = DEFAULT_PRECISION + x + (x * x) / (2 * DEFAULT_PRECISION) + (x * x * x)
+            / (6 * DEFAULT_PRECISION * DEFAULT_PRECISION);
         // Decay the user's yield tokens by e ^ (feeRate * timeSinceLastFeeAccrual / YEAR)
         uint256 postFeeUserHeldYieldTokens = preFeeUserHeldYieldTokens * DEFAULT_PRECISION / eToTheX;
 

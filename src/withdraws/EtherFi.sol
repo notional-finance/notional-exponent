@@ -28,7 +28,13 @@ contract EtherFiWithdrawRequestManager is AbstractWithdrawRequestManager, ERC721
         return LiquidityPool.requestWithdraw(address(this), eETHReceived);
     }
 
-    function _stakeTokens(uint256 amount, bytes memory /* stakeData */ ) internal override {
+    function _stakeTokens(
+        uint256 amount,
+        bytes memory /* stakeData */
+    )
+        internal
+        override
+    {
         WETH.withdraw(amount);
         uint256 eEthBalBefore = eETH.balanceOf(address(this));
         LiquidityPool.deposit{ value: amount }();

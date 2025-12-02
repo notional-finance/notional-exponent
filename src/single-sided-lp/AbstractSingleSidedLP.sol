@@ -131,7 +131,15 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
         _initialApproveTokens();
     }
 
-    function _mintYieldTokens(uint256 assets, address, /* receiver */ bytes memory depositData) internal override {
+    function _mintYieldTokens(
+        uint256 assets,
+        address,
+        /* receiver */
+        bytes memory depositData
+    )
+        internal
+        override
+    {
         DepositParams memory params = abi.decode(depositData, (DepositParams));
         uint256[] memory amounts = new uint256[](NUM_TOKENS());
 
@@ -273,7 +281,7 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
                     deadline: block.timestamp,
                     exchangeData: t.exchangeData
                 });
-                ( /* */ , uint256 amountBought) = _executeTrade(trade, t.dexId);
+                (/* */, uint256 amountBought) = _executeTrade(trade, t.dexId);
 
                 finalPrimaryBalance += amountBought;
             }
@@ -324,7 +332,9 @@ abstract contract AbstractSingleSidedLP is RewardManagerMixin {
     {
         WithdrawParams memory params = abi.decode(data, (WithdrawParams));
 
-        (uint256[] memory exitBalances, /* */ ) = _unstakeAndExitPool({
+        (
+            uint256[] memory exitBalances, /* */
+        ) = _unstakeAndExitPool({
             poolClaim: yieldTokenAmount,
             minAmounts: params.minAmounts,
             // When initiating a withdraw, we always exit proportionally
@@ -426,7 +436,9 @@ abstract contract BaseLPLib is ILPLib {
             if (address(manager) == address(0)) return false;
             // This is called as a view function, not a delegate call so use the msg.sender to get
             // the correct vault address
-            (WithdrawRequest memory w, /* */ ) = manager.getWithdrawRequest(msg.sender, account);
+            (
+                WithdrawRequest memory w, /* */
+            ) = manager.getWithdrawRequest(msg.sender, account);
             if (w.requestId != 0) return true;
         }
 
@@ -484,16 +496,16 @@ abstract contract BaseLPLib is ILPLib {
         WithdrawRequest memory w;
         for (uint256 i; i < tokens.length; i++) {
             IWithdrawRequestManager manager = ADDRESS_REGISTRY.getWithdrawRequestManager(address(tokens[i]));
-            (w, /* */ ) = manager.getWithdrawRequest(address(this), sharesOwner);
+            (
+                w, /* */
+            ) = manager.getWithdrawRequest(address(this), sharesOwner);
             withdrawTokens[i] = ERC20(manager.WITHDRAW_TOKEN());
 
             // There must be a corresponding withdraw request for each token.
             if (w.sharesAmount == 0 || w.requestId == 0) revert();
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
             exitBalances[i] = manager.finalizeAndRedeemWithdrawRequest({
-                account: sharesOwner,
-                withdrawYieldTokenAmount: yieldTokensBurned,
-                sharesToBurn: sharesToRedeem
+                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
         }
     }

@@ -553,7 +553,9 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         lendingRouter2 = MorphoLendingRouter(address(setupLendingRouter(0.98e18)));
 
         vm.startPrank(user);
-        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) {
+            MORPHO.setAuthorization(address(lendingRouter2), true);
+        }
         lendingRouter.setApproval(address(lendingRouter2), true);
 
         asset.approve(address(lendingRouter2), defaultDeposit);
@@ -601,7 +603,9 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         MorphoLendingRouter lendingRouter2 = setup_migration_test(user);
 
         vm.startPrank(user);
-        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) {
+            MORPHO.setAuthorization(address(lendingRouter2), true);
+        }
         asset.approve(address(lendingRouter2), defaultDeposit);
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter2.enterPosition(
@@ -692,7 +696,9 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         MorphoLendingRouter lendingRouter2 = MorphoLendingRouter(address(setupLendingRouter(0.98e18)));
 
         vm.startPrank(user);
-        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) MORPHO.setAuthorization(address(lendingRouter2), true);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter2))) {
+            MORPHO.setAuthorization(address(lendingRouter2), true);
+        }
         lendingRouter.setApproval(address(lendingRouter2), true);
 
         asset.approve(address(lendingRouter2), defaultDeposit);

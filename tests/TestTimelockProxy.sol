@@ -13,7 +13,12 @@ contract MockInitializable is Initializable {
         return true;
     }
 
-    function _initialize(bytes calldata /* data */ ) internal override {
+    function _initialize(
+        bytes calldata /* data */
+    )
+        internal
+        override
+    {
         didInitialize = true;
     }
 }

@@ -263,7 +263,7 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
         uint256 rewardDebt = _getAccountRewardDebtSlot()[rewardToken][account];
         rewardToClaim = ((accountSharesBefore * rewardsPerVaultShare) / SHARE_PRECISION) - rewardDebt;
         _getAccountRewardDebtSlot()[rewardToken][account] =
-            ((accountSharesAfter * rewardsPerVaultShare) / SHARE_PRECISION);
+        ((accountSharesAfter * rewardsPerVaultShare) / SHARE_PRECISION);
 
         if (0 < rewardToClaim) {
             // Ignore transfer errors here so that any strange failures here do not
@@ -344,9 +344,9 @@ abstract contract AbstractRewardManager is IRewardManager, ReentrancyGuardTransi
             //  YEAR (SECONDS)
             //  SHARE_PRECISION (1e24)
             // => Precision = REWARD_TOKEN_PRECISION
-            additionalIncentiveAccumulatedPerVaultShare = (
-                timeSinceLastAccumulation * SHARE_PRECISION * state.emissionRatePerYear
-            ) / (YEAR * effectiveSupplyBefore);
+            additionalIncentiveAccumulatedPerVaultShare =
+                (timeSinceLastAccumulation * SHARE_PRECISION * state.emissionRatePerYear)
+                    / (YEAR * effectiveSupplyBefore);
         }
 
         return state.accumulatedRewardPerVaultShare + additionalIncentiveAccumulatedPerVaultShare;

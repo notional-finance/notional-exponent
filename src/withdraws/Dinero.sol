@@ -27,7 +27,9 @@ contract DineroCooldownHolder is ClonedCoolDownHolder, ERC1155Holder {
 
         initialBatchId = PirexETH.batchId();
         pxETH.approve(address(PirexETH), amountToWithdraw);
-        (pxETHAmount, /* */ ) = PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
+        (
+            pxETHAmount, /* */
+        ) = PirexETH.initiateRedemption(amountToWithdraw, address(this), false);
         finalBatchId = PirexETH.batchId();
     }
 
@@ -54,7 +56,12 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
         AbstractWithdrawRequestManager(address(WETH), address(pxETHorApxETH), address(WETH))
     { }
 
-    function _initialize(bytes calldata /* data */ ) internal override {
+    function _initialize(
+        bytes calldata /* data */
+    )
+        internal
+        override
+    {
         HOLDER_IMPLEMENTATION = address(new DineroCooldownHolder(address(this)));
     }
 
@@ -80,7 +87,13 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
         return uint256(uint160(address(holder)));
     }
 
-    function _stakeTokens(uint256 amount, bytes memory /* stakeData */ ) internal override {
+    function _stakeTokens(
+        uint256 amount,
+        bytes memory /* stakeData */
+    )
+        internal
+        override
+    {
         WETH.withdraw(amount);
         PirexETH.deposit{ value: amount }(address(this), YIELD_TOKEN == address(apxETH));
     }
@@ -130,7 +143,9 @@ contract DineroWithdrawRequestManager is AbstractWithdrawRequestManager {
         hasKnownAmount = true;
         // The withdraw token is marked as WETH here, but we know the pxETH amount instead of the WETH
         // amount so we do need to convert it to WETH using the pxETH market price.
-        (int256 tokenRate, /* */ ) = TRADING_MODULE.getOraclePrice(address(pxETH), WITHDRAW_TOKEN);
+        (
+            int256 tokenRate, /* */
+        ) = TRADING_MODULE.getOraclePrice(address(pxETH), WITHDRAW_TOKEN);
         amount = holder.pxETHAmount() * uint256(tokenRate) / DEFAULT_PRECISION;
     }
 

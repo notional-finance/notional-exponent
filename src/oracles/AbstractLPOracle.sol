@@ -56,7 +56,9 @@ abstract contract AbstractLPOracle is AbstractCustomOracle {
     function _getOraclePairPrice(address base, address quote) internal view returns (uint256) {
         // The trading module always returns a positive rate in DEFAULT_PRECISION so we can safely
         // cast to uint256
-        (int256 rate, /* */ ) = TRADING_MODULE.getOraclePrice(base, quote);
+        (
+            int256 rate, /* */
+        ) = TRADING_MODULE.getOraclePrice(base, quote);
         return uint256(rate);
     }
 

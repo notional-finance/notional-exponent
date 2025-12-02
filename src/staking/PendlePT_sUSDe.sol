@@ -47,18 +47,18 @@ contract PendlePT_sUSDe is PendlePT {
             buyToken: address(sDAI),
             amount: netTokenOut,
             limit: 0, // NOTE: no slippage guard is set here, it is enforced in the second leg
-                // of the trade.
+            // of the trade.
             deadline: block.timestamp,
             exchangeData: abi.encode(
                 CurveV2SingleData({
                     pool: 0x167478921b907422F8E88B43C4Af2B8BEa278d3A,
                     fromIndex: 1, // sUSDe
                     toIndex: 0 // sDAI
-                 })
+                })
             )
         });
 
-        ( /* */ , uint256 sDAIAmount) = _executeTrade(sDAITrade, uint16(DexId.CURVE_V2));
+        (/* */, uint256 sDAIAmount) = _executeTrade(sDAITrade, uint16(DexId.CURVE_V2));
 
         // Unwraps the sDAI to DAI
         uint256 daiAmount = sDAI.redeem(sDAIAmount, address(this), address(this));
@@ -76,7 +76,7 @@ contract PendlePT_sUSDe is PendlePT {
             });
 
             // Trades the unwrapped DAI back to the given token.
-            ( /* */ , assetsPurchased) = _executeTrade(trade, params.dexId);
+            (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
         } else {
             if (params.minPurchaseAmount > daiAmount) revert SlippageTooHigh(daiAmount, params.minPurchaseAmount);
             assetsPurchased = daiAmount;

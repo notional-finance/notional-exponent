@@ -55,9 +55,7 @@ contract TestMockStakingStrategy_EtherFi is TestStakingStrategy {
             address(y),
             address(weETH),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
@@ -107,9 +105,7 @@ contract TestStakingStrategy_EtherFi is TestStakingStrategy {
             address(y),
             address(weETH),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
@@ -184,9 +180,7 @@ contract TestStakingStrategy_Ethena is TestStakingStrategy {
             address(manager),
             address(USDC),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();

@@ -86,7 +86,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     function finalizeWithdrawRequest(address user) internal override {
         for (uint256 i; i < managers.length; i++) {
             if (address(managers[i]) == address(0)) continue;
-            (WithdrawRequest memory w, /* */ ) = managers[i].getWithdrawRequest(address(y), user);
+            (
+                WithdrawRequest memory w, /* */
+            ) = managers[i].getWithdrawRequest(address(y), user);
             if (address(withdrawRequests[i]) == address(0)) continue;
             withdrawRequests[i].finalizeWithdrawRequest(w.requestId);
         }
@@ -181,7 +183,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         );
 
         feeToken = lpToken;
-        (baseToUSDOracle, /* */ ) = TRADING_MODULE.priceOracles(usdOracleToken);
+        (
+            baseToUSDOracle, /* */
+        ) = TRADING_MODULE.priceOracles(usdOracleToken);
         Curve2TokenOracle oracle = new Curve2TokenOracle(
             0.95e18,
             1.05e18,
@@ -219,7 +223,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
     }
 
     function test_claimRewards() public {
-        (VaultRewardState[] memory rewardStates, /* */ ) = rm.getRewardSettings();
+        (
+            VaultRewardState[] memory rewardStates, /* */
+        ) = rm.getRewardSettings();
         vm.skip(rewardStates.length == 0);
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
 
@@ -252,24 +258,26 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.skip(address(managers[stakeTokenIndex]) == address(0));
         vm.skip(isDummyWithdrawRequestManager);
 
-        depositParams.depositTrades.push(
-            TradeParams({
-                tradeType: TradeType.STAKE_TOKEN,
-                dexId: 0,
-                tradeAmount: 0,
-                minPurchaseAmount: 0,
-                exchangeData: bytes("")
-            })
-        );
-        depositParams.depositTrades.push(
-            TradeParams({
-                tradeType: TradeType.STAKE_TOKEN,
-                dexId: 0,
-                tradeAmount: 0,
-                minPurchaseAmount: 0,
-                exchangeData: bytes("")
-            })
-        );
+        depositParams.depositTrades
+            .push(
+                TradeParams({
+                    tradeType: TradeType.STAKE_TOKEN,
+                    dexId: 0,
+                    tradeAmount: 0,
+                    minPurchaseAmount: 0,
+                    exchangeData: bytes("")
+                })
+            );
+        depositParams.depositTrades
+            .push(
+                TradeParams({
+                    tradeType: TradeType.STAKE_TOKEN,
+                    dexId: 0,
+                    tradeAmount: 0,
+                    minPurchaseAmount: 0,
+                    exchangeData: bytes("")
+                })
+            );
 
         depositParams.depositTrades[stakeTokenIndex] = TradeParams({
             tradeType: TradeType.STAKE_TOKEN,
@@ -404,7 +412,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         // Call reverts inside the withdraw request manager when the request is
         // not finalized
-        (WithdrawRequest memory w, /* */ ) = managers[stakeTokenIndex].getWithdrawRequest(address(y), msg.sender);
+        (
+            WithdrawRequest memory w, /* */
+        ) = managers[stakeTokenIndex].getWithdrawRequest(address(y), msg.sender);
         if (!managers[stakeTokenIndex].canFinalizeWithdrawRequest(w.requestId)) {
             vm.expectRevert();
             lendingRouter.exitPosition(msg.sender, address(y), msg.sender, shares, type(uint256).max, redeemData);
@@ -465,8 +475,14 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         // The staker exists to generate fees on the position to test the withdraw valuation
         _enterPosition(staker, defaultDeposit, defaultBorrow);
 
-        ( /* */ , uint256 collateralValueBefore, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
-        ( /* */ , uint256 collateralValueBeforeStaker, /* */ ) = lendingRouter.healthFactor(staker, address(y));
+        (
+            /* */,
+            uint256 collateralValueBefore, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueBeforeStaker, /* */
+        ) = lendingRouter.healthFactor(staker, address(y));
         assertApproxEqRel(
             collateralValueBefore,
             collateralValueBeforeStaker,
@@ -481,14 +497,23 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             getWithdrawRequestData(msg.sender, lendingRouter.balanceOfCollateral(msg.sender, address(y)))
         );
         vm.stopPrank();
-        ( /* */ , uint256 collateralValueAfter, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfter, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         assertApproxEqRel(
             collateralValueBefore, collateralValueAfter, 0.0005e18, "Withdrawal should not change collateral value"
         );
 
         vm.warp(block.timestamp + 10 days);
-        ( /* */ , uint256 collateralValueAfterWarp, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
-        ( /* */ , uint256 collateralValueAfterWarpStaker, /* */ ) = lendingRouter.healthFactor(staker, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterWarp, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterWarpStaker, /* */
+        ) = lendingRouter.healthFactor(staker, address(y));
 
         // Collateral value for the withdrawer should not change over time
         assertEq(
@@ -506,7 +531,10 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             if (address(managers[i]) == address(0)) continue;
             managers[i].finalizeRequestManual(address(y), msg.sender);
         }
-        ( /* */ , uint256 collateralValueAfterFinalize, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterFinalize, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
 
         assertApproxEqRel(
             collateralValueAfterFinalize,
@@ -541,7 +569,9 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
             // Don't drop the price of the asset token since it will offset the
             // price drop of the yield token
             if (yieldToken == address(asset)) continue;
-            (AggregatorV2V3Interface oracle, /* */ ) = TRADING_MODULE.priceOracles(yieldToken);
+            (
+                AggregatorV2V3Interface oracle, /* */
+            ) = TRADING_MODULE.priceOracles(yieldToken);
             MockOracle o = new MockOracle(oracle.latestAnswer());
 
             int256 oraclePrecision = int256(10 ** oracle.decimals());

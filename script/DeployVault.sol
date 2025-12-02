@@ -12,7 +12,11 @@ import { Initializable } from "../src/proxy/Initializable.sol";
 import { ADDRESS_REGISTRY, WETH } from "../src/utils/Constants.sol";
 import { MORPHO } from "../src/interfaces/Morpho/IMorpho.sol";
 import {
-    TRADING_MODULE, ITradingModule, TradeType, DexId, CurveV2SingleData
+    TRADING_MODULE,
+    ITradingModule,
+    TradeType,
+    DexId,
+    CurveV2SingleData
 } from "../src/interfaces/ITradingModule.sol";
 import { MorphoLendingRouter } from "../src/routers/MorphoLendingRouter.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -199,7 +203,9 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         calls[callIndex++] = MethodCall({
             to: address(MORPHO_LENDING_ROUTER),
             value: 0,
-            callData: abi.encodeWithSelector(MorphoLendingRouter.initializeMarket.selector, proxy, MORPHO_IRM, MORPHO_LLTV)
+            callData: abi.encodeWithSelector(
+                MorphoLendingRouter.initializeMarket.selector, proxy, MORPHO_IRM, MORPHO_LLTV
+            )
         });
     }
 }
@@ -214,11 +220,29 @@ contract EtherFiStaking is DeployVault {
         feeRate = 0.0015e18;
     }
 
-    function getDepositData(address, /* user */ uint256 /* amount */ ) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 /* amount */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         return bytes("");
     }
 
-    function getRedeemData(address, /* user */ uint256 /* amount */ ) internal pure override returns (bytes memory) {
+    function getRedeemData(
+        address,
+        /* user */
+        uint256 /* amount */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         return abi.encode(
             RedeemParams({
                 minPurchaseAmount: 0,

@@ -82,13 +82,14 @@ contract TestRewardManager is TestMorphoYieldStrategy {
 
         TimelockUpgradeableProxy(payable(address(y))).initiateUpgrade(address(newVault));
         vm.warp(block.timestamp + 7 days);
-        TimelockUpgradeableProxy(payable(address(y))).executeUpgrade(
-            abi.encodeWithSelector(
-                AbstractRewardManager.migrateRewardPool.selector,
-                address(USDC),
-                RewardPoolStorage({ rewardPool: address(newRewardPool), forceClaimAfter: 0, lastClaimTimestamp: 0 })
-            )
-        );
+        TimelockUpgradeableProxy(payable(address(y)))
+            .executeUpgrade(
+                abi.encodeWithSelector(
+                    AbstractRewardManager.migrateRewardPool.selector,
+                    address(USDC),
+                    RewardPoolStorage({ rewardPool: address(newRewardPool), forceClaimAfter: 0, lastClaimTimestamp: 0 })
+                )
+            );
 
         rm.updateRewardToken(1, address(MockRewardPool(address(newRewardPool)).rewardToken()), 0, 0);
         vm.stopPrank();
@@ -876,20 +877,26 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         rm.updateRewardToken(1, address(emissionsToken), 365e18, uint32(block.timestamp + 365 days));
         deal(address(emissionsToken), address(rm), 365e18);
         VaultRewardState[] memory rewardStates;
-        (rewardStates, /* */ ) = rm.getRewardSettings();
+        (
+            rewardStates, /* */
+        ) = rm.getRewardSettings();
         assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 0);
 
         vm.warp(block.timestamp + 30 days);
 
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
-        (rewardStates, /* */ ) = rm.getRewardSettings();
+        (
+            rewardStates, /* */
+        ) = rm.getRewardSettings();
         assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 0);
 
         vm.warp(block.timestamp + 1 days);
 
         vm.prank(msg.sender);
         lendingRouter.claimRewards(msg.sender, address(y));
-        (rewardStates, /* */ ) = rm.getRewardSettings();
+        (
+            rewardStates, /* */
+        ) = rm.getRewardSettings();
         assertEq(rewardStates[1].accumulatedRewardPerVaultShare, 9_999_999_999_999);
 
         uint256 emissions = emissionsToken.balanceOf(msg.sender);

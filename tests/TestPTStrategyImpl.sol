@@ -52,7 +52,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                         guessOffchain: 0,
                         maxIteration: 256,
                         eps: 1e15 // recommended setting (0.1%)
-                     }),
+                    }),
                     limitOrderData: limitOrderData
                 })
             )
@@ -61,10 +61,20 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         return abi.encode(d);
     }
 
-    function getRedeemData(address user, uint256 /* shares */ ) internal view override returns (bytes memory) {
+    function getRedeemData(
+        address user,
+        uint256 /* shares */
+    )
+        internal
+        view
+        override
+        returns (bytes memory)
+    {
         WithdrawRequest memory w;
         if (address(manager) != address(0)) {
-            (w, /* */ ) = manager.getWithdrawRequest(address(y), user);
+            (
+                w, /* */
+            ) = manager.getWithdrawRequest(address(y), user);
         }
         PendleRedeemParams memory r;
 
@@ -122,9 +132,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 address(y),
                 address(DAI),
                 ITradingModule.TokenPermissions({
-                    allowSell: true,
-                    dexFlags: uint32(1 << defaultDexId),
-                    tradeTypeFlags: 5
+                    allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5
                 })
             );
             // Allow trading of USDe
@@ -132,9 +140,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                 address(y),
                 address(tokenIn),
                 ITradingModule.TokenPermissions({
-                    allowSell: true,
-                    dexFlags: uint32(1 << defaultDexId),
-                    tradeTypeFlags: 5
+                    allowSell: true, dexFlags: uint32(1 << defaultDexId), tradeTypeFlags: 5
                 })
             );
         }
@@ -171,7 +177,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
                         guessOffchain: 0,
                         maxIteration: 256,
                         eps: 1e15 // recommended setting (0.1%)
-                     }),
+                    }),
                     limitOrderData: limitOrderData
                 })
             )
@@ -268,7 +274,7 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
                 pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
                 fromIndex: 0, // DAI
                 toIndex: 1 // USDC
-             })
+            })
         );
         defaultWithdrawRequestExchangeData = abi.encode(
             CurveV2SingleData({
@@ -283,7 +289,9 @@ contract TestStakingStrategy_PT_sUSDe is TestStakingStrategy_PT {
         defaultBorrow = 90_000e6;
         maxWithdrawValuationChange = 0.0085e18;
 
-        (AggregatorV2V3Interface tokenOutSyOracle, /* */ ) = TRADING_MODULE.priceOracles(address(USDe));
+        (
+            AggregatorV2V3Interface tokenOutSyOracle, /* */
+        ) = TRADING_MODULE.priceOracles(address(USDe));
         withdrawTokenOracle =
             new MockOracle(tokenOutSyOracle.latestAnswer() * int256(10 ** (18 - tokenOutSyOracle.decimals())));
 
@@ -414,7 +422,7 @@ contract TestStakingStrategy_PT_sUSDe_26NOV2025 is TestStakingStrategy_PT {
                 pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
                 fromIndex: 0, // DAI
                 toIndex: 1 // USDC
-             })
+            })
         );
         defaultWithdrawRequestExchangeData = abi.encode(
             CurveV2SingleData({
@@ -429,7 +437,9 @@ contract TestStakingStrategy_PT_sUSDe_26NOV2025 is TestStakingStrategy_PT {
         defaultBorrow = 90_000e6;
         maxWithdrawValuationChange = 0.015e18;
 
-        (AggregatorV2V3Interface tokenOutSyOracle, /* */ ) = TRADING_MODULE.priceOracles(address(USDe));
+        (
+            AggregatorV2V3Interface tokenOutSyOracle, /* */
+        ) = TRADING_MODULE.priceOracles(address(USDe));
         withdrawTokenOracle =
             new MockOracle(tokenOutSyOracle.latestAnswer() * int256(10 ** (18 - tokenOutSyOracle.decimals())));
 

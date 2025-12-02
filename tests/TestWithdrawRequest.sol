@@ -494,10 +494,7 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(tokenizedRequest.finalized, false);
     }
 
-    function test_tokenizeWithdrawRequest_RevertIf_ExistingtokenizeWithdrawRequest()
-        public
-        approveVaultAndStakeTokens
-    {
+    function test_tokenizeWithdrawRequest_RevertIf_ExistingtokenizeWithdrawRequest() public approveVaultAndStakeTokens {
         address staker1 = makeAddr("staker1");
         address staker2 = makeAddr("staker2");
         address splitStaker = makeAddr("splitStaker");

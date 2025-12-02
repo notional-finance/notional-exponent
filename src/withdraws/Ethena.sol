@@ -65,11 +65,22 @@ contract EthenaWithdrawRequestManager is AbstractWithdrawRequestManager {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 
-    function _initialize(bytes calldata /* data */ ) internal override {
+    function _initialize(
+        bytes calldata /* data */
+    )
+        internal
+        override
+    {
         HOLDER_IMPLEMENTATION = address(new EthenaCooldownHolder(address(this)));
     }
 
-    function _stakeTokens(uint256 usdeAmount, bytes memory /* stakeData */ ) internal override {
+    function _stakeTokens(
+        uint256 usdeAmount,
+        bytes memory /* stakeData */
+    )
+        internal
+        override
+    {
         USDe.approve(address(sUSDe), usdeAmount);
         sUSDe.deposit(usdeAmount, address(this));
     }

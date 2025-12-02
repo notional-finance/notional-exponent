@@ -2,8 +2,9 @@
 pragma solidity >=0.8.28;
 
 interface IAsset {
-// solhint-disable-previous-line no-empty-blocks
-}
+    // solhint-disable-previous-line no-empty-blocks
+
+    }
 
 interface IBalancerVault {
     enum PoolSpecialization {
@@ -22,7 +23,6 @@ interface IBalancerVault {
         EXACT_BPT_IN_FOR_TOKENS_OUT,
         BPT_IN_FOR_EXACT_TOKENS_OUT,
         MANAGEMENT_FEE_TOKENS_OUT // for ManagedPool
-
     }
     enum ComposableExitKind {
         EXACT_BPT_IN_FOR_ONE_TOKEN_OUT,
@@ -34,7 +34,6 @@ interface IBalancerVault {
         EXACT_BPT_IN_FOR_TOKENS_OUT,
         BPT_IN_FOR_EXACT_TOKENS_OUT,
         MANAGEMENT_FEE_TOKENS_OUT // for InvestmentPool
-
     }
 
     enum UserBalanceOpKind {

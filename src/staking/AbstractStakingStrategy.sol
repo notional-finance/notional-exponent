@@ -111,13 +111,13 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
         override
     {
         if (isEscrowed) {
-            (WithdrawRequest memory w, /* */ ) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
+            (
+                WithdrawRequest memory w, /* */
+            ) = withdrawRequestManager.getWithdrawRequest(address(this), sharesOwner);
             uint256 yieldTokensBurned = uint256(w.yieldTokenAmount) * sharesToRedeem / w.sharesAmount;
 
             uint256 tokensClaimed = withdrawRequestManager.finalizeAndRedeemWithdrawRequest({
-                account: sharesOwner,
-                withdrawYieldTokenAmount: yieldTokensBurned,
-                sharesToBurn: sharesToRedeem
+                account: sharesOwner, withdrawYieldTokenAmount: yieldTokensBurned, sharesToBurn: sharesToRedeem
             });
 
             // Trades may be required here if the borrowed token is not the same as what is
@@ -165,11 +165,14 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
 
         // Executes a trade on the given Dex, the vault must have permissions set for
         // each dex and token it wants to sell.
-        ( /* */ , assetsPurchased) = _executeTrade(trade, params.dexId);
+        (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
     }
 
     /* solhint-disable no-empty-blocks */
-    function _preLiquidation(address, address, uint256, uint256) internal override { /* no-op */ }
+    function _preLiquidation(address, address, uint256, uint256) internal override {
+        /* no-op */
+        return;
+    }
     /* solhint-enable no-empty-blocks */
 
     function _postLiquidation(

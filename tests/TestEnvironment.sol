@@ -143,7 +143,9 @@ abstract contract TestEnvironment is Test {
      * Virtual Test Functions **
      */
     function finalizeWithdrawRequest(address user) internal virtual {
-        (WithdrawRequest memory wr, /* */ ) = manager.getWithdrawRequest(address(y), user);
+        (
+            WithdrawRequest memory wr, /* */
+        ) = manager.getWithdrawRequest(address(y), user);
         withdrawRequest.finalizeWithdrawRequest(wr.requestId);
     }
 

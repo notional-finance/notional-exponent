@@ -151,7 +151,7 @@ abstract contract DeployPTVault is DeployVault {
                         guessOffchain: 0,
                         maxIteration: 256,
                         eps: 1e15 // recommended setting (0.1%)
-                     }),
+                    }),
                     limitOrderData: limitOrderData
                 })
             )
@@ -160,10 +160,20 @@ abstract contract DeployPTVault is DeployVault {
         return abi.encode(d);
     }
 
-    function getRedeemData(address user, uint256 /* shares */ ) internal view override returns (bytes memory) {
+    function getRedeemData(
+        address user,
+        uint256 /* shares */
+    )
+        internal
+        view
+        override
+        returns (bytes memory)
+    {
         WithdrawRequest memory w;
         if (address(managers()[0]) != address(0)) {
-            (w, /* */ ) = managers()[0].getWithdrawRequest(address(proxy), user);
+            (
+                w, /* */
+            ) = managers()[0].getWithdrawRequest(address(proxy), user);
         }
         PendleRedeemParams memory r;
 
@@ -204,7 +214,7 @@ contract PT_sUSDe_27NOV2025 is DeployPTVault {
                 pool: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7,
                 fromIndex: 0, // DAI
                 toIndex: 1 // USDC
-             })
+            })
         );
         defaultWithdrawRequestExchangeData = abi.encode(
             CurveV2SingleData({

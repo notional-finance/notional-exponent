@@ -114,10 +114,16 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.startPrank(msg.sender);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         bytes memory withdrawRequestData = getWithdrawRequestData(msg.sender, balanceBefore);
-        ( /* */ , uint256 collateralValueBefore, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueBefore, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         lendingRouter.initiateWithdraw(msg.sender, address(y), withdrawRequestData);
         checkTransientsCleared();
-        ( /* */ , uint256 collateralValueAfter, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfter, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
             // there will be some slippage as a result of selling the PT
@@ -396,8 +402,14 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         bytes memory withdrawRequestData = getWithdrawRequestData(msg.sender, balanceBefore);
 
-        ( /* */ , uint256 collateralValueBefore, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
-        ( /* */ , uint256 collateralValueBeforeStaker, /* */ ) = lendingRouter.healthFactor(staker, address(y));
+        (
+            /* */,
+            uint256 collateralValueBefore, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueBeforeStaker, /* */
+        ) = lendingRouter.healthFactor(staker, address(y));
         checkTransientsCleared();
         assertApproxEqRel(
             collateralValueBefore,
@@ -411,7 +423,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         checkTransientsCleared();
         vm.stopPrank();
 
-        ( /* */ , uint256 collateralValueAfter, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfter, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         if (address(withdrawTokenOracle) != address(0)) {
             // If there is a different oracle for the withdraw token (i.e. for PTs),
             // there will be some slippage as a result of selling the PT
@@ -428,8 +443,14 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         }
 
         vm.warp(block.timestamp + 10 days);
-        ( /* */ , uint256 collateralValueAfterWarp, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
-        ( /* */ , uint256 collateralValueAfterWarpStaker, /* */ ) = lendingRouter.healthFactor(staker, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterWarp, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterWarpStaker, /* */
+        ) = lendingRouter.healthFactor(staker, address(y));
 
         // Collateral value for the withdrawer should not change over time
         assertEq(
@@ -444,7 +465,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         // Check price after finalize
         finalizeWithdrawRequest(msg.sender);
         manager.finalizeRequestManual(address(y), msg.sender);
-        ( /* */ , uint256 collateralValueAfterFinalize, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterFinalize, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         checkTransientsCleared();
 
         assertApproxEqRel(
@@ -525,7 +549,9 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
         checkTransientsCleared();
         assertGt(y.balanceOf(owner), 0);
-        (WithdrawRequest memory w, /* */ ) = manager.getWithdrawRequest(address(y), owner);
+        (
+            WithdrawRequest memory w, /* */
+        ) = manager.getWithdrawRequest(address(y), owner);
         assertEq(w.requestId, 0);
 
         // Now liquidating user2's position will revert because the liquidator has a balanceOf
@@ -571,7 +597,9 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
         // Liquidate user1's position to receive a balanceOf and a withdraw request
         lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
-        (WithdrawRequest memory w, /* */ ) = manager.getWithdrawRequest(address(y), owner);
+        (
+            WithdrawRequest memory w, /* */
+        ) = manager.getWithdrawRequest(address(y), owner);
         assertNotEq(w.requestId, 0);
 
         // Cannot liquidate the second position since we already have a withdraw request
@@ -587,12 +615,18 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         _enterPosition(msg.sender, defaultDeposit, 0);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        ( /* */ , uint256 collateralValueBefore, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueBefore, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
 
         vm.startPrank(msg.sender);
         lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
 
-        ( /* */ , uint256 collateralValueAfter, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfter, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         assertApproxEqRel(collateralValueAfter, collateralValueBefore, 0.001e18);
 
         uint256 priceBefore = y.price(msg.sender);
@@ -604,7 +638,10 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         assertEq(priceBefore, priceAfter, "Price should not change after donation");
 
-        ( /* */ , uint256 collateralValueAfterDonation, /* */ ) = lendingRouter.healthFactor(msg.sender, address(y));
+        (
+            /* */,
+            uint256 collateralValueAfterDonation, /* */
+        ) = lendingRouter.healthFactor(msg.sender, address(y));
         assertEq(collateralValueAfterDonation, collateralValueAfter, "Donation should not change collateral value");
     }
 }

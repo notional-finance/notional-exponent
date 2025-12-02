@@ -32,7 +32,13 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
         s_withdrawRequestShares[requestId] = sharesToWithdraw;
     }
 
-    function _stakeTokens(uint256 amount, bytes memory /* stakeData */ ) internal override {
+    function _stakeTokens(
+        uint256 amount,
+        bytes memory /* stakeData */
+    )
+        internal
+        override
+    {
         ERC20(STAKING_TOKEN).checkApprove(address(YIELD_TOKEN), amount);
         IERC4626(YIELD_TOKEN).deposit(amount, address(this));
     }
@@ -50,7 +56,14 @@ contract GenericERC4626WithdrawRequestManager is AbstractWithdrawRequestManager 
         tokensClaimed = IERC4626(YIELD_TOKEN).redeem(sharesToRedeem, address(this), address(this));
     }
 
-    function canFinalizeWithdrawRequest(uint256 /* requestId */ ) public pure override returns (bool) {
+    function canFinalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 }

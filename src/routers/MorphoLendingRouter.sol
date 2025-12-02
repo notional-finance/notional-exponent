@@ -14,7 +14,13 @@ import {
 import { ADDRESS_REGISTRY } from "../utils/Constants.sol";
 import { AbstractLendingRouter } from "./AbstractLendingRouter.sol";
 import {
-    MORPHO, MarketParams, Id, Position, Market, Withdrawal, PUBLIC_ALLOCATOR
+    MORPHO,
+    MarketParams,
+    Id,
+    Position,
+    Market,
+    Withdrawal,
+    PUBLIC_ALLOCATOR
 } from "../interfaces/Morpho/IMorpho.sol";
 
 struct MorphoParams {
@@ -72,13 +78,10 @@ contract MorphoLendingRouter is
     function marketParams(address vault, address asset) internal view returns (MarketParams memory) {
         MorphoParams memory params = s_morphoParams[vault];
 
-        return MarketParams({
-            loanToken: asset,
-            collateralToken: vault,
-            oracle: vault,
-            irm: params.irm,
-            lltv: params.lltv
-        });
+        return
+            MarketParams({
+                loanToken: asset, collateralToken: vault, oracle: vault, irm: params.irm, lltv: params.lltv
+            });
     }
 
     function morphoId(MarketParams memory m) internal pure returns (Id) {
@@ -173,7 +176,7 @@ contract MorphoLendingRouter is
 
         MarketParams memory m = marketParams(vault, asset);
         // Borrow the assets in order to repay the flash loan
-        ( /* */ , t_borrowShares) = MORPHO.borrow(m, assets, 0, onBehalf, address(this));
+        (/* */, t_borrowShares) = MORPHO.borrow(m, assets, 0, onBehalf, address(this));
 
         // Allow for flash loan to be repaid
         ERC20(asset).checkApprove(address(MORPHO), assets);
@@ -260,7 +263,7 @@ contract MorphoLendingRouter is
         returns (uint256 borrowSharesRepaid)
     {
         MarketParams memory m = marketParams(vault, asset);
-        ( /* */ , borrowSharesRepaid) = MORPHO.repay(m, assetToRepay, sharesToRepay, onBehalf, repayData);
+        (/* */, borrowSharesRepaid) = MORPHO.repay(m, assetToRepay, sharesToRepay, onBehalf, repayData);
     }
 
     function onMorphoRepay(uint256 assetToRepay, bytes calldata data) external override {
@@ -324,7 +327,9 @@ contract MorphoLendingRouter is
         if (borrowSharesBefore < borrowSharesToRepay) borrowSharesToRepay = borrowSharesBefore;
 
         // This does not return borrow shares repaid so we have to calculate it manually
-        (sharesToLiquidator, /* */ ) = MORPHO.liquidate(
+        (
+            sharesToLiquidator, /* */
+        ) = MORPHO.liquidate(
             m, liquidateAccount, sharesToLiquidate, borrowSharesToRepay, abi.encode(m.loanToken, liquidator)
         );
         borrowSharesRepaid = borrowSharesBefore - balanceOfBorrowShares(liquidateAccount, vault);
@@ -351,15 +356,7 @@ contract MorphoLendingRouter is
         collateralBalance = MORPHO.position(morphoId(m), account).collateral;
     }
 
-    function balanceOfBorrowShares(
-        address account,
-        address vault
-    )
-        public
-        view
-        override
-        returns (uint256 borrowShares)
-    {
+    function balanceOfBorrowShares(address account, address vault) public view override returns (uint256 borrowShares) {
         MarketParams memory m = marketParams(vault);
         borrowShares = MORPHO.position(morphoId(m), account).borrowShares;
     }

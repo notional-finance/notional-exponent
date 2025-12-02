@@ -28,7 +28,14 @@ contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     /* solhint-disable no-empty-blocks */
-    function _stakeTokens(uint256, /* amount */ bytes memory /* stakeData */ ) internal override {
+    function _stakeTokens(
+        uint256,
+        /* amount */
+        bytes memory /* stakeData */
+    )
+        internal
+        override
+    {
         // No-op
     }
     /* solhint-enable no-empty-blocks */
@@ -45,7 +52,14 @@ contract GenericERC20WithdrawRequestManager is AbstractWithdrawRequestManager {
         delete s_withdrawRequestTokens[requestId];
     }
 
-    function canFinalizeWithdrawRequest(uint256 /* requestId */ ) public pure override returns (bool) {
+    function canFinalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        pure
+        override
+        returns (bool)
+    {
         return true;
     }
 

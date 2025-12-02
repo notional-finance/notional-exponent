@@ -66,7 +66,13 @@ contract TestEthenaWithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */ ) public pure override {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        pure
+        override
+    {
         return;
     }
 
@@ -80,7 +86,13 @@ contract TestGenericERC4626WithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */ ) public pure override {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        pure
+        override
+    {
         return;
     }
 
@@ -94,7 +106,12 @@ contract TestGenericERC20WithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestWrappedOriginWithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */ ) public override {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        override
+    {
         uint256 claimDelay = OriginVault.withdrawalClaimDelay();
         vm.warp(block.timestamp + claimDelay);
 
@@ -112,7 +129,12 @@ contract TestWrappedOriginWithdrawRequest is TestWithdrawRequest {
 }
 
 contract TestOriginWithdrawRequest is TestWithdrawRequest {
-    function finalizeWithdrawRequest(uint256 /* requestId */ ) public override {
+    function finalizeWithdrawRequest(
+        uint256 /* requestId */
+    )
+        public
+        override
+    {
         uint256 claimDelay = OriginVault.withdrawalClaimDelay();
         vm.warp(block.timestamp + claimDelay);
 

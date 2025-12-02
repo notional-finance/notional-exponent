@@ -91,9 +91,8 @@ contract DeployEthenaWithdrawManager is DeployWithdrawManager {
         vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
         TimelockUpgradeableProxy(PROXY).initiateUpgrade(impl);
         vm.warp(block.timestamp + 7 days);
-        TimelockUpgradeableProxy(PROXY).executeUpgrade(
-            abi.encodeWithSelector(EthenaWithdrawRequestManager.redeployHolder.selector)
-        );
+        TimelockUpgradeableProxy(PROXY)
+            .executeUpgrade(abi.encodeWithSelector(EthenaWithdrawRequestManager.redeployHolder.selector));
         vm.stopPrank();
 
         assert(EthenaWithdrawRequestManager(PROXY).HOLDER_IMPLEMENTATION() != holder);

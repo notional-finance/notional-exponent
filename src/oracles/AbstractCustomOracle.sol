@@ -55,19 +55,28 @@ abstract contract AbstractCustomOracle is AggregatorV2V3Interface {
     }
 
     function latestAnswer() external view override returns (int256 answer) {
-        ( /* */ , answer, /* */, /* */, /* */ ) = _calculateBaseToQuote();
+        (/* */,
+            answer,/* */,/* */, /* */
+        ) = _calculateBaseToQuote();
     }
 
     function latestTimestamp() external view override returns (uint256 updatedAt) {
-        ( /* */ , /* */, /* */, updatedAt, /* */ ) = _calculateBaseToQuote();
+        (
+            /* */,/* */,/* */,
+            updatedAt, /* */
+        ) = _calculateBaseToQuote();
     }
 
     function latestRound() external view override returns (uint256 roundId) {
-        (roundId, /* */, /* */, /* */, /* */ ) = _calculateBaseToQuote();
+        (
+            roundId,/* */,/* */,/* */, /* */
+        ) = _calculateBaseToQuote();
     }
 
     /// @dev Unused in the trading module
-    function getRoundData(uint80 /* _roundId */ )
+    function getRoundData(
+        uint80 /* _roundId */
+    )
         external
         pure
         override
@@ -83,12 +92,26 @@ abstract contract AbstractCustomOracle is AggregatorV2V3Interface {
     }
 
     /// @dev Unused in the trading module
-    function getAnswer(uint256 /* roundId */ ) external pure override returns (int256) {
+    function getAnswer(
+        uint256 /* roundId */
+    )
+        external
+        pure
+        override
+        returns (int256)
+    {
         revert();
     }
 
     /// @dev Unused in the trading module
-    function getTimestamp(uint256 /* roundId */ ) external pure override returns (uint256) {
+    function getTimestamp(
+        uint256 /* roundId */
+    )
+        external
+        pure
+        override
+        returns (uint256)
+    {
         revert();
     }
 }

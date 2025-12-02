@@ -87,7 +87,10 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
     function _migratePosition(address onBehalf, address vault, address migrateFrom) internal {
         if (!ADDRESS_REGISTRY.isLendingRouter(migrateFrom)) revert InvalidLendingRouter();
         // Borrow amount is set to the amount of debt owed to the previous lending router
-        (uint256 borrowAmount, /* */, /* */ ) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
+        (
+            uint256 borrowAmount,
+            /* */, /* */
+        ) = ILendingRouter(migrateFrom).healthFactor(onBehalf, vault);
 
         _enterPosition(onBehalf, vault, 0, borrowAmount, bytes(""), migrateFrom);
     }
@@ -114,8 +117,9 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         uint256 borrowShares;
         uint256 vaultSharesReceived;
         if (borrowAmount > 0) {
-            (vaultSharesReceived, borrowShares) =
-                _flashBorrowAndEnter(onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateFrom);
+            (vaultSharesReceived, borrowShares) = _flashBorrowAndEnter(
+                onBehalf, vault, asset, depositAssetAmount, borrowAmount, depositData, migrateFrom
+            );
         } else {
             vaultSharesReceived = _enterOrMigrate(onBehalf, vault, asset, depositAssetAmount, depositData, migrateFrom);
         }
@@ -238,7 +242,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
     {
         // Can only force a withdraw if health factor is negative, this allows a liquidator to
         // force a withdraw and liquidate a position at a later time.
-        (uint256 borrowed, /* */, uint256 maxBorrow) = healthFactor(account, vault);
+        (uint256 borrowed,/* */, uint256 maxBorrow) = healthFactor(account, vault);
         if (borrowed <= maxBorrow) revert CannotForceWithdraw(account);
 
         requestId = _initiateWithdraw(vault, account, data, true);
@@ -318,9 +322,8 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
             sharesReceived = ILendingRouter(migrateFrom).balanceOfCollateral(onBehalf, vault);
 
             // Must migrate the entire position
-            ILendingRouter(migrateFrom).exitPosition(
-                onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes("")
-            );
+            ILendingRouter(migrateFrom)
+                .exitPosition(onBehalf, vault, address(this), sharesReceived, type(uint256).max, bytes(""));
         } else {
             ERC20(asset).checkApprove(vault, assetAmount);
             sharesReceived = IYieldStrategy(vault).mintShares(assetAmount, onBehalf, depositData);
@@ -390,14 +393,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         returns (uint256 vaultSharesReceived, uint256 borrowShares);
 
     /// @dev Supplies collateral in the amount of shares received to the lending market
-    function _supplyCollateral(
-        address onBehalf,
-        address vault,
-        address asset,
-        uint256 sharesReceived
-    )
-        internal
-        virtual;
+    function _supplyCollateral(address onBehalf, address vault, address asset, uint256 sharesReceived) internal virtual;
 
     /// @dev Withdraws collateral from the lending market
     function _withdrawCollateral(

@@ -40,7 +40,9 @@ contract Test_LP_Convex_OETH_ETH is TestSingleSidedLPStrategy {
         defaultDeposit = 10e18;
         defaultBorrow = 90e18;
 
-        (AggregatorV2V3Interface ethOracle, /* */ ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        (
+            AggregatorV2V3Interface ethOracle, /* */
+        ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
         MockOracle oETHOracle = new MockOracle(ethOracle.latestAnswer() * 1e18 / 1e8);
         // TODO: there is no oETH oracle on mainnet
         vm.prank(owner);
@@ -90,9 +92,7 @@ contract Test_LP_Convex_weETH_WETH is TestSingleSidedLPStrategy {
             address(y),
             address(weETH),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
@@ -148,18 +148,14 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
             address(y),
             address(asset),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
             })
         );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(USDe),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
@@ -167,7 +163,16 @@ contract Test_LP_Curve_USDe_USDC is TestSingleSidedLPStrategy {
 }
 
 contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
-    function getDepositData(address, /* user */ uint256 depositAmount) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 depositAmount
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         uint256 sDAIAmount = depositAmount / 2;
         uint256 sUSDeAmount = depositAmount - sDAIAmount;
@@ -212,7 +217,15 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
         return abi.encode(DepositParams({ minPoolClaim: 0, depositTrades: depositTrades }));
     }
 
-    function getRedeemData(address, /* user */ uint256 /* redeemAmount */ ) internal override returns (bytes memory) {
+    function getRedeemData(
+        address,
+        /* user */
+        uint256 /* redeemAmount */
+    )
+        internal
+        override
+        returns (bytes memory)
+    {
         // NOTE: There is no way to trade out of this position, therefore we cannot flash liquidate
         vm.skip(true);
         return bytes("");
@@ -274,36 +287,28 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             address(y),
             address(asset),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(sUSDe),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(USDe),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         TRADING_MODULE.setTokenPermissions(
             address(y),
             address(DAI),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
 
@@ -312,18 +317,14 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             address(managers[0]),
             address(USDC),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         TRADING_MODULE.setTokenPermissions(
             address(managers[1]),
             address(USDC),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         // Allow Ethena manager to sell DAI
@@ -331,9 +332,7 @@ contract Test_LP_Curve_sDAI_sUSDe is TestSingleSidedLPStrategy {
             address(y),
             address(DAI),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
@@ -363,7 +362,9 @@ contract Test_LP_Curve_pxETH_WETH is TestSingleSidedLPStrategy {
         maxEntryValuationSlippage = 0.002e18;
         maxExitValuationSlippage = 0.025e18;
 
-        (AggregatorV2V3Interface ethOracle, /* */ ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        (
+            AggregatorV2V3Interface ethOracle, /* */
+        ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
         MockOracle pxETHOracle = new MockOracle(ethOracle.latestAnswer() * 0.9996e18 / 1e8);
         // TODO: need a pxETH oracle
         vm.prank(owner);
@@ -375,7 +376,9 @@ contract Test_LP_Curve_pxETH_WETH is TestSingleSidedLPStrategy {
 // WETH on withdraw.
 contract Test_LP_Curve_ETHx_ETH is TestSingleSidedLPStrategy {
     function getRedeemData(address user, uint256 redeemAmount) internal override returns (bytes memory) {
-        (WithdrawRequest memory w, /* */ ) = managers[0].getWithdrawRequest(address(y), user);
+        (
+            WithdrawRequest memory w, /* */
+        ) = managers[0].getWithdrawRequest(address(y), user);
         if (w.requestId != 0) {
             RedeemParams memory r;
             r.minAmounts = new uint256[](2);
@@ -447,7 +450,9 @@ contract Test_LP_Curve_ETHx_ETH is TestSingleSidedLPStrategy {
         maxEntryValuationSlippage = 0.002e18;
         maxExitValuationSlippage = 0.025e18;
 
-        (AggregatorV2V3Interface ethOracle, /* */ ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
+        (
+            AggregatorV2V3Interface ethOracle, /* */
+        ) = TRADING_MODULE.priceOracles(ETH_ADDRESS);
         MockOracle ETHxOracle = new MockOracle(ethOracle.latestAnswer() * 1.0647e18 / 1e8);
         // TODO: need a ETHx oracle
         vm.prank(owner);
@@ -465,9 +470,7 @@ contract Test_LP_Curve_ETHx_ETH is TestSingleSidedLPStrategy {
             // Allow selling of WETH to enter the pool
             address(WETH),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 1
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 1
             })
         );
         TRADING_MODULE.setTokenPermissions(
@@ -475,9 +478,7 @@ contract Test_LP_Curve_ETHx_ETH is TestSingleSidedLPStrategy {
             // Allow trading of ETHx
             address(0xA35b1B31Ce002FBF2058D22F30f95D405200A15b),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 1
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 1
             })
         );
         vm.stopPrank();
@@ -612,7 +613,16 @@ contract Test_LP_Curve_USDC_crvUSD is TestSingleSidedLPStrategy {
 }
 
 contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
-    function getDepositData(address, /* user */ uint256 depositAmount) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 depositAmount
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         depositTrades[0] = TradeParams({
             tradeType: TradeType.EXACT_IN_SINGLE,
@@ -708,9 +718,7 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
             address(y),
             address(asset),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         // Allow selling USDT
@@ -718,9 +726,7 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
             address(y),
             address(0xdAC17F958D2ee523a2206206994597C13D831ec7),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         // Allow selling crvUSD
@@ -728,9 +734,7 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
             address(y),
             address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
@@ -738,7 +742,16 @@ contract Test_LP_Curve_USDT_crvUSD is TestSingleSidedLPStrategy {
 }
 
 contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
-    function getDepositData(address, /* user */ uint256 depositAmount) internal pure override returns (bytes memory) {
+    function getDepositData(
+        address,
+        /* user */
+        uint256 depositAmount
+    )
+        internal
+        pure
+        override
+        returns (bytes memory)
+    {
         TradeParams[] memory depositTrades = new TradeParams[](2);
         // Sell USDC for GHO
         depositTrades[0] = TradeParams({
@@ -824,9 +837,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             address(y),
             address(asset),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
             })
         );
         // Allow selling GHO
@@ -834,9 +845,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             address(y),
             address(0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.UNISWAP_V3)), tradeTypeFlags: 5
             })
         );
         // Allow selling crvUSD
@@ -844,9 +853,7 @@ contract Test_LP_Curve_GHO_crvUSD is TestSingleSidedLPStrategy {
             address(y),
             address(0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E),
             ITradingModule.TokenPermissions({
-                allowSell: true,
-                dexFlags: uint32(1 << uint8(DexId.CURVE_V2)),
-                tradeTypeFlags: 5
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
             })
         );
         vm.stopPrank();
