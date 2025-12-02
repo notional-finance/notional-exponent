@@ -2,7 +2,7 @@ import { Address, ethereum, Bytes, BigInt } from "@graphprotocol/graph-ts";
 import { ExchangeRate, Oracle, OracleRegistry, Token } from "../../generated/schema";
 import { getToken } from "./token";
 import { IYieldStrategy } from "../../generated/AddressRegistry/IYieldStrategy";
-import { DEFAULT_PRECISION, ORACLE_REGISTRY_ID, SIX_HOURS, ZERO_ADDRESS } from "../constants";
+import { ORACLE_REGISTRY_ID, SHARE_PRECISION, SIX_HOURS, ZERO_ADDRESS } from "../constants";
 import { ILendingRouter } from "../../generated/AddressRegistry/ILendingRouter";
 import { Aggregator } from "../../generated/AddressRegistry/Aggregator";
 import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
@@ -52,10 +52,10 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
 
   // Vault fee accumulator
   let oracle2 = getOracle(vaultShare, yieldToken, "VaultFeeAccrualRate");
-  oracle2.decimals = 18;
-  oracle2.ratePrecision = DEFAULT_PRECISION;
+  oracle2.decimals = yieldToken.decimals;
+  oracle2.ratePrecision = yieldToken.precision;
   oracle2.oracleAddress = vault;
-  let latestRate2 = v.convertSharesToYieldToken(DEFAULT_PRECISION);
+  let latestRate2 = v.convertSharesToYieldToken(SHARE_PRECISION);
   updateExchangeRate(oracle2, latestRate2, block);
 
   for (let i = 0; i < lendingRouters.length; i++) {

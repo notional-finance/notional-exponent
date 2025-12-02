@@ -493,7 +493,8 @@ export function getPendleInterestAccrued(
   let pt = IPPrincipalToken.bind(Address.fromBytes(yieldToken));
   let expiry = pt.expiry();
   let timeToExpiry = expiry.minus(event.block.timestamp);
-  let ptTokens = v.convertSharesToYieldToken(tokenAmount);
+  // This must be a positive number, it can be negative on exit
+  let ptTokens = v.convertSharesToYieldToken(tokenAmount.abs());
   let y = getToken(yieldToken.toHexString());
   let asset = getToken(accountingAsset.toHexString());
 
