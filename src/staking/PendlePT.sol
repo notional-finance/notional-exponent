@@ -119,6 +119,8 @@ contract PendlePT is AbstractStakingStrategy {
     }
 
     function _executeInstantRedemption(
+        address,
+        /* sharesOwner */
         uint256 yieldTokensToRedeem,
         bytes memory redeemData
     )

@@ -9,7 +9,8 @@ import {
     IMidasDataFeed,
     IMidasVault,
     MidasAccessControl,
-    MidasRequestStatus
+    MidasRequestStatus,
+    MIDAS_GREENLISTED_ROLE
 } from "../interfaces/IMidas.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 
@@ -20,7 +21,6 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
     IDepositVault public immutable depositVault;
     IRedemptionVault public immutable redeemVault;
     bytes32 internal immutable i_referrerId;
-    bytes32 internal constant GREENLISTED_ROLE = 0xd2576bd6a4c5558421de15cb8ecdf4eb3282aac06b94d4f004e8cd0d00f3ebd8;
     uint256 internal constant ONE_HUNDRED_PERCENT = 10_000;
 
     constructor(
@@ -62,7 +62,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         (address account, uint256 minReceiveAmount) = abi.decode(stakeData, (address, uint256));
         if (depositVault.greenlistEnabled()) {
             // Ensures that any KYC checks are respected.
-            require(MidasAccessControl.hasRole(GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
+            require(MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
         }
 
         ERC20(STAKING_TOKEN).checkApprove(address(depositVault), amount);
@@ -82,7 +82,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
     {
         if (redeemVault.greenlistEnabled()) {
             // Ensures that any KYC checks are respected.
-            require(MidasAccessControl.hasRole(GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
+            require(MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
         }
 
         ERC20(YIELD_TOKEN).checkApprove(address(redeemVault), amountToWithdraw);

@@ -138,13 +138,15 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
             }
         } else {
             uint256 yieldTokensBurned = convertSharesToYieldToken(sharesToRedeem);
-            _executeInstantRedemption(yieldTokensBurned, redeemData);
+            _executeInstantRedemption(sharesOwner, yieldTokensBurned, redeemData);
         }
     }
 
     /// @notice Default implementation for an instant redemption is to sell the staking token to the
     /// borrow token through the trading module. Can be overridden if required for different implementations.
     function _executeInstantRedemption(
+        address,
+        /* sharesOwner */
         uint256 yieldTokensToRedeem,
         bytes memory redeemData
     )
