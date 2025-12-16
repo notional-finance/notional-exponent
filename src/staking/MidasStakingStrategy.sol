@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import { StakingStrategy } from "./StakingStrategy.sol";
-import { IRedemptionVault } from "../interfaces/IMidas.sol";
+import { IRedemptionVault, MidasAccessControl, MIDAS_GREENLISTED_ROLE } from "../interfaces/IMidas.sol";
 import { ADDRESS_REGISTRY, CHAIN_ID_MAINNET } from "../utils/Constants.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 import { MidasWithdrawRequestManager } from "../withdraws/Midas.sol";
@@ -22,6 +22,7 @@ contract MidasStakingStrategy is StakingStrategy {
     }
 
     function _executeInstantRedemption(
+        address sharesOwner,
         uint256 yieldTokensToRedeem,
         bytes memory redeemData
     )
@@ -31,6 +32,11 @@ contract MidasStakingStrategy is StakingStrategy {
     {
         MidasWithdrawRequestManager wrm = MidasWithdrawRequestManager(address(withdrawRequestManager));
         IRedemptionVault redeemVault = IRedemptionVault(wrm.redeemVault());
+        if (redeemVault.greenlistEnabled()) {
+            require(
+                MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, sharesOwner), "Midas: account is not greenlisted"
+            );
+        }
 
         uint256 assetsBefore = TokenUtils.tokenBalance(asset);
         (uint256 minReceiveAmount) = abi.decode(redeemData, (uint256));

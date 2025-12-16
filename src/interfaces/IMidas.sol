@@ -60,6 +60,7 @@ interface IRedemptionVault is IMidasVault {
 }
 
 IMidasAccessControl constant MidasAccessControl = IMidasAccessControl(0x0312A9D1Ff2372DDEdCBB21e4B6389aFc919aC4B);
+bytes32 constant MIDAS_GREENLISTED_ROLE = 0xd2576bd6a4c5558421de15cb8ecdf4eb3282aac06b94d4f004e8cd0d00f3ebd8;
 
 /**
  * @title DecimalsCorrectionLibrary

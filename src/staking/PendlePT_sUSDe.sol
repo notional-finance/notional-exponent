@@ -30,6 +30,8 @@ contract PendlePT_sUSDe is PendlePT {
     /// sDAI has much greater liquidity once it is unwrapped as DAI so that is done manually
     /// in this method.
     function _executeInstantRedemption(
+        address,
+        /* sharesOwner */
         uint256 yieldTokensToRedeem,
         bytes memory redeemData
     )
