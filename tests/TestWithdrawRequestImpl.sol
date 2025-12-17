@@ -212,22 +212,40 @@ contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 
 abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    address constant GREENLISTED_ACCOUNT = 0x0EF8fa4760Db8f5Cd4d993f3e3416f30f942D705;
+    address constant GREENLISTED_ACCOUNT = 0xeD8CF2891d7bd5B01a8eE5B702b73b39B1967968;
     address tokenIn;
     IDepositVault depositVault;
     IRedemptionVault redemptionVault;
     bytes32 referrerId = bytes32(uint256(0));
+    address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.record();
-        redemptionVault.requests(requestId);
+        IRedemptionVault.Request memory request = redemptionVault.redeemRequests(requestId);
+        if (request.status == MidasRequestStatus.Processed) return;
         (bytes32[] memory reads,) = vm.accesses(address(redemptionVault));
-        // TODO: modify this a bit to make sure we get the right spot
-        vm.store(address(redemptionVault), reads[0], bytes32(uint256(MidasRequestStatus.Processed)));
+
+        vm.store(
+            address(redemptionVault),
+            reads[3],
+            bytes32(uint256(MidasRequestStatus.Processed)) << 160
+                | bytes32(uint256(vm.load(address(redemptionVault), reads[3])))
+        );
 
         // This will now calculate the exact amount of tokens that will be withdrawn.
         (, uint256 amount) = manager.getKnownWithdrawTokenAmount(requestId);
+        if (tokenIn == address(USDC)) {
+            vm.prank(USDC_WHALE);
+            USDC.transfer(address(this), amount);
+            vm.stopPrank();
+        } else if (tokenIn == address(WETH)) {
+            deal(address(WETH), address(this), amount);
+        }
         ERC20(tokenIn).transfer(address(manager), amount);
+    }
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_034_331;
     }
 
     function deployManager() public override {
@@ -238,10 +256,10 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
 
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
-        USDC.transfer(address(this), 15_000_000e6);
+        USDC.transfer(address(this), 1_000_000e6);
         vm.stopPrank();
 
-        deal(address(WETH), address(this), 2_000_000e18);
+        deal(address(WETH), address(this), 200e18);
     }
 
     function test_deposit_RevertsIf_Account_Not_Greenlisted() public approveVaultAndStakeTokens {

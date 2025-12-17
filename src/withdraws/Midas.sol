@@ -36,20 +36,20 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         i_referrerId = _referrerId;
 
         require(depositVault.mToken() == redeemVault.mToken(), "Midas: mToken mismatch");
-        address[] memory d_paymentTokens = depositVault.getPaymentTokens();
+        address[] memory depositTokens = depositVault.getPaymentTokens();
         bool isValidDepositToken = false;
-        for (uint256 i = 0; i < d_paymentTokens.length; i++) {
-            if (d_paymentTokens[i] == tokenIn) {
+        for (uint256 i = 0; i < depositTokens.length; i++) {
+            if (depositTokens[i] == tokenIn) {
                 isValidDepositToken = true;
                 break;
             }
         }
         require(isValidDepositToken, "Midas: tokenIn is not a deposit token");
 
-        address[] memory r_paymentTokens = redeemVault.getPaymentTokens();
+        address[] memory redeemTokens = redeemVault.getPaymentTokens();
         bool isValidRedeemToken = false;
-        for (uint256 i = 0; i < r_paymentTokens.length; i++) {
-            if (d_paymentTokens[i] == tokenIn) {
+        for (uint256 i = 0; i < redeemTokens.length; i++) {
+            if (redeemTokens[i] == tokenIn) {
                 isValidRedeemToken = true;
                 break;
             }
@@ -66,14 +66,16 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         }
 
         ERC20(STAKING_TOKEN).checkApprove(address(depositVault), amount);
-        depositVault.depositInstant(STAKING_TOKEN, amount, minReceiveAmount, i_referrerId);
+
+        // Midas requires the amount to be in 18 decimals regardless of the native token decimals.
+        uint256 scaledAmount = amount * 1e18 / (10 ** TokenUtils.getDecimals(STAKING_TOKEN));
+        depositVault.depositInstant(STAKING_TOKEN, scaledAmount, minReceiveAmount, i_referrerId);
     }
 
     function _initiateWithdrawImpl(
         address account,
         uint256 amountToWithdraw,
         bytes calldata,
-        /* data */
         address /* forceWithdrawFrom */
     )
         internal
@@ -97,7 +99,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 tokensClaimed)
     {
-        IRedemptionVault.Request memory request = redeemVault.requests(requestId);
+        IRedemptionVault.Request memory request = redeemVault.redeemRequests(requestId);
         require(request.status == MidasRequestStatus.Processed);
         uint256 tokenDecimals = TokenUtils.getDecimals(WITHDRAW_TOKEN);
 
@@ -105,6 +107,8 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         // amount of tokens claimed and return it. This is not ideal since we don't pull the tokens but it
         // is how the Midas vault works.
         tokensClaimed = _truncate((request.amountMToken * request.mTokenRate) / request.tokenOutRate, tokenDecimals);
+        // Convert to the native token decimals, subtract 1 unit to account for any rounding errors.
+        tokensClaimed = (tokensClaimed * 10 ** tokenDecimals) / 1e18 - 1;
     }
 
     /// @dev truncates the value to the given decimals, mirrors the behavior of the Midas vault.
@@ -118,7 +122,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (bool hasKnownAmount, uint256 amount)
     {
-        IRedemptionVault.Request memory request = redeemVault.requests(requestId);
+        IRedemptionVault.Request memory request = redeemVault.redeemRequests(requestId);
         uint256 tokenDecimals = TokenUtils.getDecimals(WITHDRAW_TOKEN);
 
         // NOTE: it is possible that the mTokenRate moves a bit but this will be used
@@ -137,10 +141,14 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
                 request.mTokenRate - ((variationTolerance * request.mTokenRate) / ONE_HUNDRED_PERCENT);
             amount = _truncate((request.amountMToken * minMTokenRate) / request.tokenOutRate, tokenDecimals);
         }
+
+        // Midas vaults return the amount in 18 decimals but we need to convert to the native
+        // token decimals here.
+        amount = (amount * 10 ** tokenDecimals) / 1e18 - 1;
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
-        IRedemptionVault.Request memory request = redeemVault.requests(requestId);
+        IRedemptionVault.Request memory request = redeemVault.redeemRequests(requestId);
         return request.status == MidasRequestStatus.Processed;
     }
 

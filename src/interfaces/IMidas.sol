@@ -54,7 +54,7 @@ interface IRedemptionVault is IMidasVault {
         uint256 tokenOutRate;
     }
 
-    function requests(uint256 requestId) external view returns (Request memory);
+    function redeemRequests(uint256 requestId) external view returns (Request memory);
     function redeemRequest(address tokenOut, uint256 amountMTokenIn) external returns (uint256 requestId);
     function redeemInstant(address tokenOut, uint256 amountMTokenIn, uint256 minReceiveAmount) external;
 }
