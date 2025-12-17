@@ -94,12 +94,12 @@ abstract contract TestEnvironment is Test {
             deployCodeTo("TimelockUpgradeableProxy.sol", abi.encode(impl, bytes("")), address(ADDRESS_REGISTRY));
             ADDRESS_REGISTRY.initialize(abi.encode(owner, owner, owner));
         } else {
-            address impl = address(new AddressRegistry());
-            vm.startPrank(owner);
-            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).initiateUpgrade(impl);
-            vm.warp(block.timestamp + 7 days);
-            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).executeUpgrade(bytes(""));
-            vm.stopPrank();
+            // address impl = address(new AddressRegistry());
+            // vm.startPrank(owner);
+            // TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).initiateUpgrade(impl);
+            // vm.warp(block.timestamp + 7 days);
+            // TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).executeUpgrade(bytes(""));
+            // vm.stopPrank();
         }
 
         deployYieldStrategy();

@@ -7,6 +7,8 @@ import "../src/staking/AbstractStakingStrategy.sol";
 import "../src/staking/StakingStrategy.sol";
 import "../src/withdraws/EtherFi.sol";
 import "../src/withdraws/Dinero.sol";
+import "../src/withdraws/Midas.sol";
+import "../src/staking/MidasStakingStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
@@ -191,32 +193,57 @@ contract TestStakingStrategy_Ethena is TestStakingStrategy {
     }
 }
 
-// contract TestStakingStrategy_apxETH is TestStakingStrategy {
-//     function getRedeemData(
-//         address /* user */,
-//         uint256 /* shares */
-//     ) internal override returns (bytes memory redeemData) {
-//         vm.skip(true);
-//         // No way to trade out of this position
-//         return bytes("");
-//     }
+contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_034_331;
+    }
 
-//     function deployYieldStrategy() internal override {
-//         setupWithdrawRequestManager(address(new DineroWithdrawRequestManager(address(apxETH))));
-//         y = new StakingStrategy(address(WETH), address(apxETH), 0.0010e18);
-//         w = ERC20(y.yieldToken());
-//         (AggregatorV2V3Interface oracle, ) = TRADING_MODULE.priceOracles(address(w));
-//         o = new MockOracle(oracle.latestAnswer());
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(0);
+    }
 
-//         defaultDeposit = 10e18;
-//         defaultBorrow = 90e18;
-//         maxEntryValuationSlippage = 0.0050e18;
-//         maxExitValuationSlippage = 0.0050e18;
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(0);
+    }
 
-//         withdrawRequest = new TestDinero_apxETH_WithdrawRequest();
+    function deployYieldStrategy() internal override {
+        withdrawRequest = new TestMidas_mHYPER_USDC_WithdrawRequest();
+        address mHYPER = 0x9b5528528656DBC094765E2abB79F293c21191B9;
+        IDepositVault depositVault = IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024);
+        IRedemptionVault redemptionVault = IRedemptionVault(0x6Be2f55816efd0d91f52720f096006d63c366e98);
+        address wrm =
+            address(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0))));
 
-//         // TODO: need apxETH oracle price this is to ETH, so combine with the
-//         // ETH/USD price
-//         // 0x19219BC90F48DeE4d5cF202E09c438FAacFd8Bea
-//     }
-// }
+        setupWithdrawRequestManager(address(wrm));
+        y = new MidasStakingStrategy(address(USDC), address(mHYPER), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        uint256 latestPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
+        o = new MockOracle(int256(latestPrice));
+
+        defaultDeposit = 10_000e6;
+        defaultBorrow = 90_000e6;
+        maxEntryValuationSlippage = 0.005e18;
+        maxExitValuationSlippage = 0.005e18;
+    }
+
+    function test_accountingAsset() public view {
+        assertEq(y.accountingAsset(), address(USDC));
+    }
+}
