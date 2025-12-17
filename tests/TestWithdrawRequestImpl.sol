@@ -219,6 +219,10 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
     address constant GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
 
+    function setManager(address newManager) public {
+        manager = IWithdrawRequestManager(newManager);
+    }
+
     function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.record();
         IRedemptionVault.Request memory request = redemptionVault.redeemRequests(requestId);

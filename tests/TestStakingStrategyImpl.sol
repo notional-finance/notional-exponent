@@ -231,6 +231,7 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
             address(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0))));
 
         setupWithdrawRequestManager(address(wrm));
+        TestMidas_mHYPER_USDC_WithdrawRequest(address(withdrawRequest)).setManager(address(manager));
         y = new MidasStakingStrategy(address(USDC), address(mHYPER), 0.001e18);
 
         w = ERC20(y.yieldToken());
