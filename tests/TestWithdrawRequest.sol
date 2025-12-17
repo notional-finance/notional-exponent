@@ -22,7 +22,10 @@ abstract contract TestWithdrawRequest is Test {
 
     function deployManager() public virtual;
 
+    function overrideForkBlock() internal virtual { }
+
     function setUp() public virtual {
+        overrideForkBlock();
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         owner = ADDRESS_REGISTRY.upgradeAdmin();
         deployManager();
@@ -232,7 +235,11 @@ abstract contract TestWithdrawRequest is Test {
         tokensWithdrawn = manager.finalizeRequestManual(address(this), address(this));
         // No tokens should be withdrawn, they should be held on the manager
         assertEq(0, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
-        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(manager)));
+        assertEq(
+            tokensWithdrawn,
+            ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(manager)),
+            "tokens withdrawn is not equal to the balance of the withdraw token"
+        );
 
         // The split request should now be finalized
         (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), address(this));
