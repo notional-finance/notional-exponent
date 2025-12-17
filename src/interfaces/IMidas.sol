@@ -10,6 +10,7 @@ enum MidasRequestStatus {
 interface IMidasAccessControl {
     function GREENLISTED_ROLE() external view returns (bytes32);
     function hasRole(bytes32 role, address account) external view returns (bool);
+    function grantRole(bytes32 role, address account) external;
 }
 
 interface IMidasDataFeed {
