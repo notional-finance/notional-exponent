@@ -212,12 +212,12 @@ contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 
 abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    address constant GREENLISTED_ACCOUNT = 0xeD8CF2891d7bd5B01a8eE5B702b73b39B1967968;
     address tokenIn;
     IDepositVault depositVault;
     IRedemptionVault redemptionVault;
     bytes32 referrerId = bytes32(uint256(0));
     address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
+    address constant GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.record();
@@ -249,7 +249,6 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     }
 
     function deployManager() public override {
-        depositCallData = abi.encode(GREENLISTED_ACCOUNT, 0);
         withdrawCallData = "";
         manager = new MidasWithdrawRequestManager(tokenIn, depositVault, redemptionVault, referrerId);
         allowedDepositTokens.push(ERC20(tokenIn));
@@ -262,12 +261,41 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
         deal(address(WETH), address(this), 200e18);
     }
 
-    function test_deposit_RevertsIf_Account_Not_Greenlisted() public approveVaultAndStakeTokens {
+    function postDeploySetup() internal override {
+        address greenlistedAccount = makeAddr("greenlisted_account");
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+
+        depositCallData = abi.encode(greenlistedAccount, 0);
+
+        vm.startPrank(GREENLISTED_ROLE_OPERATOR);
+        MidasAccessControl.grantRole(MIDAS_GREENLISTED_ROLE, address(manager));
+        MidasAccessControl.grantRole(MIDAS_GREENLISTED_ROLE, greenlistedAccount);
+        MidasAccessControl.grantRole(MIDAS_GREENLISTED_ROLE, address(this));
+        MidasAccessControl.grantRole(MIDAS_GREENLISTED_ROLE, staker1);
+        MidasAccessControl.grantRole(MIDAS_GREENLISTED_ROLE, staker2);
+        vm.stopPrank();
+    }
+
+    function test_deposit_RevertsIf_Account_Not_Greenlisted() public approveVault {
         vm.skip(!depositVault.greenlistEnabled());
+        address staker = makeAddr("staker");
+        uint256 amount = allowedDepositTokens[0].balanceOf(address(this));
+        ERC20(allowedDepositTokens[0]).approve(address(manager), amount);
+
+        vm.expectRevert("Midas: account is not greenlisted");
+        manager.stakeTokens(address(allowedDepositTokens[0]), amount, abi.encode(staker, 0));
     }
 
     function test_redeem_RevertsIf_Account_Not_Greenlisted() public approveVaultAndStakeTokens {
         vm.skip(!redemptionVault.greenlistEnabled());
+        address staker = makeAddr("staker");
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.transfer(staker, yieldToken.balanceOf(address(this)));
+
+        uint256 amount = yieldToken.balanceOf(address(this));
+        vm.expectRevert("Midas: account is not greenlisted");
+        manager.initiateWithdraw(staker, amount, amount, withdrawCallData, forceWithdrawFrom);
     }
 }
 

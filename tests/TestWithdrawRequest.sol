@@ -24,6 +24,8 @@ abstract contract TestWithdrawRequest is Test {
 
     function overrideForkBlock() internal virtual { }
 
+    function postDeploySetup() internal virtual { }
+
     function setUp() public virtual {
         overrideForkBlock();
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
@@ -34,6 +36,7 @@ abstract contract TestWithdrawRequest is Test {
         );
 
         manager = IWithdrawRequestManager(address(proxy));
+        postDeploySetup();
     }
 
     modifier approveVault() {
@@ -501,7 +504,7 @@ abstract contract TestWithdrawRequest is Test {
         assertEq(tokenizedRequest.finalized, false);
     }
 
-    function test_tokenizeWithdrawRequest_RevertIf_ExistingtokenizeWithdrawRequest() public approveVaultAndStakeTokens {
+    function test_tokenizeWithdrawRequest_RevertIf_ExistingTokenizeWithdrawRequest() public approveVaultAndStakeTokens {
         address staker1 = makeAddr("staker1");
         address staker2 = makeAddr("staker2");
         address splitStaker = makeAddr("splitStaker");
