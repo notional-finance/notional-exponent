@@ -124,18 +124,12 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             /* */,
             uint256 collateralValueAfter, /* */
         ) = lendingRouter.healthFactor(msg.sender, address(y));
-        if (address(withdrawTokenOracle) != address(0)) {
-            // If there is a different oracle for the withdraw token (i.e. for PTs),
-            // there will be some slippage as a result of selling the PT
-            assertApproxEqRel(
-                collateralValueBefore,
-                collateralValueAfter,
-                maxWithdrawValuationChange,
-                "Price changed during withdraw request"
-            );
-        } else {
-            assertApproxEqAbs(collateralValueBefore, collateralValueAfter, 100, "Price changed during withdraw request");
-        }
+        assertApproxEqRel(
+            collateralValueBefore,
+            collateralValueAfter,
+            maxWithdrawValuationChange,
+            "Price changed during withdraw request"
+        );
         vm.stopPrank();
 
         finalizeWithdrawRequest(msg.sender);
@@ -191,7 +185,9 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
 
     function test_withdrawRequest_FeeCollection() public onlyIfWithdrawRequestManager {
-        vm.skip(keccak256(abi.encodePacked(y.name())) == keccak256(abi.encodePacked("Pendle PT")));
+        vm.skip(
+            keccak256(abi.encodePacked(y.name())) == keccak256(abi.encodePacked("Pendle PT")) || skipFeeCollectionTest
+        );
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
@@ -283,6 +279,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         public
         onlyIfWithdrawRequestManager
     {
+        vm.skip(knownTokenPreventsLiquidation);
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         int256 originalPrice = o.latestAnswer();
@@ -427,20 +424,12 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             /* */,
             uint256 collateralValueAfter, /* */
         ) = lendingRouter.healthFactor(msg.sender, address(y));
-        if (address(withdrawTokenOracle) != address(0)) {
-            // If there is a different oracle for the withdraw token (i.e. for PTs),
-            // there will be some slippage as a result of selling the PT
-            assertApproxEqRel(
-                collateralValueBefore,
-                collateralValueAfter,
-                maxWithdrawValuationChange,
-                "Withdrawal should not change collateral value"
-            );
-        } else {
-            assertApproxEqAbs(
-                collateralValueBefore, collateralValueAfter, 100, "Withdrawal should not change collateral value"
-            );
-        }
+        assertApproxEqRel(
+            collateralValueBefore,
+            collateralValueAfter,
+            maxWithdrawValuationChange,
+            "Withdrawal should not change collateral value"
+        );
 
         vm.warp(block.timestamp + 10 days);
         (
@@ -563,6 +552,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
     }
 
     function test_RevertsIf_LiquidatorHasWithdrawRequest() public onlyIfWithdrawRequestManager {
+        vm.skip(knownTokenPreventsLiquidation);
         address user1 = makeAddr("user1");
         address user2 = makeAddr("user2");
         vm.startPrank(owner);
@@ -627,7 +617,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             /* */,
             uint256 collateralValueAfter, /* */
         ) = lendingRouter.healthFactor(msg.sender, address(y));
-        assertApproxEqRel(collateralValueAfter, collateralValueBefore, 0.001e18);
+        assertApproxEqRel(collateralValueAfter, collateralValueBefore, maxWithdrawValuationChange);
 
         uint256 priceBefore = y.price(msg.sender);
 

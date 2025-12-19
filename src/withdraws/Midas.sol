@@ -128,20 +128,8 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         // NOTE: it is possible that the mTokenRate moves a bit but this will be used
         // to value the withdraw request when it is pending.
         hasKnownAmount = true;
-        if (request.status == MidasRequestStatus.Processed) {
-            amount = _truncate((request.amountMToken * request.mTokenRate) / request.tokenOutRate, tokenDecimals);
-        } else {
-            // While the request is pending, we use the variation tolerance to calculate the minimum mToken to
-            // get the lowest possible mToken rate.
-            uint256 variationTolerance = redeemVault.variationTolerance();
-            // variationTolerance = (priceDif * ONE_HUNDRED_PERCENT) / prevPrice;
-            // variationTolerance = (priceDif * ONE_HUNDRED_PERCENT) / mTokenRate;
-            // (variationTolerance * mTokenRate) / ONE_HUNDRED_PERCENT = maxPriceDiff;
-            uint256 minMTokenRate =
-                request.mTokenRate - ((variationTolerance * request.mTokenRate) / ONE_HUNDRED_PERCENT);
-            amount = _truncate((request.amountMToken * minMTokenRate) / request.tokenOutRate, tokenDecimals);
-        }
-
+        // The request.mTokenRate will be updated when the request is processed to the final rate.
+        amount = _truncate((request.amountMToken * request.mTokenRate) / request.tokenOutRate, tokenDecimals);
         // Midas vaults return the amount in 18 decimals but we need to convert to the native
         // token decimals here.
         amount = (amount * 10 ** tokenDecimals) / 1e18 - 1;

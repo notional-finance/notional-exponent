@@ -26,6 +26,8 @@ abstract contract TestEnvironment is Test {
     uint256 public maxEntryValuationSlippage = 0.001e18;
     uint256 public maxExitValuationSlippage = 0.0015e18;
     uint256 public maxWithdrawValuationChange = 0.005e18;
+    bool public skipFeeCollectionTest = false;
+    bool public knownTokenPreventsLiquidation = false;
 
     address public owner = address(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -93,13 +95,13 @@ abstract contract TestEnvironment is Test {
             address impl = address(new AddressRegistry());
             deployCodeTo("TimelockUpgradeableProxy.sol", abi.encode(impl, bytes("")), address(ADDRESS_REGISTRY));
             ADDRESS_REGISTRY.initialize(abi.encode(owner, owner, owner));
-        } else {
-            // address impl = address(new AddressRegistry());
-            // vm.startPrank(owner);
-            // TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).initiateUpgrade(impl);
-            // vm.warp(block.timestamp + 7 days);
-            // TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).executeUpgrade(bytes(""));
-            // vm.stopPrank();
+        } else if (block.number < 23_398_148) {
+            address impl = address(new AddressRegistry());
+            vm.startPrank(owner);
+            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).initiateUpgrade(impl);
+            vm.warp(block.timestamp + 7 days);
+            TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).executeUpgrade(bytes(""));
+            vm.stopPrank();
         }
 
         deployYieldStrategy();
