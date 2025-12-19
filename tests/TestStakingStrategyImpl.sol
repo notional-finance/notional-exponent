@@ -241,7 +241,15 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
         maxEntryValuationSlippage = 0.005e18;
-        maxExitValuationSlippage = 0.005e18;
+        // This is the worst case slippage for an instant exit from the mHYPER vault, it is
+        // 50 bps * the default leverage (11x)
+        maxExitValuationSlippage = 0.055e18;
+        // This is the variationTolerance of the mHYPER vault
+        maxWithdrawValuationChange = 0.007e18;
+        // Cannot warp forward due to feed health check.
+        skipFeeCollectionTest = true;
+        // The known token prevents liquidation unless the interest accrues past the collateral value.
+        knownTokenPreventsLiquidation = true;
     }
 
     function test_accountingAsset() public view {
