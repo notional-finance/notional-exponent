@@ -202,9 +202,18 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
   // Get the tokenized withdraw request using the to address since we
   // know that it must have some value. (the from could have it deleted)
   let toW = m.getWithdrawRequest(event.params.vault, event.params.to);
-  twr.totalYieldTokenAmount = toW.getS().totalYieldTokenAmount;
-  twr.totalWithdraw = toW.getS().totalWithdraw;
-  twr.finalized = toW.getS().finalized;
+  if (toW.getS().totalYieldTokenAmount.isZero()) {
+    // In this case, use the from request if the to request has no yield token amount, it
+    // means it could have been deleted right after the tokenization.
+    let fromW = m.getWithdrawRequest(event.params.vault, event.params.from);
+    twr.totalYieldTokenAmount = fromW.getS().totalYieldTokenAmount;
+    twr.totalWithdraw = fromW.getS().totalWithdraw;
+    twr.finalized = fromW.getS().finalized;
+  } else {
+    twr.totalYieldTokenAmount = toW.getS().totalYieldTokenAmount;
+    twr.totalWithdraw = toW.getS().totalWithdraw;
+    twr.finalized = toW.getS().finalized;
+  }
 
   // Update the withdraw requests
   let toWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.to, event);
@@ -268,7 +277,7 @@ export function handleWithdrawRequestFinalized(event: WithdrawRequestFinalized):
 
     for (let i = 0; i < twr._holders.length; i++) {
       let w = WithdrawRequest.load(twr._holders[i]);
-      if (w) {
+      if (w && w.yieldTokenAmount.gt(BigInt.zero())) {
         // Update all the tokenized holders with the new total withdraw amount
         let withdrawTokenAmount = w.yieldTokenAmount.times(twr.totalWithdraw).div(twr.totalYieldTokenAmount);
         updateBalanceSnapshotForFinalized(w, w.yieldTokenAmount, withdrawTokenAmount, event);
