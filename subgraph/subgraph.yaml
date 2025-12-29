@@ -4,8 +4,8 @@ indexerHints:
 features:
   - grafting
 # graft:
-#   base: QmVtZ8Cv8Vxb8Y69bSyRDJxBxCZkvdCW7YcZT4ruVER6Fw
-#   block: 23683716
+#   base: Qmd4vFWXfvpMgPyWfmC5qaVaCqZdW4LopZ6xUnPj5iUtc6
+#   block: 24020230
 schema:
   file: ./schema.graphql
 dataSources:
