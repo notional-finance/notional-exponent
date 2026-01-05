@@ -3,19 +3,24 @@ pragma solidity >=0.8.29;
 
 import { ADDRESS_REGISTRY } from "../utils/Constants.sol";
 import { TimelockUpgradeableProxy } from "./TimelockUpgradeableProxy.sol";
+import { Unauthorized } from "../interfaces/Errors.sol";
 
 contract PauseAdmin {
     mapping(address pendingPauser => bool isPendingPauser) public pendingPausers;
     mapping(address pauser => bool isPauser) public pausers;
 
     modifier onlyPauser() {
-        require(pausers[msg.sender], "Not a pauser");
+        if (!pausers[msg.sender]) revert Unauthorized(msg.sender);
         _;
     }
 
     modifier onlyUpgradeAdmin() {
-        require(msg.sender == ADDRESS_REGISTRY.upgradeAdmin(), "Not the upgrade admin");
+        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized(msg.sender);
         _;
+    }
+
+    function acceptPauseAdmin() external onlyUpgradeAdmin {
+        ADDRESS_REGISTRY.acceptPauseAdmin();
     }
 
     function addPendingPauser(address pauser) external onlyUpgradeAdmin {
@@ -37,5 +42,16 @@ contract PauseAdmin {
         for (uint256 i = 0; i < pausableContracts.length; i++) {
             TimelockUpgradeableProxy(payable(pausableContracts[i])).pause();
         }
+    }
+
+    function whitelistSelectors(
+        address pausableContract,
+        bytes4[] calldata selectors,
+        bool isWhitelisted
+    )
+        external
+        onlyUpgradeAdmin
+    {
+        TimelockUpgradeableProxy(payable(pausableContract)).whitelistSelectors(selectors, isWhitelisted);
     }
 }
