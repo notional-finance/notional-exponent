@@ -148,6 +148,29 @@ contract TestTimelockProxy is Test {
         proxy.pause();
     }
 
+    function test_removePauser() public {
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        pauseAdmin.removePauser(pauser);
+
+        vm.prank(upgradeOwner);
+        pauseAdmin.addPendingPauser(pauser);
+
+        vm.startPrank(pauser);
+        pauseAdmin.acceptPauser();
+        vm.stopPrank();
+
+        assertEq(pauseAdmin.pausers(pauser), true);
+
+        vm.prank(upgradeOwner);
+        pauseAdmin.removePauser(pauser);
+        assertEq(pauseAdmin.pausers(pauser), false);
+
+        vm.startPrank(pauser);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, pauser));
+        pauseAdmin.pause(address(proxy));
+        vm.stopPrank();
+    }
+
     function test_pause_given_contract() public {
         vm.prank(upgradeOwner);
         pauseAdmin.addPendingPauser(pauser);

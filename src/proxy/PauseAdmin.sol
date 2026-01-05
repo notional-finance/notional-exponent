@@ -33,6 +33,10 @@ contract PauseAdmin {
         delete pendingPausers[msg.sender];
     }
 
+    function removePauser(address pauser) external onlyUpgradeAdmin {
+        pausers[pauser] = false;
+    }
+
     function pause(address pausableContract) external onlyPauser {
         TimelockUpgradeableProxy(payable(pausableContract)).pause();
     }
