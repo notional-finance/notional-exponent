@@ -5,6 +5,7 @@ import "forge-std/src/Test.sol";
 import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
 import "../src/proxy/AddressRegistry.sol";
+import "../src/proxy/PauseAdmin.sol";
 
 contract MockInitializable is Initializable {
     bool public didInitialize;
@@ -30,22 +31,21 @@ contract TestTimelockProxy is Test {
     Initializable public impl;
     TimelockUpgradeableProxy public proxy;
     address public upgradeOwner;
-    address public pauseOwner;
+    PauseAdmin public pauseAdmin;
     address public feeReceiver;
+    address public pauser;
     AddressRegistry public registry = ADDRESS_REGISTRY;
 
     function setUp() public {
         vm.createSelectFork(RPC_URL, FORK_BLOCK);
         upgradeOwner = ADDRESS_REGISTRY.upgradeAdmin();
-        pauseOwner = makeAddr("pauseOwner");
+        pauseAdmin = new PauseAdmin();
         feeReceiver = ADDRESS_REGISTRY.feeReceiver();
+        pauser = makeAddr("pauser");
 
         vm.startPrank(upgradeOwner);
-        registry.transferPauseAdmin(pauseOwner);
-        vm.stopPrank();
-
-        vm.startPrank(pauseOwner);
-        registry.acceptPauseAdmin();
+        registry.transferPauseAdmin(address(pauseAdmin));
+        pauseAdmin.acceptPauseAdmin();
         vm.stopPrank();
 
         impl = new MockInitializable();
@@ -127,27 +127,54 @@ contract TestTimelockProxy is Test {
         vm.stopPrank();
     }
 
-    function test_pause() public {
+    function test_addPauser() public {
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        pauseAdmin.addPendingPauser(pauser);
+
+        vm.prank(upgradeOwner);
+        pauseAdmin.addPendingPauser(pauser);
+
+        assertEq(pauseAdmin.pendingPausers(pauser), true);
+
+        vm.prank(pauser);
+        pauseAdmin.acceptPauser();
+
+        assertEq(pauseAdmin.pausers(pauser), true);
+        assertEq(pauseAdmin.pendingPausers(pauser), false);
+    }
+
+    function test_pause_RevertsIf_notPauser() public {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         proxy.pause();
+    }
 
-        vm.prank(pauseOwner);
-        proxy.pause();
+    function test_pause_given_contract() public {
+        vm.prank(upgradeOwner);
+        pauseAdmin.addPendingPauser(pauser);
+
+        vm.startPrank(pauser);
+        pauseAdmin.acceptPauser();
+        pauseAdmin.pause(address(proxy));
+        vm.stopPrank();
 
         vm.expectRevert(abi.encodeWithSelector(Paused.selector));
         MockInitializable(address(proxy)).doSomething();
 
+        // Cannot unpause if not the pause admin
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         proxy.unpause();
 
         // Whitelist the doSomething function
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = MockInitializable.doSomething.selector;
+
+        // Cannot call this directly
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         proxy.whitelistSelectors(selectors, true);
 
-        vm.prank(pauseOwner);
-        proxy.whitelistSelectors(selectors, true);
+        // Can call via the upgrade admin
+        vm.prank(upgradeOwner);
+        pauseAdmin.whitelistSelectors(address(proxy), selectors, true);
 
         assertEq(MockInitializable(address(proxy)).doSomething(), true);
 
@@ -224,8 +251,8 @@ contract TestTimelockProxy is Test {
         registry.addPausableContract(address(newProxy));
 
         // PauseAdmin cannot add pausable contracts
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, pauseOwner));
-        vm.prank(pauseOwner);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(pauseAdmin)));
+        vm.prank(address(pauseAdmin));
         registry.addPausableContract(address(newProxy));
 
         // UpgradeAdmin can add pausable contracts
@@ -288,6 +315,23 @@ contract TestTimelockProxy is Test {
         assertTrue(found1, "Proxy1 should be in the list");
         assertTrue(found2, "Proxy2 should be in the list");
         assertTrue(found3, "Proxy3 should be in the list");
+
+        // Now test that pauseAll will pause all the contracts
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        pauseAdmin.pauseAll();
+
+        vm.prank(upgradeOwner);
+        pauseAdmin.addPendingPauser(pauser);
+
+        vm.startPrank(pauser);
+        pauseAdmin.acceptPauser();
+        pauseAdmin.pauseAll();
+        vm.stopPrank();
+
+        // Verify all contracts are paused
+        assertEq(TimelockUpgradeableProxy(payable(address(proxy1))).isPaused(), true);
+        assertEq(TimelockUpgradeableProxy(payable(address(proxy2))).isPaused(), true);
+        assertEq(TimelockUpgradeableProxy(payable(address(proxy3))).isPaused(), true);
     }
 
     function test_removePausableContract_onlyUpgradeAdmin() public {
@@ -319,8 +363,8 @@ contract TestTimelockProxy is Test {
         registry.removePausableContract(indexes);
 
         // PauseAdmin cannot remove pausable contracts
-        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, pauseOwner));
-        vm.prank(pauseOwner);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(pauseAdmin)));
+        vm.prank(address(pauseAdmin));
         registry.removePausableContract(indexes);
 
         // UpgradeAdmin can remove pausable contracts
