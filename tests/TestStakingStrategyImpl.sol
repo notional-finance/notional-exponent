@@ -10,6 +10,7 @@ import "../src/withdraws/Dinero.sol";
 import "../src/withdraws/Midas.sol";
 import "../src/staking/MidasStakingStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
+import "../src/oracles/MidasUSDOracle.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -235,8 +236,9 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
         y = new MidasStakingStrategy(address(USDC), address(mHYPER), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        uint256 latestPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
-        o = new MockOracle(int256(latestPrice));
+        MidasUSDOracle oracle = new MidasUSDOracle("Midas USD Oracle", depositVault);
+        int256 latestPrice = oracle.latestAnswer();
+        o = new MockOracle(latestPrice);
 
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
@@ -250,6 +252,13 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
         skipFeeCollectionTest = true;
         // The known token prevents liquidation unless the interest accrues past the collateral value.
         knownTokenPreventsLiquidation = true;
+    }
+
+    function test_midas_hardcoded_price() public view {
+        (int256 price,) = TRADING_MODULE.getOraclePrice(address(w), address(asset));
+        IDepositVault depositVault = IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024);
+        uint256 midasPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
+        assertApproxEqAbs(uint256(price), midasPrice, 1);
     }
 
     function test_accountingAsset() public view {
