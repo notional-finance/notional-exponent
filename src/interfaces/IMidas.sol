@@ -15,6 +15,7 @@ interface IMidasAccessControl {
 
 interface IMidasDataFeed {
     function getDataInBase18() external view returns (uint256);
+    function aggregator() external view returns (address);
 }
 
 interface IMidasVault {
