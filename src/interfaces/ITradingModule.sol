@@ -124,8 +124,6 @@ interface ITradingModule {
         view
         returns (address spender, address target, uint256 value, bytes memory params);
 
-    function queueOperation(bytes4 sig, bytes memory data) external;
-
     function setMaxOracleFreshness(uint32 newMaxOracleFreshnessInSeconds) external;
 
     function setPriceOracle(address token, AggregatorV2V3Interface oracle) external;

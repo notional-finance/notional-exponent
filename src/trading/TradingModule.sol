@@ -13,10 +13,6 @@ import { ERC20 as IERC20, TokenUtils } from "../utils/TokenUtils.sol";
 import { ITradingModule, Trade, TradeType, DexId, nProxy } from "../interfaces/ITradingModule.sol";
 import { AggregatorV2V3Interface } from "../interfaces/AggregatorV2V3Interface.sol";
 
-interface NotionalProxy {
-    function owner() external view returns (address);
-}
-
 /// @notice TradingModule is meant to be an upgradeable contract deployed to help Strategy Vaults
 /// exchange tokens via multiple DEXes as well as receive price oracle information
 contract TradingModule is UUPSUpgradeable, ITradingModule {
@@ -35,11 +31,10 @@ contract TradingModule is UUPSUpgradeable, ITradingModule {
         uint8 rateDecimals;
     }
 
-    uint256 private _unused;
+    address public owner;
     mapping(address token => PriceOracle priceOracle) public priceOracles;
     uint32 public maxOracleFreshnessInSeconds;
     mapping(address sender => mapping(address token => TokenPermissions permissions)) public tokenWhitelist;
-    mapping(bytes32 operationHash => uint256 queuedAt) public operationQueue;
 
     constructor() {
         // Make sure we are using the correct Deployments lib
@@ -47,44 +42,19 @@ contract TradingModule is UUPSUpgradeable, ITradingModule {
         PROXY = Deployments.TRADING_MODULE;
     }
 
-    modifier onlyUpgradeAdmin() {
-        if (msg.sender != ADDRESS_REGISTRY.upgradeAdmin()) revert Unauthorized();
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert Unauthorized();
         _;
     }
 
-    function _hashOperation(bytes4 sig, bytes memory data) private pure returns (bytes32) {
-        return keccak256(abi.encode(sig, data));
-    }
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
 
-    function _checkOperationQueue(bytes32 operationHash) private {
-        uint256 queuedAt = operationQueue[operationHash];
-        require(0 < queuedAt && queuedAt + OPERATION_TIMELOCK < block.timestamp, "Insufficient timelock");
-        delete operationQueue[operationHash];
-    }
-
-    function queueOperation(bytes4 sig, bytes memory data) external onlyUpgradeAdmin {
-        bytes32 operationHash = _hashOperation(sig, data);
-        require(operationQueue[operationHash] == 0);
-        operationQueue[operationHash] = block.timestamp;
-    }
-
-    function _authorizeUpgrade(address newImplementation) internal override onlyUpgradeAdmin {
-        _checkOperationQueue(_hashOperation(nProxy.upgradeToAndCall.selector, abi.encode(newImplementation, "")));
-    }
-
-    function setMaxOracleFreshness(uint32 newMaxOracleFreshnessInSeconds) external onlyUpgradeAdmin {
-        bytes32 operationHash =
-            _hashOperation(ITradingModule.setMaxOracleFreshness.selector, abi.encode(newMaxOracleFreshnessInSeconds));
-        _checkOperationQueue(operationHash);
-
+    function setMaxOracleFreshness(uint32 newMaxOracleFreshnessInSeconds) external onlyOwner {
         emit MaxOracleFreshnessUpdated(maxOracleFreshnessInSeconds, newMaxOracleFreshnessInSeconds);
         maxOracleFreshnessInSeconds = newMaxOracleFreshnessInSeconds;
     }
 
-    function setPriceOracle(address token, AggregatorV2V3Interface oracle) external override onlyUpgradeAdmin {
-        bytes32 operationHash = _hashOperation(ITradingModule.setPriceOracle.selector, abi.encode(token, oracle));
-        _checkOperationQueue(operationHash);
-
+    function setPriceOracle(address token, AggregatorV2V3Interface oracle) external override onlyOwner {
         PriceOracle storage oracleStorage = priceOracles[token];
         oracleStorage.oracle = oracle;
         oracleStorage.rateDecimals = oracle.decimals();
@@ -99,12 +69,8 @@ contract TradingModule is UUPSUpgradeable, ITradingModule {
     )
         external
         override
-        onlyUpgradeAdmin
+        onlyOwner
     {
-        bytes32 operationHash =
-            _hashOperation(ITradingModule.setTokenPermissions.selector, abi.encode(sender, token, permissions));
-        _checkOperationQueue(operationHash);
-
         /// @dev update these if we are adding new DEXes or types
         // Validates that the permissions being set do not exceed the max values set
         // by the token.
