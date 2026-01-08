@@ -265,3 +265,147 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
         assertEq(y.accountingAsset(), address(USDC));
     }
 }
+
+contract TestStakingStrategy_Midas_mAPOLLO_USDC is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_034_331;
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(0);
+    }
+
+    function deployYieldStrategy() internal override {
+        withdrawRequest = new TestMidas_mAPOLLO_USDC_WithdrawRequest();
+        address mAPOLLO = 0x7CF9DEC92ca9FD46f8d86e7798B72624Bc116C05;
+        IDepositVault depositVault = IDepositVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921);
+        IRedemptionVault redemptionVault = IRedemptionVault(0x5aeA6D35ED7B3B7aE78694B7da2Ee880756Af5C0);
+        address wrm =
+            address(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0))));
+
+        setupWithdrawRequestManager(address(wrm));
+        TestMidas_mAPOLLO_USDC_WithdrawRequest(address(withdrawRequest)).setManager(address(manager));
+        y = new MidasStakingStrategy(address(USDC), address(mAPOLLO), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        MidasUSDOracle oracle = new MidasUSDOracle("Midas USD Oracle", depositVault);
+        int256 latestPrice = oracle.latestAnswer();
+        o = new MockOracle(latestPrice);
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        maxEntryValuationSlippage = 0.005e18;
+        // This is the worst case slippage for an instant exit from the mHYPER vault, it is
+        // 50 bps * the default leverage (11x)
+        maxExitValuationSlippage = 0.055e18;
+        // This is the variationTolerance of the mHYPER vault
+        maxWithdrawValuationChange = 0.007e18;
+        // Cannot warp forward due to feed health check.
+        skipFeeCollectionTest = true;
+        // The known token prevents liquidation unless the interest accrues past the collateral value.
+        knownTokenPreventsLiquidation = true;
+    }
+
+    function test_midas_hardcoded_price() public view {
+        (int256 price,) = TRADING_MODULE.getOraclePrice(address(w), address(asset));
+        IDepositVault depositVault = IDepositVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921);
+        uint256 midasPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
+        assertApproxEqAbs(uint256(price), midasPrice, 1);
+    }
+
+    function test_accountingAsset() public view {
+        assertEq(y.accountingAsset(), address(USDC));
+    }
+}
+
+contract TestStakingStrategy_Midas_mF_ONE_USDC is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_034_331;
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(0);
+    }
+
+    function deployYieldStrategy() internal override {
+        withdrawRequest = new TestMidas_mF_ONE_USDC_WithdrawRequest();
+        address mF_ONE = 0x238a700eD6165261Cf8b2e544ba797BC11e466Ba;
+        IDepositVault depositVault = IDepositVault(0x41438435c20B1C2f1fcA702d387889F346A0C3DE);
+        IRedemptionVault redemptionVault = IRedemptionVault(0x44b0440e35c596e858cEA433D0d82F5a985fD19C);
+        address wrm =
+            address(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0))));
+
+        setupWithdrawRequestManager(address(wrm));
+        TestMidas_mF_ONE_USDC_WithdrawRequest(address(withdrawRequest)).setManager(address(manager));
+        y = new MidasStakingStrategy(address(USDC), address(mF_ONE), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        MidasUSDOracle oracle = new MidasUSDOracle("Midas USD Oracle", depositVault);
+        int256 latestPrice = oracle.latestAnswer();
+        o = new MockOracle(latestPrice);
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        maxEntryValuationSlippage = 0.005e18;
+        // This is the worst case slippage for an instant exit from the mHYPER vault, it is
+        // 50 bps * the default leverage (11x)
+        maxExitValuationSlippage = 0.055e18;
+        // This is the variationTolerance of the mHYPER vault
+        maxWithdrawValuationChange = 0.007e18;
+        // Cannot warp forward due to feed health check.
+        skipFeeCollectionTest = true;
+        // The known token prevents liquidation unless the interest accrues past the collateral value.
+        knownTokenPreventsLiquidation = true;
+    }
+
+    function test_midas_hardcoded_price() public view {
+        (int256 price,) = TRADING_MODULE.getOraclePrice(address(w), address(asset));
+        IDepositVault depositVault = IDepositVault(0x41438435c20B1C2f1fcA702d387889F346A0C3DE);
+        uint256 midasPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
+        assertApproxEqAbs(uint256(price), midasPrice, 1);
+    }
+
+    function test_accountingAsset() public view {
+        assertEq(y.accountingAsset(), address(USDC));
+    }
+}
