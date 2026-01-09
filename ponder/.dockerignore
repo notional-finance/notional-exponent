@@ -8,4 +8,6 @@ npm-debug.log
 .DS_Store
 coverage
 .nyc_output
+deploy.sh
+DEPLOYMENT.md
 
