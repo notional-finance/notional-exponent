@@ -95,7 +95,7 @@ gcloud run deploy ponder-indexer \
   --set-secrets "$INDEXER_SECRETS" \
   --add-cloudsql-instances "$CLOUD_SQL_INSTANCE" \
   --no-allow-unauthenticated \
-  --update-annotations run.googleapis.com/egress=all-traffic \
+  --no-cpu-throttling \
   --timeout 3600 \
   --platform managed
 
