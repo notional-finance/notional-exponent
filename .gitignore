@@ -6,7 +6,7 @@ out
 subgraph/tests/.bin
 
 # files
-*.env
+*.env*
 *.log
 .DS_Store
 .pnp.*
