@@ -4,7 +4,13 @@ import { AddressRegistryAbi } from "./abis/AddressRegistryAbi";
 import { ITradingModuleAbi } from "./abis/ITradingModuleAbi";
 
 export default createConfig({
-  chains: { mainnet: { id: 1, rpc: process.env.PONDER_RPC_URL_1!, ethGetLogsBlockRange: 2000 } },
+  chains: {
+    mainnet: {
+      id: 1,
+      rpc: process.env.PONDER_RPC_URL_1!,
+      ethGetLogsBlockRange: 500,
+    },
+  },
   contracts: {
     AddressRegistry: {
       chain: "mainnet",
