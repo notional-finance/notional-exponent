@@ -1,6 +1,19 @@
-import { onchainTable } from "ponder";
+import { index, onchainTable, primaryKey } from "ponder";
 
-export const example = onchainTable("example", (t) => ({
-  id: t.text().primaryKey(),
-  name: t.text(),
-}));
+export const account = onchainTable(
+  "account",
+  (t) => ({
+    account: t.hex().notNull(),
+    vault: t.hex().notNull(),
+    lendingRouter: t.hex().notNull(),
+    lastTransactionTime: t.bigint().notNull(),
+    lastTransactionHash: t.hex().notNull(),
+    isActive: t.boolean().notNull(),
+  }),
+  (table) => ({
+    pk: primaryKey({ columns: [table.account, table.vault, table.lendingRouter] }),
+    accountIdx: index().on(table.account),
+    vaultIdx: index().on(table.vault),
+    lendingRouterIdx: index().on(table.lendingRouter),
+  }),
+);
