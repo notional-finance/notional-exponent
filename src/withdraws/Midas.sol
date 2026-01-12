@@ -7,10 +7,8 @@ import {
     IRedemptionVault,
     DecimalsCorrectionLibrary,
     IMidasDataFeed,
-    IMidasVault,
-    MidasAccessControl,
     MidasRequestStatus,
-    MIDAS_GREENLISTED_ROLE
+    IMidasVault
 } from "../interfaces/IMidas.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 
@@ -58,12 +56,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {
-        // NOTE: account must be encoded by the vault in the stake data, not provided by the user.
-        (address account, uint256 minReceiveAmount) = abi.decode(stakeData, (address, uint256));
-        if (depositVault.greenlistEnabled()) {
-            // Ensures that any KYC checks are respected.
-            require(MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
-        }
+        (uint256 minReceiveAmount) = abi.decode(stakeData, (uint256));
 
         ERC20(STAKING_TOKEN).checkApprove(address(depositVault), amount);
 
@@ -82,11 +75,6 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 requestId)
     {
-        if (redeemVault.greenlistEnabled()) {
-            // Ensures that any KYC checks are respected.
-            require(MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
-        }
-
         ERC20(YIELD_TOKEN).checkApprove(address(redeemVault), amountToWithdraw);
         requestId = redeemVault.redeemRequest(WITHDRAW_TOKEN, amountToWithdraw);
     }
