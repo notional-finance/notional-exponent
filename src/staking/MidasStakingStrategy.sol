@@ -2,7 +2,7 @@
 pragma solidity >=0.8.29;
 
 import { StakingStrategy } from "./StakingStrategy.sol";
-import { IRedemptionVault, MidasAccessControl, MIDAS_GREENLISTED_ROLE } from "../interfaces/IMidas.sol";
+import { IMidasVault, ISanctionsList, IMidasAccessControl, IRedemptionVault } from "../interfaces/IMidas.sol";
 import { ADDRESS_REGISTRY, CHAIN_ID_MAINNET } from "../utils/Constants.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 import { MidasWithdrawRequestManager } from "../withdraws/Midas.sol";
@@ -10,15 +10,28 @@ import { MidasWithdrawRequestManager } from "../withdraws/Midas.sol";
 contract MidasStakingStrategy is StakingStrategy {
     using TokenUtils for ERC20;
 
+    error MidasBlockedAccount(address account);
+
     constructor(address _asset, address _yieldToken, uint256 _feeRate)
         StakingStrategy(_asset, _yieldToken, _feeRate)
     { }
 
+    function _checkMidasAccount(address account, IMidasVault vault) internal view {
+        IMidasAccessControl accessControl = IMidasAccessControl(vault.accessControl());
+        // This is the Chainalysis sanctions list.
+        ISanctionsList sanctionsList = ISanctionsList(vault.sanctionsList());
+        if (sanctionsList.isSanctioned(account)) revert MidasBlockedAccount(account);
+        if (accessControl.hasRole(accessControl.BLACKLISTED_ROLE(), account)) revert MidasBlockedAccount(account);
+        if (vault.greenlistEnabled() && !accessControl.hasRole(accessControl.GREENLISTED_ROLE(), account)) {
+            revert MidasBlockedAccount(account);
+        }
+    }
+
     function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal override {
-        (uint256 minReceiveAmount) = abi.decode(depositData, (uint256));
-        // Ensure that we encode the proper receiver here for KYC checks.
-        bytes memory stakeData = abi.encode(receiver, minReceiveAmount);
-        super._mintYieldTokens(assets, receiver, stakeData);
+        MidasWithdrawRequestManager wrm = MidasWithdrawRequestManager(address(withdrawRequestManager));
+        IMidasVault vault = IMidasVault(wrm.depositVault());
+        _checkMidasAccount(receiver, vault);
+        super._mintYieldTokens(assets, receiver, depositData);
     }
 
     function _executeInstantRedemption(
@@ -32,19 +45,35 @@ contract MidasStakingStrategy is StakingStrategy {
     {
         MidasWithdrawRequestManager wrm = MidasWithdrawRequestManager(address(withdrawRequestManager));
         IRedemptionVault redeemVault = IRedemptionVault(wrm.redeemVault());
-        if (redeemVault.greenlistEnabled()) {
-            require(
-                MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, sharesOwner), "Midas: account is not greenlisted"
-            );
-        }
+        _checkMidasAccount(sharesOwner, redeemVault);
 
         uint256 assetsBefore = TokenUtils.tokenBalance(asset);
         (uint256 minReceiveAmount) = abi.decode(redeemData, (uint256));
 
         ERC20(yieldToken).checkApprove(address(redeemVault), yieldTokensToRedeem);
         redeemVault.redeemInstant(address(asset), yieldTokensToRedeem, minReceiveAmount);
+        // Make sure to revoke the approval since the transfer amount will be less than the
+        // approval amount due to fees charged by the vault.
+        ERC20(yieldToken).checkRevoke(address(redeemVault));
 
         uint256 assetsAfter = TokenUtils.tokenBalance(asset);
         assetsPurchased = assetsAfter - assetsBefore;
+    }
+
+    function _initiateWithdraw(
+        address account,
+        uint256 yieldTokenAmount,
+        uint256 sharesHeld,
+        bytes memory data,
+        address forceWithdrawFrom
+    )
+        internal
+        override
+        returns (uint256 requestId)
+    {
+        MidasWithdrawRequestManager wrm = MidasWithdrawRequestManager(address(withdrawRequestManager));
+        IMidasVault vault = IMidasVault(wrm.redeemVault());
+        _checkMidasAccount(account, vault);
+        requestId = super._initiateWithdraw(account, yieldTokenAmount, sharesHeld, data, forceWithdrawFrom);
     }
 }
