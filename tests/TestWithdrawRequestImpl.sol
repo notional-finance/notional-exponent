@@ -216,7 +216,6 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     address tokenIn;
     IDepositVault depositVault;
     IRedemptionVault redemptionVault;
-    bytes32 referrerId = bytes32(uint256(0));
     address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
     address constant GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
 
@@ -255,7 +254,7 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
 
     function deployManager() public override {
         withdrawCallData = "";
-        manager = new MidasWithdrawRequestManager(tokenIn, depositVault, redemptionVault, referrerId);
+        manager = new MidasWithdrawRequestManager(tokenIn, depositVault, redemptionVault);
         allowedDepositTokens.push(ERC20(tokenIn));
 
         // USDC whale
