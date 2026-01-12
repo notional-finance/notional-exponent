@@ -147,5 +147,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
             uint256 tokenRate = IMidasDataFeed(tokenConfig.dataFeed).getDataInBase18();
             rate = 1e18 * rate / tokenRate;
         }
+        // Convert to withdraw token decimals.
+        rate = rate * 10 ** TokenUtils.getDecimals(WITHDRAW_TOKEN) / 1e18;
     }
 }
