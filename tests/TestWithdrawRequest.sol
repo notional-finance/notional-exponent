@@ -528,6 +528,6 @@ abstract contract TestWithdrawRequest is Test {
 
     function test_getExchangeRate() public approveVaultAndStakeTokens {
         uint256 exchangeRate = manager.getExchangeRate();
-        assertGe(exchangeRate, 1e18);
+        assertGe(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals());
     }
 }
