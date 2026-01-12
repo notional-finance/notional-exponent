@@ -18,20 +18,18 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
 
     IDepositVault public immutable depositVault;
     IRedemptionVault public immutable redeemVault;
-    bytes32 internal immutable i_referrerId;
+    bytes32 internal constant REFERRER_ID = 0x0000000000000000000000000000000000000000000000000000000000000026;
     uint256 internal constant ONE_HUNDRED_PERCENT = 10_000;
 
     constructor(
         address tokenIn,
         IDepositVault _depositVault,
-        IRedemptionVault _redeemVault,
-        bytes32 _referrerId
+        IRedemptionVault _redeemVault
     )
         AbstractWithdrawRequestManager(tokenIn, _depositVault.mToken(), tokenIn)
     {
         depositVault = _depositVault;
         redeemVault = _redeemVault;
-        i_referrerId = _referrerId;
 
         require(depositVault.mToken() == redeemVault.mToken(), "Midas: mToken mismatch");
         address[] memory depositTokens = depositVault.getPaymentTokens();
@@ -62,7 +60,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
 
         // Midas requires the amount to be in 18 decimals regardless of the native token decimals.
         uint256 scaledAmount = amount * 1e18 / (10 ** TokenUtils.getDecimals(STAKING_TOKEN));
-        depositVault.depositInstant(STAKING_TOKEN, scaledAmount, minReceiveAmount, i_referrerId);
+        depositVault.depositInstant(STAKING_TOKEN, scaledAmount, minReceiveAmount, REFERRER_ID);
     }
 
     function _initiateWithdrawImpl(

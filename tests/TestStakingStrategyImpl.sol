@@ -302,9 +302,7 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy_Midas {
         (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
         return (
             new TestMidas_mHYPER_USDC_WithdrawRequest(),
-            IWithdrawRequestManager(
-                new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0)))
-            )
+            IWithdrawRequestManager(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault))
         );
     }
 }
@@ -327,9 +325,7 @@ contract TestStakingStrategy_Midas_mAPOLLO_USDC is TestStakingStrategy_Midas {
         (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
         return (
             new TestMidas_mAPOLLO_USDC_WithdrawRequest(),
-            IWithdrawRequestManager(
-                new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0)))
-            )
+            IWithdrawRequestManager(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault))
         );
     }
 }
@@ -348,5 +344,5 @@ contract TestStakingStrategy_Midas_mAPOLLO_USDC is TestStakingStrategy_Midas {
 //     ) {
 //         (IDepositVault depositVault, IRedemptionVault redemptionVault, ) = vaults();
 //         return (new TestMidas_mF_ONE_USDC_WithdrawRequest(), IWithdrawRequestManager(new
-// MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0))))); }
+// MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault))); }
 // }
