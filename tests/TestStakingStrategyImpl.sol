@@ -10,7 +10,7 @@ import "../src/withdraws/Dinero.sol";
 import "../src/withdraws/Midas.sol";
 import "../src/staking/MidasStakingStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
-import "../src/oracles/MidasUSDOracle.sol";
+import "../src/oracles/MidasOracle.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -241,7 +241,7 @@ abstract contract TestStakingStrategy_Midas is TestStakingStrategy {
         y = new MidasStakingStrategy(address(asset), address(mToken), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        MidasUSDOracle oracle = new MidasUSDOracle("Midas USD Oracle", depositVault);
+        MidasOracle oracle = new MidasOracle("Midas USD Oracle", depositVault, address(USDC));
         int256 latestPrice = oracle.latestAnswer();
         o = new MockOracle(latestPrice);
 
