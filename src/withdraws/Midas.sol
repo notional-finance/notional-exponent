@@ -22,11 +22,12 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
     uint256 internal constant ONE_HUNDRED_PERCENT = 10_000;
 
     constructor(
+        address tokenOut,
         address tokenIn,
         IDepositVault _depositVault,
         IRedemptionVault _redeemVault
     )
-        AbstractWithdrawRequestManager(tokenIn, _depositVault.mToken(), tokenIn)
+        AbstractWithdrawRequestManager(tokenOut, _depositVault.mToken(), tokenIn)
     {
         depositVault = _depositVault;
         redeemVault = _redeemVault;
@@ -45,12 +46,12 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         address[] memory redeemTokens = redeemVault.getPaymentTokens();
         bool isValidRedeemToken = false;
         for (uint256 i = 0; i < redeemTokens.length; i++) {
-            if (redeemTokens[i] == tokenIn) {
+            if (redeemTokens[i] == tokenOut) {
                 isValidRedeemToken = true;
                 break;
             }
         }
-        require(isValidRedeemToken, "Midas: tokenIn is not a redeem token");
+        require(isValidRedeemToken, "Midas: tokenOut is not a redeem token");
     }
 
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {

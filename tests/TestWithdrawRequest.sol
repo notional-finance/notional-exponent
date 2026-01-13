@@ -8,6 +8,7 @@ import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
 import "../src/interfaces/IWithdrawRequestManager.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "../src/utils/TokenUtils.sol";
 
 abstract contract TestWithdrawRequest is Test {
     string RPC_URL = vm.envString("RPC_URL");
@@ -281,6 +282,14 @@ abstract contract TestWithdrawRequest is Test {
         finalizeWithdrawRequest(requestId);
 
         manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+
+        if (allowedDepositTokens[0].balanceOf(address(this)) == 0) {
+            deal(
+                address(allowedDepositTokens[0]),
+                address(this),
+                10 * (10 ** TokenUtils.getDecimals(address(allowedDepositTokens[0])))
+            );
+        }
 
         // Stake new tokens
         allowedDepositTokens[0].approve(address(manager), allowedDepositTokens[0].balanceOf(address(this)));

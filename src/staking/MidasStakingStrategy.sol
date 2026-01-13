@@ -2,6 +2,7 @@
 pragma solidity >=0.8.29;
 
 import { StakingStrategy } from "./StakingStrategy.sol";
+import { RedeemParams, Trade, TradeType } from "./AbstractStakingStrategy.sol";
 import { IMidasVault, ISanctionsList, IMidasAccessControl, IRedemptionVault } from "../interfaces/IMidas.sol";
 import { ADDRESS_REGISTRY, CHAIN_ID_MAINNET } from "../utils/Constants.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
@@ -47,17 +48,38 @@ contract MidasStakingStrategy is StakingStrategy {
         IRedemptionVault redeemVault = IRedemptionVault(wrm.redeemVault());
         _checkMidasAccount(sharesOwner, redeemVault);
 
-        uint256 assetsBefore = TokenUtils.tokenBalance(asset);
-        (uint256 minReceiveAmount) = abi.decode(redeemData, (uint256));
+        uint256 withdrawTokenBefore = TokenUtils.tokenBalance(withdrawToken);
 
         ERC20(yieldToken).checkApprove(address(redeemVault), yieldTokensToRedeem);
-        redeemVault.redeemInstant(address(asset), yieldTokensToRedeem, minReceiveAmount);
+        redeemVault.redeemInstant(address(withdrawToken), yieldTokensToRedeem, 0);
         // Make sure to revoke the approval since the transfer amount will be less than the
         // approval amount due to fees charged by the vault.
         ERC20(yieldToken).checkRevoke(address(redeemVault));
 
-        uint256 assetsAfter = TokenUtils.tokenBalance(asset);
-        assetsPurchased = assetsAfter - assetsBefore;
+        uint256 withdrawTokens = TokenUtils.tokenBalance(withdrawToken) - withdrawTokenBefore;
+        if (asset != withdrawToken) {
+            // When asset != withdrawToken then we need to execute a trade back to the asset.
+            RedeemParams memory params = abi.decode(redeemData, (RedeemParams));
+            Trade memory trade = Trade({
+                tradeType: TradeType.EXACT_IN_SINGLE,
+                sellToken: address(withdrawToken),
+                buyToken: address(asset),
+                amount: withdrawTokens,
+                limit: params.minPurchaseAmount,
+                deadline: block.timestamp,
+                exchangeData: params.exchangeData
+            });
+
+            // Executes a trade on the given Dex, the vault must have permissions set for
+            // each dex and token it wants to sell.
+            (/* */, assetsPurchased) = _executeTrade(trade, params.dexId);
+        } else {
+            // When asset = withdrawToken then check the minReceiveAmount here and return
+            // the value.
+            (uint256 minReceiveAmount) = abi.decode(redeemData, (uint256));
+            require(minReceiveAmount <= withdrawTokens);
+            assetsPurchased = withdrawTokens;
+        }
     }
 
     function _initiateWithdraw(

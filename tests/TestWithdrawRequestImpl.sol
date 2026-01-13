@@ -12,6 +12,9 @@ import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 
+address constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+address constant cbBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
+
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.prank(0x0EF8fa4760Db8f5Cd4d993f3e3416f30f942D705); // etherFi: admin
@@ -214,6 +217,7 @@ contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address tokenIn;
+    address tokenOut;
     IDepositVault depositVault;
     IRedemptionVault redemptionVault;
     address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
@@ -238,14 +242,14 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
 
         // This will now calculate the exact amount of tokens that will be withdrawn.
         (, uint256 amount) = manager.getKnownWithdrawTokenAmount(requestId);
-        if (tokenIn == address(USDC)) {
+        if (tokenOut == address(USDC)) {
             vm.prank(USDC_WHALE);
             USDC.transfer(address(this), amount);
             vm.stopPrank();
-        } else if (tokenIn == address(WETH)) {
-            deal(address(WETH), address(this), amount);
+        } else {
+            deal(address(tokenOut), address(this), amount);
         }
-        ERC20(tokenIn).transfer(address(manager), amount);
+        ERC20(tokenOut).transfer(address(manager), amount);
     }
 
     function overrideForkBlock() internal override {
@@ -254,15 +258,17 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
 
     function deployManager() public override {
         withdrawCallData = "";
-        manager = new MidasWithdrawRequestManager(tokenIn, depositVault, redemptionVault);
+        manager = new MidasWithdrawRequestManager(tokenOut, tokenIn, depositVault, redemptionVault);
         allowedDepositTokens.push(ERC20(tokenIn));
 
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
-        USDC.transfer(address(this), 1_000_000e6);
+        USDC.transfer(address(this), 200_000e6);
         vm.stopPrank();
 
-        deal(address(WETH), address(this), 200e18);
+        if (tokenIn != address(USDC)) {
+            deal(tokenIn, address(this), 10 * (10 ** TokenUtils.getDecimals(tokenIn)));
+        }
     }
 
     function postDeploySetup() internal override {
@@ -287,6 +293,7 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
 contract TestMidas_mHYPER_USDC_WithdrawRequest is TestMidas_WithdrawRequest {
     constructor() {
         tokenIn = address(USDC);
+        tokenOut = address(USDC);
         depositVault = IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024);
         redemptionVault = IRedemptionVault(0x6Be2f55816efd0d91f52720f096006d63c366e98);
     }
@@ -295,6 +302,7 @@ contract TestMidas_mHYPER_USDC_WithdrawRequest is TestMidas_WithdrawRequest {
 contract TestMidas_mAPOLLO_USDC_WithdrawRequest is TestMidas_WithdrawRequest {
     constructor() {
         tokenIn = address(USDC);
+        tokenOut = address(USDC);
         depositVault = IDepositVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921);
         redemptionVault = IRedemptionVault(0x5aeA6D35ED7B3B7aE78694B7da2Ee880756Af5C0);
     }
@@ -303,6 +311,7 @@ contract TestMidas_mAPOLLO_USDC_WithdrawRequest is TestMidas_WithdrawRequest {
 contract TestMidas_mF_ONE_USDC_WithdrawRequest is TestMidas_WithdrawRequest {
     constructor() {
         tokenIn = address(USDC);
+        tokenOut = address(USDC);
         depositVault = IDepositVault(0x41438435c20B1C2f1fcA702d387889F346A0C3DE);
         redemptionVault = IRedemptionVault(0x44b0440e35c596e858cEA433D0d82F5a985fD19C);
     }
@@ -311,7 +320,17 @@ contract TestMidas_mF_ONE_USDC_WithdrawRequest is TestMidas_WithdrawRequest {
 contract TestMidas_mHyperETH_WETH_WithdrawRequest is TestMidas_WithdrawRequest {
     constructor() {
         tokenIn = address(WETH);
+        tokenOut = address(WETH);
         depositVault = IDepositVault(0x57B3Be350C777892611CEdC93BCf8c099A9Ecdab);
         redemptionVault = IRedemptionVault(0x15f724b35A75F0c28F352b952eA9D1b24e348c57);
+    }
+}
+
+contract TestMidas_mHyperBTC_WBTC_WithdrawRequest is TestMidas_WithdrawRequest {
+    constructor() {
+        tokenIn = address(WBTC);
+        tokenOut = address(cbBTC);
+        depositVault = IDepositVault(0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e);
+        redemptionVault = IRedemptionVault(0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67);
     }
 }
