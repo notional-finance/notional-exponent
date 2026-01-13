@@ -205,6 +205,7 @@ abstract contract TestStakingStrategy_Midas is TestStakingStrategy {
     )
         internal
         pure
+        virtual
         override
         returns (bytes memory depositData)
     {
@@ -217,6 +218,7 @@ abstract contract TestStakingStrategy_Midas is TestStakingStrategy {
     )
         internal
         pure
+        virtual
         override
         returns (bytes memory redeemData)
     {
@@ -241,7 +243,7 @@ abstract contract TestStakingStrategy_Midas is TestStakingStrategy {
         y = new MidasStakingStrategy(address(asset), address(mToken), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        MidasOracle oracle = new MidasOracle("Midas USD Oracle", depositVault, address(USDC));
+        MidasOracle oracle = new MidasOracle("Midas USD Oracle", depositVault, address(asset));
         int256 latestPrice = oracle.latestAnswer();
         o = new MockOracle(latestPrice);
 
@@ -259,7 +261,7 @@ abstract contract TestStakingStrategy_Midas is TestStakingStrategy {
         knownTokenPreventsLiquidation = true;
     }
 
-    function postDeploySetup() internal override {
+    function postDeploySetup() internal virtual override {
         (IDepositVault depositVault,,) = vaults();
         if (depositVault.greenlistEnabled()) {
             address GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
@@ -356,6 +358,52 @@ contract TestStakingStrategy_Midas_mHyperBTC_WBTC is TestStakingStrategy_Midas {
             IWithdrawRequestManager(
                 new MidasWithdrawRequestManager(address(cbBTC), address(WBTC), depositVault, redemptionVault)
             )
+        );
+    }
+
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+        vm.startPrank(owner);
+        TRADING_MODULE.setPriceOracle(
+            address(cbBTC), AggregatorV2V3Interface(0x2665701293fCbEB223D11A08D826563EDcCE423A)
+        );
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(cbBTC),
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
+        vm.stopPrank();
+
+        // Instant withdraws won't work unless we deal some cbBTC to the redemption vault.
+        (, IRedemptionVault redemptionVault,) = vaults();
+        deal(address(cbBTC), address(redemptionVault), 100e8);
+
+        defaultDeposit = 0.1e8;
+        defaultBorrow = 0.9e8;
+        // This has to increase here because the withdraw token is not the same as the asset so
+        // this will need to account for valuation deviations.
+        maxWithdrawValuationChange = 0.0175e18;
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(
+            RedeemParams({
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x839d6bDeDFF886404A6d7a788ef241e4e28F4802, fromIndex: 0, toIndex: 1 })
+                )
+            })
         );
     }
 }
