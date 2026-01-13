@@ -302,7 +302,9 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy_Midas {
         (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
         return (
             new TestMidas_mHYPER_USDC_WithdrawRequest(),
-            IWithdrawRequestManager(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault))
+            IWithdrawRequestManager(
+                new MidasWithdrawRequestManager(address(USDC), address(USDC), depositVault, redemptionVault)
+            )
         );
     }
 }
@@ -325,24 +327,35 @@ contract TestStakingStrategy_Midas_mAPOLLO_USDC is TestStakingStrategy_Midas {
         (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
         return (
             new TestMidas_mAPOLLO_USDC_WithdrawRequest(),
-            IWithdrawRequestManager(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault))
+            IWithdrawRequestManager(
+                new MidasWithdrawRequestManager(address(USDC), address(USDC), depositVault, redemptionVault)
+            )
         );
     }
 }
 
-// contract TestStakingStrategy_Midas_mF_ONE_USDC is TestStakingStrategy_Midas {
-//     // NOTE: there is a minAmountForFirstDeposit for this vault.
-//     function vaults() internal override view returns (
-//         IDepositVault depositVault, IRedemptionVault redemptionVault,
-//         address asset
-//     ) {
-//         return (IDepositVault(0x41438435c20B1C2f1fcA702d387889F346A0C3DE),
-// IRedemptionVault(0x44b0440e35c596e858cEA433D0d82F5a985fD19C), address(USDC)); }
-//     function withdrawManagers() internal override returns (
-//         TestWithdrawRequest tw,
-//         IWithdrawRequestManager wrm
-//     ) {
-//         (IDepositVault depositVault, IRedemptionVault redemptionVault, ) = vaults();
-//         return (new TestMidas_mF_ONE_USDC_WithdrawRequest(), IWithdrawRequestManager(new
-// MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault))); }
-// }
+contract TestStakingStrategy_Midas_mHyperBTC_WBTC is TestStakingStrategy_Midas {
+    // NOTE: there is a minAmountForFirstDeposit for this vault.
+    function vaults()
+        internal
+        view
+        override
+        returns (IDepositVault depositVault, IRedemptionVault redemptionVault, address asset)
+    {
+        return (
+            IDepositVault(0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e),
+            IRedemptionVault(0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67),
+            address(WBTC)
+        );
+    }
+
+    function withdrawManagers() internal override returns (TestWithdrawRequest tw, IWithdrawRequestManager wrm) {
+        (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
+        return (
+            new TestMidas_mHyperBTC_WBTC_WithdrawRequest(),
+            IWithdrawRequestManager(
+                new MidasWithdrawRequestManager(address(cbBTC), address(WBTC), depositVault, redemptionVault)
+            )
+        );
+    }
+}
