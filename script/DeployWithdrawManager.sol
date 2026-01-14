@@ -142,6 +142,7 @@ contract DeployMidas_mHYPER_WithdrawManager is DeployWithdrawManager {
         impl = address(
             new MidasWithdrawRequestManager(
                 address(USDC),
+                address(USDC),
                 IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024),
                 IRedemptionVault(0x6Be2f55816efd0d91f52720f096006d63c366e98)
             )
@@ -159,6 +160,7 @@ contract DeployMidas_mAPOLLO_WithdrawManager is DeployWithdrawManager {
     function deployWithdrawManager() internal override returns (address impl) {
         impl = address(
             new MidasWithdrawRequestManager(
+                address(USDC),
                 address(USDC),
                 IDepositVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921),
                 IRedemptionVault(0x5aeA6D35ED7B3B7aE78694B7da2Ee880756Af5C0)
