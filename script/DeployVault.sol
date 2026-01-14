@@ -366,6 +366,7 @@ contract mAPOLLOStaking is DeployVault {
         supplyAmount = 100_000e6;
         borrowAmount = 80_000e6;
         skipExit = false;
+        proxy = 0x091356E6793a0d960174eaAb4d470E39A99DD673;
         MORPHO_LLTV = 0.86e18;
         feeRate = 0.0025e18;
     }
@@ -379,6 +380,7 @@ contract mAPOLLOStaking is DeployVault {
     }
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        vm.startBroadcast();
         oracle = address(
             new MidasOracle(
                 "mAPOLLO Oracle (USDC Hardcoded)",
@@ -386,6 +388,7 @@ contract mAPOLLOStaking is DeployVault {
                 address(USDC)
             )
         );
+        vm.stopBroadcast();
         oracleToken = mAPOLLO;
         return (oracle, oracleToken);
     }
@@ -439,6 +442,7 @@ contract mHYPERStaking is DeployVault {
         supplyAmount = 100_000e6;
         borrowAmount = 80_000e6;
         skipExit = false;
+        proxy = 0x94F6Cb4FaE0EB3Fa74e9847dfF2fF52fd5ec7e6e;
         MORPHO_LLTV = 0.86e18;
         feeRate = 0.0025e18;
     }
@@ -452,11 +456,13 @@ contract mHYPERStaking is DeployVault {
     }
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        vm.startBroadcast();
         oracle = address(
             new MidasOracle(
                 "mHYPER Oracle (USDC Hardcoded)", IMidasVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024), address(USDC)
             )
         );
+        vm.stopBroadcast();
         oracleToken = mHYPER;
         return (oracle, oracleToken);
     }
