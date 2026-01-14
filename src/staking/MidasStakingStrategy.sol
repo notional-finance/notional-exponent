@@ -17,6 +17,10 @@ contract MidasStakingStrategy is StakingStrategy {
         StakingStrategy(_asset, _yieldToken, _feeRate)
     { }
 
+    function strategy() public pure override returns (string memory) {
+        return "MidasStaking";
+    }
+
     function _checkMidasAccount(address account, IMidasVault vault) internal view {
         IMidasAccessControl accessControl = IMidasAccessControl(vault.accessControl());
         // This is the Chainalysis sanctions list.

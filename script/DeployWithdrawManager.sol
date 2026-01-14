@@ -132,7 +132,9 @@ contract DeployOriginWithdrawManager is DeployWithdrawManager {
 }
 
 contract DeployMidas_mHYPER_WithdrawManager is DeployWithdrawManager {
-    constructor() { }
+    constructor() {
+        PROXY = payable(0x18f86644781fc9F7B4641D371f377c96744EC10F);
+    }
 
     function name() internal pure override returns (string memory) {
         return "mHYPERWithdrawManager";
@@ -151,7 +153,9 @@ contract DeployMidas_mHYPER_WithdrawManager is DeployWithdrawManager {
 }
 
 contract DeployMidas_mAPOLLO_WithdrawManager is DeployWithdrawManager {
-    constructor() { }
+    constructor() {
+        PROXY = payable(0xE4ebB6EA270a70491c3Af06376a5862a0fdA7268);
+    }
 
     function name() internal pure override returns (string memory) {
         return "mAPOLLOWithdrawManager";

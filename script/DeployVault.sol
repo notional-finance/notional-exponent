@@ -28,6 +28,7 @@ import { IWithdrawRequestManager, StakingTradeParams } from "../src/interfaces/I
 import { IYieldStrategy } from "../src/interfaces/IYieldStrategy.sol";
 import { RedeemParams } from "../src/staking/AbstractStakingStrategy.sol";
 import { MidasStakingStrategy } from "../src/staking/MidasStakingStrategy.sol";
+import { IMidasVault, MidasOracle } from "../src/oracles/MidasOracle.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
@@ -361,9 +362,9 @@ contract mAPOLLOStaking is DeployVault {
     address constant mAPOLLO = 0x7CF9DEC92ca9FD46f8d86e7798B72624Bc116C05;
 
     constructor() {
-        depositAmount = 10_000e6;
+        depositAmount = 20_000e6;
         supplyAmount = 100_000e6;
-        borrowAmount = 90_000e6;
+        borrowAmount = 80_000e6;
         skipExit = false;
         MORPHO_LLTV = 0.86e18;
         feeRate = 0.0025e18;
@@ -375,6 +376,18 @@ contract mAPOLLOStaking is DeployVault {
 
     function symbol() internal pure override returns (string memory) {
         return "n-st-mAPOLLO";
+    }
+
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        oracle = address(
+            new MidasOracle(
+                "mAPOLLO Oracle (USDC Hardcoded)",
+                IMidasVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921),
+                address(USDC)
+            )
+        );
+        oracleToken = mAPOLLO;
+        return (oracle, oracleToken);
     }
 
     function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
@@ -402,7 +415,7 @@ contract mAPOLLOStaking is DeployVault {
         override
         returns (bytes memory redeemData)
     {
-        return bytes("");
+        return abi.encode(0);
     }
 
     function getDepositData(
@@ -422,9 +435,9 @@ contract mHYPERStaking is DeployVault {
     address constant mHYPER = 0x9b5528528656DBC094765E2abB79F293c21191B9;
 
     constructor() {
-        depositAmount = 10_000e6;
+        depositAmount = 20_000e6;
         supplyAmount = 100_000e6;
-        borrowAmount = 90_000e6;
+        borrowAmount = 80_000e6;
         skipExit = false;
         MORPHO_LLTV = 0.86e18;
         feeRate = 0.0025e18;
@@ -436,6 +449,16 @@ contract mHYPERStaking is DeployVault {
 
     function symbol() internal pure override returns (string memory) {
         return "n-st-mHYPER";
+    }
+
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        oracle = address(
+            new MidasOracle(
+                "mHYPER Oracle (USDC Hardcoded)", IMidasVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024), address(USDC)
+            )
+        );
+        oracleToken = mHYPER;
+        return (oracle, oracleToken);
     }
 
     function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
@@ -463,7 +486,7 @@ contract mHYPERStaking is DeployVault {
         override
         returns (bytes memory redeemData)
     {
-        return bytes("");
+        return abi.encode(0);
     }
 
     function getDepositData(
