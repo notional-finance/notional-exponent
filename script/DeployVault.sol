@@ -27,10 +27,10 @@ import "../src/staking/StakingStrategy.sol";
 import { IWithdrawRequestManager, StakingTradeParams } from "../src/interfaces/IWithdrawRequestManager.sol";
 import { IYieldStrategy } from "../src/interfaces/IYieldStrategy.sol";
 import { RedeemParams } from "../src/staking/AbstractStakingStrategy.sol";
+import { MidasStakingStrategy } from "../src/staking/MidasStakingStrategy.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
-address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
 abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
     address public proxy;
@@ -354,5 +354,127 @@ contract EthenaStaking is DeployVault {
                 stakeData: bytes("")
             })
         );
+    }
+}
+
+contract mAPOLLOStaking is DeployVault {
+    address constant mAPOLLO = 0x7CF9DEC92ca9FD46f8d86e7798B72624Bc116C05;
+
+    constructor() {
+        depositAmount = 10_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 90_000e6;
+        skipExit = false;
+        MORPHO_LLTV = 0.86e18;
+        feeRate = 0.0025e18;
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "Notional Staking mAPOLLO";
+    }
+
+    function symbol() internal pure override returns (string memory) {
+        return "n-st-mAPOLLO";
+    }
+
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(mAPOLLO));
+        return m;
+    }
+
+    function deployVault() public override returns (address impl) {
+        vm.startBroadcast();
+        impl = address(new MidasStakingStrategy(address(USDC), address(mAPOLLO), feeRate));
+        vm.stopBroadcast();
+    }
+
+    function tradePermissions() internal view override returns (bytes[] memory t) {
+        return new bytes[](0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return bytes("");
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(0);
+    }
+}
+
+contract mHYPERStaking is DeployVault {
+    address constant mHYPER = 0x9b5528528656DBC094765E2abB79F293c21191B9;
+
+    constructor() {
+        depositAmount = 10_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 90_000e6;
+        skipExit = false;
+        MORPHO_LLTV = 0.86e18;
+        feeRate = 0.0025e18;
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "Notional Staking mHYPER";
+    }
+
+    function symbol() internal pure override returns (string memory) {
+        return "n-st-mHYPER";
+    }
+
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(mHYPER));
+        return m;
+    }
+
+    function deployVault() public override returns (address impl) {
+        vm.startBroadcast();
+        impl = address(new MidasStakingStrategy(address(USDC), address(mHYPER), feeRate));
+        vm.stopBroadcast();
+    }
+
+    function tradePermissions() internal view override returns (bytes[] memory t) {
+        return new bytes[](0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return bytes("");
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return abi.encode(0);
     }
 }
