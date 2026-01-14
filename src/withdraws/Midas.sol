@@ -65,7 +65,8 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function _initiateWithdrawImpl(
-        address account,
+        address,
+        /* account */
         uint256 amountToWithdraw,
         bytes calldata,
         address /* forceWithdrawFrom */
