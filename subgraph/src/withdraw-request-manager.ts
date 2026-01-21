@@ -215,6 +215,14 @@ export function handleWithdrawRequestTokenized(event: WithdrawRequestTokenized):
     twr.finalized = toW.getS().finalized;
   }
 
+  if (toW.getS().totalYieldTokenAmount.isZero()) {
+    // Use the from withdraw request if the toW is empty
+    let fromW = m.getWithdrawRequest(event.params.vault, event.params.from);
+    twr.totalYieldTokenAmount = fromW.getS().totalYieldTokenAmount;
+    twr.totalWithdraw = fromW.getS().totalWithdraw;
+    twr.finalized = fromW.getS().finalized;
+  }
+
   // Update the withdraw requests
   let toWithdrawRequest = getWithdrawRequest(event.address, event.params.vault, event.params.to, event);
   let toYieldTokenAmountBefore = toWithdrawRequest.yieldTokenAmount;

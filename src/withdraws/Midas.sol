@@ -7,10 +7,8 @@ import {
     IRedemptionVault,
     DecimalsCorrectionLibrary,
     IMidasDataFeed,
-    IMidasVault,
-    MidasAccessControl,
     MidasRequestStatus,
-    MIDAS_GREENLISTED_ROLE
+    IMidasVault
 } from "../interfaces/IMidas.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 
@@ -20,20 +18,19 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
 
     IDepositVault public immutable depositVault;
     IRedemptionVault public immutable redeemVault;
-    bytes32 internal immutable i_referrerId;
+    bytes32 internal constant REFERRER_ID = 0x0000000000000000000000000000000000000000000000000000000000000026;
     uint256 internal constant ONE_HUNDRED_PERCENT = 10_000;
 
     constructor(
+        address tokenOut,
         address tokenIn,
         IDepositVault _depositVault,
-        IRedemptionVault _redeemVault,
-        bytes32 _referrerId
+        IRedemptionVault _redeemVault
     )
-        AbstractWithdrawRequestManager(tokenIn, _depositVault.mToken(), tokenIn)
+        AbstractWithdrawRequestManager(tokenOut, _depositVault.mToken(), tokenIn)
     {
         depositVault = _depositVault;
         redeemVault = _redeemVault;
-        i_referrerId = _referrerId;
 
         require(depositVault.mToken() == redeemVault.mToken(), "Midas: mToken mismatch");
         address[] memory depositTokens = depositVault.getPaymentTokens();
@@ -49,31 +46,27 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         address[] memory redeemTokens = redeemVault.getPaymentTokens();
         bool isValidRedeemToken = false;
         for (uint256 i = 0; i < redeemTokens.length; i++) {
-            if (redeemTokens[i] == tokenIn) {
+            if (redeemTokens[i] == tokenOut) {
                 isValidRedeemToken = true;
                 break;
             }
         }
-        require(isValidRedeemToken, "Midas: tokenIn is not a redeem token");
+        require(isValidRedeemToken, "Midas: tokenOut is not a redeem token");
     }
 
     function _stakeTokens(uint256 amount, bytes memory stakeData) internal override {
-        // NOTE: account must be encoded by the vault in the stake data, not provided by the user.
-        (address account, uint256 minReceiveAmount) = abi.decode(stakeData, (address, uint256));
-        if (depositVault.greenlistEnabled()) {
-            // Ensures that any KYC checks are respected.
-            require(MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
-        }
+        (uint256 minReceiveAmount) = abi.decode(stakeData, (uint256));
 
         ERC20(STAKING_TOKEN).checkApprove(address(depositVault), amount);
 
         // Midas requires the amount to be in 18 decimals regardless of the native token decimals.
         uint256 scaledAmount = amount * 1e18 / (10 ** TokenUtils.getDecimals(STAKING_TOKEN));
-        depositVault.depositInstant(STAKING_TOKEN, scaledAmount, minReceiveAmount, i_referrerId);
+        depositVault.depositInstant(STAKING_TOKEN, scaledAmount, minReceiveAmount, REFERRER_ID);
     }
 
     function _initiateWithdrawImpl(
-        address account,
+        address,
+        /* account */
         uint256 amountToWithdraw,
         bytes calldata,
         address /* forceWithdrawFrom */
@@ -82,11 +75,6 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 requestId)
     {
-        if (redeemVault.greenlistEnabled()) {
-            // Ensures that any KYC checks are respected.
-            require(MidasAccessControl.hasRole(MIDAS_GREENLISTED_ROLE, account), "Midas: account is not greenlisted");
-        }
-
         ERC20(YIELD_TOKEN).checkApprove(address(redeemVault), amountToWithdraw);
         requestId = redeemVault.redeemRequest(WITHDRAW_TOKEN, amountToWithdraw);
     }
@@ -147,5 +135,7 @@ contract MidasWithdrawRequestManager is AbstractWithdrawRequestManager {
             uint256 tokenRate = IMidasDataFeed(tokenConfig.dataFeed).getDataInBase18();
             rate = 1e18 * rate / tokenRate;
         }
+        // Convert to withdraw token decimals.
+        rate = rate * 10 ** TokenUtils.getDecimals(WITHDRAW_TOKEN) / 1e18;
     }
 }

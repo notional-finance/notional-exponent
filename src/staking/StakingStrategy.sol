@@ -15,7 +15,7 @@ contract StakingStrategy is AbstractStakingStrategy {
         require(block.chainid == CHAIN_ID_MAINNET);
     }
 
-    function strategy() public pure override returns (string memory) {
+    function strategy() public pure virtual override returns (string memory) {
         return "Staking";
     }
 }

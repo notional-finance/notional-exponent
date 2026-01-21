@@ -20,22 +20,20 @@ contract GnosisHelper is Script {
         vm.serializeString(id, "chainId", vm.toString(block.chainid));
         vm.serializeUint(id, "createdAt", block.timestamp * 1000);
         vm.serializeString(id, "version", "1.0");
-        // Need to first generate an array of place holder strings to replace later
-        vm.serializeString(id, "transactions", new string[](calls.length));
-        string memory output = vm.serializeString(id, "meta", meta);
-        vm.writeJson(output, path);
+        vm.serializeString(id, "meta", meta);
+        string[] memory txns = new string[](calls.length);
 
         for (uint256 i; i < calls.length; i++) {
             string memory t = "txn";
             vm.serializeAddress(t, "to", calls[i].to);
-            // FIXME: foundry does not properly serialize this to a string
             vm.serializeString(t, "value", vm.toString(calls[i].value));
             vm.serializeBytes(t, "data", calls[i].callData);
             string memory txn = _txnTemplate(t);
-            // Replaces the transaction at the given offset in the array
-            string memory key = string(abi.encodePacked(".transactions[", vm.toString(i), "]"));
-            vm.writeJson(txn, path, key);
+            txns[i] = txn;
         }
+
+        string memory output = vm.serializeString(id, "transactions", txns);
+        vm.writeJson(output, path);
     }
 
     function _txnTemplate(string memory t) private returns (string memory) {
