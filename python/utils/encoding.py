@@ -12,6 +12,14 @@ class EncodingHelper:
             ['address', 'int128', 'int128'],
             [pool, from_index, to_index]
         )
+
+    @staticmethod
+    def encode_min_amount(min_amount: int) -> bytes:
+        """Encode MinAmount"""
+        return encode(
+            ['uint256'],
+            [min_amount]
+        )
     
     @staticmethod
     def encode_redeem_params(dex_id: int, min_purchase_amount: int, exchange_data: bytes) -> bytes:
