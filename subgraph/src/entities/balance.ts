@@ -313,7 +313,11 @@ export function createWithdrawRequestFinalizedLineItem(
   lineItem.underlyingAmountRealized = withdrawTokenAmount;
 
   // This is in underlying token precision (withdrawToken)
-  lineItem.realizedPrice = withdrawTokenAmount.times(y.precision).div(yieldTokenAmount);
+  if (yieldTokenAmount.isZero()) {
+    lineItem.realizedPrice = BigInt.zero();
+  } else {
+    lineItem.realizedPrice = withdrawTokenAmount.times(y.precision).div(yieldTokenAmount);
+  }
   lineItem.spotPrice = BigInt.zero();
   lineItem.underlyingAmountSpot = BigInt.zero();
 
@@ -420,6 +424,8 @@ function updateBalance(
       );
     }
   }
+
+  updateTokenTotalSupply(token, event);
 
   balance.save();
   snapshot.save();
@@ -641,5 +647,17 @@ export function updateSnapshotMetrics(
       // Set the new interest accumulator
       //  = _lastInterestAccumulator + (impliedFixedRate  * underlyingAmountRealized / RATE_PRECISION) (fixed debt)
     }
+  }
+}
+
+function updateTokenTotalSupply(token: Token, event: ethereum.Event): void {
+  // Only update the total supply for vault shares
+  if (token.tokenType == VAULT_SHARE) {
+    let v = IYieldStrategy.bind(Address.fromBytes(Address.fromHexString(token.vaultAddress!)));
+    token.totalSupply = v.totalSupply();
+    token.lastUpdateBlockNumber = event.block.number;
+    token.lastUpdateTimestamp = event.block.timestamp.toI32();
+    token.lastUpdateTransactionHash = event.transaction.hash;
+    token.save();
   }
 }
