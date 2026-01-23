@@ -520,7 +520,10 @@ export function getPendleInterestAccrued(
   let timeToExpiryBefore = expiry.minus(lastSnapshotTimestamp);
   // Use the minimum of the time since the last snapshot and the time to expiry
   let interestAccrueTime = timeSinceLastSnapshot.lt(timeToExpiryBefore) ? timeSinceLastSnapshot : timeToExpiryBefore;
-  let interestAccrued = lastInterestAccumulator.times(interestAccrueTime).div(timeToExpiryBefore);
+  let interestAccrued = BigInt.zero();
+  if (timeToExpiryBefore.gt(BigInt.zero())) {
+    interestAccrued = lastInterestAccumulator.times(interestAccrueTime).div(timeToExpiryBefore);
+  }
   // Adjust the new interest accumulator based on the interest accrued since the last snapshot
   newInterestAccumulator = newInterestAccumulator.plus(lastInterestAccumulator).minus(interestAccrued);
   return [interestAccrued, newInterestAccumulator];

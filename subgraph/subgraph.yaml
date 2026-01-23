@@ -3,9 +3,9 @@ indexerHints:
   prune: auto
 features:
   - grafting
-# graft:
-#   base: QmVtZ8Cv8Vxb8Y69bSyRDJxBxCZkvdCW7YcZT4ruVER6Fw
-#   block: 23683716
+graft:
+  base: QmeBG3Cupf9gU3nNLhXjWvYng4ipTzqQ49pZGw7yQkjP5i
+  block: 24294920
 schema:
   file: ./schema.graphql
 dataSources:
@@ -44,6 +44,8 @@ dataSources:
           file: ./abis/IPPrincipalToken.json
         - name: MorphoLendingRouter
           file: ./abis/MorphoLendingRouter.json
+        - name: TimelockUpgradeableProxy
+          file: ./abis/TimelockUpgradeableProxy.json
       eventHandlers:
         # - event: AccountPositionCleared(indexed address,indexed address,indexed address)
         #   handler: handleAccountPositionCleared

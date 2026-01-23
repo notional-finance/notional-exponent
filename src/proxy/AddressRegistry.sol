@@ -18,6 +18,8 @@ contract AddressRegistry is Initializable {
     event AccountPositionCreated(address indexed account, address indexed vault, address indexed lendingRouter);
     event AccountPositionCleared(address indexed account, address indexed vault, address indexed lendingRouter);
     event WhitelistedVault(address indexed vault, bool isWhitelisted);
+    event PausableContractAdded(address indexed pausableContract);
+    event PausableContractsRemoved(address indexed removedContracts);
 
     /// @notice Address of the admin that is allowed to:
     /// - Upgrade TimelockUpgradeableProxy contracts given a 7 day timelock
@@ -50,6 +52,9 @@ contract AddressRegistry is Initializable {
 
     /// @notice Mapping of accounts to their existing position on a given vault
     mapping(address account => mapping(address vault => VaultPosition)) internal accountPositions;
+
+    /// @notice List of pausable contracts, used for automated threat detection
+    address[] public pausableContracts;
 
     function _initialize(bytes calldata data) internal override {
         (address _upgradeAdmin, address _pauseAdmin, address _feeReceiver) =
@@ -102,11 +107,13 @@ contract AddressRegistry is Initializable {
 
         withdrawRequestManagers[yieldToken] = withdrawRequestManager;
         emit WithdrawRequestManagerSet(yieldToken, withdrawRequestManager);
+        _addPausableContract(withdrawRequestManager);
     }
 
     function setWhitelistedVault(address vault, bool isWhitelisted) external onlyUpgradeAdmin {
         whitelistedVaults[vault] = isWhitelisted;
         emit WhitelistedVault(vault, isWhitelisted);
+        _addPausableContract(vault);
     }
 
     function getWithdrawRequestManager(address yieldToken) external view returns (IWithdrawRequestManager) {
@@ -116,6 +123,7 @@ contract AddressRegistry is Initializable {
     function setLendingRouter(address lendingRouter) external onlyUpgradeAdmin {
         lendingRouters[lendingRouter] = true;
         emit LendingRouterSet(lendingRouter);
+        _addPausableContract(lendingRouter);
     }
 
     function isLendingRouter(address lendingRouter) external view returns (bool) {
@@ -155,5 +163,27 @@ contract AddressRegistry is Initializable {
         require(whitelistedVaults[msg.sender]);
         if (isCleared) emit AccountPositionCleared(account, msg.sender, address(0));
         else emit AccountPositionCreated(account, msg.sender, address(0));
+    }
+
+    function addPausableContract(address pausableContract) external onlyUpgradeAdmin {
+        _addPausableContract(pausableContract);
+    }
+
+    function _addPausableContract(address pausableContract) internal {
+        pausableContracts.push(pausableContract);
+        emit PausableContractAdded(pausableContract);
+    }
+
+    function removePausableContract(uint256[] calldata indexes) external onlyUpgradeAdmin {
+        for (uint256 i = 0; i < indexes.length; i++) {
+            address removedContract = pausableContracts[indexes[i]];
+            pausableContracts[indexes[i]] = pausableContracts[pausableContracts.length - 1];
+            pausableContracts.pop();
+            emit PausableContractsRemoved(removedContract);
+        }
+    }
+
+    function getAllPausableContracts() external view returns (address[] memory) {
+        return pausableContracts;
     }
 }
