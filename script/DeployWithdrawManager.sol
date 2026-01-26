@@ -13,6 +13,10 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TimelockUpgradeableProxy } from "../src/proxy/TimelockUpgradeableProxy.sol";
 import { OriginWithdrawRequestManager, oETH } from "../src/withdraws/Origin.sol";
 import { WETH } from "../src/utils/Constants.sol";
+import { MidasWithdrawRequestManager } from "../src/withdraws/Midas.sol";
+import { IDepositVault, IRedemptionVault } from "../src/interfaces/IMidas.sol";
+
+address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
 abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
     address payable public PROXY;
@@ -124,5 +128,47 @@ contract DeployOriginWithdrawManager is DeployWithdrawManager {
 
     function deployWithdrawManager() internal override returns (address impl) {
         impl = address(new OriginWithdrawRequestManager(address(oETH)));
+    }
+}
+
+contract DeployMidas_mHYPER_WithdrawManager is DeployWithdrawManager {
+    constructor() {
+        PROXY = payable(0x18f86644781fc9F7B4641D371f377c96744EC10F);
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "mHYPERWithdrawManager";
+    }
+
+    function deployWithdrawManager() internal override returns (address impl) {
+        impl = address(
+            new MidasWithdrawRequestManager(
+                address(USDC),
+                address(USDC),
+                IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024),
+                IRedemptionVault(0x6Be2f55816efd0d91f52720f096006d63c366e98)
+            )
+        );
+    }
+}
+
+contract DeployMidas_mAPOLLO_WithdrawManager is DeployWithdrawManager {
+    constructor() {
+        PROXY = payable(0xE4ebB6EA270a70491c3Af06376a5862a0fdA7268);
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "mAPOLLOWithdrawManager";
+    }
+
+    function deployWithdrawManager() internal override returns (address impl) {
+        impl = address(
+            new MidasWithdrawRequestManager(
+                address(USDC),
+                address(USDC),
+                IDepositVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921),
+                IRedemptionVault(0x5aeA6D35ED7B3B7aE78694B7da2Ee880756Af5C0)
+            )
+        );
     }
 }

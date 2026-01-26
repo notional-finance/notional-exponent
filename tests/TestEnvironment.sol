@@ -127,10 +127,11 @@ abstract contract TestEnvironment is Test {
         USDC.transfer(owner, 15_000_000e6);
         vm.stopPrank();
 
-        // Deal WETH
-        deal(address(WETH), owner, 2_000_000e18);
-        vm.prank(owner);
-        WETH.transfer(msg.sender, 250_000e18);
+        // Deal asset token
+        deal(address(asset), owner, 2_000_000 * (10 ** TokenUtils.getDecimals(address(asset))));
+        vm.startPrank(owner);
+        ERC20(asset).transfer(msg.sender, 250_000 * (10 ** TokenUtils.getDecimals(address(asset))));
+        vm.stopPrank();
 
         lendingRouter = setupLendingRouter(0.915e18);
         if (address(manager) != address(0)) {

@@ -9,12 +9,18 @@ enum MidasRequestStatus {
 
 interface IMidasAccessControl {
     function GREENLISTED_ROLE() external view returns (bytes32);
+    function BLACKLISTED_ROLE() external view returns (bytes32);
     function hasRole(bytes32 role, address account) external view returns (bool);
     function grantRole(bytes32 role, address account) external;
 }
 
 interface IMidasDataFeed {
     function getDataInBase18() external view returns (uint256);
+    function aggregator() external view returns (address);
+}
+
+interface ISanctionsList {
+    function isSanctioned(address account) external view returns (bool);
 }
 
 interface IMidasVault {
@@ -33,6 +39,7 @@ interface IMidasVault {
     function instantFee() external view returns (uint256);
     function variationTolerance() external view returns (uint256);
     function mTokenDataFeed() external view returns (address);
+    function sanctionsList() external view returns (ISanctionsList);
 }
 
 interface IDepositVault is IMidasVault {
@@ -59,9 +66,6 @@ interface IRedemptionVault is IMidasVault {
     function redeemRequest(address tokenOut, uint256 amountMTokenIn) external returns (uint256 requestId);
     function redeemInstant(address tokenOut, uint256 amountMTokenIn, uint256 minReceiveAmount) external;
 }
-
-IMidasAccessControl constant MidasAccessControl = IMidasAccessControl(0x0312A9D1Ff2372DDEdCBB21e4B6389aFc919aC4B);
-bytes32 constant MIDAS_GREENLISTED_ROLE = 0xd2576bd6a4c5558421de15cb8ecdf4eb3282aac06b94d4f004e8cd0d00f3ebd8;
 
 /**
  * @title DecimalsCorrectionLibrary

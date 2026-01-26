@@ -6,6 +6,8 @@ import { TimelockUpgradeableProxy } from "./TimelockUpgradeableProxy.sol";
 import { Unauthorized } from "../interfaces/Errors.sol";
 
 contract PauseAdmin {
+    event ErrorPausingContract(address indexed pausableContract);
+
     mapping(address pendingPauser => bool isPendingPauser) public pendingPausers;
     mapping(address pauser => bool isPauser) public pausers;
 
@@ -44,8 +46,22 @@ contract PauseAdmin {
     function pauseAll() external onlyPauser {
         address[] memory pausableContracts = ADDRESS_REGISTRY.getAllPausableContracts();
         for (uint256 i = 0; i < pausableContracts.length; i++) {
-            TimelockUpgradeableProxy(payable(pausableContracts[i])).pause();
+            if (pausableContracts[i].code.length == 0) {
+                emit ErrorPausingContract(pausableContracts[i]);
+                continue;
+            }
+
+            // Skip if the contract does not pause properly for some reason
+            // solhint-disable-next-line no-empty-blocks
+            try TimelockUpgradeableProxy(payable(pausableContracts[i])).pause() { }
+            catch {
+                emit ErrorPausingContract(pausableContracts[i]);
+            }
         }
+    }
+
+    function unpause(address pausableContract) external onlyUpgradeAdmin {
+        TimelockUpgradeableProxy(payable(pausableContract)).unpause();
     }
 
     function whitelistSelectors(

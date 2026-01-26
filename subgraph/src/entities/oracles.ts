@@ -6,6 +6,7 @@ import { ORACLE_REGISTRY_ID, SHARE_PRECISION, SIX_HOURS, ZERO_ADDRESS } from "..
 import { ILendingRouter } from "../../generated/AddressRegistry/ILendingRouter";
 import { Aggregator } from "../../generated/AddressRegistry/Aggregator";
 import { IWithdrawRequestManager } from "../../generated/AddressRegistry/IWithdrawRequestManager";
+import { TimelockUpgradeableProxy } from "../../generated/AddressRegistry/TimelockUpgradeableProxy";
 
 export function getOracleRegistry(): OracleRegistry {
   let registry = OracleRegistry.load(ORACLE_REGISTRY_ID);
@@ -36,6 +37,9 @@ export function updateChainlinkOracle(oracle: Oracle, block: ethereum.Block): vo
 }
 
 export function updateVaultOracles(vault: Address, block: ethereum.Block, lendingRouters: Bytes[]): void {
+  let proxy = TimelockUpgradeableProxy.bind(vault);
+  if (proxy.isPaused()) return;
+
   let v = IYieldStrategy.bind(vault);
   let asset = getToken(v.asset().toHexString());
   let vaultShare = getToken(vault.toHexString());
@@ -75,6 +79,9 @@ export function updateVaultOracles(vault: Address, block: ethereum.Block, lendin
 }
 
 export function updateWithdrawRequestManagerOracles(wrm: Address, block: ethereum.Block): void {
+  let proxy = TimelockUpgradeableProxy.bind(wrm);
+  if (proxy.isPaused()) return;
+
   let w = IWithdrawRequestManager.bind(wrm);
   let base = getToken(w.STAKING_TOKEN().toHexString());
   let quote = getToken(w.YIELD_TOKEN().toHexString());

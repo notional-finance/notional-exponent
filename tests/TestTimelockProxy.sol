@@ -26,7 +26,7 @@ contract MockInitializable is Initializable {
 
 contract TestTimelockProxy is Test {
     string RPC_URL = vm.envString("RPC_URL");
-    uint256 FORK_BLOCK = vm.envUint("FORK_BLOCK");
+    uint256 FORK_BLOCK = 23_033_352;
 
     Initializable public impl;
     TimelockUpgradeableProxy public proxy;
@@ -483,5 +483,57 @@ contract TestTimelockProxy is Test {
         address[] memory allContracts = registry.getAllPausableContracts();
         assertEq(allContracts.length, initialLength + 1, "Should have one more contract");
         assertEq(allContracts[allContracts.length - 1], address(newProxy), "Last contract should be the new proxy");
+    }
+
+    function test_unpause_via_pauseAdmin() public {
+        // The morpho lending router is only unpaused via the pause admin
+        address morphoLendingRouter = 0x9a0c630C310030C4602d1A76583a3b16972ecAa0;
+
+        vm.startPrank(upgradeOwner);
+        registry.addPausableContract(morphoLendingRouter);
+        pauseAdmin.addPendingPauser(pauser);
+        vm.stopPrank();
+
+        vm.startPrank(pauser);
+        pauseAdmin.acceptPauser();
+        pauseAdmin.pauseAll();
+        vm.stopPrank();
+        assertEq(TimelockUpgradeableProxy(payable(morphoLendingRouter)).isPaused(), true);
+
+        vm.startPrank(upgradeOwner);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, upgradeOwner));
+        TimelockUpgradeableProxy(payable(morphoLendingRouter)).unpause();
+
+        pauseAdmin.unpause(morphoLendingRouter);
+        assertEq(TimelockUpgradeableProxy(payable(morphoLendingRouter)).isPaused(), false);
+        vm.stopPrank();
+    }
+
+    function test_pauseAll_doesNotRevertIf_contractDoesNotPause() public {
+        // The morpho lending router is only unpaused via the pause admin
+        address morphoLendingRouter = 0x9a0c630C310030C4602d1A76583a3b16972ecAa0;
+        address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+
+        vm.startPrank(upgradeOwner);
+        registry.addPausableContract(morphoLendingRouter);
+        registry.addPausableContract(usdc);
+        registry.addPausableContract(address(0));
+        pauseAdmin.addPendingPauser(pauser);
+        vm.stopPrank();
+
+        address[] memory pausableContracts = registry.getAllPausableContracts();
+        assertEq(pausableContracts.length, 3);
+        assertEq(pausableContracts[0], morphoLendingRouter);
+        assertEq(pausableContracts[1], usdc);
+        assertEq(pausableContracts[2], address(0));
+
+        vm.startPrank(pauser);
+        pauseAdmin.acceptPauser();
+        vm.expectEmit(true, true, true, true);
+        emit PauseAdmin.ErrorPausingContract(usdc);
+        pauseAdmin.pauseAll();
+        vm.stopPrank();
+
+        assertEq(TimelockUpgradeableProxy(payable(morphoLendingRouter)).isPaused(), true);
     }
 }

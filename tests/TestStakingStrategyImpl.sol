@@ -10,6 +10,7 @@ import "../src/withdraws/Dinero.sol";
 import "../src/withdraws/Midas.sol";
 import "../src/staking/MidasStakingStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
+import "../src/oracles/MidasOracle.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -193,7 +194,7 @@ contract TestStakingStrategy_Ethena is TestStakingStrategy {
     }
 }
 
-contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
+abstract contract TestStakingStrategy_Midas is TestStakingStrategy {
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_034_331;
     }
@@ -204,6 +205,7 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
     )
         internal
         pure
+        virtual
         override
         returns (bytes memory depositData)
     {
@@ -216,30 +218,37 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
     )
         internal
         pure
+        virtual
         override
         returns (bytes memory redeemData)
     {
         return abi.encode(0);
     }
 
-    function deployYieldStrategy() internal override {
-        withdrawRequest = new TestMidas_mHYPER_USDC_WithdrawRequest();
-        address mHYPER = 0x9b5528528656DBC094765E2abB79F293c21191B9;
-        IDepositVault depositVault = IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024);
-        IRedemptionVault redemptionVault = IRedemptionVault(0x6Be2f55816efd0d91f52720f096006d63c366e98);
-        address wrm =
-            address(new MidasWithdrawRequestManager(address(USDC), depositVault, redemptionVault, bytes32(uint256(0))));
+    function vaults()
+        internal
+        view
+        virtual
+        returns (IDepositVault depositVault, IRedemptionVault redemptionVault, address asset);
 
+    function withdrawManagers() internal virtual returns (TestWithdrawRequest tw, IWithdrawRequestManager wrm);
+
+    function deployYieldStrategy() internal override {
+        (IDepositVault depositVault, IRedemptionVault redemptionVault, address asset) = vaults();
+        (TestWithdrawRequest tw, IWithdrawRequestManager wrm) = withdrawManagers();
+        withdrawRequest = tw;
+        address mToken = depositVault.mToken();
         setupWithdrawRequestManager(address(wrm));
         TestMidas_mHYPER_USDC_WithdrawRequest(address(withdrawRequest)).setManager(address(manager));
-        y = new MidasStakingStrategy(address(USDC), address(mHYPER), 0.001e18);
+        y = new MidasStakingStrategy(address(asset), address(mToken), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        uint256 latestPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
-        o = new MockOracle(int256(latestPrice));
+        MidasOracle oracle = new MidasOracle("Midas USD Oracle", depositVault, address(asset));
+        int256 latestPrice = oracle.latestAnswer();
+        o = new MockOracle(latestPrice);
 
-        defaultDeposit = 10_000e6;
-        defaultBorrow = 90_000e6;
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
         maxEntryValuationSlippage = 0.005e18;
         // This is the worst case slippage for an instant exit from the mHYPER vault, it is
         // 50 bps * the default leverage (11x)
@@ -252,7 +261,149 @@ contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy {
         knownTokenPreventsLiquidation = true;
     }
 
+    function postDeploySetup() internal virtual override {
+        (IDepositVault depositVault,,) = vaults();
+        if (depositVault.greenlistEnabled()) {
+            address GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
+            vm.startPrank(GREENLISTED_ROLE_OPERATOR);
+            IMidasAccessControl accessControl = IMidasAccessControl(depositVault.accessControl());
+            bytes32 greenlistedRole = accessControl.GREENLISTED_ROLE();
+            accessControl.grantRole(greenlistedRole, address(manager));
+            accessControl.grantRole(greenlistedRole, msg.sender);
+            vm.stopPrank();
+        }
+    }
+
+    function test_midas_hardcoded_price() public view {
+        (int256 price,) = TRADING_MODULE.getOraclePrice(address(w), address(asset));
+        (IDepositVault depositVault,,) = vaults();
+        uint256 midasPrice = IMidasDataFeed(depositVault.mTokenDataFeed()).getDataInBase18();
+        assertApproxEqAbs(uint256(price), midasPrice, 1);
+    }
+
     function test_accountingAsset() public view {
-        assertEq(y.accountingAsset(), address(USDC));
+        assertEq(y.accountingAsset(), address(asset));
+    }
+}
+
+contract TestStakingStrategy_Midas_mHYPER_USDC is TestStakingStrategy_Midas {
+    function vaults()
+        internal
+        view
+        override
+        returns (IDepositVault depositVault, IRedemptionVault redemptionVault, address asset)
+    {
+        return (
+            IDepositVault(0xbA9FD2850965053Ffab368Df8AA7eD2486f11024),
+            IRedemptionVault(0x6Be2f55816efd0d91f52720f096006d63c366e98),
+            address(USDC)
+        );
+    }
+
+    function withdrawManagers() internal override returns (TestWithdrawRequest tw, IWithdrawRequestManager wrm) {
+        (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
+        return (
+            new TestMidas_mHYPER_USDC_WithdrawRequest(),
+            IWithdrawRequestManager(
+                new MidasWithdrawRequestManager(address(USDC), address(USDC), depositVault, redemptionVault)
+            )
+        );
+    }
+}
+
+contract TestStakingStrategy_Midas_mAPOLLO_USDC is TestStakingStrategy_Midas {
+    function vaults()
+        internal
+        view
+        override
+        returns (IDepositVault depositVault, IRedemptionVault redemptionVault, address asset)
+    {
+        return (
+            IDepositVault(0xc21511EDd1E6eCdc36e8aD4c82117033e50D5921),
+            IRedemptionVault(0x5aeA6D35ED7B3B7aE78694B7da2Ee880756Af5C0),
+            address(USDC)
+        );
+    }
+
+    function withdrawManagers() internal override returns (TestWithdrawRequest tw, IWithdrawRequestManager wrm) {
+        (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
+        return (
+            new TestMidas_mAPOLLO_USDC_WithdrawRequest(),
+            IWithdrawRequestManager(
+                new MidasWithdrawRequestManager(address(USDC), address(USDC), depositVault, redemptionVault)
+            )
+        );
+    }
+}
+
+contract TestStakingStrategy_Midas_mHyperBTC_WBTC is TestStakingStrategy_Midas {
+    // NOTE: there is a minAmountForFirstDeposit for this vault.
+    function vaults()
+        internal
+        view
+        override
+        returns (IDepositVault depositVault, IRedemptionVault redemptionVault, address asset)
+    {
+        return (
+            IDepositVault(0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e),
+            IRedemptionVault(0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67),
+            address(WBTC)
+        );
+    }
+
+    function withdrawManagers() internal override returns (TestWithdrawRequest tw, IWithdrawRequestManager wrm) {
+        (IDepositVault depositVault, IRedemptionVault redemptionVault,) = vaults();
+        return (
+            new TestMidas_mHyperBTC_WBTC_WithdrawRequest(),
+            IWithdrawRequestManager(
+                new MidasWithdrawRequestManager(address(cbBTC), address(WBTC), depositVault, redemptionVault)
+            )
+        );
+    }
+
+    function postDeploySetup() internal override {
+        super.postDeploySetup();
+        vm.startPrank(owner);
+        TRADING_MODULE.setPriceOracle(
+            address(cbBTC), AggregatorV2V3Interface(0x2665701293fCbEB223D11A08D826563EDcCE423A)
+        );
+        TRADING_MODULE.setTokenPermissions(
+            address(y),
+            address(cbBTC),
+            ITradingModule.TokenPermissions({
+                allowSell: true, dexFlags: uint32(1 << uint8(DexId.CURVE_V2)), tradeTypeFlags: 5
+            })
+        );
+        vm.stopPrank();
+
+        // Instant withdraws won't work unless we deal some cbBTC to the redemption vault.
+        (, IRedemptionVault redemptionVault,) = vaults();
+        deal(address(cbBTC), address(redemptionVault), 100e8);
+
+        defaultDeposit = 0.1e8;
+        defaultBorrow = 0.9e8;
+        // This has to increase here because the withdraw token is not the same as the asset so
+        // this will need to account for valuation deviations.
+        maxWithdrawValuationChange = 0.0175e18;
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return abi.encode(
+            RedeemParams({
+                minPurchaseAmount: 0,
+                dexId: uint8(DexId.CURVE_V2),
+                exchangeData: abi.encode(
+                    CurveV2SingleData({ pool: 0x839d6bDeDFF886404A6d7a788ef241e4e28F4802, fromIndex: 0, toIndex: 1 })
+                )
+            })
+        );
     }
 }

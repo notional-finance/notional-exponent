@@ -170,21 +170,3 @@ export function handleBlockOracleUpdate(block: ethereum.Block): void {
     updateWithdrawRequestManagerOracles(Address.fromBytes(registry.withdrawRequestManager[i]), block);
   }
 }
-
-// export function handleFeeReceiverTransferred(
-//   event: FeeReceiverTransferred
-// ): void {}
-
-// export function handlePauseAdminTransferred(
-//   event: PauseAdminTransferred
-// ): void {}
-
-// export function handlePendingPauseAdminSet(event: PendingPauseAdminSet): void {}
-
-// export function handlePendingUpgradeAdminSet(
-//   event: PendingUpgradeAdminSet
-// ): void {}
-
-// export function handleUpgradeAdminTransferred(
-//   event: UpgradeAdminTransferred
-// ): void {}
