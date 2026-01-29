@@ -111,8 +111,14 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
 
         test_Enter_Exit_Position();
 
-        generateBatch(string(abi.encodePacked("./script/list-vault-calls-", symbol(), ".json")), calls);
-        generateBatch(string(abi.encodePacked("./script/list-vault-timelock-calls-", symbol(), ".json")), timelockCalls);
+        if (calls.length > 0) {
+            generateBatch(string(abi.encodePacked("./script/list-vault-calls-", symbol(), ".json")), calls);
+        }
+        if (timelockCalls.length > 0) {
+            generateBatch(
+                string(abi.encodePacked("./script/list-vault-timelock-calls-", symbol(), ".json")), timelockCalls
+            );
+        }
     }
 
     function test_Enter_Exit_Position() internal virtual {
@@ -538,7 +544,7 @@ contract mHYPERStaking_77LTV is mHYPERStaking {
         supplyAmount = 100_000e6;
         borrowAmount = 70_000e6;
         skipExit = false;
-        proxy = address(0);
+        proxy = 0x2A5c94fe8fa6c0c8D2A87E5C71ad628caA092ce4;
         MORPHO_LLTV = 0.77e18;
         feeRate = 0.0025e18;
     }
