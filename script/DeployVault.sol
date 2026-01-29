@@ -29,6 +29,8 @@ import { IYieldStrategy } from "../src/interfaces/IYieldStrategy.sol";
 import { RedeemParams } from "../src/staking/AbstractStakingStrategy.sol";
 import { MidasStakingStrategy } from "../src/staking/MidasStakingStrategy.sol";
 import { IMidasVault, MidasOracle } from "../src/oracles/MidasOracle.sol";
+import { TIMELOCK_CONTROLLER } from "../src/utils/Constants.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
@@ -64,16 +66,18 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         require(feeRate > 0, "Fee rate must be greater than 0");
 
         MethodCall[] memory calls;
+        MethodCall[] memory timelockCalls;
         bool isUpgrade = false;
         if (proxy == address(0)) {
             proxy = deployProxy(impl, abi.encode(name(), symbol()));
             console.log("Vault proxy deployed at", address(proxy));
 
-            MethodCall[] memory setup = postDeploySetup();
-            calls = new MethodCall[](setup.length + 1);
+            MethodCall[] memory directCalls;
+            (timelockCalls, directCalls) = postDeploySetup();
+            calls = new MethodCall[](directCalls.length + 1);
 
-            for (uint256 i = 0; i < setup.length; i++) {
-                calls[i] = setup[i];
+            for (uint256 i = 0; i < directCalls.length; i++) {
+                calls[i] = directCalls[i];
             }
             calls[calls.length - 1] = MethodCall({
                 to: address(ADDRESS_REGISTRY),
@@ -99,13 +103,16 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         if (isUpgrade) {
             vm.warp(block.timestamp + 7 days);
             TimelockUpgradeableProxy(payable(proxy)).executeUpgrade(bytes(""));
+            vm.stopPrank();
+            vm.startPrank(address(TIMELOCK_CONTROLLER));
             ITradingModule(TRADING_MODULE).setMaxOracleFreshness(type(uint32).max);
         }
         vm.stopPrank();
 
         test_Enter_Exit_Position();
 
-        generateBatch(string(abi.encodePacked("./script/list-", symbol(), "-vault.json")), calls);
+        generateBatch(string(abi.encodePacked("./script/list-vault-calls-", symbol(), ".json")), calls);
+        generateBatch(string(abi.encodePacked("./script/list-vault-timelock-calls-", symbol(), ".json")), timelockCalls);
     }
 
     function test_Enter_Exit_Position() internal virtual {
@@ -162,7 +169,21 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         );
     }
 
-    function postDeploySetup() internal virtual returns (MethodCall[] memory calls) {
+    function getTimelockCall(address to, bytes memory callData) internal pure returns (MethodCall memory) {
+        return MethodCall({
+            to: address(TIMELOCK_CONTROLLER),
+            value: 0,
+            callData: abi.encodeWithSelector(
+                TimelockController.schedule.selector, to, 0, callData, bytes32(0), bytes32(0), 2 days
+            )
+        });
+    }
+
+    function postDeploySetup()
+        internal
+        virtual
+        returns (MethodCall[] memory timelockCalls, MethodCall[] memory directCalls)
+    {
         IWithdrawRequestManager[] memory m = managers();
         bytes[] memory t = tradePermissions();
         (address oracle, address oracleToken) = deployCustomOracle();
@@ -172,36 +193,39 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
             console.log("Withdraw Request Manager for ", ERC20(m[i].YIELD_TOKEN()).symbol(), " at", address(m[i]));
         }
 
-        uint256 callIndex = 0;
-        uint256 totalCalls = m.length + t.length + 1;
-        if (oracle != address(0)) totalCalls++;
-        calls = new MethodCall[](totalCalls);
+        uint256 directCallIndex = 0;
+        // The +1 is for the MorphoLendingRouter.initializeMarket call
+        uint256 totalDirectCalls = m.length + 1;
+        uint256 timelockCallIndex = 0;
+        uint256 totalTimelockCalls = t.length;
+
+        if (oracle != address(0)) totalTimelockCalls++;
+        timelockCalls = new MethodCall[](totalTimelockCalls);
+        directCalls = new MethodCall[](totalDirectCalls);
 
         if (oracle != address(0)) {
             console.log("Custom oracle: ", AggregatorV2V3Interface(oracle).description(), " deployed at", oracle);
             console.log("Custom oracle token: ", oracleToken);
             console.log("Custom oracle price: ", AggregatorV2V3Interface(oracle).latestAnswer());
 
-            calls[callIndex++] = MethodCall({
-                to: address(TRADING_MODULE),
-                value: 0,
-                callData: abi.encodeWithSelector(TRADING_MODULE.setPriceOracle.selector, oracleToken, oracle)
-            });
+            timelockCalls[timelockCallIndex++] = getTimelockCall(
+                address(TRADING_MODULE),
+                abi.encodeWithSelector(TRADING_MODULE.setPriceOracle.selector, oracleToken, oracle)
+            );
+        }
+
+        for (uint256 i = 0; i < t.length; i++) {
+            timelockCalls[timelockCallIndex++] = getTimelockCall(address(TRADING_MODULE), t[i]);
         }
 
         for (uint256 i = 0; i < m.length; i++) {
-            calls[callIndex++] = MethodCall({
+            directCalls[directCallIndex++] = MethodCall({
                 to: address(m[i]),
                 value: 0,
                 callData: abi.encodeWithSelector(IWithdrawRequestManager.setApprovedVault.selector, proxy, true)
             });
         }
-
-        for (uint256 i = 0; i < t.length; i++) {
-            calls[callIndex++] = MethodCall({ to: address(TRADING_MODULE), value: 0, callData: t[i] });
-        }
-
-        calls[callIndex++] = MethodCall({
+        directCalls[directCallIndex++] = MethodCall({
             to: address(MORPHO_LENDING_ROUTER),
             value: 0,
             callData: abi.encodeWithSelector(
@@ -455,7 +479,7 @@ contract mHYPERStaking is DeployVault {
         return "n-st-mHYPER";
     }
 
-    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+    function deployCustomOracle() internal virtual override returns (address oracle, address oracleToken) {
         vm.startBroadcast();
         oracle = address(
             new MidasOracle(
@@ -505,5 +529,24 @@ contract mHYPERStaking is DeployVault {
         returns (bytes memory depositData)
     {
         return abi.encode(0);
+    }
+}
+
+contract mHYPERStaking_77LTV is mHYPERStaking {
+    constructor() {
+        depositAmount = 30_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 70_000e6;
+        skipExit = false;
+        proxy = address(0);
+        MORPHO_LLTV = 0.77e18;
+        feeRate = 0.0025e18;
+    }
+
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        // Re-use existing oracle for mHYPER
+        oracle = address(0);
+        oracleToken = mHYPER;
+        return (oracle, oracleToken);
     }
 }
