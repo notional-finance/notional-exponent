@@ -3,6 +3,7 @@ pragma solidity >=0.8.29;
 
 import { WETH9 } from "../interfaces/IWETH.sol";
 import { AddressRegistry } from "../proxy/AddressRegistry.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 address constant ETH_ADDRESS = address(0);
 address constant ALT_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -18,3 +19,5 @@ uint256 constant YEAR = 365 days;
 uint256 constant CHAIN_ID_MAINNET = 1;
 WETH9 constant WETH = WETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 AddressRegistry constant ADDRESS_REGISTRY = AddressRegistry(0xe335d314BD4eF7DD44F103dC124FEFb7Ce63eC95);
+TimelockController constant TIMELOCK_CONTROLLER =
+    TimelockController(payable(0x375eaFe4348c6aA851cdfa5f84eC268f73643235));

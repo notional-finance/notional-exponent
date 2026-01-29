@@ -137,15 +137,21 @@ abstract contract DeployLPVault is DeployVault {
         vm.stopBroadcast();
     }
 
-    function postDeploySetup() internal override returns (MethodCall[] memory calls) {
-        MethodCall[] memory superCalls = super.postDeploySetup();
-        calls = new MethodCall[](superCalls.length + 1 + rewardTokens.length);
+    function postDeploySetup()
+        internal
+        override
+        returns (MethodCall[] memory timelockCalls, MethodCall[] memory directCalls)
+    {
+        MethodCall[] memory superCalls;
+        (timelockCalls, superCalls) = super.postDeploySetup();
+
+        directCalls = new MethodCall[](superCalls.length + 1 + rewardTokens.length);
 
         for (uint256 i = 0; i < superCalls.length; i++) {
-            calls[i] = superCalls[i];
+            directCalls[i] = superCalls[i];
         }
 
-        calls[superCalls.length] = MethodCall({
+        directCalls[superCalls.length] = MethodCall({
             to: address(proxy),
             value: 0,
             callData: abi.encodeWithSelector(
@@ -156,7 +162,7 @@ abstract contract DeployLPVault is DeployVault {
         });
 
         for (uint256 i = 0; i < rewardTokens.length; i++) {
-            calls[superCalls.length + 1 + i] = MethodCall({
+            directCalls[superCalls.length + 1 + i] = MethodCall({
                 to: address(proxy),
                 value: 0,
                 callData: abi.encodeWithSelector(
