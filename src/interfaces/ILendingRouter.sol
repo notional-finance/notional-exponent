@@ -18,6 +18,14 @@ interface ILendingRouter {
         bool wasMigrated
     );
 
+    event EnterPositionWithYieldToken(
+        address indexed user,
+        address indexed vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowShares,
+        uint256 vaultSharesReceived
+    );
+
     event ExitPosition(
         address indexed user,
         address indexed vault,
@@ -76,6 +84,22 @@ interface ILendingRouter {
         uint256 depositAssetAmount,
         uint256 borrowAmount,
         bytes calldata depositData
+    )
+        external;
+
+    /**
+     * @dev Enters a position in the lending market with a yield token.
+     *
+     * @param onBehalf The address of the user to enter the position on behalf of.
+     * @param vault The address of the vault.
+     * @param yieldTokenAmount The amount of yield token to deposit.
+     * @param borrowAmount The amount of assets to borrow to repay any flash loan required.
+     */
+    function enterPositionWithYieldToken(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount
     )
         external;
 

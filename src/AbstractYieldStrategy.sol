@@ -246,7 +246,29 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // Cannot mint shares if the receiver has an active withdraw request
         if (_isWithdrawRequestPending(receiver)) revert CannotEnterPosition();
         ERC20(asset).safeTransferFrom(t_CurrentLendingRouter, address(this), assetAmount);
-        sharesMinted = _mintSharesGivenAssets(assetAmount, depositData, receiver);
+        sharesMinted = _mintSharesGivenAssets(assetAmount, depositData, receiver, false);
+
+        t_AllowTransfer_To = t_CurrentLendingRouter;
+        t_AllowTransfer_Amount = sharesMinted;
+        // Transfer the shares to the lending router so it can supply collateral
+        _transfer(receiver, t_CurrentLendingRouter, sharesMinted);
+        _checkInvariant();
+    }
+
+    function mintSharesFromYieldToken(
+        uint256 yieldTokenAmount,
+        address receiver
+    )
+        external
+        override
+        onlyLendingRouter
+        setCurrentAccount(receiver)
+        nonReentrant
+        returns (uint256 sharesMinted)
+    {
+        // Cannot mint shares if the receiver has an active withdraw request
+        if (_isWithdrawRequestPending(receiver)) revert CannotEnterPosition();
+        sharesMinted = _mintSharesGivenAssets(yieldTokenAmount, bytes(""), receiver, true);
 
         t_AllowTransfer_To = t_CurrentLendingRouter;
         t_AllowTransfer_Amount = sharesMinted;
@@ -516,7 +538,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     function _mintSharesGivenAssets(
         uint256 assets,
         bytes memory depositData,
-        address receiver
+        address receiver,
+        bool transferYieldTokensFromReceiver
     )
         internal
         virtual
@@ -527,7 +550,11 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // First accrue fees on the yield token
         _accrueFees();
         uint256 yieldTokensBefore = ERC20(yieldToken).balanceOf(address(this));
-        _mintYieldTokens(assets, receiver, depositData);
+        if (transferYieldTokensFromReceiver) {
+            ERC20(yieldToken).safeTransferFrom(receiver, address(this), assets);
+        } else {
+            _mintYieldTokens(assets, receiver, depositData);
+        }
         uint256 yieldTokensAfter = ERC20(yieldToken).balanceOf(address(this));
         uint256 yieldTokensMinted = yieldTokensAfter - yieldTokensBefore;
 

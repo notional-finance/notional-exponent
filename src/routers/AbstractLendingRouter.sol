@@ -70,6 +70,33 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         _enterPosition(onBehalf, vault, depositAssetAmount, borrowAmount, depositData, address(0));
     }
 
+    function enterPositionWithYieldToken(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount
+    )
+        external
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
+        uint256 sharesReceived = IYieldStrategy(vault).mintSharesFromYieldToken(yieldTokenAmount, onBehalf);
+        address asset = IYieldStrategy(vault).asset();
+        _supplyCollateral(onBehalf, vault, asset, sharesReceived);
+
+        uint256 borrowShares;
+        if (borrowAmount > 0) {
+            uint256 assetsBorrowed;
+            // We have to borrow from inside this method
+            (/* */, borrowShares) = _borrow(vault, asset, borrowAmount, onBehalf);
+            // Transfer back to the msg.sender so that it can repay any flash loan required
+            ERC20(asset).transfer(msg.sender, assetsBorrowed);
+        }
+
+        emit EnterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, borrowShares, sharesReceived);
+    }
+
     /// @inheritdoc ILendingRouter
     function migratePosition(
         address onBehalf,
@@ -431,4 +458,15 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         internal
         virtual
         returns (uint256 borrowSharesRepaid, uint256 profitsWithdrawn);
+
+    /// @dev Borrows assets from the lending market
+    function _borrow(
+        address vault,
+        address asset,
+        uint256 assetAmount,
+        address borrower
+    )
+        internal
+        virtual
+        returns (uint256 assetsBorrowed, uint256 borrowShares);
 }

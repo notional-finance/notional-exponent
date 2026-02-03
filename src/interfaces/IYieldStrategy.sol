@@ -152,6 +152,19 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
         returns (uint256 sharesMinted);
 
     /**
+     * @notice Mints shares for a given number of yield tokens.
+     *
+     * @param yieldTokenAmount The amount of yield tokens to mint shares for.
+     * @param receiver The address to transfer the yield tokens from and mint the shares to.
+     */
+    function mintSharesFromYieldToken(
+        uint256 yieldTokenAmount,
+        address receiver
+    )
+        external
+        returns (uint256 sharesMinted);
+
+    /**
      * @notice Burns shares for a given number of shares.
      *
      * @param sharesOwner The address of the account to burn the shares for.
