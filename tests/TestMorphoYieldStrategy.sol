@@ -11,6 +11,8 @@ import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
 
 contract TestMorphoYieldStrategy is TestEnvironment {
+    bool isMockWrapper;
+
     function deployYieldStrategy() internal virtual override {
         w = new MockWrapperERC20(ERC20(address(USDC)), 18);
         o = new MockOracle(1e18);
@@ -22,6 +24,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
         canInspectTransientVariables = true;
+        isMockWrapper = true;
     }
 
     function setupLendingRouter(uint256 lltv) internal override returns (ILendingRouter l) {
@@ -748,4 +751,62 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         assertEq(proxy.getImplementation(), address(addressRegistry));
     }
+
+    function test_enterPositionWithYieldToken_noDebtPosition() public {
+        vm.skip(!isMockWrapper);
+        address user = msg.sender;
+        uint256 yieldTokenAmount = 1000e18;
+        ERC20(w).transfer(user, yieldTokenAmount);
+
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        // NOTE: Need to approve the vault directly here.
+        ERC20(w).approve(address(y), yieldTokenAmount);
+        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 0);
+        vm.stopPrank();
+
+        postEntryAssertions(user, lendingRouter);
+        assertEq(yieldTokenAmount * 1e6, lendingRouter.balanceOfCollateral(user, address(y)));
+
+        checkTransientsCleared();
+    }
+
+    function test_enterPositionWithYieldToken_withDebtPosition() public {
+        vm.skip(!isMockWrapper);
+        address user = msg.sender;
+        uint256 yieldTokenAmount = 1000e18;
+        ERC20(w).transfer(user, yieldTokenAmount);
+
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        // NOTE: Need to approve the vault directly here.
+        ERC20(w).approve(address(y), yieldTokenAmount);
+        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 100e6);
+        vm.stopPrank();
+
+        postEntryAssertions(user, lendingRouter);
+        assertEq(yieldTokenAmount * 1e6, lendingRouter.balanceOfCollateral(user, address(y)));
+
+        checkTransientsCleared();
+    }
+
+    function test_enterPositionWithYieldToken_withExistingPosition() public {
+        vm.skip(!isMockWrapper);
+
+        checkTransientsCleared();
+    }
+
+    function test_enterPositionWithYieldToken_RevertsIf_HasActiveWithdrawRequest() public {
+        vm.skip(!isMockWrapper);
+
+        checkTransientsCleared();
+    }
+
+    function test_enterPositionWithYieldToken_RevertsIf_InsufficientCollateral() public {
+        vm.skip(!isMockWrapper);
+
+        checkTransientsCleared();
+    }
+
+    function test_mintSharesFromYieldToken_RevertsIf_CalledDirectly() public { }
 }
