@@ -88,7 +88,7 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         uint256 borrowShares;
         if (borrowAmount > 0) {
             uint256 assetsBorrowed;
-            // We have to borrow from inside this method
+            // We have to borrow from inside this method after the collateral has been supplied
             (/* */, borrowShares) = _borrow(vault, asset, borrowAmount, onBehalf);
             // Transfer back to the msg.sender so that it can repay any flash loan required
             ERC20(asset).transfer(msg.sender, assetsBorrowed);
