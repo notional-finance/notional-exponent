@@ -2,15 +2,10 @@
 pragma solidity >=0.8.29;
 
 import { StakingStrategy } from "./StakingStrategy.sol";
-import { RedeemParams, Trade, TradeType } from "./AbstractStakingStrategy.sol";
-import { IMidasVault, ISanctionsList, IMidasAccessControl, IRedemptionVault } from "../interfaces/IMidas.sol";
-import { ADDRESS_REGISTRY, CHAIN_ID_MAINNET } from "../utils/Constants.sol";
-import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
-import { MidasWithdrawRequestManager } from "../withdraws/Midas.sol";
+import { ParetoWithdrawRequestManager } from "../withdraws/Pareto.sol";
+import { IdleCDOEpochVariant } from "../interfaces/IPareto.sol";
 
 contract ParetoStakingStrategy is StakingStrategy {
-    using TokenUtils for ERC20;
-
     error ParetoBlockedAccount(address account);
 
     constructor(address _asset, address _yieldToken, uint256 _feeRate)
