@@ -4,7 +4,7 @@ pragma solidity >=0.8.29;
 import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
 import { TypeConvert } from "../utils/TypeConvert.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IdleCDOEpochVariant, IdleCreditVault } from "../interfaces/IPareto.sol";
+import { IdleCDOEpochVariant, IdleCDOEpochQueue, IdleCreditVault } from "../interfaces/IPareto.sol";
 
 contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
     using TypeConvert for uint256;
@@ -12,19 +12,32 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
     error ParetoBlockedAccount(address account);
 
     IdleCDOEpochVariant public immutable paretoVault;
+    IdleCDOEpochQueue public immutable paretoQueue;
 
     struct ParetoWithdrawRequest {
-        uint128 underlyingAmount;
+        uint128 withdrawAmount;
         uint128 epochNumber;
     }
 
-    uint256 public s_lastFinalizedEpoch;
-    mapping(uint256 requestId => ParetoWithdrawRequest p) public s_paretoWithdrawData;
+    struct EpochClaimData {
+        uint128 totalWithdrawals;
+        uint120 totalUnderlyingClaimed;
+        bool hasClaimed;
+    }
 
-    constructor(IdleCDOEpochVariant _paretoVault)
+    mapping(uint256 requestId => ParetoWithdrawRequest p) public s_paretoWithdrawData;
+    mapping(uint256 epoch => EpochClaimData epochClaimData) public s_epochClaimData;
+
+    constructor(
+        IdleCDOEpochVariant _paretoVault,
+        IdleCDOEpochQueue _paretoQueue
+    )
         AbstractWithdrawRequestManager(_paretoVault.token(), _paretoVault.AATranche(), _paretoVault.token())
     {
         paretoVault = _paretoVault;
+        paretoQueue = _paretoQueue;
+        require(paretoQueue.tranche() == _paretoVault.AATranche(), "Invalid tranche");
+        require(paretoQueue.idleCDOEpoch() == address(_paretoVault), "Invalid epoch");
     }
 
     function _stakeTokens(
@@ -61,44 +74,19 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
     {
         if (!paretoVault.isWalletAllowed(account)) revert ParetoBlockedAccount(account);
         IdleCreditVault creditVault = paretoVault.strategy();
-        uint256 currentEpoch = creditVault.epochNumber();
-        uint256 lastWithdrawRequest = creditVault.lastWithdrawRequest(address(this));
+        uint256 nextEpoch = creditVault.epochNumber() + 1;
 
-        // We are only allowed to have one withdraw request per epoch. All users who request a withdraw during the
-        // current epoch will "stack" inside the pareto credit vault and we will need to finalize and claim them all
-        // at once in order to avoid pushing the withdraw request into the next epoch. This means anyone who wants to
-        // withdraw in the next epoch must wait until we call claimWithdrawRequest for the last finalized epoch.
-        require(lastWithdrawRequest == currentEpoch || lastWithdrawRequest == 0, "Withdraw request already exists");
-
-        uint256 instantWithdrawAmountBefore = creditVault.instantWithdrawRequests(address(this));
-        // This underlying amount is what is credited to the user in the withdraw request.
-        uint256 underlyingAmount = paretoVault.requestWithdraw(amountToWithdraw, paretoVault.AATranche());
-        uint256 instantWithdrawAmountAfter = creditVault.instantWithdrawRequests(address(this));
+        paretoQueue.requestWithdraw(amountToWithdraw);
 
         // An account can only have one withdraw request at a time, so we use it as the request id. Even if it
         // is tokenized this should be okay.
         requestId = uint256(uint160(account));
-        if (instantWithdrawAmountAfter > instantWithdrawAmountBefore) {
-            // This should always be the case given the pareto vault code.
-            require(instantWithdrawAmountAfter - instantWithdrawAmountBefore == underlyingAmount);
-            // We have received an instant withdraw, claim it and then mark the request as finalized.
-            uint256 balanceBefore = ERC20(WITHDRAW_TOKEN).balanceOf(address(this));
-            paretoVault.claimInstantWithdrawRequest();
-            uint256 balanceReceived = ERC20(WITHDRAW_TOKEN).balanceOf(address(this)) - balanceBefore;
-            require(balanceReceived == underlyingAmount);
+        uint128 withdrawAmount = amountToWithdraw.toUint128();
+        s_paretoWithdrawData[requestId] =
+            ParetoWithdrawRequest({ withdrawAmount: withdrawAmount, epochNumber: nextEpoch.toUint128() });
 
-            s_paretoWithdrawData[requestId] = ParetoWithdrawRequest({
-                underlyingAmount: underlyingAmount.toUint128(),
-                // Signifies that this was an instant withdraw and will always be
-                // less than or equal to the s_lastFinalizedEpoch.
-                epochNumber: 0
-            });
-        } else {
-            // Was not an instant withdraw so record the request
-            s_paretoWithdrawData[requestId] = ParetoWithdrawRequest({
-                underlyingAmount: underlyingAmount.toUint128(), epochNumber: currentEpoch.toUint128()
-            });
-        }
+        EpochClaimData storage epochClaimData = s_epochClaimData[nextEpoch];
+        epochClaimData.totalWithdrawals = epochClaimData.totalWithdrawals + withdrawAmount;
     }
 
     function _finalizeWithdrawImpl(
@@ -111,28 +99,22 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         returns (uint256 tokensClaimed)
     {
         ParetoWithdrawRequest memory request = s_paretoWithdrawData[requestId];
-        tokensClaimed = request.underlyingAmount;
-        require(tokensClaimed > 0);
+        EpochClaimData memory epochClaimData = s_epochClaimData[request.epochNumber];
 
-        if (request.epochNumber <= s_lastFinalizedEpoch) {
-            // This would be the case for an instant withdraw or a withdraw that was
-            // already finalized. We do not need to try to claim the withdraw request again.
-            delete s_paretoWithdrawData[requestId];
-            return tokensClaimed;
+        if (epochClaimData.hasClaimed == false) {
+            uint256 balanceBefore = ERC20(WITHDRAW_TOKEN).balanceOf(address(this));
+            paretoQueue.claimWithdrawRequest(request.epochNumber);
+            uint256 balanceAfter = ERC20(WITHDRAW_TOKEN).balanceOf(address(this));
+
+            EpochClaimData storage e = s_epochClaimData[request.epochNumber];
+            e.hasClaimed = true;
+            epochClaimData.totalUnderlyingClaimed = (balanceAfter - balanceBefore).toUint120();
+            // Make sure this is written to storage.
+            e.totalUnderlyingClaimed = epochClaimData.totalUnderlyingClaimed;
         }
 
-        uint256 currentEpoch = paretoVault.strategy().epochNumber();
-        require(request.epochNumber < currentEpoch);
-
-        // This will revert if we are not in the correct epoch. It will send all of the
-        // underlying for all withdraw requests in the epoch back to the withdraw manager
-        // and set the lastWithdrawRequest for this contract back to zero.
-        paretoVault.claimWithdrawRequest();
-        // At this point we have finalized up to the epoch before the current one.
-        s_lastFinalizedEpoch = currentEpoch - 1;
-
+        tokensClaimed = request.withdrawAmount * epochClaimData.totalUnderlyingClaimed / epochClaimData.totalWithdrawals;
         delete s_paretoWithdrawData[requestId];
-        return tokensClaimed;
     }
 
     function getKnownWithdrawTokenAmount(uint256 requestId)
@@ -142,15 +124,22 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         returns (bool hasKnownAmount, uint256 amount)
     {
         ParetoWithdrawRequest memory request = s_paretoWithdrawData[requestId];
-        hasKnownAmount = true;
-        amount = request.underlyingAmount;
+        EpochClaimData memory epochClaimData = s_epochClaimData[request.epochNumber];
+
+        if (epochClaimData.hasClaimed) {
+            // The known amount is only available after the epoch has been claimed.
+            hasKnownAmount = true;
+            amount = request.withdrawAmount * epochClaimData.totalUnderlyingClaimed / epochClaimData.totalWithdrawals;
+        } else {
+            hasKnownAmount = false;
+            amount = 0;
+        }
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         ParetoWithdrawRequest memory request = s_paretoWithdrawData[requestId];
-        if (request.epochNumber <= s_lastFinalizedEpoch) return true;
-
-        uint256 currentEpoch = paretoVault.strategy().epochNumber();
-        return request.epochNumber < currentEpoch;
+        // The queue price is set and there are no pending claims.
+        return (paretoQueue.epochWithdrawPrice(request.epochNumber) > 0
+                && paretoQueue.epochPendingClaims(request.epochNumber) == 0);
     }
 }
