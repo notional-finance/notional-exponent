@@ -658,7 +658,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.assume(borrowAmount < defaultBorrow);
         vm.assume(0 < borrowAmount2);
         vm.assume(borrowAmount2 < defaultBorrow);
-        address account = makeAddr("account");
+        address account = makeAddr("user1");
         vm.prank(owner);
         asset.transfer(account, defaultDeposit);
 

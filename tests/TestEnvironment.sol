@@ -61,8 +61,23 @@ abstract contract TestEnvironment is Test {
     }
 
     function setMaxOracleFreshness() internal {
-        vm.prank(owner);
-        TRADING_MODULE.setMaxOracleFreshness(type(uint32).max);
+        vm.record();
+        TRADING_MODULE.maxOracleFreshnessInSeconds();
+        (bytes32[] memory reads,) = vm.accesses(address(TRADING_MODULE));
+        vm.store(address(TRADING_MODULE), reads[1], bytes32(uint256(type(uint32).max)));
+    }
+
+    function setPriceOracle(address token, address oracle) internal {
+        vm.record();
+        TRADING_MODULE.priceOracles(token);
+        (bytes32[] memory reads,) = vm.accesses(address(TRADING_MODULE));
+        bytes32 oracleData =
+            bytes32(uint256(uint160(oracle))) | bytes32(uint256(AggregatorV2V3Interface(oracle).decimals())) << 160;
+        vm.store(address(TRADING_MODULE), reads[1], oracleData);
+
+        (AggregatorV2V3Interface _o, uint8 rateDecimals) = TRADING_MODULE.priceOracles(token);
+        assertEq(address(_o), oracle, "oracle should be set");
+        assertEq(rateDecimals, AggregatorV2V3Interface(oracle).decimals(), "rate decimals should be set");
     }
 
     function setExistingWithdrawRequestManager(address yieldToken) internal {
@@ -118,8 +133,7 @@ abstract contract TestEnvironment is Test {
         // Set default fee token, this changes for Convex staked tokens
         if (address(feeToken) == address(0)) feeToken = w;
 
-        vm.prank(owner);
-        TRADING_MODULE.setPriceOracle(address(w), AggregatorV2V3Interface(address(o)));
+        setPriceOracle(address(w), address(o));
 
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
