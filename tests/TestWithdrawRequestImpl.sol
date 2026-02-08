@@ -10,10 +10,13 @@ import "../src/withdraws/Origin.sol";
 import "../src/withdraws/Dinero.sol";
 import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
+import "../src/withdraws/Pareto.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
+import { IdleKeyring } from "../src/interfaces/IPareto.sol";
 
 address constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 address constant cbBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
+ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) public override {
@@ -215,7 +218,6 @@ contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 }
 
 abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
-    ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address tokenIn;
     address tokenOut;
     IDepositVault depositVault;
@@ -332,5 +334,51 @@ contract TestMidas_mHyperBTC_WBTC_WithdrawRequest is TestMidas_WithdrawRequest {
         tokenOut = address(cbBTC);
         depositVault = IDepositVault(0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e);
         redemptionVault = IRedemptionVault(0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67);
+    }
+}
+
+contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
+    IdleKeyring public keyring;
+    IdleCDOEpochVariant public paretoVault;
+    IdleCDOEpochQueue public paretoQueue;
+
+    function setManager(address newManager) public {
+        manager = IWithdrawRequestManager(newManager);
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        return;
+    }
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        paretoVault = IdleCDOEpochVariant(0x433D5B175148dA32Ffe1e1A37a939E1b7e79be4d);
+        paretoQueue = IdleCDOEpochQueue(0x5cC24f44cCAa80DD2c079156753fc1e908F495DC);
+        keyring = IdleKeyring(paretoVault.keyring());
+        manager = new ParetoWithdrawRequestManager(paretoVault, paretoQueue);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+
+    function postDeploySetup() internal override {
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+
+        address admin = keyring.admin();
+
+        vm.startPrank(admin);
+        keyring.setWhitelistStatus(address(manager), true);
+        keyring.setWhitelistStatus(staker1, true);
+        keyring.setWhitelistStatus(staker2, true);
+        keyring.setWhitelistStatus(address(this), true);
+        vm.stopPrank();
     }
 }

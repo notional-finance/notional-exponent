@@ -76,6 +76,7 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         IdleCreditVault creditVault = paretoVault.strategy();
         uint256 nextEpoch = creditVault.epochNumber() + 1;
 
+        ERC20(YIELD_TOKEN).approve(address(paretoQueue), amountToWithdraw);
         paretoQueue.requestWithdraw(amountToWithdraw);
 
         // An account can only have one withdraw request at a time, so we use it as the request id. Even if it
