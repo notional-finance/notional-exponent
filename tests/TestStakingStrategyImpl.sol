@@ -11,6 +11,8 @@ import "../src/withdraws/Midas.sol";
 import "../src/staking/MidasStakingStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
 import "../src/oracles/MidasOracle.sol";
+import "../src/interfaces/IPareto.sol";
+import "../src/staking/ParetoStakingStrategy.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -406,5 +408,66 @@ contract TestStakingStrategy_Midas_mHyperBTC_WBTC is TestStakingStrategy_Midas {
                 )
             })
         );
+    }
+}
+
+contract TestStakingStrategy_Pareto_FalconX is TestStakingStrategy {
+    IdleCDOEpochVariant public paretoVault;
+    IdleCDOEpochQueue public paretoQueue;
+
+    constructor() {
+        paretoVault = IdleCDOEpochVariant(0x433D5B175148dA32Ffe1e1A37a939E1b7e79be4d);
+        paretoQueue = IdleCDOEpochQueue(0x5cC24f44cCAa80DD2c079156753fc1e908F495DC);
+    }
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        manager = IWithdrawRequestManager(new ParetoWithdrawRequestManager(paretoVault, paretoQueue));
+        TestWithdrawRequest tw = new TestPareto_FalconX_WithdrawRequest();
+        withdrawRequest = tw;
+        setupWithdrawRequestManager(address(manager));
+        TestPareto_FalconX_WithdrawRequest(address(tw)).setManager(address(manager));
+        address trancheAA = paretoVault.AATranche();
+
+        y = new ParetoStakingStrategy(address(USDC), address(trancheAA), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        int256 latestPrice = int256(paretoVault.virtualPrice(address(trancheAA)));
+        o = new MockOracle(latestPrice * 1e18 / 1e6);
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        maxEntryValuationSlippage = 0.005e18;
+        // This is the worst case slippage for an instant exit from the mHYPER vault, it is
+        // 50 bps * the default leverage (11x)
+        maxExitValuationSlippage = 0.055e18;
+        // This is the variationTolerance of the mHYPER vault
+        maxWithdrawValuationChange = 0.007e18;
+        // Cannot warp forward due to feed health check.
+        skipFeeCollectionTest = true;
+        // The known token prevents liquidation unless the interest accrues past the collateral value.
+        knownTokenPreventsLiquidation = true;
+    }
+
+    function postDeploySetup() internal virtual override {
+        IdleKeyring keyring = IdleKeyring(paretoVault.keyring());
+        address admin = keyring.admin();
+
+        vm.startPrank(admin);
+        keyring.setWhitelistStatus(address(manager), true);
+        keyring.setWhitelistStatus(msg.sender, true);
+        keyring.setWhitelistStatus(owner, true);
+        keyring.setWhitelistStatus(makeAddr("user1"), true);
+        keyring.setWhitelistStatus(makeAddr("user2"), true);
+        keyring.setWhitelistStatus(makeAddr("user3"), true);
+        keyring.setWhitelistStatus(makeAddr("staker"), true);
+        vm.stopPrank();
+    }
+
+    function test_accountingAsset() public view {
+        assertEq(y.accountingAsset(), address(asset));
     }
 }

@@ -344,10 +344,28 @@ contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
 
     function setManager(address newManager) public {
         manager = IWithdrawRequestManager(newManager);
+        paretoVault = IdleCDOEpochVariant(ParetoWithdrawRequestManager(newManager).paretoVault());
+        paretoQueue = IdleCDOEpochQueue(ParetoWithdrawRequestManager(newManager).paretoQueue());
+        keyring = IdleKeyring(paretoVault.keyring());
     }
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        return;
+        (/* */, uint256 epoch) = ParetoWithdrawRequestManager(address(manager)).s_paretoWithdrawData(requestId);
+        uint256 virtualPrice = manager.getExchangeRate();
+
+        vm.record();
+        paretoQueue.epochPendingClaims(epoch);
+        (bytes32[] memory reads,) = vm.accesses(address(paretoQueue));
+        vm.store(address(paretoQueue), reads[2], 0);
+
+        vm.record();
+        paretoQueue.epochWithdrawPrice(epoch);
+        (reads,) = vm.accesses(address(paretoQueue));
+        vm.store(address(paretoQueue), reads[2], bytes32(uint256(virtualPrice)));
+
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(paretoQueue), 1_000_000e6);
+        vm.stopPrank();
     }
 
     function overrideForkBlock() internal override {
@@ -365,6 +383,8 @@ contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
         USDC.transfer(address(this), 200_000e6);
+        // Used to process withdraw requests
+        USDC.transfer(address(paretoQueue), 200_000e6);
         vm.stopPrank();
     }
 

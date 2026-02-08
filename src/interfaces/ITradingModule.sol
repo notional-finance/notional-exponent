@@ -94,6 +94,8 @@ interface ITradingModule {
     event MaxOracleFreshnessUpdated(uint32 currentValue, uint32 newValue);
     event TokenPermissionsUpdated(address sender, address token, TokenPermissions permissions);
 
+    function maxOracleFreshnessInSeconds() external view returns (uint32);
+
     function tokenWhitelist(
         address spender,
         address token
