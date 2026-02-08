@@ -17,6 +17,8 @@ interface IdleCDOEpochVariant {
     function keyring() external view returns (address);
     function AATranche() external view returns (address);
     function token() external view returns (address);
+    function virtualPrice(address token) external view returns (uint256);
+
     // Returns the amount of tokens received
     function depositAA(uint256 _amount) external returns (uint256);
     function depositDuringEpoch(uint256 _amount, address _tranche) external returns (uint256);

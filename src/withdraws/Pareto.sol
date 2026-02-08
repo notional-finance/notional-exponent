@@ -143,4 +143,8 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         return (paretoQueue.epochWithdrawPrice(request.epochNumber) > 0
                 && paretoQueue.epochPendingClaims(request.epochNumber) == 0);
     }
+
+    function getExchangeRate() public view override returns (uint256) {
+        return paretoVault.virtualPrice(YIELD_TOKEN);
+    }
 }
