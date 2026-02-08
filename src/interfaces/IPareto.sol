@@ -8,7 +8,13 @@ interface IdleCreditVault {
     function instantWithdrawRequests(address account) external view returns (uint256);
 }
 
+interface IdleKeyring {
+    function admin() external view returns (address);
+    function setWhitelistStatus(address account, bool status) external;
+}
+
 interface IdleCDOEpochVariant {
+    function keyring() external view returns (address);
     function AATranche() external view returns (address);
     function token() external view returns (address);
     // Returns the amount of tokens received
