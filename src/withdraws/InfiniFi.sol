@@ -28,6 +28,11 @@ interface ILockingController {
 }
 
 interface IUnwindingModule {
+    error TransferFailed();
+    error UserNotUnwinding();
+    error UserUnwindingNotStarted();
+    error UserUnwindingInprogress();
+
     struct UnwindingPosition {
         uint256 shares; // shares of receiptTokens of the position
         uint32 fromEpoch; // epoch when the position started unwinding
