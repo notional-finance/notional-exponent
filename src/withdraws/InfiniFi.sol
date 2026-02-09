@@ -5,9 +5,8 @@ import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-import { ADDRESS_REGISTRY } from "../utils/Constants.sol";
+import { ADDRESS_REGISTRY, USDC } from "../utils/Constants.sol";
 
-address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 address constant iUSD = 0x48f9e38f3070AD8945DFEae3FA70987722E3D89c;
 
 interface IGateway {
@@ -19,12 +18,12 @@ interface IGateway {
     function redeem(address _to, uint256 _amount, uint256 _minAssetsOut) external returns (uint256);
     function claimRedemption() external;
 
-    function lockingController() external view returns (ILockingController);
     function getAddress(string memory _name) external view returns (address);
 }
 
 interface ILockingController {
     function shareToken(uint32 _unwindingEpochs) external view returns (address);
+    function exchangeRate(uint32 _unwindingEpochs) external view returns (uint256);
     function unwindingModule() external view returns (address);
 }
 
@@ -116,7 +115,8 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
             s_isInRedemptionQueue = false;
         }
 
-        tokensClaimed = ERC20(USDC).balanceOf(address(this));
+        tokensClaimed = USDC.balanceOf(address(this));
+        USDC.transfer(manager, tokensClaimed);
         finalized = true;
     }
 
@@ -153,7 +153,7 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     )
         AbstractWithdrawRequestManager(address(USDC), _liUSD, address(USDC))
     {
-        ILockingController lockingController = Gateway.lockingController();
+        ILockingController lockingController = ILockingController(Gateway.getAddress("lockingController"));
         UNWINDING_EPOCHS = _unwindingEpochs;
         liUSD = _liUSD;
         // Ensure that these two are matching.
@@ -219,5 +219,12 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(address(uint160(requestId)));
         return holder.canFinalize();
+    }
+
+    function getExchangeRate() public view override returns (uint256) {
+        ILockingController lockingController = ILockingController(Gateway.getAddress("lockingController"));
+        // This is reported in 18 decimals.
+        uint256 exchangeRate = lockingController.exchangeRate(UNWINDING_EPOCHS);
+        return exchangeRate * (10 ** TokenUtils.getDecimals(STAKING_TOKEN)) / 1e18;
     }
 }
