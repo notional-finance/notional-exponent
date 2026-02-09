@@ -4,8 +4,10 @@ pragma solidity >=0.8.29;
 import { WETH9 } from "../interfaces/IWETH.sol";
 import { AddressRegistry } from "../proxy/AddressRegistry.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 address constant ETH_ADDRESS = address(0);
+ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 address constant ALT_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 uint256 constant DEFAULT_PRECISION = 1e18;
 uint256 constant DEFAULT_DECIMALS = 18;
