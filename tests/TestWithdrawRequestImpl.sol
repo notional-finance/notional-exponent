@@ -11,12 +11,13 @@ import "../src/withdraws/Dinero.sol";
 import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
 import "../src/withdraws/Pareto.sol";
+import "../src/withdraws/InfiniFi.sol";
+import { USDC } from "../src/utils/Constants.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 import { IdleKeyring } from "../src/interfaces/IPareto.sol";
 
 address constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 address constant cbBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
-ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
 contract TestEtherFiWithdrawRequest is TestWithdrawRequest {
     function finalizeWithdrawRequest(uint256 requestId) public override {
@@ -399,6 +400,29 @@ contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
         keyring.setWhitelistStatus(staker1, true);
         keyring.setWhitelistStatus(staker2, true);
         keyring.setWhitelistStatus(address(this), true);
+        vm.stopPrank();
+    }
+}
+
+contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        return;
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        uint32 unwindingEpochs = 1;
+        address liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+        manager = new InfiniFiWithdrawRequestManager(liUSD, unwindingEpochs);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
         vm.stopPrank();
     }
 }
