@@ -793,20 +793,53 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     function test_enterPositionWithYieldToken_withExistingPosition() public {
         vm.skip(!isMockWrapper);
 
-        checkTransientsCleared();
-    }
+        address user = msg.sender;
+        _enterPosition(user, defaultDeposit, defaultBorrow);
+        uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
 
-    function test_enterPositionWithYieldToken_RevertsIf_HasActiveWithdrawRequest() public {
-        vm.skip(!isMockWrapper);
+        uint256 yieldTokenAmount = 1000e18;
+        ERC20(w).transfer(user, yieldTokenAmount);
+
+        vm.startPrank(user);
+        // NOTE: Need to approve the vault directly here.
+        ERC20(w).approve(address(y), yieldTokenAmount);
+        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 100e6);
+        vm.stopPrank();
+
+        postEntryAssertions(user, lendingRouter);
+        assertEq(sharesBefore + yieldTokenAmount * 1e6, lendingRouter.balanceOfCollateral(user, address(y)));
 
         checkTransientsCleared();
     }
 
     function test_enterPositionWithYieldToken_RevertsIf_InsufficientCollateral() public {
         vm.skip(!isMockWrapper);
+        address user = msg.sender;
+        _enterPosition(user, defaultDeposit, defaultBorrow);
+
+        uint256 yieldTokenAmount = 1000e18;
+        ERC20(w).transfer(user, yieldTokenAmount);
+
+        vm.startPrank(user);
+        // NOTE: Need to approve the vault directly here.
+        ERC20(w).approve(address(y), yieldTokenAmount);
+        vm.expectRevert("insufficient collateral");
+        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 100_000e6);
+        vm.stopPrank();
 
         checkTransientsCleared();
     }
 
-    function test_mintSharesFromYieldToken_RevertsIf_CalledDirectly() public { }
+    function test_mintSharesFromYieldToken_RevertsIf_CalledDirectly() public {
+        vm.skip(!isMockWrapper);
+
+        address user = msg.sender;
+        uint256 yieldTokenAmount = 1000e18;
+        ERC20(w).transfer(user, yieldTokenAmount);
+        ERC20(w).approve(address(y), yieldTokenAmount);
+
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        y.mintSharesFromYieldToken(yieldTokenAmount, user);
+    }
+
 }
