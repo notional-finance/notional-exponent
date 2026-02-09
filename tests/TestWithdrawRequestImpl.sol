@@ -410,7 +410,14 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     }
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        return;
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(Gateway.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
     }
 
     function deployManager() public override {
