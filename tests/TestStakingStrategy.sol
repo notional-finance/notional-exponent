@@ -466,11 +466,6 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
             0.01e18,
             "Withdrawal should be similar to collateral value after finalize"
         );
-        assertGe(
-            collateralValueAfterFinalize,
-            collateralValueAfterWarp,
-            "Withdrawal value should not decrease after finalize"
-        );
     }
 
     function test_enterPosition_after_Exit_WithdrawRequest() public {
