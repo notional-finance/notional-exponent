@@ -26,4 +26,16 @@ contract ParetoStakingStrategy is StakingStrategy {
         _checkParetoAccount(receiver);
         super._mintYieldTokens(assets, receiver, depositData);
     }
+
+    function _executeInstantRedemption(
+        address,
+        uint256,
+        bytes memory
+    )
+        internal
+        override
+        returns (uint256 assetsPurchased)
+    {
+        revert("Not implemented");
+    }
 }

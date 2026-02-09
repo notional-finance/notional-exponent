@@ -450,6 +450,7 @@ contract TestStakingStrategy_Pareto_FalconX is TestStakingStrategy {
         skipFeeCollectionTest = true;
         // The known token prevents liquidation unless the interest accrues past the collateral value.
         knownTokenPreventsLiquidation = true;
+        noInstantRedemption = true;
     }
 
     function postDeploySetup() internal virtual override {
