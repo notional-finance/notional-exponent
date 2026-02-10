@@ -88,7 +88,8 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
     function _mintSharesGivenAssets(
         uint256 assets,
         bytes memory depositData,
-        address receiver
+        address receiver,
+        bool transferYieldTokensFromReceiver
     )
         internal
         override
@@ -96,7 +97,7 @@ abstract contract RewardManagerMixin is AbstractYieldStrategy {
     {
         uint256 effectiveSupplyBefore = effectiveSupply();
         uint256 initialVaultShares = ILendingRouter(t_CurrentLendingRouter).balanceOfCollateral(receiver, address(this));
-        sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver);
+        sharesMinted = super._mintSharesGivenAssets(assets, depositData, receiver, transferYieldTokensFromReceiver);
         _updateAccountRewards({
             account: receiver,
             accountSharesBefore: initialVaultShares,
