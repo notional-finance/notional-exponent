@@ -12,6 +12,7 @@ import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
 import "../src/withdraws/Pareto.sol";
 import "../src/withdraws/InfiniFi.sol";
+import "../src/withdraws/Royco.sol";
 import { USDC } from "../src/utils/Constants.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 import { IdleKeyring } from "../src/interfaces/IPareto.sol";
@@ -430,6 +431,66 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
         // USDC whale
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
         USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+}
+
+contract TestRoyco_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function setManager(address newManager) public {
+        manager = IWithdrawRequestManager(newManager);
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        uint256 sharePrice = RoycoWithdrawRequestManager(address(manager)).getExchangeRate();
+        (, uint256 epochNumber) = RoycoWithdrawRequestManager(address(manager)).s_roycoWithdrawRequest(requestId);
+        IRoycoVault roycoVault = RoycoWithdrawRequestManager(address(manager)).roycoVault();
+
+        vm.record();
+        roycoVault.getEpochPricePerShare(epochNumber);
+        (bytes32[] memory reads,) = vm.accesses(address(roycoVault));
+        vm.store(address(roycoVault), reads[1], bytes32(uint256(sharePrice + 1)));
+
+        vm.record();
+        roycoVault.latestEpochID();
+        (reads,) = vm.accesses(address(roycoVault));
+        vm.store(address(roycoVault), reads[1], bytes32(uint256(epochNumber + 1)));
+
+        vm.record();
+        roycoVault.pastEpochsUnclaimedAssets();
+        (reads,) = vm.accesses(address(roycoVault));
+        vm.store(address(roycoVault), reads[1], bytes32(type(uint256).max));
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        manager = new RoycoWithdrawRequestManager(0xcD9f5907F92818bC06c9Ad70217f089E190d2a32);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+
+    function postDeploySetup() internal override {
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+        // This is discovered by looking at the trace, you can't access this directly from
+        // the contract
+        IRoycoWhitelistHook whitelistHook = IRoycoWhitelistHook(0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13);
+
+        address[] memory users = new address[](4);
+        users[0] = address(manager);
+        users[1] = staker1;
+        users[2] = staker2;
+        users[3] = address(this);
+
+        vm.startPrank(whitelistHook.owner());
+        whitelistHook.whitelistUsers(users);
         vm.stopPrank();
     }
 }

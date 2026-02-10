@@ -8,9 +8,19 @@ import { TokenUtils } from "../utils/TokenUtils.sol";
 import { TypeConvert } from "../utils/TypeConvert.sol";
 
 interface IRoycoVault is IERC4626 {
+    error NoClaimableRequest();
+    error EpochNotProcessed(uint256 epochNumber);
+
     function getEpochPricePerShare(uint256 epochNumber) external view returns (uint256);
     function latestEpochID() external view returns (uint256);
     function claimWithdrawal(uint256[] memory epochIDs) external;
+    function claimWithdrawal(address asset, address user, uint256[] calldata epochIDs, uint8 decimals) external;
+    function pastEpochsUnclaimedAssets() external view returns (uint256);
+}
+
+interface IRoycoWhitelistHook {
+    function owner() external view returns (address);
+    function whitelistUsers(address[] memory users) external;
 }
 
 contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
@@ -60,6 +70,8 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 requestId)
     {
+        requestId = uint256(uint160(account));
+
         ERC20(YIELD_TOKEN).checkApprove(address(roycoVault), amountToWithdraw);
         // If the queue is active, then this is how much we expect to redeem. This
         // gets incremented in userEpochRequests and they will stack in the given epoch.
@@ -73,8 +85,6 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
 
         EpochClaimData storage epochClaimData = s_epochClaimData[latestEpochID];
         epochClaimData.totalWithdrawals = epochClaimData.totalWithdrawals + withdrawAmount;
-
-        requestId = uint256(uint160(account));
     }
 
     function _finalizeWithdrawImpl(
