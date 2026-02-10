@@ -50,6 +50,7 @@ contract TestMockStakingStrategy_EtherFi is TestStakingStrategy {
 
         withdrawRequest = new TestEtherFiWithdrawRequest();
         canInspectTransientVariables = true;
+        canMintYieldTokens = true;
     }
 
     function postDeploySetup() internal override {

@@ -11,7 +11,7 @@ import "../src/proxy/TimelockUpgradeableProxy.sol";
 import "../src/proxy/Initializable.sol";
 
 contract TestMorphoYieldStrategy is TestEnvironment {
-    bool isMockWrapper;
+    bool canMintYieldTokens;
 
     function deployYieldStrategy() internal virtual override {
         w = new MockWrapperERC20(ERC20(address(USDC)), 18);
@@ -24,7 +24,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         defaultDeposit = 10_000e6;
         defaultBorrow = 90_000e6;
         canInspectTransientVariables = true;
-        isMockWrapper = true;
+        canMintYieldTokens = true;
     }
 
     function setupLendingRouter(uint256 lltv) internal override returns (ILendingRouter l) {
@@ -753,7 +753,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_enterPositionWithYieldToken_noDebtPosition() public {
-        vm.skip(!isMockWrapper);
+        vm.skip(!canMintYieldTokens);
         address user = msg.sender;
         uint256 yieldTokenAmount = 1000e18;
         ERC20(w).transfer(user, yieldTokenAmount);
@@ -772,7 +772,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_enterPositionWithYieldToken_withDebtPosition() public {
-        vm.skip(!isMockWrapper);
+        vm.skip(!canMintYieldTokens);
         address user = msg.sender;
         uint256 yieldTokenAmount = 1000e18;
         ERC20(w).transfer(user, yieldTokenAmount);
@@ -791,7 +791,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_enterPositionWithYieldToken_withExistingPosition() public {
-        vm.skip(!isMockWrapper);
+        vm.skip(!canMintYieldTokens);
 
         address user = msg.sender;
         _enterPosition(user, defaultDeposit, defaultBorrow);
@@ -813,7 +813,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_enterPositionWithYieldToken_RevertsIf_InsufficientCollateral() public {
-        vm.skip(!isMockWrapper);
+        vm.skip(!canMintYieldTokens);
         address user = msg.sender;
         _enterPosition(user, defaultDeposit, defaultBorrow);
 
@@ -831,7 +831,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_mintSharesFromYieldToken_RevertsIf_CalledDirectly() public {
-        vm.skip(!isMockWrapper);
+        vm.skip(!canMintYieldTokens);
 
         address user = msg.sender;
         uint256 yieldTokenAmount = 1000e18;
@@ -841,5 +841,4 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         y.mintSharesFromYieldToken(yieldTokenAmount, user);
     }
-
 }

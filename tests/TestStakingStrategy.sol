@@ -634,4 +634,25 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         ) = lendingRouter.healthFactor(msg.sender, address(y));
         assertEq(collateralValueAfterDonation, collateralValueAfter, "Donation should not change collateral value");
     }
+
+    function test_enterPositionWithYieldToken_RevertsIf_HasActiveWithdrawRequest() public {
+        vm.skip(!canMintYieldTokens);
+
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        vm.stopPrank();
+
+        uint256 yieldTokenAmount = 1000e18;
+        deal(address(w), msg.sender, yieldTokenAmount);
+
+        vm.startPrank(msg.sender);
+        ERC20(w).approve(address(y), yieldTokenAmount);
+        vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+        lendingRouter.enterPositionWithYieldToken(msg.sender, address(y), yieldTokenAmount, 0);
+        vm.stopPrank();
+
+        checkTransientsCleared();
+    }
 }
