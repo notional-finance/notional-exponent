@@ -81,6 +81,17 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         isAuthorized(onBehalf, vault)
         nonReentrant
     {
+        _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, borrowAmount);
+    }
+
+    function _enterPositionWithYieldToken(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount
+    )
+        internal
+    {
         uint256 sharesReceived = IYieldStrategy(vault).mintSharesFromYieldToken(yieldTokenAmount, onBehalf);
         address asset = IYieldStrategy(vault).asset();
         _supplyCollateral(onBehalf, vault, asset, sharesReceived);

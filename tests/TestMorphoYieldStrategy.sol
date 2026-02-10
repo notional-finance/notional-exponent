@@ -756,7 +756,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.skip(!canMintYieldTokens);
         address user = msg.sender;
         uint256 yieldTokenAmount = 1000e18;
-        ERC20(w).transfer(user, yieldTokenAmount);
+        deal(address(w), user, yieldTokenAmount);
 
         vm.startPrank(user);
         if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
@@ -775,7 +775,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.skip(!canMintYieldTokens);
         address user = msg.sender;
         uint256 yieldTokenAmount = 1000e18;
-        ERC20(w).transfer(user, yieldTokenAmount);
+        deal(address(w), user, yieldTokenAmount);
 
         vm.startPrank(user);
         if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
@@ -798,7 +798,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
 
         uint256 yieldTokenAmount = 1000e18;
-        ERC20(w).transfer(user, yieldTokenAmount);
+        deal(address(w), user, yieldTokenAmount);
 
         vm.startPrank(user);
         // NOTE: Need to approve the vault directly here.
@@ -817,14 +817,14 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         address user = msg.sender;
         _enterPosition(user, defaultDeposit, defaultBorrow);
 
-        uint256 yieldTokenAmount = 1000e18;
-        ERC20(w).transfer(user, yieldTokenAmount);
+        uint256 yieldTokenAmount = defaultDeposit;
+        deal(address(w), user, yieldTokenAmount);
 
         vm.startPrank(user);
         // NOTE: Need to approve the vault directly here.
         ERC20(w).approve(address(y), yieldTokenAmount);
         vm.expectRevert("insufficient collateral");
-        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 100_000e6);
+        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, defaultBorrow * 10);
         vm.stopPrank();
 
         checkTransientsCleared();
@@ -835,7 +835,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         address user = msg.sender;
         uint256 yieldTokenAmount = 1000e18;
-        ERC20(w).transfer(user, yieldTokenAmount);
+        deal(address(w), user, yieldTokenAmount);
         ERC20(w).approve(address(y), yieldTokenAmount);
 
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
