@@ -164,6 +164,8 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_exitPosition_partialExit() public {
+        vm.skip(noInstantRedemption);
+
         _enterPosition(msg.sender, defaultDeposit * 4, defaultBorrow);
         uint256 initialBalance = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
@@ -193,6 +195,8 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_exitPosition_fullExit() public {
+        vm.skip(noInstantRedemption);
+
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         uint256 initialBalance = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
@@ -361,6 +365,8 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function test_liquidate() public {
+        vm.skip(noInstantRedemption);
+
         _enterPosition(msg.sender, defaultDeposit, defaultBorrow);
         int256 originalPrice = o.latestAnswer();
         address liquidator = makeAddr("liquidator");
@@ -515,6 +521,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
             if (lendingRouter.balanceOfCollateral(user, address(y)) == 0) {
                 _enterPosition(user, defaultDeposit, borrowAmount);
             } else {
+                if (noInstantRedemption) continue;
                 vm.warp(block.timestamp + 6 minutes);
                 bool isPartial = userActions[i] % 7 == 0;
                 uint256 sharesToExit;
@@ -658,7 +665,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.assume(borrowAmount < defaultBorrow);
         vm.assume(0 < borrowAmount2);
         vm.assume(borrowAmount2 < defaultBorrow);
-        address account = makeAddr("account");
+        address account = makeAddr("user1");
         vm.prank(owner);
         asset.transfer(account, defaultDeposit);
 
