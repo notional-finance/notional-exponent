@@ -7,6 +7,8 @@ import "./TestMorphoYieldStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
 
 abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
+    using TokenUtils for ERC20;
+
     function test_initiateWithdraw_RevertsIf_NoSharesHeld() public onlyIfWithdrawRequestManager {
         vm.startPrank(msg.sender);
         vm.expectRevert(abi.encodeWithSelector(InsufficientSharesHeld.selector));
@@ -99,7 +101,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         uint256 shares = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, shares));
 
-        asset.approve(address(lendingRouter), defaultDeposit);
+        asset.checkApprove(address(lendingRouter), defaultDeposit);
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.enterPosition(
@@ -230,7 +232,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.warp(block.timestamp + 6 minutes);
 
         vm.startPrank(owner);
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
         uint256 assetAfter = asset.balanceOf(owner);
@@ -306,7 +308,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         vm.warp(block.timestamp + 6 minutes);
 
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
         uint256 liquidateShares = isPartialLiquidation ? balanceBefore / 2 : balanceBefore;
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), liquidateShares, 0);
@@ -382,7 +384,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         }
 
         vm.startPrank(owner);
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         vm.expectRevert();
         lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
         vm.stopPrank();
@@ -527,7 +529,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.startPrank(owner);
         vm.warp(block.timestamp + 6 minutes);
 
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
         // Liquidate user1's position to receive a balanceOf but no withdraw request
         lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
@@ -578,7 +580,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.startPrank(owner);
         vm.warp(block.timestamp + 6 minutes);
 
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         balanceBefore = lendingRouter.balanceOfCollateral(user1, address(y));
         // Liquidate user1's position to receive a balanceOf and a withdraw request
         lendingRouter.liquidate(user1, address(y), balanceBefore, 0);
@@ -643,7 +645,7 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         deal(address(w), msg.sender, yieldTokenAmount);
 
         vm.startPrank(msg.sender);
-        ERC20(w).approve(address(y), yieldTokenAmount);
+        ERC20(w).checkApprove(address(y), yieldTokenAmount);
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.enterPositionWithYieldToken(msg.sender, address(y), yieldTokenAmount, 0);
         vm.stopPrank();
