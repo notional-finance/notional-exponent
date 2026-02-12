@@ -7,11 +7,13 @@ import "../src/interfaces/Curve/ICurve.sol";
 import "../src/interfaces/ITradingModule.sol";
 import "../src/interfaces/Curve/ICurve.sol";
 import "../src/utils/Constants.sol";
+import "../src/utils/TokenUtils.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import { AggregatorV2V3Interface, TRADING_MODULE } from "../src/interfaces/ITradingModule.sol";
 
 contract TestCurveOraclePriceManipulation is Test {
+    using TokenUtils for ERC20;
     Curve2TokenOracle public oracle;
     ICurvePool public curvePool;
     ERC20 public token0;
@@ -59,8 +61,8 @@ contract TestCurveOraclePriceManipulation is Test {
         deal(address(token1), address(this), 1_000_000_000e6); // 1M USDC
         console.log("funding tokens");
         // Approve spending
-        token0.approve(address(curvePool), type(uint256).max);
-        token1.approve(address(curvePool), type(uint256).max);
+        token0.checkApprove(address(curvePool), type(uint256).max);
+        token1.checkApprove(address(curvePool), type(uint256).max);
         console.log("approved tokens");
         setMaxOracleFreshness();
         console.log("set max oracle freshness");
