@@ -22,6 +22,10 @@ abstract contract TestWithdrawRequest is Test {
     address public forceWithdrawFrom;
     address public owner;
 
+    function setManager(address newManager) public virtual {
+        manager = IWithdrawRequestManager(newManager);
+    }
+
     function deployManager() public virtual;
 
     function overrideForkBlock() internal virtual { }
