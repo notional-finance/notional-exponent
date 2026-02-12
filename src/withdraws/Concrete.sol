@@ -7,7 +7,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TokenUtils } from "../utils/TokenUtils.sol";
 import { TypeConvert } from "../utils/TypeConvert.sol";
 
-interface IRoycoVault is IERC4626 {
+interface IConcreteVault is IERC4626 {
     error NoClaimableRequest();
     error EpochNotProcessed(uint256 epochNumber);
 
@@ -18,18 +18,18 @@ interface IRoycoVault is IERC4626 {
     function pastEpochsUnclaimedAssets() external view returns (uint256);
 }
 
-interface IRoycoWhitelistHook {
+interface IConcreteWhitelistHook {
     function owner() external view returns (address);
     function whitelistUsers(address[] memory users) external;
 }
 
-contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
+contract ConcreteWithdrawRequestManager is AbstractWithdrawRequestManager {
     using TokenUtils for ERC20;
     using TypeConvert for uint256;
 
-    IRoycoVault public immutable roycoVault;
+    IConcreteVault public immutable ConcreteVault;
 
-    struct RoycoWithdrawRequest {
+    struct ConcreteWithdrawRequest {
         uint128 withdrawAmount;
         uint128 epochNumber;
     }
@@ -40,13 +40,15 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
         bool hasClaimed;
     }
 
-    mapping(uint256 requestId => RoycoWithdrawRequest request) public s_roycoWithdrawRequest;
+    mapping(uint256 requestId => ConcreteWithdrawRequest request) public s_ConcreteWithdrawRequest;
     mapping(uint256 epochID => EpochClaimData epochClaimData) public s_epochClaimData;
 
-    constructor(address _roycoVault)
-        AbstractWithdrawRequestManager(IERC4626(_roycoVault).asset(), _roycoVault, IERC4626(_roycoVault).asset())
+    constructor(address _ConcreteVault)
+        AbstractWithdrawRequestManager(
+            IERC4626(_ConcreteVault).asset(), _ConcreteVault, IERC4626(_ConcreteVault).asset()
+        )
     {
-        roycoVault = IRoycoVault(_roycoVault);
+        ConcreteVault = IConcreteVault(_ConcreteVault);
     }
 
     function _stakeTokens(
@@ -56,8 +58,8 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
         internal
         override
     {
-        ERC20(STAKING_TOKEN).checkApprove(address(roycoVault), amount);
-        roycoVault.deposit(amount, address(this));
+        ERC20(STAKING_TOKEN).checkApprove(address(ConcreteVault), amount);
+        ConcreteVault.deposit(amount, address(this));
     }
 
     function _initiateWithdrawImpl(
@@ -72,16 +74,16 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
     {
         requestId = uint256(uint160(account));
 
-        ERC20(YIELD_TOKEN).checkApprove(address(roycoVault), amountToWithdraw);
+        ERC20(YIELD_TOKEN).checkApprove(address(ConcreteVault), amountToWithdraw);
         // If the queue is active, then this is how much we expect to redeem. This
         // gets incremented in userEpochRequests and they will stack in the given epoch.
-        uint256 latestEpochID = roycoVault.latestEpochID();
+        uint256 latestEpochID = ConcreteVault.latestEpochID();
         // This returns an asset figure but this may not be the actual amount of assets redeemed
         // which is pending the epochPrice.
-        roycoVault.redeem(amountToWithdraw, address(this), address(this));
+        ConcreteVault.redeem(amountToWithdraw, address(this), address(this));
         uint128 withdrawAmount = amountToWithdraw.toUint128();
-        s_roycoWithdrawRequest[requestId] =
-            RoycoWithdrawRequest({ withdrawAmount: withdrawAmount, epochNumber: latestEpochID.toUint128() });
+        s_ConcreteWithdrawRequest[requestId] =
+            ConcreteWithdrawRequest({ withdrawAmount: withdrawAmount, epochNumber: latestEpochID.toUint128() });
 
         EpochClaimData storage epochClaimData = s_epochClaimData[latestEpochID];
         epochClaimData.totalWithdrawals = epochClaimData.totalWithdrawals + withdrawAmount;
@@ -96,14 +98,14 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 tokensClaimed)
     {
-        RoycoWithdrawRequest memory request = s_roycoWithdrawRequest[requestId];
+        ConcreteWithdrawRequest memory request = s_ConcreteWithdrawRequest[requestId];
         EpochClaimData memory epochClaimData = s_epochClaimData[request.epochNumber];
 
         if (epochClaimData.hasClaimed == false) {
             uint256 balanceBefore = ERC20(WITHDRAW_TOKEN).balanceOf(address(this));
             uint256[] memory epochIDs = new uint256[](1);
             epochIDs[0] = request.epochNumber;
-            roycoVault.claimWithdrawal(epochIDs);
+            ConcreteVault.claimWithdrawal(epochIDs);
             uint256 balanceAfter = ERC20(WITHDRAW_TOKEN).balanceOf(address(this));
 
             EpochClaimData storage e = s_epochClaimData[request.epochNumber];
@@ -114,7 +116,7 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
         }
 
         tokensClaimed = request.withdrawAmount * epochClaimData.totalUnderlyingClaimed / epochClaimData.totalWithdrawals;
-        delete s_roycoWithdrawRequest[requestId];
+        delete s_ConcreteWithdrawRequest[requestId];
     }
 
     function getKnownWithdrawTokenAmount(uint256 requestId)
@@ -123,7 +125,7 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (bool hasKnownAmount, uint256 amount)
     {
-        RoycoWithdrawRequest memory request = s_roycoWithdrawRequest[requestId];
+        ConcreteWithdrawRequest memory request = s_ConcreteWithdrawRequest[requestId];
         EpochClaimData memory epochClaimData = s_epochClaimData[request.epochNumber];
 
         if (epochClaimData.hasClaimed) {
@@ -137,8 +139,8 @@ contract RoycoWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
-        RoycoWithdrawRequest memory request = s_roycoWithdrawRequest[requestId];
+        ConcreteWithdrawRequest memory request = s_ConcreteWithdrawRequest[requestId];
         // Once the epoch price is set, the withdraw request can be finalized.
-        return roycoVault.getEpochPricePerShare(request.epochNumber) > 0;
+        return ConcreteVault.getEpochPricePerShare(request.epochNumber) > 0;
     }
 }
