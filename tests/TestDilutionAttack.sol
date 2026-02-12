@@ -5,6 +5,8 @@ import "./TestEnvironment.sol";
 import "../src/routers/MorphoLendingRouter.sol";
 
 abstract contract TestDilutionAttack is TestEnvironment {
+    using TokenUtils for ERC20;
+
     function setAsset() internal virtual;
 
     function deployYieldStrategy() internal override {
@@ -35,7 +37,7 @@ abstract contract TestDilutionAttack is TestEnvironment {
         ADDRESS_REGISTRY.setLendingRouter(address(l));
         MorphoLendingRouter(address(l)).initializeMarket(address(y), IRM, lltv);
 
-        asset.approve(address(MORPHO), type(uint256).max);
+        asset.checkApprove(address(MORPHO), type(uint256).max);
         MORPHO.supply(
             MorphoLendingRouter(address(l)).marketParams(address(y)), 1_000_000 * 10 ** asset.decimals(), 0, owner, ""
         );
@@ -47,7 +49,7 @@ abstract contract TestDilutionAttack is TestEnvironment {
     function _enterPosition(address user, uint256 depositAmount, uint256 borrowAmount) internal {
         vm.startPrank(user);
         if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
-        asset.approve(address(lendingRouter), depositAmount);
+        asset.checkApprove(address(lendingRouter), depositAmount);
         lendingRouter.enterPosition(
             user, address(y), depositAmount, borrowAmount, getDepositData(user, depositAmount + borrowAmount)
         );
@@ -64,7 +66,7 @@ abstract contract TestDilutionAttack is TestEnvironment {
 
         vm.startPrank(attacker);
         // Mint and donate wrapped tokens
-        asset.approve(address(w), defaultDeposit + defaultBorrow);
+        asset.checkApprove(address(w), defaultDeposit + defaultBorrow);
         MockWrapperERC20(address(w)).deposit(defaultDeposit + defaultBorrow);
         MockWrapperERC20(address(w)).transfer(address(y), w.balanceOf(attacker));
         vm.stopPrank();

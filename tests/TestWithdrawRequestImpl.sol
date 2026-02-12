@@ -435,7 +435,10 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     }
 }
 
-contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
+abstract contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
+    address concreteVault;
+    address concreteWhitelistHook;
+
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_414_984;
     }
@@ -467,21 +470,27 @@ contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
 
     function deployManager() public override {
         withdrawCallData = "";
-        manager = new ConcreteWithdrawRequestManager(0xcD9f5907F92818bC06c9Ad70217f089E190d2a32);
-        allowedDepositTokens.push(ERC20(USDC));
+        manager = new ConcreteWithdrawRequestManager(concreteVault);
+        allowedDepositTokens.push(ERC20(manager.STAKING_TOKEN()));
 
-        // USDC whale
-        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
-        USDC.transfer(address(this), 200_000e6);
-        vm.stopPrank();
+        if (manager.STAKING_TOKEN() == address(USDC)) {
+            vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+            USDC.transfer(address(this), 200_000e6);
+            vm.stopPrank();
+        } else {
+            uint256 decimals = ERC20(manager.STAKING_TOKEN()).decimals();
+            deal(manager.STAKING_TOKEN(), address(this), 200_000 * (10 ** decimals));
+        }
     }
 
     function postDeploySetup() internal override {
+        if (concreteWhitelistHook == address(0)) return;
+
         address staker1 = makeAddr("staker1");
         address staker2 = makeAddr("staker2");
         // This is discovered by looking at the trace, you can't access this directly from
         // the contract
-        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13);
+        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(concreteWhitelistHook);
 
         address[] memory users = new address[](4);
         users[0] = address(manager);
@@ -492,5 +501,19 @@ contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
         vm.startPrank(whitelistHook.owner());
         whitelistHook.whitelistUsers(users);
         vm.stopPrank();
+    }
+}
+
+contract TestConcrete_WithdrawRequest_Royco is TestConcrete_WithdrawRequest {
+    constructor() {
+        concreteVault = 0xcD9f5907F92818bC06c9Ad70217f089E190d2a32;
+        concreteWhitelistHook = 0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13;
+    }
+}
+
+contract TestConcrete_WithdrawRequest_ConcreteUSDT is TestConcrete_WithdrawRequest {
+    constructor() {
+        concreteVault = 0x0E609b710da5e0AA476224b6c0e5445cCc21251E;
+        concreteWhitelistHook = address(0);
     }
 }

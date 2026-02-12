@@ -13,6 +13,8 @@ import "./TestWithdrawRequest.sol";
 import "../src/interfaces/ITradingModule.sol";
 
 abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
+    using TokenUtils for ERC20;
+
     ERC20 lpToken;
     address rewardPool;
     IRewardManager rm;
@@ -291,7 +293,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) {
             MORPHO.setAuthorization(address(lendingRouter), true);
         }
-        asset.approve(address(lendingRouter), defaultDeposit);
+        asset.checkApprove(address(lendingRouter), defaultDeposit);
 
         // Ensures that the stake tokens function is called
         vm.expectCall(
@@ -320,7 +322,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         if (!MORPHO.isAuthorized(msg.sender, address(lendingRouter))) {
             MORPHO.setAuthorization(address(lendingRouter), true);
         }
-        asset.approve(address(lendingRouter), defaultDeposit);
+        asset.checkApprove(address(lendingRouter), defaultDeposit);
 
         // Ensures that the trading was done
         vm.expectEmit(true, false, false, false, address(y));
@@ -347,7 +349,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
         vm.startPrank(msg.sender);
         lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
 
-        asset.approve(address(lendingRouter), defaultDeposit);
+        asset.checkApprove(address(lendingRouter), defaultDeposit);
 
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.enterPosition(
@@ -456,7 +458,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(msg.sender);
         if (!MORPHO.isAuthorized(msg.sender, address(y))) MORPHO.setAuthorization(address(y), true);
-        asset.approve(address(lendingRouter), defaultDeposit);
+        asset.checkApprove(address(lendingRouter), defaultDeposit);
         bytes memory depositData = getDepositData(msg.sender, defaultDeposit + defaultBorrow);
         vm.expectPartialRevert(PoolShareTooHigh.selector);
         lendingRouter.enterPosition(msg.sender, address(y), defaultDeposit, defaultBorrow, depositData);
@@ -585,7 +587,7 @@ abstract contract TestSingleSidedLPStrategy is TestMorphoYieldStrategy {
 
         vm.startPrank(owner);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         uint256 assetBefore = asset.balanceOf(owner);
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), balanceBefore, 0);
         uint256 assetAfter = asset.balanceOf(owner);

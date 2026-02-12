@@ -14,6 +14,8 @@ import { ConvexRewardManager } from "../src/rewards/ConvexRewardManager.sol";
 import { MORPHO } from "../src/interfaces/Morpho/IMorpho.sol";
 
 contract TestRewardManager is TestMorphoYieldStrategy {
+    using TokenUtils for ERC20;
+
     IRewardManager rm;
     ERC20 rewardToken;
     ERC20 emissionsToken;
@@ -399,7 +401,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         uint256 sharesBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
         uint256 emissionsForUser = 1e18 * sharesBefore / y.totalSupply();
         uint256 expectedRewards = hasRewards ? y.convertSharesToYieldToken(sharesBefore) : 0;
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         uint256 sharesToLiquidate = isPartialLiquidation ? sharesBefore / 2 : sharesBefore;
         // This should trigger a claim on rewards
         uint256 sharesToLiquidator = lendingRouter.liquidate(msg.sender, address(y), sharesToLiquidate, 0);
@@ -673,7 +675,7 @@ contract TestRewardManager is TestMorphoYieldStrategy {
         o.setPrice(originalPrice * 0.9e18 / 1e18);
 
         vm.startPrank(liquidator);
-        asset.approve(address(lendingRouter), type(uint256).max);
+        asset.checkApprove(address(lendingRouter), type(uint256).max);
         // This should trigger a claim on rewards, but none here because inside a withdraw request
         lendingRouter.liquidate(msg.sender, address(y), sharesBefore / 2, 0);
         vm.stopPrank();

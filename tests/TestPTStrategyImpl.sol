@@ -14,6 +14,8 @@ import "../src/staking/PendlePT_sUSDe.sol";
 import { OrderFilledV2 } from "../src/interfaces/IPendle.sol";
 
 abstract contract TestStakingStrategy_PT is TestStakingStrategy {
+    using TokenUtils for ERC20;
+
     address internal market;
     address internal tokenIn;
     address internal tokenOut;
@@ -154,7 +156,7 @@ abstract contract TestStakingStrategy_PT is TestStakingStrategy {
         vm.skip(depositFills.length == 0);
         vm.startPrank(msg.sender);
         MORPHO.setAuthorization(address(lendingRouter), true);
-        asset.approve(address(lendingRouter), defaultDeposit);
+        asset.checkApprove(address(lendingRouter), defaultDeposit);
 
         IPRouter.LimitOrderData memory limitOrderData = IPRouter.LimitOrderData({
             limitRouter: 0x000000000000c9B3E2C3Ec88B1B4c0cD853f4321,
