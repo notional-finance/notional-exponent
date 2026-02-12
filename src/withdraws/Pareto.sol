@@ -4,9 +4,11 @@ pragma solidity >=0.8.29;
 import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
 import { TypeConvert } from "../utils/TypeConvert.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { TokenUtils } from "../utils/TokenUtils.sol";
 import { IdleCDOEpochVariant, IdleCDOEpochQueue, IdleCreditVault } from "../interfaces/IPareto.sol";
 
 contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
+    using TokenUtils for ERC20;
     using TypeConvert for uint256;
 
     error ParetoBlockedAccount(address account);
@@ -53,11 +55,11 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
             require(paretoVault.isDepositDuringEpochDisabled() == false, "Deposit during epoch is disabled");
             require(block.timestamp < paretoVault.epochEndDate(), "Epoch has ended");
             require(paretoVault.isAYSActive() == false, "AYS is active");
-            ERC20(STAKING_TOKEN).approve(address(paretoVault), amount);
+            ERC20(STAKING_TOKEN).checkApprove(address(paretoVault), amount);
             // Deposit into the AATranche
             paretoVault.depositDuringEpoch(amount, YIELD_TOKEN);
         } else {
-            ERC20(STAKING_TOKEN).approve(address(paretoVault), amount);
+            ERC20(STAKING_TOKEN).checkApprove(address(paretoVault), amount);
             paretoVault.depositAA(amount);
         }
     }
@@ -76,7 +78,7 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         IdleCreditVault creditVault = paretoVault.strategy();
         uint256 nextEpoch = creditVault.epochNumber() + 1;
 
-        ERC20(YIELD_TOKEN).approve(address(paretoQueue), amountToWithdraw);
+        ERC20(YIELD_TOKEN).checkApprove(address(paretoQueue), amountToWithdraw);
         paretoQueue.requestWithdraw(amountToWithdraw);
 
         // An account can only have one withdraw request at a time, so we use it as the request id. Even if it
