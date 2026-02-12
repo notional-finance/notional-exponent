@@ -12,7 +12,7 @@ import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
 import "../src/withdraws/Pareto.sol";
 import "../src/withdraws/InfiniFi.sol";
-import "../src/withdraws/Royco.sol";
+import "../src/withdraws/Concrete.sol";
 import { USDC } from "../src/utils/Constants.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 import { IdleKeyring } from "../src/interfaces/IPareto.sol";
@@ -435,7 +435,7 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     }
 }
 
-contract TestRoyco_WithdrawRequest is TestWithdrawRequest {
+contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_414_984;
     }
@@ -445,29 +445,29 @@ contract TestRoyco_WithdrawRequest is TestWithdrawRequest {
     }
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
-        uint256 sharePrice = RoycoWithdrawRequestManager(address(manager)).getExchangeRate();
-        (, uint256 epochNumber) = RoycoWithdrawRequestManager(address(manager)).s_roycoWithdrawRequest(requestId);
-        IRoycoVault roycoVault = RoycoWithdrawRequestManager(address(manager)).roycoVault();
+        uint256 sharePrice = ConcreteWithdrawRequestManager(address(manager)).getExchangeRate();
+        (, uint256 epochNumber) = ConcreteWithdrawRequestManager(address(manager)).s_ConcreteWithdrawRequest(requestId);
+        IConcreteVault ConcreteVault = ConcreteWithdrawRequestManager(address(manager)).ConcreteVault();
 
         vm.record();
-        roycoVault.getEpochPricePerShare(epochNumber);
-        (bytes32[] memory reads,) = vm.accesses(address(roycoVault));
-        vm.store(address(roycoVault), reads[1], bytes32(uint256(sharePrice + 1)));
+        ConcreteVault.getEpochPricePerShare(epochNumber);
+        (bytes32[] memory reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(uint256(sharePrice + 1)));
 
         vm.record();
-        roycoVault.latestEpochID();
-        (reads,) = vm.accesses(address(roycoVault));
-        vm.store(address(roycoVault), reads[1], bytes32(uint256(epochNumber + 1)));
+        ConcreteVault.latestEpochID();
+        (reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(uint256(epochNumber + 1)));
 
         vm.record();
-        roycoVault.pastEpochsUnclaimedAssets();
-        (reads,) = vm.accesses(address(roycoVault));
-        vm.store(address(roycoVault), reads[1], bytes32(type(uint256).max));
+        ConcreteVault.pastEpochsUnclaimedAssets();
+        (reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(type(uint256).max));
     }
 
     function deployManager() public override {
         withdrawCallData = "";
-        manager = new RoycoWithdrawRequestManager(0xcD9f5907F92818bC06c9Ad70217f089E190d2a32);
+        manager = new ConcreteWithdrawRequestManager(0xcD9f5907F92818bC06c9Ad70217f089E190d2a32);
         allowedDepositTokens.push(ERC20(USDC));
 
         // USDC whale
@@ -481,7 +481,7 @@ contract TestRoyco_WithdrawRequest is TestWithdrawRequest {
         address staker2 = makeAddr("staker2");
         // This is discovered by looking at the trace, you can't access this directly from
         // the contract
-        IRoycoWhitelistHook whitelistHook = IRoycoWhitelistHook(0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13);
+        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13);
 
         address[] memory users = new address[](4);
         users[0] = address(manager);
