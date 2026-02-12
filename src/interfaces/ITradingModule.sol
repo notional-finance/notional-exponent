@@ -77,6 +77,8 @@ error TradeFailed();
 
 interface nProxy {
     function getImplementation() external view returns (address);
+    function upgradeTo(address newImplementation) external;
+    function upgradeToAndCall(address newImplementation, bytes memory data) external payable;
 }
 
 interface ITradingModule {
@@ -93,6 +95,13 @@ interface ITradingModule {
     event PriceOracleUpdated(address token, address oracle);
     event MaxOracleFreshnessUpdated(uint32 currentValue, uint32 newValue);
     event TokenPermissionsUpdated(address sender, address token, TokenPermissions permissions);
+    error TradeExecution(bytes returnData);
+    error PreValidationExactIn(uint256 maxAmountIn, uint256 preTradeSellBalance);
+    error PostValidationExactIn(uint256 minAmountOut, uint256 amountReceived);
+    error Unauthorized();
+    error SellTokenEqualsBuyToken();
+    error UnknownDEX();
+    error InsufficientPermissions();
 
     function tokenWhitelist(
         address spender,
@@ -103,6 +112,8 @@ interface ITradingModule {
         returns (bool allowSell, uint32 dexFlags, uint32 tradeTypeFlags);
 
     function priceOracles(address token) external view returns (AggregatorV2V3Interface oracle, uint8 rateDecimals);
+
+    function maxOracleFreshnessInSeconds() external view returns (uint32);
 
     function getExecutionData(
         uint16 dexId,
@@ -128,27 +139,6 @@ interface ITradingModule {
         external
         payable
         returns (uint256 amountSold, uint256 amountBought);
-
-    function executeTradeWithDynamicSlippage(
-        uint16 dexId,
-        Trade memory trade,
-        uint32 dynamicSlippageLimit
-    )
-        external
-        payable
-        returns (uint256 amountSold, uint256 amountBought);
-
-    function getLimitAmount(
-        address from,
-        TradeType tradeType,
-        address sellToken,
-        address buyToken,
-        uint256 amount,
-        uint32 slippageLimit
-    )
-        external
-        view
-        returns (uint256 limitAmount);
 
     function canExecuteTrade(address from, uint16 dexId, Trade calldata trade) external view returns (bool);
 }
