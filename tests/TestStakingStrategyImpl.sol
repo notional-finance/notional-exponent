@@ -14,6 +14,8 @@ import "../src/oracles/MidasOracle.sol";
 import "../src/interfaces/IPareto.sol";
 import "../src/staking/ParetoStakingStrategy.sol";
 import "../src/withdraws/InfiniFi.sol";
+import "../src/withdraws/Concrete.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -489,5 +491,46 @@ contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
         defaultDeposit = 1000e6;
         defaultBorrow = 9000e6;
         noInstantRedemption = true;
+    }
+}
+
+contract TestStakingStrategy_Royco is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address roycoVault = address(0xcD9f5907F92818bC06c9Ad70217f089E190d2a32);
+
+        manager = IWithdrawRequestManager(new ConcreteWithdrawRequestManager(address(roycoVault)));
+        withdrawRequest = new TestConcrete_WithdrawRequest_Royco();
+        setupWithdrawRequestManager(address(manager));
+        withdrawRequest.setManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(roycoVault), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        o = new MockOracle(int256(IERC4626(address(roycoVault)).convertToAssets(1e6) * 1e18 / 1e6));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
+    }
+
+    function postDeploySetup() internal virtual override {
+        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13);
+
+        address[] memory users = new address[](8);
+        users[0] = address(manager);
+        users[1] = msg.sender;
+        users[2] = owner;
+        users[3] = makeAddr("user1");
+        users[4] = makeAddr("user2");
+        users[5] = makeAddr("user3");
+        users[6] = makeAddr("staker");
+        users[7] = makeAddr("staker2");
+
+        vm.startPrank(whitelistHook.owner());
+        whitelistHook.whitelistUsers(users);
+        vm.stopPrank();
     }
 }

@@ -12,6 +12,7 @@ import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
 import "../src/withdraws/Pareto.sol";
 import "../src/withdraws/InfiniFi.sol";
+import "../src/withdraws/Concrete.sol";
 import { USDC } from "../src/utils/Constants.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 import { IdleKeyring } from "../src/interfaces/IPareto.sol";
@@ -226,10 +227,6 @@ abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
     address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
     address constant GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
 
-    function setManager(address newManager) public {
-        manager = IWithdrawRequestManager(newManager);
-    }
-
     function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.record();
         IRedemptionVault.Request memory request = redemptionVault.redeemRequests(requestId);
@@ -343,7 +340,7 @@ contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
     IdleCDOEpochVariant public paretoVault;
     IdleCDOEpochQueue public paretoQueue;
 
-    function setManager(address newManager) public {
+    function setManager(address newManager) public override {
         manager = IWithdrawRequestManager(newManager);
         paretoVault = IdleCDOEpochVariant(ParetoWithdrawRequestManager(newManager).paretoVault());
         paretoQueue = IdleCDOEpochQueue(ParetoWithdrawRequestManager(newManager).paretoQueue());
@@ -431,5 +428,84 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
         vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
         USDC.transfer(address(this), 200_000e6);
         vm.stopPrank();
+    }
+}
+
+abstract contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
+    address concreteVault;
+    address concreteWhitelistHook;
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        uint256 sharePrice = ConcreteWithdrawRequestManager(address(manager)).getExchangeRate();
+        (, uint256 epochNumber) = ConcreteWithdrawRequestManager(address(manager)).s_ConcreteWithdrawRequest(requestId);
+        IConcreteVault ConcreteVault = ConcreteWithdrawRequestManager(address(manager)).ConcreteVault();
+
+        vm.record();
+        ConcreteVault.getEpochPricePerShare(epochNumber);
+        (bytes32[] memory reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(uint256(sharePrice + 1)));
+
+        vm.record();
+        ConcreteVault.latestEpochID();
+        (reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(uint256(epochNumber + 1)));
+
+        vm.record();
+        ConcreteVault.pastEpochsUnclaimedAssets();
+        (reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(type(uint256).max));
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        manager = new ConcreteWithdrawRequestManager(concreteVault);
+        allowedDepositTokens.push(ERC20(manager.STAKING_TOKEN()));
+
+        if (manager.STAKING_TOKEN() == address(USDC)) {
+            vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+            USDC.transfer(address(this), 200_000e6);
+            vm.stopPrank();
+        } else {
+            uint256 decimals = ERC20(manager.STAKING_TOKEN()).decimals();
+            deal(manager.STAKING_TOKEN(), address(this), 200_000 * (10 ** decimals));
+        }
+    }
+
+    function postDeploySetup() internal override {
+        if (concreteWhitelistHook == address(0)) return;
+
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+        // This is discovered by looking at the trace, you can't access this directly from
+        // the contract
+        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(concreteWhitelistHook);
+
+        address[] memory users = new address[](4);
+        users[0] = address(manager);
+        users[1] = staker1;
+        users[2] = staker2;
+        users[3] = address(this);
+
+        vm.startPrank(whitelistHook.owner());
+        whitelistHook.whitelistUsers(users);
+        vm.stopPrank();
+    }
+}
+
+contract TestConcrete_WithdrawRequest_Royco is TestConcrete_WithdrawRequest {
+    constructor() {
+        concreteVault = 0xcD9f5907F92818bC06c9Ad70217f089E190d2a32;
+        concreteWhitelistHook = 0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13;
+    }
+}
+
+contract TestConcrete_WithdrawRequest_ConcreteUSDT is TestConcrete_WithdrawRequest {
+    constructor() {
+        concreteVault = 0x0E609b710da5e0AA476224b6c0e5445cCc21251E;
+        concreteWhitelistHook = address(0);
     }
 }
