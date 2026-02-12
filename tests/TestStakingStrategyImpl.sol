@@ -13,6 +13,7 @@ import "../src/interfaces/ITradingModule.sol";
 import "../src/oracles/MidasOracle.sol";
 import "../src/interfaces/IPareto.sol";
 import "../src/staking/ParetoStakingStrategy.sol";
+import "../src/withdraws/InfiniFi.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -441,13 +442,6 @@ contract TestStakingStrategy_Pareto_FalconX is TestStakingStrategy {
         defaultDeposit = 1000e6;
         defaultBorrow = 9000e6;
         maxEntryValuationSlippage = 0.005e18;
-        // This is the worst case slippage for an instant exit from the mHYPER vault, it is
-        // 50 bps * the default leverage (11x)
-        maxExitValuationSlippage = 0.055e18;
-        // This is the variationTolerance of the mHYPER vault
-        maxWithdrawValuationChange = 0.007e18;
-        // Cannot warp forward due to feed health check.
-        skipFeeCollectionTest = true;
         // The known token prevents liquidation unless the interest accrues past the collateral value.
         knownTokenPreventsLiquidation = true;
         noInstantRedemption = true;
@@ -465,10 +459,35 @@ contract TestStakingStrategy_Pareto_FalconX is TestStakingStrategy {
         keyring.setWhitelistStatus(makeAddr("user2"), true);
         keyring.setWhitelistStatus(makeAddr("user3"), true);
         keyring.setWhitelistStatus(makeAddr("staker"), true);
+        keyring.setWhitelistStatus(makeAddr("staker2"), true);
         vm.stopPrank();
     }
 
     function test_accountingAsset() public view {
         assertEq(y.accountingAsset(), address(asset));
+    }
+}
+
+contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+
+        manager = IWithdrawRequestManager(new InfiniFiWithdrawRequestManager(address(liUSD), 1));
+        withdrawRequest = new TestInfiniFi_liUSD1w_WithdrawRequest();
+        setupWithdrawRequestManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(liUSD), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        ILockingController lockingController = ILockingController(Gateway.getAddress("lockingController"));
+        uint256 exchangeRate = lockingController.exchangeRate(1);
+        o = new MockOracle(int256(exchangeRate));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
     }
 }
