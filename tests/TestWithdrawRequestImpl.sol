@@ -16,6 +16,7 @@ import "../src/withdraws/Concrete.sol";
 import { USDC } from "../src/utils/Constants.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
 import { IdleKeyring } from "../src/interfaces/IPareto.sol";
+import { IConcreteWhitelistHook } from "../src/interfaces/IConcrete.sol";
 
 address constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 address constant cbBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
@@ -410,7 +411,7 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
         InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
         uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
         IUnwindingModule unwindingModule =
-            IUnwindingModule(ILockingController(Gateway.getAddress("lockingController")).unwindingModule());
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
         IUnwindingModule.UnwindingPosition memory position =
             unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
 
