@@ -484,7 +484,7 @@ contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
         y = new StakingStrategy(address(USDC), address(liUSD), 0.001e18);
 
         w = ERC20(y.yieldToken());
-        ILockingController lockingController = ILockingController(Gateway.getAddress("lockingController"));
+        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
         uint256 exchangeRate = lockingController.exchangeRate(1);
         o = new MockOracle(int256(exchangeRate));
 

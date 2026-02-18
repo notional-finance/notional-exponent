@@ -6,49 +6,13 @@ import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { ADDRESS_REGISTRY, USDC } from "../utils/Constants.sol";
-
-address constant iUSD = 0x48f9e38f3070AD8945DFEae3FA70987722E3D89c;
-
-interface IGateway {
-    function mintAndLock(address _to, uint256 _amount, uint32 _unwindingEpochs) external returns (uint256);
-    function startUnwinding(uint256 _shares, uint32 _unwindingEpochs) external;
-    function withdraw(uint256 _unwindingTimestamp) external;
-
-    // NOTE: this is to get USDC from iUSD
-    function redeem(address _to, uint256 _amount, uint256 _minAssetsOut) external returns (uint256);
-    function claimRedemption() external;
-
-    function getAddress(string memory _name) external view returns (address);
-}
-
-interface ILockingController {
-    function shareToken(uint32 _unwindingEpochs) external view returns (address);
-    function exchangeRate(uint32 _unwindingEpochs) external view returns (uint256);
-    function unwindingModule() external view returns (address);
-}
-
-interface IUnwindingModule {
-    error TransferFailed();
-    error UserNotUnwinding();
-    error UserUnwindingNotStarted();
-    error UserUnwindingInprogress();
-
-    struct UnwindingPosition {
-        uint256 shares; // shares of receiptTokens of the position
-        uint32 fromEpoch; // epoch when the position started unwinding
-        uint32 toEpoch; // epoch when the position will end unwinding
-        uint256 fromRewardWeight; // reward weight at the start of the unwinding
-        uint256 rewardWeightDecrease; // reward weight decrease per epoch between fromEpoch and toEpoch
-    }
-    function positions(bytes32 id) external view returns (UnwindingPosition memory);
-}
-
-interface IRedeemController {
-    function queueLength() external view returns (uint256);
-    function userPendingClaims(address account) external view returns (uint256);
-}
-
-IGateway constant Gateway = IGateway(0x3f04b65Ddbd87f9CE0A2e7Eb24d80e7fb87625b5);
+import {
+    INFINIFI_GATEWAY,
+    iUSD,
+    IRedeemController,
+    IUnwindingModule,
+    ILockingController
+} from "../interfaces/IInfiniFi.sol";
 
 contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
     using TokenUtils for ERC20;
@@ -75,8 +39,8 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
     }
 
     function _startCooldown(uint256 cooldownBalance) internal override {
-        ERC20(liUSD).checkApprove(address(Gateway), cooldownBalance);
-        Gateway.startUnwinding(cooldownBalance, UNWINDING_EPOCHS);
+        ERC20(liUSD).checkApprove(address(INFINIFI_GATEWAY), cooldownBalance);
+        INFINIFI_GATEWAY.startUnwinding(cooldownBalance, UNWINDING_EPOCHS);
         // This is required to recover the unwinding position.
         s_unwindingTimestamp = uint40(block.timestamp);
     }
@@ -86,26 +50,26 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
 
         uint256 iUSDBefore = ERC20(iUSD).balanceOf(address(this));
         // We will receive iUSD as a result of the withdraw from the liUSD position.
-        Gateway.withdraw(s_unwindingTimestamp);
+        INFINIFI_GATEWAY.withdraw(s_unwindingTimestamp);
         uint256 iUSDReceived = ERC20(iUSD).balanceOf(address(this)) - iUSDBefore;
         s_hasCompletedUnwinding = true;
 
         // Now we will trigger a redemption to USDC, this may or may not finalize immediately.
-        IRedeemController redeemController = IRedeemController(Gateway.getAddress("redeemController"));
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
         // We can only tell if we are in the redemption queue by checking the queue length before and after
         // the redemption call. The queue information itself is not exposed in any interface.
         uint256 queueLengthBefore = redeemController.queueLength();
-        ERC20(iUSD).checkApprove(address(Gateway), iUSDReceived);
+        ERC20(iUSD).checkApprove(address(INFINIFI_GATEWAY), iUSDReceived);
         // We specify 0 minAssetsOut to ensure that if the redemption cannot finalize immediately we
         // will enter the redemption queue.
-        Gateway.redeem(address(this), iUSDReceived, 0);
+        INFINIFI_GATEWAY.redeem(address(this), iUSDReceived, 0);
         uint256 queueLengthAfter = redeemController.queueLength();
 
         if (queueLengthAfter > queueLengthBefore) s_isInRedemptionQueue = true;
     }
 
     function _redemptionQueueClaims() internal view returns (uint256) {
-        IRedeemController redeemController = IRedeemController(Gateway.getAddress("redeemController"));
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
         return redeemController.userPendingClaims(address(this));
     }
 
@@ -116,7 +80,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
             // We have to require this when in the redemption queue because this is only set after
             // the redemption has been processed.
             require(pendingClaims > 0, "No pending claims");
-            Gateway.claimRedemption();
+            INFINIFI_GATEWAY.claimRedemption();
             s_isInRedemptionQueue = false;
         }
 
@@ -128,8 +92,9 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
     function canFinalize() public view returns (bool) {
         if (!s_hasCompletedUnwinding) {
             // If the unwinding has not completed, check that the position has ended unwinding.
-            IUnwindingModule unwindingModule =
-                IUnwindingModule(ILockingController(Gateway.getAddress("lockingController")).unwindingModule());
+            IUnwindingModule unwindingModule = IUnwindingModule(
+                ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule()
+            );
             IUnwindingModule.UnwindingPosition memory position =
                 unwindingModule.positions(keccak256(abi.encode(address(this), s_unwindingTimestamp)));
             uint256 currentEpoch = (block.timestamp - EPOCH_OFFSET) / EPOCH;
@@ -158,7 +123,7 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     )
         AbstractWithdrawRequestManager(address(USDC), _liUSD, address(USDC))
     {
-        ILockingController lockingController = ILockingController(Gateway.getAddress("lockingController"));
+        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
         UNWINDING_EPOCHS = _unwindingEpochs;
         liUSD = _liUSD;
         // Ensure that these two are matching.
@@ -186,8 +151,8 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         internal
         override
     {
-        ERC20(STAKING_TOKEN).checkApprove(address(Gateway), amount);
-        Gateway.mintAndLock(address(this), amount, UNWINDING_EPOCHS);
+        ERC20(STAKING_TOKEN).checkApprove(address(INFINIFI_GATEWAY), amount);
+        INFINIFI_GATEWAY.mintAndLock(address(this), amount, UNWINDING_EPOCHS);
     }
 
     function _initiateWithdrawImpl(
@@ -227,7 +192,7 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function getExchangeRate() public view override returns (uint256) {
-        ILockingController lockingController = ILockingController(Gateway.getAddress("lockingController"));
+        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
         // This is reported in 18 decimals.
         uint256 exchangeRate = lockingController.exchangeRate(UNWINDING_EPOCHS);
         return exchangeRate * (10 ** TokenUtils.getDecimals(STAKING_TOKEN)) / 1e18;
