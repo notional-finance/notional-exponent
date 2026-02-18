@@ -8,8 +8,11 @@ import "../src/interfaces/ITradingModule.sol";
 import "../src/utils/Constants.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AggregatorV2V3Interface, TRADING_MODULE } from "../src/interfaces/ITradingModule.sol";
+import "../src/utils/TokenUtils.sol";
 
 contract TestPendleOracle is Test {
+    using TokenUtils for ERC20;
+
     PendlePTOracle public oracle;
     IPMarket public pendleMarket;
     ERC20 public ptToken;
@@ -74,9 +77,9 @@ contract TestPendleOracle is Test {
         // deal(address(ptToken), address(this), 1_000_000e18); // 1M PT tokens
 
         // Approve spending
-        tokenInSy.approve(address(PENDLE_ROUTER), type(uint256).max);
-        ptToken.approve(address(PENDLE_ROUTER), type(uint256).max);
-        syToken.approve(address(PENDLE_ROUTER), type(uint256).max);
+        tokenInSy.checkApprove(address(PENDLE_ROUTER), type(uint256).max);
+        ptToken.checkApprove(address(PENDLE_ROUTER), type(uint256).max);
+        syToken.checkApprove(address(PENDLE_ROUTER), type(uint256).max);
 
         setMaxOracleFreshness();
         console.log("Setup complete");
