@@ -151,6 +151,24 @@ contract MorphoLendingRouter is
         _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, borrowAmount);
     }
 
+    function allocateAndEnterPositionWithYieldTokenAndLeverage(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData,
+        MorphoAllocation[] calldata allocationData
+    )
+        external
+        payable
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
+        _allocate(vault, allocationData);
+        _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, 0);
+        _enterPosition(onBehalf, vault, 0, borrowAmount, depositData, address(0));
+    }
+
     function _flashBorrowAndEnter(
         address onBehalf,
         address vault,
