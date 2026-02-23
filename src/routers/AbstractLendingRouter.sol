@@ -84,6 +84,22 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, borrowAmount);
     }
 
+    function enterPositionWithYieldTokenAndLeverage(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData
+    )
+        external
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
+        _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, 0);
+        _enterPosition(onBehalf, vault, 0, borrowAmount, depositData, address(0));
+    }
+
     function _enterPositionWithYieldToken(
         address onBehalf,
         address vault,
@@ -104,6 +120,8 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
             // Transfer back to the msg.sender so that it can repay any flash loan required
             ERC20(asset).transfer(msg.sender, assetsBorrowed);
         }
+
+        ADDRESS_REGISTRY.setPosition(onBehalf, vault);
 
         emit EnterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, borrowShares, sharesReceived);
     }
