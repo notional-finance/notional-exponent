@@ -494,6 +494,29 @@ contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
     }
 }
 
+contract TestStakingStrategy_InfiniFi_siUSD is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address siUSD = address(0xDBDC1Ef57537E34680B898E1FEBD3D68c7389bCB);
+
+        manager = IWithdrawRequestManager(new InfiniFiWithdrawRequestManager(address(siUSD), 0));
+        withdrawRequest = new TestInfiniFi_siUSD_WithdrawRequest();
+        setupWithdrawRequestManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(siUSD), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        uint256 exchangeRate = IERC4626(address(siUSD)).convertToAssets(1e18);
+        o = new MockOracle(int256(exchangeRate));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
+    }
+}
+
 contract TestStakingStrategy_Royco is TestStakingStrategy {
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_414_984;

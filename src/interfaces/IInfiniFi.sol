@@ -5,6 +5,8 @@ interface IGateway {
     function mintAndLock(address _to, uint256 _amount, uint32 _unwindingEpochs) external returns (uint256);
     function startUnwinding(uint256 _shares, uint32 _unwindingEpochs) external;
     function withdraw(uint256 _unwindingTimestamp) external;
+    function mintAndStake(address _to, uint256 _amount) external returns (uint256);
+    function unstake(address _to, uint256 _amount) external;
 
     // NOTE: this is to get USDC from iUSD
     function redeem(address _to, uint256 _amount, uint256 _minAssetsOut) external returns (uint256);

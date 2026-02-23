@@ -432,6 +432,28 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     }
 }
 
+contract TestInfiniFi_siUSD_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        return;
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        address siUSD = address(0xDBDC1Ef57537E34680B898E1FEBD3D68c7389bCB);
+        manager = new InfiniFiWithdrawRequestManager(siUSD, 0);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+}
+
 abstract contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
     address concreteVault;
     address concreteWhitelistHook;
