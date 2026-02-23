@@ -104,6 +104,24 @@ interface ILendingRouter {
         external;
 
     /**
+     * @dev Enters a position in the lending market with a yield token and leverage.
+     *
+     * @param onBehalf The address of the user to enter the position on behalf of.
+     * @param vault The address of the vault.
+     * @param yieldTokenAmount The amount of yield token to deposit.
+     * @param borrowAmount The amount of assets to borrow to enter the position.
+     * @param depositData The data to pass to the deposit function.
+     */
+    function enterPositionWithYieldTokenAndLeverage(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData
+    )
+        external;
+
+    /**
      * @dev Migrates a position to the lending market.
      *
      * @param onBehalf The address of the user to migrate the position on behalf of.

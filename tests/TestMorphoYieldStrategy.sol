@@ -94,6 +94,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         assertEq(w.balanceOf(address(y)), y.convertSharesToYieldToken(y.totalSupply()));
         assertEq(y.convertSharesToYieldToken(l.balanceOfCollateral(user, address(y))), w.balanceOf(address(y)));
         assertEq(l.balanceOfCollateral(user, address(y)), y.balanceOf(address(MORPHO)));
+        assertTrue(ADDRESS_REGISTRY.getVaultPosition(user, address(y)).lendingRouter == address(l));
     }
 
     function test_enterPosition_RevertsIf_InvalidVault() public {
