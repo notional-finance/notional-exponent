@@ -41,17 +41,28 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
 
     function _startCooldown(uint256 cooldownBalance) internal override {
         ERC20(liUSD).checkApprove(address(INFINIFI_GATEWAY), cooldownBalance);
-        INFINIFI_GATEWAY.startUnwinding(cooldownBalance, UNWINDING_EPOCHS);
-        // This is required to recover the unwinding position.
-        s_unwindingTimestamp = uint40(block.timestamp);
+        if (UNWINDING_EPOCHS > 0) {
+            INFINIFI_GATEWAY.startUnwinding(cooldownBalance, UNWINDING_EPOCHS);
+            // This is required to recover the unwinding position.
+            s_unwindingTimestamp = uint40(block.timestamp);
+        } else {
+            // If we are using siUSD then we can just unwind to USDC directly. If the iUSD
+            // redemption is processed immediately then we can finalize the cooldown immediately.
+            unwindToUSDC();
+        }
     }
 
     function unwindToUSDC() public {
         require(s_hasCompletedUnwinding == false);
 
         uint256 iUSDBefore = ERC20(iUSD).balanceOf(address(this));
-        // We will receive iUSD as a result of the withdraw from the liUSD position.
-        INFINIFI_GATEWAY.withdraw(s_unwindingTimestamp);
+        if (UNWINDING_EPOCHS > 0) {
+            // We will receive iUSD as a result of the withdraw from the liUSD position.
+            INFINIFI_GATEWAY.withdraw(s_unwindingTimestamp);
+        } else {
+            // Unstake the total siUSD balance directly.
+            INFINIFI_GATEWAY.unstake(address(this), ERC20(liUSD).balanceOf(address(this)));
+        }
         uint256 iUSDReceived = ERC20(iUSD).balanceOf(address(this)) - iUSDBefore;
         s_hasCompletedUnwinding = true;
 
@@ -154,11 +165,18 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     )
         AbstractWithdrawRequestManager(address(USDC), _liUSD, address(USDC))
     {
-        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
-        UNWINDING_EPOCHS = _unwindingEpochs;
-        liUSD = _liUSD;
-        // Ensure that these two are matching.
-        require(lockingController.shareToken(UNWINDING_EPOCHS) == liUSD);
+        if (_unwindingEpochs > 0) {
+            ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
+            UNWINDING_EPOCHS = _unwindingEpochs;
+            liUSD = _liUSD;
+            // Ensure that these two are matching.
+            require(lockingController.shareToken(UNWINDING_EPOCHS) == liUSD);
+        } else {
+            // In this case we are using siUSD which has no unwinding epochs.
+            liUSD = INFINIFI_GATEWAY.getAddress("stakedToken");
+            UNWINDING_EPOCHS = 0;
+            require(liUSD == _liUSD);
+        }
     }
 
     function _initialize(
@@ -183,7 +201,11 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
     {
         ERC20(STAKING_TOKEN).checkApprove(address(INFINIFI_GATEWAY), amount);
-        INFINIFI_GATEWAY.mintAndLock(address(this), amount, UNWINDING_EPOCHS);
+        if (UNWINDING_EPOCHS > 0) {
+            INFINIFI_GATEWAY.mintAndLock(address(this), amount, UNWINDING_EPOCHS);
+        } else {
+            INFINIFI_GATEWAY.mintAndStake(address(this), amount);
+        }
     }
 
     function _initiateWithdrawImpl(
@@ -223,9 +245,15 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     }
 
     function getExchangeRate() public view override returns (uint256) {
-        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
-        // This is reported in 18 decimals.
-        uint256 exchangeRate = lockingController.exchangeRate(UNWINDING_EPOCHS);
-        return exchangeRate * (10 ** TokenUtils.getDecimals(STAKING_TOKEN)) / 1e18;
+        if (UNWINDING_EPOCHS > 0) {
+            ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
+            // This is reported in 18 decimals.
+            uint256 exchangeRate = lockingController.exchangeRate(UNWINDING_EPOCHS);
+            return exchangeRate * (10 ** TokenUtils.getDecimals(STAKING_TOKEN)) / 1e18;
+        } else {
+            // If we are using siUSD then it implements the ERC4626 interface,
+            // so the super implementation will return the correct exchange rate.
+            return super.getExchangeRate();
+        }
     }
 }
