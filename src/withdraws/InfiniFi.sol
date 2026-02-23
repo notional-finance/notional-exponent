@@ -26,6 +26,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
     uint40 public s_unwindingTimestamp;
     bool public s_hasCompletedUnwinding;
     bool public s_isInRedemptionQueue;
+    uint128 public s_iUSDCooldownAmount;
 
     constructor(address _manager, address _liUSD, uint32 _unwindingEpochs) ClonedCoolDownHolder(_manager) {
         liUSD = _liUSD;
@@ -65,7 +66,12 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         INFINIFI_GATEWAY.redeem(address(this), iUSDReceived, 0);
         uint256 queueLengthAfter = redeemController.queueLength();
 
-        if (queueLengthAfter > queueLengthBefore) s_isInRedemptionQueue = true;
+        if (queueLengthAfter > queueLengthBefore) {
+            s_isInRedemptionQueue = true;
+            // This is used as a heuristic to ensure that the user does not end up
+            // in a partial redemption state.
+            s_iUSDCooldownAmount = uint128(iUSDReceived);
+        }
     }
 
     function _redemptionQueueClaims() internal view returns (uint256) {
@@ -73,16 +79,41 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         return redeemController.userPendingClaims(address(this));
     }
 
-    function _finalizeCooldown() internal override returns (uint256 tokensClaimed, bool finalized) {
-        if (!s_hasCompletedUnwinding) unwindToUSDC();
-        if (s_isInRedemptionQueue) {
-            uint256 pendingClaims = _redemptionQueueClaims();
-            // We have to require this when in the redemption queue because this is only set after
-            // the redemption has been processed.
-            require(pendingClaims > 0, "No pending claims");
-            INFINIFI_GATEWAY.claimRedemption();
+    function claimRedemption() public {
+        require(s_isInRedemptionQueue);
+        uint256 pendingClaims = _redemptionQueueClaims();
+        // We have to require this when in the redemption queue because this is only set after
+        // the redemption has been processed.
+        require(pendingClaims > 0, "No pending claims");
+        INFINIFI_GATEWAY.claimRedemption();
+
+        // It is possible that the pendingClaims is not the full amount of USDC that the user
+        // is entitled to if InfiniFi has processed their redemption only partially. We are unable to
+        // directly read the queue from a smart contract so we check that the balance of USDC is 1-1
+        // with the initial iUSD amount. If it is lower, then we allow the user to re-claim their redemption
+        // or an admin to clear the s_isInRedemptionQueue flag in the case that the partial redemption will
+        // never be processed.
+        uint256 expectedUSDC = s_iUSDCooldownAmount * 1e6 / 1e18;
+        if (USDC.balanceOf(address(this)) >= expectedUSDC) {
             s_isInRedemptionQueue = false;
         }
+    }
+
+    function clearRedemptionQueue() public {
+        // Allow the admin to clear the redemption queue in the case that the partial redemption will
+        // never be processed. This will allow the user to finalize their cooldown with whatever funds
+        // are left available.
+        require(msg.sender == ADDRESS_REGISTRY.upgradeAdmin());
+        claimRedemption();
+        s_isInRedemptionQueue = false;
+    }
+
+    function _finalizeCooldown() internal override returns (uint256 tokensClaimed, bool finalized) {
+        if (!s_hasCompletedUnwinding) unwindToUSDC();
+        if (s_isInRedemptionQueue) claimRedemption();
+        // Check that we are no longer in the redemption queue, this can happen if the
+        // claimRedemption() call results in a partial redemption.
+        if (s_isInRedemptionQueue) revert("Redemption Queue");
 
         tokensClaimed = USDC.balanceOf(address(this));
         USDC.transfer(manager, tokensClaimed);
