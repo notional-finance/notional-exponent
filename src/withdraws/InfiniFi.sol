@@ -53,6 +53,14 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         }
     }
 
+    function _expectedUSDC() internal view returns (uint256) {
+        // The exchange rate is currently hardcoded to 1:1 with USDC. In the event of
+        // a markdown on iUSD we can upgrade the beacon to a new expected USDC exchange
+        // rate which will allow users to finalize their cooldown given the new iUSD
+        // haircut without manual admin intervention.
+        return s_iUSDCooldownAmount * 1e6 / 1e18;
+    }
+
     function unwindToUSDC() public {
         require(s_hasCompletedUnwinding == false);
 
@@ -78,11 +86,11 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         INFINIFI_GATEWAY.redeem(address(this), iUSDReceived, 0);
         uint256 queueLengthAfter = redeemController.queueLength();
 
-        if (queueLengthAfter > queueLengthBefore) {
+        // This is used as a heuristic to ensure that the user does not end up
+        // in a partial redemption state.
+        s_iUSDCooldownAmount = uint128(iUSDReceived);
+        if (queueLengthBefore < queueLengthAfter || USDC.balanceOf(address(this)) < _expectedUSDC()) {
             s_isInRedemptionQueue = true;
-            // This is used as a heuristic to ensure that the user does not end up
-            // in a partial redemption state.
-            s_iUSDCooldownAmount = uint128(iUSDReceived);
         }
     }
 
@@ -94,10 +102,10 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
     function _claimRedemption() internal {
         require(s_isInRedemptionQueue);
         uint256 pendingClaims = _redemptionQueueClaims();
-        // We have to require this when in the redemption queue because this is only set after
-        // the redemption has been processed.
-        require(pendingClaims > 0, "No pending claims");
-        INFINIFI_GATEWAY.claimRedemption();
+        // claimRedemption will revert if pendingClaims is 0. Only call it if this is the case. If the beacon
+        // is upgraded such that the expectedUSDC is less than the USDC balance then we can skip the claimRedemption
+        // call and proceed to allow the user to finalize their cooldown.
+        if (0 < pendingClaims) INFINIFI_GATEWAY.claimRedemption();
 
         // It is possible that the pendingClaims is not the full amount of USDC that the user
         // is entitled to if InfiniFi has processed their redemption only partially. We are unable to
@@ -105,8 +113,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         // with the initial iUSD amount. If it is lower, then we allow the user to re-claim their redemption
         // or an admin to clear the s_isInRedemptionQueue flag in the case that the partial redemption will
         // never be processed.
-        uint256 expectedUSDC = s_iUSDCooldownAmount * 1e6 / 1e18;
-        if (USDC.balanceOf(address(this)) >= expectedUSDC) {
+        if (_expectedUSDC() <= USDC.balanceOf(address(this))) {
             s_isInRedemptionQueue = false;
         }
     }
@@ -132,6 +139,13 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         finalized = true;
     }
 
+    function canInstantRedeem_iUSD() public view returns (bool) {
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        uint256 availableUSDC = redeemController.liquidity();
+        uint256 queueLength = redeemController.queueLength();
+        return queueLength == 0 && _expectedUSDC() <= availableUSDC;
+    }
+
     function canFinalize() public view returns (bool) {
         if (!s_hasCompletedUnwinding) {
             // If the unwinding has not completed, check that the position has ended unwinding.
@@ -142,9 +156,12 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
                 unwindingModule.positions(keccak256(abi.encode(address(this), s_unwindingTimestamp)));
             uint256 currentEpoch = (block.timestamp - EPOCH_OFFSET) / EPOCH;
 
-            return currentEpoch >= position.toEpoch;
+            // This does not account for the iUSD redemption queue, but we do not know the
+            // amount of iUSD that we would receive until we finish the unwinding.
+            return position.toEpoch <= currentEpoch;
+        } else if (s_isInRedemptionQueue) {
+            return _redemptionQueueClaims() <= _expectedUSDC();
         } else {
-            if (s_isInRedemptionQueue) return _redemptionQueueClaims() > 0;
             // If we are not in the redemption queue and the unwinding has completed,
             // then the cooldown can be finalized immediately. This would happen if someone
             // called unwindToUSDC() before the cooldown was finalized.
