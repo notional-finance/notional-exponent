@@ -53,7 +53,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         }
     }
 
-    function _expectedUSDC() internal view returns (uint256) {
+    function expectedUSDC() public view returns (uint256) {
         // The exchange rate is currently hardcoded to 1:1 with USDC. In the event of
         // a markdown on iUSD we can upgrade the beacon to a new expected USDC exchange
         // rate which will allow users to finalize their cooldown given the new iUSD
@@ -89,7 +89,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         // This is used as a heuristic to ensure that the user does not end up
         // in a partial redemption state.
         s_iUSDCooldownAmount = uint128(iUSDReceived);
-        if (queueLengthBefore < queueLengthAfter || USDC.balanceOf(address(this)) < _expectedUSDC()) {
+        if (queueLengthBefore < queueLengthAfter || USDC.balanceOf(address(this)) < expectedUSDC()) {
             s_isInRedemptionQueue = true;
         }
     }
@@ -113,7 +113,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         // with the initial iUSD amount. If it is lower, then we allow the user to re-claim their redemption
         // or an admin to clear the s_isInRedemptionQueue flag in the case that the partial redemption will
         // never be processed.
-        if (_expectedUSDC() <= USDC.balanceOf(address(this))) {
+        if (expectedUSDC() <= USDC.balanceOf(address(this))) {
             s_isInRedemptionQueue = false;
         }
     }
@@ -139,13 +139,6 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         finalized = true;
     }
 
-    function canInstantRedeem_iUSD() public view returns (bool) {
-        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
-        uint256 availableUSDC = redeemController.liquidity();
-        uint256 queueLength = redeemController.queueLength();
-        return queueLength == 0 && _expectedUSDC() <= availableUSDC;
-    }
-
     function canFinalize() public view returns (bool) {
         if (!s_hasCompletedUnwinding) {
             // If the unwinding has not completed, check that the position has ended unwinding.
@@ -160,7 +153,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
             // amount of iUSD that we would receive until we finish the unwinding.
             return position.toEpoch <= currentEpoch;
         } else if (s_isInRedemptionQueue) {
-            return _redemptionQueueClaims() <= _expectedUSDC();
+            return expectedUSDC() <= _redemptionQueueClaims();
         } else {
             // If we are not in the redemption queue and the unwinding has completed,
             // then the cooldown can be finalized immediately. This would happen if someone

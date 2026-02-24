@@ -443,6 +443,173 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     }
 }
 
+contract TestInfiniFi_liUSD1w_RedemptionQueue_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(redeemController), 200_000e6);
+        vm.stopPrank();
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        uint32 unwindingEpochs = 1;
+        address liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+        manager = new InfiniFiWithdrawRequestManager(liUSD, unwindingEpochs);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+
+        // Clear the beforeRedeemHook address to prevent the redeem controller from unwinding positions
+        // in various farms. This will test the case that iUSD enters the redemption queue.
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.record();
+        redeemController.beforeRedeemHook();
+        (bytes32[] memory reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(0));
+    }
+
+    function test_unwindToUSDC_manual() public approveVaultAndStakeTokens {
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+        yieldToken.approve(address(manager), initialYieldTokenBalance);
+
+        uint256 requestId = manager.initiateWithdraw(
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+
+        // This is true after the warping to the unwinding epoch.
+        assertTrue(holder.canFinalize());
+
+        vm.expectRevert("Redemption Queue");
+        manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+
+        holder.unwindToUSDC();
+        uint256 expectedUSDC = holder.expectedUSDC();
+        assertTrue(holder.s_isInRedemptionQueue());
+        assertGt(expectedUSDC, 0);
+
+        // This is no longer true since we are in the redemption queue.
+        assertFalse(holder.canFinalize());
+
+        // Transfer sufficient USDC to the redeem controller to finalize the redemption.
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(redeemController), expectedUSDC);
+        vm.stopPrank();
+
+        vm.record();
+        redeemController.userPendingClaims(address(holder));
+        (bytes32[] memory reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(expectedUSDC));
+
+        vm.record();
+        uint256 totalPendingClaims = redeemController.totalPendingClaims();
+        (reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(type(uint256).max));
+
+        // With sufficient USDC in the redeem controller, the cooldown can be finalized.
+        assertTrue(holder.canFinalize());
+
+        uint256 tokensWithdrawn =
+            manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+        assertGt(tokensWithdrawn, 0);
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+    }
+
+    function test_clearRedemptionQueue_admin() public approveVaultAndStakeTokens {
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+        yieldToken.approve(address(manager), initialYieldTokenBalance);
+
+        uint256 requestId = manager.initiateWithdraw(
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+
+        holder.unwindToUSDC();
+        uint256 expectedUSDC = holder.expectedUSDC();
+        assertTrue(holder.s_isInRedemptionQueue());
+        assertGt(expectedUSDC, 0);
+
+        // This is no longer true since we are in the redemption queue.
+        assertFalse(holder.canFinalize());
+
+        uint256 transferAmount = expectedUSDC * 90 / 100;
+        // Transfer 90% of the expected USDC to the redeem controller, this should still
+        // revert since the total pending claims is less than the expected USDC.
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(redeemController), transferAmount);
+        vm.stopPrank();
+
+        vm.record();
+        redeemController.userPendingClaims(address(holder));
+        (bytes32[] memory reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(transferAmount));
+
+        vm.record();
+        uint256 totalPendingClaims = redeemController.totalPendingClaims();
+        (reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(type(uint256).max));
+
+        // All this fails since the total pending claims is less than the expected USDC.
+        assertFalse(holder.canFinalize());
+        vm.expectRevert("Redemption Queue");
+        manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+
+        // Only the admin can clear the redemption queue.
+        vm.expectRevert();
+        holder.clearRedemptionQueue();
+
+        vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
+        holder.clearRedemptionQueue();
+        vm.stopPrank();
+
+        // The cooldown can be finalized since the redemption queue has been cleared.
+        assertTrue(holder.canFinalize());
+        uint256 tokensWithdrawn =
+            manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+        assertGt(tokensWithdrawn, transferAmount);
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+    }
+}
+
 contract TestInfiniFi_siUSD_WithdrawRequest is TestWithdrawRequest {
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_414_984;
