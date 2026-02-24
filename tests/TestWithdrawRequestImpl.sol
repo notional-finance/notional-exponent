@@ -430,6 +430,17 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
         USDC.transfer(address(this), 200_000e6);
         vm.stopPrank();
     }
+
+    function test_upgradeAdmin_CanUpgradeBeacon() public {
+        address newImpl = address(
+            new InfiniFiUnwindingHolder(address(manager), address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442), 1)
+        );
+        UpgradeableBeacon beacon = UpgradeableBeacon(InfiniFiWithdrawRequestManager(address(manager)).HOLDER_BEACON());
+        vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
+        beacon.upgradeTo(newImpl);
+        vm.stopPrank();
+        assertEq(beacon.implementation(), newImpl);
+    }
 }
 
 contract TestInfiniFi_siUSD_WithdrawRequest is TestWithdrawRequest {
