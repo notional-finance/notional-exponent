@@ -543,5 +543,7 @@ abstract contract TestWithdrawRequest is Test {
     function test_getExchangeRate() public approveVaultAndStakeTokens {
         uint256 exchangeRate = manager.getExchangeRate();
         assertGe(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals());
+        // Ensure that we have the right decimal precision for the exchange rate.
+        assertApproxEqRel(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals(), 1e18);
     }
 }
