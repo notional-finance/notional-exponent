@@ -108,6 +108,9 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
     )
         internal
     {
+        // Cannot enter a position if the account already has a native share balance
+        if (IYieldStrategy(vault).balanceOf(onBehalf) > 0) revert CannotEnterPosition();
+
         uint256 sharesReceived = IYieldStrategy(vault).mintSharesFromYieldToken(yieldTokenAmount, onBehalf);
         address asset = IYieldStrategy(vault).asset();
         _supplyCollateral(onBehalf, vault, asset, sharesReceived);

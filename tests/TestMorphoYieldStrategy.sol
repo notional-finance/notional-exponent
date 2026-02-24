@@ -438,6 +438,15 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
         lendingRouter.migratePosition(liquidator, address(y), address(lendingRouter));
         checkTransientsCleared();
+
+        if (canMintYieldTokens) {
+            uint256 yieldTokenAmount = 1000e18;
+            deal(address(w), liquidator, yieldTokenAmount);
+            ERC20(w).checkApprove(address(y), yieldTokenAmount);
+            vm.expectRevert(abi.encodeWithSelector(CannotEnterPosition.selector));
+            lendingRouter.enterPositionWithYieldToken(liquidator, address(y), yieldTokenAmount, 0);
+            checkTransientsCleared();
+        }
         vm.stopPrank();
     }
 
@@ -781,21 +790,27 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         checkTransientsCleared();
     }
 
-    function test_enterPositionWithYieldToken_withDebtPosition() public {
+    function test_enterPositionWithYieldTokenAndLeverage() public {
         vm.skip(!canMintYieldTokens);
         address user = msg.sender;
-        uint256 yieldTokenAmount = 1000e18;
+        uint256 yieldTokenAmount = y.convertSharesToYieldToken(y.convertToShares(defaultDeposit));
         deal(address(w), user, yieldTokenAmount);
 
         vm.startPrank(user);
         if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
         // NOTE: Need to approve the vault directly here.
         ERC20(w).checkApprove(address(y), yieldTokenAmount);
-        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 100e6);
+        lendingRouter.enterPositionWithYieldTokenAndLeverage(
+            user, address(y), yieldTokenAmount, defaultBorrow, getDepositData(user, defaultDeposit + defaultBorrow)
+        );
         vm.stopPrank();
 
         postEntryAssertions(user, lendingRouter);
-        assertEq(yieldTokenAmount * 1e6, lendingRouter.balanceOfCollateral(user, address(y)));
+        assertApproxEqRel(
+            defaultDeposit + defaultBorrow,
+            y.convertToAssets(lendingRouter.balanceOfCollateral(user, address(y))),
+            0.005e18
+        );
 
         checkTransientsCleared();
     }
