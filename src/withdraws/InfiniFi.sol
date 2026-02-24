@@ -256,11 +256,11 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
             ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
             // This is reported in 18 decimals.
             uint256 exchangeRate = lockingController.exchangeRate(UNWINDING_EPOCHS);
-            return exchangeRate * (10 ** TokenUtils.getDecimals(STAKING_TOKEN)) / 1e18;
+            return exchangeRate * 1e6 / 1e18;
         } else {
             // If we are using siUSD then it implements the ERC4626 interface,
             // so the super implementation will return the correct exchange rate.
-            return super.getExchangeRate();
+            return super.getExchangeRate() * 1e6 / 1e18;
         }
     }
 }
