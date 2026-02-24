@@ -4,7 +4,8 @@ pragma solidity >=0.8.29;
 import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
 import { ERC20, TokenUtils } from "../utils/TokenUtils.sol";
 import { ClonedCoolDownHolder } from "./ClonedCoolDownHolder.sol";
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { ADDRESS_REGISTRY, USDC } from "../utils/Constants.sol";
 import {
     INFINIFI_GATEWAY,
@@ -90,7 +91,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         return redeemController.userPendingClaims(address(this));
     }
 
-    function claimRedemption() public {
+    function _claimRedemption() internal {
         require(s_isInRedemptionQueue);
         uint256 pendingClaims = _redemptionQueueClaims();
         // We have to require this when in the redemption queue because this is only set after
@@ -115,13 +116,13 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         // never be processed. This will allow the user to finalize their cooldown with whatever funds
         // are left available.
         require(msg.sender == ADDRESS_REGISTRY.upgradeAdmin());
-        claimRedemption();
+        _claimRedemption();
         s_isInRedemptionQueue = false;
     }
 
     function _finalizeCooldown() internal override returns (uint256 tokensClaimed, bool finalized) {
         if (!s_hasCompletedUnwinding) unwindToUSDC();
-        if (s_isInRedemptionQueue) claimRedemption();
+        if (s_isInRedemptionQueue) _claimRedemption();
         // Check that we are no longer in the redemption queue, this can happen if the
         // claimRedemption() call results in a partial redemption.
         if (s_isInRedemptionQueue) revert("Redemption Queue");
@@ -157,7 +158,7 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
 
     address public immutable liUSD;
     uint32 public immutable UNWINDING_EPOCHS;
-    address public HOLDER_IMPLEMENTATION;
+    address public HOLDER_BEACON;
 
     constructor(
         address _liUSD,
@@ -185,12 +186,8 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         internal
         override
     {
-        HOLDER_IMPLEMENTATION = address(new InfiniFiUnwindingHolder(address(this), liUSD, UNWINDING_EPOCHS));
-    }
-
-    function redeployHolder() external {
-        require(msg.sender == ADDRESS_REGISTRY.upgradeAdmin());
-        HOLDER_IMPLEMENTATION = address(new InfiniFiUnwindingHolder(address(this), liUSD, UNWINDING_EPOCHS));
+        address initialImpl = address(new InfiniFiUnwindingHolder(address(this), liUSD, UNWINDING_EPOCHS));
+        HOLDER_BEACON = address(new UpgradeableBeacon(initialImpl, ADDRESS_REGISTRY.upgradeAdmin()));
     }
 
     function _stakeTokens(
@@ -218,7 +215,7 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 requestId)
     {
-        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(Clones.clone(HOLDER_IMPLEMENTATION)));
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(new BeaconProxy(HOLDER_BEACON, "")));
         ERC20(liUSD).transfer(address(holder), amountToWithdraw);
         holder.startCooldown(amountToWithdraw);
 
