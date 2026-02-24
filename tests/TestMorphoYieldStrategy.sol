@@ -810,6 +810,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         uint256 yieldTokenAmount = 1000e18;
         deal(address(w), user, yieldTokenAmount);
 
+        uint256 balanceBefore = asset.balanceOf(user);
         vm.startPrank(user);
         // NOTE: Need to approve the vault directly here.
         ERC20(w).checkApprove(address(y), yieldTokenAmount);
@@ -818,6 +819,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
 
         postEntryAssertions(user, lendingRouter);
         assertEq(sharesBefore + yieldTokenAmount * 1e6, lendingRouter.balanceOfCollateral(user, address(y)));
+        assertEq(asset.balanceOf(user) - balanceBefore, 100e6);
 
         checkTransientsCleared();
     }
