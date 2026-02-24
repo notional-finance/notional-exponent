@@ -41,6 +41,8 @@ interface IRedeemController {
     function queueLength() external view returns (uint256);
     function userPendingClaims(address account) external view returns (uint256);
     function liquidity() external view returns (uint256);
+    function beforeRedeemHook() external view returns (address);
+    function totalPendingClaims() external view returns (uint256);
 }
 
 IGateway constant INFINIFI_GATEWAY = IGateway(0x3f04b65Ddbd87f9CE0A2e7Eb24d80e7fb87625b5);
