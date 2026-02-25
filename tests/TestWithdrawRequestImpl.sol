@@ -537,10 +537,12 @@ contract TestInfiniFi_liUSD1w_RedemptionQueue_WithdrawRequest is TestWithdrawReq
         // With sufficient USDC in the redeem controller, the cooldown can be finalized.
         assertTrue(holder.canFinalize());
 
+        expectedUSDC = holder.expectedUSDC();
         uint256 tokensWithdrawn =
             manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
         assertGt(tokensWithdrawn, 0);
         assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertApproxEqRel(tokensWithdrawn, expectedUSDC, 0.0001e18);
     }
 
     function test_clearRedemptionQueue_admin() public approveVaultAndStakeTokens {
@@ -603,10 +605,12 @@ contract TestInfiniFi_liUSD1w_RedemptionQueue_WithdrawRequest is TestWithdrawReq
 
         // The cooldown can be finalized since the redemption queue has been cleared.
         assertTrue(holder.canFinalize());
+        expectedUSDC = holder.expectedUSDC();
         uint256 tokensWithdrawn =
             manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
         assertGt(tokensWithdrawn, transferAmount);
         assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertEq(expectedUSDC, tokensWithdrawn);
     }
 }
 
