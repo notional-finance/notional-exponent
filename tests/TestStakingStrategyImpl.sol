@@ -491,6 +491,7 @@ contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
         defaultDeposit = 1000e6;
         defaultBorrow = 9000e6;
         noInstantRedemption = true;
+        knownTokenPreventsLiquidation = true;
     }
 }
 
@@ -514,6 +515,7 @@ contract TestStakingStrategy_InfiniFi_siUSD is TestStakingStrategy {
         defaultDeposit = 1000e6;
         defaultBorrow = 9000e6;
         noInstantRedemption = true;
+        knownTokenPreventsLiquidation = true;
     }
 }
 

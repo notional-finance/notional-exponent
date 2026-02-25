@@ -35,6 +35,7 @@ interface IUnwindingModule {
         uint256 rewardWeightDecrease; // reward weight decrease per epoch between fromEpoch and toEpoch
     }
     function positions(bytes32 id) external view returns (UnwindingPosition memory);
+    function balanceOf(address account, uint256 timestamp) external view returns (uint256);
 }
 
 interface IRedeemController {
