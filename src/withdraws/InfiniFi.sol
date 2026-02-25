@@ -53,12 +53,27 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         }
     }
 
-    function expectedUSDC() public view returns (uint256) {
+    function _convertIUSDToUSDC(uint256 iUSDAmount) internal view returns (uint256) {
         // The exchange rate is currently hardcoded to 1:1 with USDC. In the event of
         // a markdown on iUSD we can upgrade the beacon to a new expected USDC exchange
         // rate which will allow users to finalize their cooldown given the new iUSD
         // haircut without manual admin intervention.
-        return s_iUSDCooldownAmount * 1e6 / 1e18;
+        return iUSDAmount * 1e6 / 1e18;
+    }
+
+    function expectedUSDC() public view returns (uint256) {
+        if (UNWINDING_EPOCHS > 0 && !s_hasCompletedUnwinding) {
+            // This is the expected amount of iUSD that will be received when the unwinding completes.
+            IUnwindingModule unwindingModule = IUnwindingModule(
+                ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule()
+            );
+            uint256 expected_iUSD = unwindingModule.balanceOf(address(this), s_unwindingTimestamp);
+            return _convertIUSDToUSDC(expected_iUSD);
+        } else if (s_isInRedemptionQueue) {
+            return _convertIUSDToUSDC(s_iUSDCooldownAmount);
+        } else {
+            return USDC.balanceOf(address(this));
+        }
     }
 
     function unwindToUSDC() public {
@@ -89,7 +104,7 @@ contract InfiniFiUnwindingHolder is ClonedCoolDownHolder {
         // This is used as a heuristic to ensure that the user does not end up
         // in a partial redemption state.
         s_iUSDCooldownAmount = uint128(iUSDReceived);
-        if (queueLengthBefore < queueLengthAfter || USDC.balanceOf(address(this)) < expectedUSDC()) {
+        if (queueLengthBefore < queueLengthAfter || USDC.balanceOf(address(this)) < _convertIUSDToUSDC(iUSDReceived)) {
             s_isInRedemptionQueue = true;
         }
     }
@@ -249,6 +264,17 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
     function canFinalizeWithdrawRequest(uint256 requestId) public view override returns (bool) {
         InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(address(uint160(requestId)));
         return holder.canFinalize();
+    }
+
+    function getKnownWithdrawTokenAmount(uint256 requestId)
+        public
+        view
+        override
+        returns (bool hasKnownAmount, uint256 amount)
+    {
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(address(uint160(requestId)));
+        hasKnownAmount = true;
+        amount = holder.expectedUSDC();
     }
 
     function getExchangeRate() public view override returns (uint256) {
