@@ -28,5 +28,12 @@
   "solidity.formatter": "forge",
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "cSpell.words": ["Cooldown", "inheritdoc"]
+  "cSpell.words": [
+    "Cooldown",
+    "Infini",
+    "INFINIFI",
+    "inheritdoc",
+    "IUSD",
+    "Royco"
+  ]
 }

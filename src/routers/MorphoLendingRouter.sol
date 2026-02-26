@@ -135,6 +135,40 @@ contract MorphoLendingRouter is
         _migratePosition(onBehalf, vault, migrateFrom);
     }
 
+    function allocateAndEnterPositionWithYieldToken(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount,
+        MorphoAllocation[] calldata allocationData
+    )
+        external
+        payable
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
+        _allocate(vault, allocationData);
+        _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, borrowAmount);
+    }
+
+    function allocateAndEnterPositionWithYieldTokenAndLeverage(
+        address onBehalf,
+        address vault,
+        uint256 yieldTokenAmount,
+        uint256 borrowAmount,
+        bytes calldata depositData,
+        MorphoAllocation[] calldata allocationData
+    )
+        external
+        payable
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+    {
+        _allocate(vault, allocationData);
+        _enterPositionWithYieldToken(onBehalf, vault, yieldTokenAmount, 0);
+        _enterPosition(onBehalf, vault, 0, borrowAmount, depositData, address(0));
+    }
+
     function _flashBorrowAndEnter(
         address onBehalf,
         address vault,
@@ -176,10 +210,24 @@ contract MorphoLendingRouter is
 
         MarketParams memory m = marketParams(vault, asset);
         // Borrow the assets in order to repay the flash loan
-        (/* */, t_borrowShares) = MORPHO.borrow(m, assets, 0, onBehalf, address(this));
+        (/* */, t_borrowShares) = _borrow(vault, asset, assets, onBehalf);
 
         // Allow for flash loan to be repaid
         ERC20(asset).checkApprove(address(MORPHO), assets);
+    }
+
+    function _borrow(
+        address vault,
+        address asset,
+        uint256 assetAmount,
+        address borrower
+    )
+        internal
+        override
+        returns (uint256 assetsBorrowed, uint256 borrowShares)
+    {
+        MarketParams memory m = marketParams(vault, asset);
+        (assetsBorrowed, borrowShares) = MORPHO.borrow(m, assetAmount, 0, borrower, address(this));
     }
 
     function _supplyCollateral(

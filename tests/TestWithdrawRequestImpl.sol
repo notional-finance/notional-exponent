@@ -10,7 +10,13 @@ import "../src/withdraws/Origin.sol";
 import "../src/withdraws/Dinero.sol";
 import "../src/withdraws/Midas.sol";
 import "../src/interfaces/IMidas.sol";
+import "../src/withdraws/Pareto.sol";
+import "../src/withdraws/InfiniFi.sol";
+import "../src/withdraws/Concrete.sol";
+import { USDC } from "../src/utils/Constants.sol";
 import { sDAI, DAI } from "../src/interfaces/IEthena.sol";
+import { IdleKeyring } from "../src/interfaces/IPareto.sol";
+import { IConcreteWhitelistHook } from "../src/interfaces/IConcrete.sol";
 
 address constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 address constant cbBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
@@ -215,17 +221,12 @@ contract TestDinero_apxETH_WithdrawRequest is TestWithdrawRequest {
 }
 
 abstract contract TestMidas_WithdrawRequest is TestWithdrawRequest {
-    ERC20 constant USDC = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address tokenIn;
     address tokenOut;
     IDepositVault depositVault;
     IRedemptionVault redemptionVault;
     address constant USDC_WHALE = 0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c;
     address constant GREENLISTED_ROLE_OPERATOR = 0x4f75307888fD06B16594cC93ED478625AD65EEea;
-
-    function setManager(address newManager) public {
-        manager = IWithdrawRequestManager(newManager);
-    }
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
         vm.record();
@@ -332,5 +333,384 @@ contract TestMidas_mHyperBTC_WBTC_WithdrawRequest is TestMidas_WithdrawRequest {
         tokenOut = address(cbBTC);
         depositVault = IDepositVault(0xeD22A9861C6eDd4f1292aeAb1E44661D5f3FE65e);
         redemptionVault = IRedemptionVault(0x16d4f955B0aA1b1570Fe3e9bB2f8c19C407cdb67);
+    }
+}
+
+contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
+    IdleKeyring public keyring;
+    IdleCDOEpochVariant public paretoVault;
+    IdleCDOEpochQueue public paretoQueue;
+
+    function setManager(address newManager) public override {
+        manager = IWithdrawRequestManager(newManager);
+        paretoVault = IdleCDOEpochVariant(ParetoWithdrawRequestManager(newManager).paretoVault());
+        paretoQueue = IdleCDOEpochQueue(ParetoWithdrawRequestManager(newManager).paretoQueue());
+        keyring = IdleKeyring(paretoVault.keyring());
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        (/* */, uint256 epoch) = ParetoWithdrawRequestManager(address(manager)).s_paretoWithdrawData(requestId);
+        uint256 virtualPrice = manager.getExchangeRate();
+
+        vm.record();
+        paretoQueue.epochPendingClaims(epoch);
+        (bytes32[] memory reads,) = vm.accesses(address(paretoQueue));
+        vm.store(address(paretoQueue), reads[2], 0);
+
+        vm.record();
+        paretoQueue.epochWithdrawPrice(epoch);
+        (reads,) = vm.accesses(address(paretoQueue));
+        vm.store(address(paretoQueue), reads[2], bytes32(uint256(virtualPrice)));
+
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(paretoQueue), 1_000_000e6);
+        vm.stopPrank();
+    }
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        paretoVault = IdleCDOEpochVariant(0x433D5B175148dA32Ffe1e1A37a939E1b7e79be4d);
+        paretoQueue = IdleCDOEpochQueue(0x5cC24f44cCAa80DD2c079156753fc1e908F495DC);
+        keyring = IdleKeyring(paretoVault.keyring());
+        manager = new ParetoWithdrawRequestManager(paretoVault, paretoQueue);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        // Used to process withdraw requests
+        USDC.transfer(address(paretoQueue), 200_000e6);
+        vm.stopPrank();
+    }
+
+    function postDeploySetup() internal override {
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+
+        address admin = keyring.admin();
+
+        vm.startPrank(admin);
+        keyring.setWhitelistStatus(address(manager), true);
+        keyring.setWhitelistStatus(staker1, true);
+        keyring.setWhitelistStatus(staker2, true);
+        keyring.setWhitelistStatus(address(this), true);
+        vm.stopPrank();
+    }
+}
+
+contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        uint32 unwindingEpochs = 1;
+        address liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+        manager = new InfiniFiWithdrawRequestManager(liUSD, unwindingEpochs);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+
+    function test_upgradeAdmin_CanUpgradeBeacon() public {
+        address newImpl = address(
+            new InfiniFiUnwindingHolder(address(manager), address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442), 1)
+        );
+        UpgradeableBeacon beacon = UpgradeableBeacon(InfiniFiWithdrawRequestManager(address(manager)).HOLDER_BEACON());
+        vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
+        beacon.upgradeTo(newImpl);
+        vm.stopPrank();
+        assertEq(beacon.implementation(), newImpl);
+    }
+}
+
+contract TestInfiniFi_liUSD1w_RedemptionQueue_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(redeemController), 200_000e6);
+        vm.stopPrank();
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        uint32 unwindingEpochs = 1;
+        address liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+        manager = new InfiniFiWithdrawRequestManager(liUSD, unwindingEpochs);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+
+        // Clear the beforeRedeemHook address to prevent the redeem controller from unwinding positions
+        // in various farms. This will test the case that iUSD enters the redemption queue.
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.record();
+        redeemController.beforeRedeemHook();
+        (bytes32[] memory reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(0));
+    }
+
+    function test_unwindToUSDC_manual() public approveVaultAndStakeTokens {
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+        yieldToken.approve(address(manager), initialYieldTokenBalance);
+
+        uint256 requestId = manager.initiateWithdraw(
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+
+        // This is true after the warping to the unwinding epoch.
+        assertTrue(holder.canFinalize());
+
+        vm.expectRevert("Redemption Queue");
+        manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+
+        holder.unwindToUSDC();
+        uint256 expectedUSDC = holder.expectedUSDC();
+        assertTrue(holder.s_isInRedemptionQueue());
+        assertGt(expectedUSDC, 0);
+
+        // This is no longer true since we are in the redemption queue.
+        assertFalse(holder.canFinalize());
+
+        // Transfer sufficient USDC to the redeem controller to finalize the redemption.
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(redeemController), expectedUSDC);
+        vm.stopPrank();
+
+        vm.record();
+        redeemController.userPendingClaims(address(holder));
+        (bytes32[] memory reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(expectedUSDC));
+
+        vm.record();
+        uint256 totalPendingClaims = redeemController.totalPendingClaims();
+        (reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(type(uint256).max));
+
+        // With sufficient USDC in the redeem controller, the cooldown can be finalized.
+        assertTrue(holder.canFinalize());
+
+        expectedUSDC = holder.expectedUSDC();
+        uint256 tokensWithdrawn =
+            manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+        assertGt(tokensWithdrawn, 0);
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertApproxEqRel(tokensWithdrawn, expectedUSDC, 0.0001e18);
+    }
+
+    function test_clearRedemptionQueue_admin() public approveVaultAndStakeTokens {
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+        yieldToken.approve(address(manager), initialYieldTokenBalance);
+
+        uint256 requestId = manager.initiateWithdraw(
+            address(this), initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+
+        holder.unwindToUSDC();
+        uint256 expectedUSDC = holder.expectedUSDC();
+        assertTrue(holder.s_isInRedemptionQueue());
+        assertGt(expectedUSDC, 0);
+
+        // This is no longer true since we are in the redemption queue.
+        assertFalse(holder.canFinalize());
+
+        uint256 transferAmount = expectedUSDC * 90 / 100;
+        // Transfer 90% of the expected USDC to the redeem controller, this should still
+        // revert since the total pending claims is less than the expected USDC.
+        IRedeemController redeemController = IRedeemController(INFINIFI_GATEWAY.getAddress("redeemController"));
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(redeemController), transferAmount);
+        vm.stopPrank();
+
+        vm.record();
+        redeemController.userPendingClaims(address(holder));
+        (bytes32[] memory reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(transferAmount));
+
+        vm.record();
+        uint256 totalPendingClaims = redeemController.totalPendingClaims();
+        (reads,) = vm.accesses(address(redeemController));
+        vm.store(address(redeemController), reads[0], bytes32(type(uint256).max));
+
+        // All this fails since the total pending claims is less than the expected USDC.
+        assertFalse(holder.canFinalize());
+        vm.expectRevert("Redemption Queue");
+        manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+
+        // Only the admin can clear the redemption queue.
+        vm.expectRevert();
+        holder.clearRedemptionQueue();
+
+        vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
+        holder.clearRedemptionQueue();
+        vm.stopPrank();
+
+        // The cooldown can be finalized since the redemption queue has been cleared.
+        assertTrue(holder.canFinalize());
+        expectedUSDC = holder.expectedUSDC();
+        uint256 tokensWithdrawn =
+            manager.finalizeAndRedeemWithdrawRequest(address(this), initialYieldTokenBalance, sharesAmount);
+        assertGt(tokensWithdrawn, transferAmount);
+        assertEq(tokensWithdrawn, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        assertEq(expectedUSDC, tokensWithdrawn);
+    }
+}
+
+contract TestInfiniFi_siUSD_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        return;
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        address siUSD = address(0xDBDC1Ef57537E34680B898E1FEBD3D68c7389bCB);
+        manager = new InfiniFiWithdrawRequestManager(siUSD, 0);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+}
+
+abstract contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
+    address concreteVault;
+    address concreteWhitelistHook;
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        uint256 sharePrice = ConcreteWithdrawRequestManager(address(manager)).getExchangeRate();
+        (, uint256 epochNumber) = ConcreteWithdrawRequestManager(address(manager)).s_ConcreteWithdrawRequest(requestId);
+        IConcreteVault ConcreteVault = ConcreteWithdrawRequestManager(address(manager)).ConcreteVault();
+
+        vm.record();
+        ConcreteVault.getEpochPricePerShare(epochNumber);
+        (bytes32[] memory reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(uint256(sharePrice + 1)));
+
+        vm.record();
+        ConcreteVault.latestEpochID();
+        (reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(uint256(epochNumber + 1)));
+
+        vm.record();
+        ConcreteVault.pastEpochsUnclaimedAssets();
+        (reads,) = vm.accesses(address(ConcreteVault));
+        vm.store(address(ConcreteVault), reads[1], bytes32(type(uint256).max));
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        manager = new ConcreteWithdrawRequestManager(concreteVault);
+        allowedDepositTokens.push(ERC20(manager.STAKING_TOKEN()));
+
+        if (manager.STAKING_TOKEN() == address(USDC)) {
+            vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+            USDC.transfer(address(this), 200_000e6);
+            vm.stopPrank();
+        } else {
+            uint256 decimals = ERC20(manager.STAKING_TOKEN()).decimals();
+            deal(manager.STAKING_TOKEN(), address(this), 200_000 * (10 ** decimals));
+        }
+    }
+
+    function postDeploySetup() internal override {
+        if (concreteWhitelistHook == address(0)) return;
+
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+        // This is discovered by looking at the trace, you can't access this directly from
+        // the contract
+        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(concreteWhitelistHook);
+
+        address[] memory users = new address[](4);
+        users[0] = address(manager);
+        users[1] = staker1;
+        users[2] = staker2;
+        users[3] = address(this);
+
+        vm.startPrank(whitelistHook.owner());
+        whitelistHook.whitelistUsers(users);
+        vm.stopPrank();
+    }
+}
+
+contract TestConcrete_WithdrawRequest_Royco is TestConcrete_WithdrawRequest {
+    constructor() {
+        concreteVault = 0xcD9f5907F92818bC06c9Ad70217f089E190d2a32;
+        concreteWhitelistHook = 0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13;
+    }
+}
+
+contract TestConcrete_WithdrawRequest_ConcreteUSDT is TestConcrete_WithdrawRequest {
+    constructor() {
+        concreteVault = 0x0E609b710da5e0AA476224b6c0e5445cCc21251E;
+        concreteWhitelistHook = address(0);
     }
 }

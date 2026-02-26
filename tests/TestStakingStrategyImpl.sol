@@ -11,6 +11,11 @@ import "../src/withdraws/Midas.sol";
 import "../src/staking/MidasStakingStrategy.sol";
 import "../src/interfaces/ITradingModule.sol";
 import "../src/oracles/MidasOracle.sol";
+import "../src/interfaces/IPareto.sol";
+import "../src/staking/ParetoStakingStrategy.sol";
+import "../src/withdraws/InfiniFi.sol";
+import "../src/withdraws/Concrete.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
 
@@ -50,6 +55,7 @@ contract TestMockStakingStrategy_EtherFi is TestStakingStrategy {
 
         withdrawRequest = new TestEtherFiWithdrawRequest();
         canInspectTransientVariables = true;
+        canMintYieldTokens = true;
     }
 
     function postDeploySetup() internal override {
@@ -405,5 +411,151 @@ contract TestStakingStrategy_Midas_mHyperBTC_WBTC is TestStakingStrategy_Midas {
                 )
             })
         );
+    }
+}
+
+contract TestStakingStrategy_Pareto_FalconX is TestStakingStrategy {
+    IdleCDOEpochVariant public paretoVault;
+    IdleCDOEpochQueue public paretoQueue;
+
+    constructor() {
+        paretoVault = IdleCDOEpochVariant(0x433D5B175148dA32Ffe1e1A37a939E1b7e79be4d);
+        paretoQueue = IdleCDOEpochQueue(0x5cC24f44cCAa80DD2c079156753fc1e908F495DC);
+    }
+
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        manager = IWithdrawRequestManager(new ParetoWithdrawRequestManager(paretoVault, paretoQueue));
+        TestWithdrawRequest tw = new TestPareto_FalconX_WithdrawRequest();
+        withdrawRequest = tw;
+        setupWithdrawRequestManager(address(manager));
+        TestPareto_FalconX_WithdrawRequest(address(tw)).setManager(address(manager));
+        address trancheAA = paretoVault.AATranche();
+
+        y = new ParetoStakingStrategy(address(USDC), address(trancheAA), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        int256 latestPrice = int256(paretoVault.virtualPrice(address(trancheAA)));
+        o = new MockOracle(latestPrice * 1e18 / 1e6);
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        maxEntryValuationSlippage = 0.005e18;
+        // The known token prevents liquidation unless the interest accrues past the collateral value.
+        knownTokenPreventsLiquidation = true;
+        noInstantRedemption = true;
+    }
+
+    function postDeploySetup() internal virtual override {
+        IdleKeyring keyring = IdleKeyring(paretoVault.keyring());
+        address admin = keyring.admin();
+
+        vm.startPrank(admin);
+        keyring.setWhitelistStatus(address(manager), true);
+        keyring.setWhitelistStatus(msg.sender, true);
+        keyring.setWhitelistStatus(owner, true);
+        keyring.setWhitelistStatus(makeAddr("user1"), true);
+        keyring.setWhitelistStatus(makeAddr("user2"), true);
+        keyring.setWhitelistStatus(makeAddr("user3"), true);
+        keyring.setWhitelistStatus(makeAddr("staker"), true);
+        keyring.setWhitelistStatus(makeAddr("staker2"), true);
+        vm.stopPrank();
+    }
+
+    function test_accountingAsset() public view {
+        assertEq(y.accountingAsset(), address(asset));
+    }
+}
+
+contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+
+        manager = IWithdrawRequestManager(new InfiniFiWithdrawRequestManager(address(liUSD), 1));
+        withdrawRequest = new TestInfiniFi_liUSD1w_WithdrawRequest();
+        setupWithdrawRequestManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(liUSD), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
+        uint256 exchangeRate = lockingController.exchangeRate(1);
+        o = new MockOracle(int256(exchangeRate));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
+        knownTokenPreventsLiquidation = true;
+    }
+}
+
+contract TestStakingStrategy_InfiniFi_siUSD is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address siUSD = address(0xDBDC1Ef57537E34680B898E1FEBD3D68c7389bCB);
+
+        manager = IWithdrawRequestManager(new InfiniFiWithdrawRequestManager(address(siUSD), 0));
+        withdrawRequest = new TestInfiniFi_siUSD_WithdrawRequest();
+        setupWithdrawRequestManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(siUSD), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        uint256 exchangeRate = IERC4626(address(siUSD)).convertToAssets(1e18);
+        o = new MockOracle(int256(exchangeRate));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
+        knownTokenPreventsLiquidation = true;
+    }
+}
+
+contract TestStakingStrategy_Royco is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address roycoVault = address(0xcD9f5907F92818bC06c9Ad70217f089E190d2a32);
+
+        manager = IWithdrawRequestManager(new ConcreteWithdrawRequestManager(address(roycoVault)));
+        withdrawRequest = new TestConcrete_WithdrawRequest_Royco();
+        setupWithdrawRequestManager(address(manager));
+        withdrawRequest.setManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(roycoVault), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        o = new MockOracle(int256(IERC4626(address(roycoVault)).convertToAssets(1e6) * 1e18 / 1e6));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
+    }
+
+    function postDeploySetup() internal virtual override {
+        IConcreteWhitelistHook whitelistHook = IConcreteWhitelistHook(0x5c4952751CF5C9D4eA3ad84F3407C56Ba2342F13);
+
+        address[] memory users = new address[](8);
+        users[0] = address(manager);
+        users[1] = msg.sender;
+        users[2] = owner;
+        users[3] = makeAddr("user1");
+        users[4] = makeAddr("user2");
+        users[5] = makeAddr("user3");
+        users[6] = makeAddr("staker");
+        users[7] = makeAddr("staker2");
+
+        vm.startPrank(whitelistHook.owner());
+        whitelistHook.whitelistUsers(users);
+        vm.stopPrank();
     }
 }
