@@ -23,7 +23,7 @@ contract DeployPostFixUpgrades is Script, GnosisHelper {
         AddressRegistry addressRegistry = new AddressRegistry();
         console.log("AddressRegistry deployed at", address(addressRegistry));
 
-        MorphoLendingRouter morphoLendingRouter = new MorphoLendingRouter();
+        MorphoLendingRouter morphoLendingRouter = new MorphoLendingRouter(address(0));
         console.log("MorphoLendingRouter deployed at", address(morphoLendingRouter));
 
         EtherFiWithdrawRequestManager etherFiWithdrawRequestManager = new EtherFiWithdrawRequestManager();

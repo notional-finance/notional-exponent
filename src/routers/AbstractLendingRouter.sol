@@ -25,7 +25,15 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
     using SafeERC20 for ERC20;
     using TokenUtils for ERC20;
 
+    /// @notice This contract can swap a position from a non-Notional exponent
+    /// lending marketing into a Notional exponent lending market. This is used to
+    address public immutable positionSwapContract;
+
     mapping(address user => mapping(address operator => bool approved)) private s_isApproved;
+
+    constructor(address _positionSwapContract) {
+        positionSwapContract = _positionSwapContract;
+    }
 
     /**
      * Authorization Methods **
@@ -117,6 +125,9 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
 
         uint256 borrowShares;
         if (borrowAmount > 0) {
+            // Only the position swap contract can borrow assets from the lending market directly,
+            // the funds will be used to repay any flash loan.
+            require(msg.sender == positionSwapContract, "Only position swap contract can borrow");
             uint256 assetsBorrowed;
             // We have to borrow from inside this method after the collateral has been supplied
             (assetsBorrowed, borrowShares) = _borrow(vault, asset, borrowAmount, onBehalf);

@@ -52,6 +52,8 @@ contract MorphoLendingRouter is
     uint256 private constant VIRTUAL_ASSETS = 1;
     uint256 private constant VIRTUAL_SHARES = 1e6;
 
+    constructor(address _positionSwapContract) AbstractLendingRouter(_positionSwapContract) { }
+
     function name() external pure override returns (string memory) {
         return "Morpho";
     }
