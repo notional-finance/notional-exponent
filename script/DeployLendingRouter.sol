@@ -14,7 +14,7 @@ contract DeployMorphoLendingRouter is ProxyHelper, GnosisHelper {
 
     function run() public {
         vm.startBroadcast();
-        MorphoLendingRouter lendingRouter = new MorphoLendingRouter();
+        MorphoLendingRouter lendingRouter = new MorphoLendingRouter(address(0));
         vm.stopBroadcast();
 
         if (PROXY == address(0)) {

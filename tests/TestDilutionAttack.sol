@@ -31,7 +31,7 @@ abstract contract TestDilutionAttack is TestEnvironment {
     }
 
     function setupLendingRouter(uint256 lltv) internal override returns (ILendingRouter l) {
-        l = new MorphoLendingRouter();
+        l = new MorphoLendingRouter(address(0));
 
         vm.startPrank(owner);
         ADDRESS_REGISTRY.setLendingRouter(address(l));
