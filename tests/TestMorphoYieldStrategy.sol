@@ -30,7 +30,8 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     }
 
     function setupLendingRouter(uint256 lltv) internal override returns (ILendingRouter l) {
-        l = new MorphoLendingRouter();
+        address implementation = address(new MorphoLendingRouter(address(0)));
+        l = ILendingRouter(address(new TimelockUpgradeableProxy(payable(implementation), "")));
 
         vm.startPrank(owner);
         ADDRESS_REGISTRY.setLendingRouter(address(l));
@@ -819,6 +820,14 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.skip(!canMintYieldTokens);
 
         address user = msg.sender;
+        // Allow the user to enter a position with the yield token
+        address lr2 = address(new MorphoLendingRouter(address(user)));
+        vm.startPrank(owner);
+        TimelockUpgradeableProxy(payable(address(lendingRouter))).initiateUpgrade(lr2);
+        vm.warp(block.timestamp + 7 days);
+        TimelockUpgradeableProxy(payable(address(lendingRouter))).executeUpgrade(bytes(""));
+        vm.stopPrank();
+
         _enterPosition(user, defaultDeposit, defaultBorrow);
         uint256 sharesBefore = lendingRouter.balanceOfCollateral(user, address(y));
 
@@ -839,10 +848,36 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         checkTransientsCleared();
     }
 
+    function test_enterPositionWithYieldToken_RevertsIf_CalledByNonPositionSwapContract() public {
+        vm.skip(!canMintYieldTokens);
+
+        address user = msg.sender;
+
+        uint256 yieldTokenAmount = 1000e18;
+        deal(address(w), user, yieldTokenAmount);
+
+        vm.startPrank(user);
+        // NOTE: Need to approve the vault directly here.
+        ERC20(w).checkApprove(address(y), yieldTokenAmount);
+        vm.expectRevert("Only position swap contract can borrow");
+        lendingRouter.enterPositionWithYieldToken(user, address(y), yieldTokenAmount, 100e6);
+        vm.stopPrank();
+
+        checkTransientsCleared();
+    }
+
     function test_enterPositionWithYieldToken_RevertsIf_InsufficientCollateral() public {
         vm.skip(!canMintYieldTokens);
         address user = msg.sender;
         _enterPosition(user, defaultDeposit, defaultBorrow);
+
+        // Allow the user to enter a position with the yield token
+        address lr2 = address(new MorphoLendingRouter(address(user)));
+        vm.startPrank(owner);
+        TimelockUpgradeableProxy(payable(address(lendingRouter))).initiateUpgrade(lr2);
+        vm.warp(block.timestamp + 7 days);
+        TimelockUpgradeableProxy(payable(address(lendingRouter))).executeUpgrade(bytes(""));
+        vm.stopPrank();
 
         uint256 yieldTokenAmount = defaultDeposit;
         deal(address(w), user, yieldTokenAmount);
