@@ -3,7 +3,7 @@
 source .env
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <action> <contract-name|vault-address> [--broadcast]"
+    echo "Usage: $0 <action> <contract-name|vault-address> [--broadcast] [--testnet]"
     echo "  actions: WithdrawRequestManager, LendingRouter, Vault, PTVault, LPVault, CreateInitialPosition"
     echo "  --broadcast: broadcast the transaction"
     exit 1
@@ -12,6 +12,11 @@ fi
 # Check if --broadcast flag is passed
 if [[ "$*" == *"--broadcast"* ]]; then
     BROADCAST=true
+fi
+
+if [[ "$*" == *"--testnet"* ]]; then
+    RPC_URL=$TESTNET_RPC
+    TESTNET=true
 fi
 
 CONTRACT_NAME=$2
@@ -41,7 +46,11 @@ fi
 
 SCRIPT="script/$SCRIPT_NAME.sol:$CONTRACT_NAME"
 
-if [ "$BROADCAST" = true ]; then
+if [ "$TESTNET" = true ] && [ "$BROADCAST" = true ]; then
+    echo "Deploying to testnet: $RPC_URL"
+    forge script $SCRIPT --rpc-url $RPC_URL --chain-id 1 -vv \
+        --account $DEPLOYER --sender $SENDER --broadcast --slow
+elif [ "$BROADCAST" = true ]; then
     forge script $SCRIPT --rpc-url $RPC_URL --chain-id 1 -vv \
         --account $DEPLOYER --broadcast --slow --sender $SENDER \
         --verify --verifier etherscan
