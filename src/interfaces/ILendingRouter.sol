@@ -218,6 +218,17 @@ interface ILendingRouter {
     function convertBorrowSharesToAssets(address vault, uint256 shares) external returns (uint256 assets);
 
     /**
+     * @dev Claims a pending deposit request for a user for a given vault. Anyone can call this function
+     * to claim a pending deposit request for a user.
+     *
+     * @param onBehalf The address of the user to claim the pending deposit request on behalf of.
+     * @param vault The address of the vault.
+     *
+     * @return sharesMinted The amount of shares minted.
+     */
+    function claimPendingDeposit(address onBehalf, address vault) external returns (uint256 sharesMinted);
+
+    /**
      * @dev Initiates a withdraw request for a user for a given vault.
      *
      * @param onBehalf The address of the user to initiate the withdraw on behalf of.

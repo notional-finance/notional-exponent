@@ -286,6 +286,25 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
     }
 
     /// @inheritdoc ILendingRouter
+    function claimPendingDeposit(
+        address onBehalf,
+        address vault,
+        bytes memory depositData
+    )
+        external
+        override
+        nonReentrant
+    {
+        uint256 sharesMinted = IYieldStrategy(vault).claimPendingDepositRequest(onBehalf);
+        address asset = IYieldStrategy(vault).asset();
+
+        _supplyCollateral(onBehalf, vault, asset, sharesMinted);
+
+        // Clear the current account after the transaction is finished
+        IYieldStrategy(vault).clearCurrentAccount();
+    }
+
+    /// @inheritdoc ILendingRouter
     function initiateWithdraw(
         address onBehalf,
         address vault,
