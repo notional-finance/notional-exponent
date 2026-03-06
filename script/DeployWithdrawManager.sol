@@ -15,11 +15,16 @@ import { OriginWithdrawRequestManager, oETH } from "../src/withdraws/Origin.sol"
 import { WETH } from "../src/utils/Constants.sol";
 import { MidasWithdrawRequestManager } from "../src/withdraws/Midas.sol";
 import { IDepositVault, IRedemptionVault } from "../src/interfaces/IMidas.sol";
+import { InfiniFiWithdrawRequestManager } from "../src/withdraws/InfiniFi.sol";
 
 address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
 abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
     address payable public PROXY;
+
+    function initializeData() internal virtual returns (bytes memory) {
+        return bytes("");
+    }
 
     function name() internal pure virtual returns (string memory);
 
@@ -35,7 +40,7 @@ abstract contract DeployWithdrawManager is ProxyHelper, GnosisHelper {
         vm.stopBroadcast();
 
         if (PROXY == address(0)) {
-            address proxy = deployProxy(impl, bytes(""));
+            address proxy = deployProxy(impl, initializeData());
             console.log(name(), "proxy at", address(proxy));
 
             MethodCall[] memory calls = new MethodCall[](1);
@@ -170,5 +175,21 @@ contract DeployMidas_mAPOLLO_WithdrawManager is DeployWithdrawManager {
                 IRedemptionVault(0x5aeA6D35ED7B3B7aE78694B7da2Ee880756Af5C0)
             )
         );
+    }
+}
+
+contract DeployInfiniFi_liUSD1w_WithdrawManager is DeployWithdrawManager {
+    address constant liUSD1w = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+
+    constructor() {
+        PROXY = payable(0);
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "liUSD1wWithdrawManager";
+    }
+
+    function deployWithdrawManager() internal override returns (address impl) {
+        impl = address(new InfiniFiWithdrawRequestManager(address(liUSD1w), 1));
     }
 }
