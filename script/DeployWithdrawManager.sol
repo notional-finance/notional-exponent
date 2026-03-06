@@ -182,7 +182,7 @@ contract DeployInfiniFi_liUSD1w_WithdrawManager is DeployWithdrawManager {
     address constant liUSD1w = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
 
     constructor() {
-        PROXY = payable(0);
+        PROXY = payable(0x46C423e27E88c002C3643E332d8F62b7513A9898);
     }
 
     function name() internal pure override returns (string memory) {
