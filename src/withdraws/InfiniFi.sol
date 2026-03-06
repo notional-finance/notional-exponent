@@ -212,7 +212,9 @@ contract InfiniFiWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
     {
         address initialImpl = address(new InfiniFiUnwindingHolder(address(this), liUSD, UNWINDING_EPOCHS));
-        HOLDER_BEACON = address(new UpgradeableBeacon(initialImpl, ADDRESS_REGISTRY.upgradeAdmin()));
+        // This is a 7 day timelock controller
+        address timelockController = address(0xAD20780E69257C62d107bBd43a1DB628A075416B);
+        HOLDER_BEACON = address(new UpgradeableBeacon(initialImpl, timelockController));
     }
 
     function _stakeTokens(

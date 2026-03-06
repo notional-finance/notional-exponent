@@ -32,6 +32,9 @@ elif [ "$1" = "PTVault" ]; then
     SCRIPT_NAME="DeployPTVault"
 elif [ "$1" = "LPVault" ]; then
     SCRIPT_NAME="DeployLPVault"
+elif [ "$1" = "TimelockController" ]; then
+    SCRIPT_NAME="DeployTimelockController"
+    CONTRACT_NAME="DeployTimelockController"
 elif [ "$1" = "CreateInitialPosition" ]; then
     SCRIPT_NAME="CreateInitialPosition"
     # The vault address is passed as an argument to the script
