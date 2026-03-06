@@ -24,6 +24,7 @@ contract ConcreteWithdrawRequestManager is AbstractWithdrawRequestManager {
         bool hasClaimed;
     }
 
+    uint256 private currentRequestId;
     mapping(uint256 requestId => ConcreteWithdrawRequest request) public s_ConcreteWithdrawRequest;
     mapping(uint256 epochID => EpochClaimData epochClaimData) public s_epochClaimData;
 
@@ -56,7 +57,7 @@ contract ConcreteWithdrawRequestManager is AbstractWithdrawRequestManager {
         override
         returns (uint256 requestId)
     {
-        requestId = uint256(uint160(account));
+        requestId = ++currentRequestId;
 
         ERC20(YIELD_TOKEN).checkApprove(address(ConcreteVault), amountToWithdraw);
         // If the queue is active, then this is how much we expect to redeem. This

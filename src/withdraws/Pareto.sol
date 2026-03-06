@@ -27,6 +27,7 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         bool hasClaimed;
     }
 
+    uint256 private currentRequestId;
     mapping(uint256 requestId => ParetoWithdrawRequest p) public s_paretoWithdrawData;
     mapping(uint256 epoch => EpochClaimData epochClaimData) public s_epochClaimData;
 
@@ -81,9 +82,7 @@ contract ParetoWithdrawRequestManager is AbstractWithdrawRequestManager {
         ERC20(YIELD_TOKEN).checkApprove(address(paretoQueue), amountToWithdraw);
         paretoQueue.requestWithdraw(amountToWithdraw);
 
-        // An account can only have one withdraw request at a time, so we use it as the request id. Even if it
-        // is tokenized this should be okay.
-        requestId = uint256(uint160(account));
+        requestId = ++currentRequestId;
         uint128 withdrawAmount = amountToWithdraw.toUint128();
         s_paretoWithdrawData[requestId] =
             ParetoWithdrawRequest({ withdrawAmount: withdrawAmount, epochNumber: nextEpoch.toUint128() });
