@@ -26,11 +26,11 @@ export function getOracleRegistry(): OracleRegistry {
 
 export function updateChainlinkOracle(oracle: Oracle, block: ethereum.Block): void {
   let aggregator = Aggregator.bind(Address.fromBytes(oracle.oracleAddress));
-  let latestRate = aggregator.try_latestAnswer();
+  let latestRate = aggregator.try_latestRoundData();
   if (!latestRate.reverted) {
     let rate = oracle.mustInvert
-      ? oracle.ratePrecision.times(oracle.ratePrecision).div(latestRate.value)
-      : latestRate.value;
+      ? oracle.ratePrecision.times(oracle.ratePrecision).div(latestRate.value.getAnswer())
+      : latestRate.value.getAnswer();
 
     updateExchangeRate(oracle, rate, block);
   }
