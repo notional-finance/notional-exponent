@@ -16,7 +16,7 @@ import {
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TokenUtils } from "../utils/TokenUtils.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IYieldStrategy } from "../interfaces/IYieldStrategy.sol";
+import { IYieldStrategy, IAsyncYieldStrategy } from "../interfaces/IYieldStrategy.sol";
 import { RewardManagerMixin } from "../rewards/RewardManagerMixin.sol";
 import { ADDRESS_REGISTRY, COOLDOWN_PERIOD } from "../utils/Constants.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
@@ -294,8 +294,9 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         external
         override
         nonReentrant
+        returns (uint256 sharesMinted)
     {
-        uint256 sharesMinted = IYieldStrategy(vault).claimPendingDepositRequest(onBehalf);
+        sharesMinted = IAsyncYieldStrategy(vault).claimPendingDepositRequest(onBehalf, depositData);
         address asset = IYieldStrategy(vault).asset();
 
         _supplyCollateral(onBehalf, vault, asset, sharesMinted);

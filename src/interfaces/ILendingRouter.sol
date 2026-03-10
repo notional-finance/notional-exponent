@@ -226,7 +226,13 @@ interface ILendingRouter {
      *
      * @return sharesMinted The amount of shares minted.
      */
-    function claimPendingDeposit(address onBehalf, address vault) external returns (uint256 sharesMinted);
+    function claimPendingDeposit(
+        address onBehalf,
+        address vault,
+        bytes memory depositData
+    )
+        external
+        returns (uint256 sharesMinted);
 
     /**
      * @dev Initiates a withdraw request for a user for a given vault.

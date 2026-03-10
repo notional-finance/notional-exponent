@@ -2,7 +2,6 @@
 pragma solidity >=0.8.29;
 
 import { AbstractWithdrawRequestManager } from "./AbstractWithdrawRequestManager.sol";
-import { CrossChainYieldToken } from "../CrossChainYieldToken.sol";
 
 contract CrossChainWithdrawRequestManager is AbstractWithdrawRequestManager {
     uint256 public s_currentRequestId;

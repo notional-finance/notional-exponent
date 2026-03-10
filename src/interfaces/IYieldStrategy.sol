@@ -251,3 +251,19 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
      */
     function clearCurrentAccount() external;
 }
+
+interface IAsyncYieldStrategy {
+    /**
+     * @notice Claims a pending deposit request for a given number of shares.
+     *
+     * @param account The address of the account to claim the pending deposit request for.
+     */
+    function claimPendingDepositRequest(
+        address account,
+        bytes memory depositData
+    )
+        external
+        returns (uint256 sharesMinted);
+
+    function pendingDepositRequest(address controller) external view returns (uint256 pendingAssets);
+}
