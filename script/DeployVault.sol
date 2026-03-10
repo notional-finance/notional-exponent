@@ -31,7 +31,6 @@ import { MidasStakingStrategy } from "../src/staking/MidasStakingStrategy.sol";
 import { IMidasVault, MidasOracle } from "../src/oracles/MidasOracle.sol";
 import { TIMELOCK_CONTROLLER } from "../src/utils/Constants.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
-import { InfiniFiOracle } from "../src/oracles/InfiniFiOracle.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
@@ -213,7 +212,8 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         if (oracle != address(0)) {
             console.log("Custom oracle: ", AggregatorV2V3Interface(oracle).description(), " deployed at", oracle);
             console.log("Custom oracle token: ", oracleToken);
-            console.log("Custom oracle price: ", AggregatorV2V3Interface(oracle).latestAnswer());
+            (, int256 answer,,,) = AggregatorV2V3Interface(oracle).latestRoundData();
+            console.log("Custom oracle price: ", uint256(answer));
 
             timelockCalls[timelockCallIndex++] = getTimelockCall(
                 address(TRADING_MODULE),
@@ -580,9 +580,7 @@ contract liUSD1w is DeployVault {
     }
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
-        vm.startBroadcast();
-        oracle = address(new InfiniFiOracle("liUSD1w Oracle", 1));
-        vm.stopBroadcast();
+        oracle = address(0x9B5ae92EBa3C383Be073e3ff94613B2C33851282);
         oracleToken = liUSD;
         return (oracle, oracleToken);
     }
