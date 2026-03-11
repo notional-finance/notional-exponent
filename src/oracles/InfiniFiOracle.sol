@@ -32,8 +32,7 @@ contract InfiniFiOracle is AbstractCustomOracle {
         override
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
-        int256 liUSDRate = lockingController.exchangeRate(UNWINDING_EPOCHS).toInt();
+        (, int256 liUSDRate,,,) = AggregatorV2V3Interface(0x9B5ae92EBa3C383Be073e3ff94613B2C33851282).latestRoundData();
 
         (AggregatorV2V3Interface baseToUSDOracle, uint8 baseToUSDDecimals) = TRADING_MODULE.priceOracles(baseToken);
         int256 baseToUSD;
