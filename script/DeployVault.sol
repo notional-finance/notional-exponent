@@ -31,6 +31,7 @@ import { MidasStakingStrategy } from "../src/staking/MidasStakingStrategy.sol";
 import { IMidasVault, MidasOracle } from "../src/oracles/MidasOracle.sol";
 import { TIMELOCK_CONTROLLER } from "../src/utils/Constants.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { InfiniFiOracle } from "../src/oracles/InfiniFiOracle.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
@@ -580,7 +581,9 @@ contract liUSD1w is DeployVault {
     }
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
-        oracle = address(0x9B5ae92EBa3C383Be073e3ff94613B2C33851282);
+        vm.startBroadcast();
+        oracle = address(new InfiniFiOracle("liUSD1w Oracle", 1, USDC));
+        vm.stopBroadcast();
         oracleToken = liUSD;
         return (oracle, oracleToken);
     }
