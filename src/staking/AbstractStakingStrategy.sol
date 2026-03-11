@@ -52,7 +52,7 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
     }
 
     /// @notice Returns the total value in terms of the borrowed token of the account's position
-    function convertToAssets(uint256 shares) public view override returns (uint256) {
+    function convertToAssets(uint256 shares) public view virtual override returns (uint256) {
         if (t_CurrentAccount != address(0) && _isWithdrawRequestPending(t_CurrentAccount)) {
             (bool hasRequest, uint256 value) =
                 withdrawRequestManager.getWithdrawRequestValue(address(this), t_CurrentAccount, asset, shares);

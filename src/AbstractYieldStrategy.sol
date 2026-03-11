@@ -169,7 +169,7 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
     }
 
     /// @inheritdoc IYieldStrategy
-    function effectiveSupply() public view returns (uint256) {
+    function effectiveSupply() public view virtual returns (uint256) {
         return (totalSupply() - s_escrowedShares + VIRTUAL_SHARES);
     }
 
