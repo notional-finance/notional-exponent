@@ -9,7 +9,7 @@ import { IAsyncYieldStrategy } from "../interfaces/IYieldStrategy.sol";
 
 /// @notice A wrapper for yield tokens that are only mintable on an async basis. This includes
 /// yield tokens that exist on a different chain or yield tokens that are minted on a t+1 basis.
-abstract contract AsyncAbstractYieldStrategy is AbstractStakingStrategy, IAsyncYieldStrategy {
+abstract contract AsyncAbstractStakingStrategy is AbstractStakingStrategy, IAsyncYieldStrategy {
     using TokenUtils for ERC20;
     uint256[40] private __gap;
 
@@ -110,7 +110,6 @@ abstract contract AsyncAbstractYieldStrategy is AbstractStakingStrategy, IAsyncY
         _checkInvariant();
     }
 
-    // TODO: in here actually request the deposit on the external protocol
     function _requestDeposit(
         uint256 assets,
         address receiver,
@@ -119,13 +118,4 @@ abstract contract AsyncAbstractYieldStrategy is AbstractStakingStrategy, IAsyncY
         internal
         virtual
         returns (uint256 pendingAssets);
-    // {
-    //     ERC20(asset).checkApprove(address(yieldToken), assets);
-    //     // uint256 requestId = yieldToken.requestDeposit(assets, address(this), depositData);
-    //     // pendingAssets = yieldToken.pendingDepositRequest(requestId, address(this));
-    // }
-
-    // TODO: in here actually mint the yield tokens on the external protocol
-    // yieldToken.deposit(assets, address(this));
-    // function _mintYieldTokens(uint256 assets, address receiver, bytes memory depositData) internal virtual;
 }
