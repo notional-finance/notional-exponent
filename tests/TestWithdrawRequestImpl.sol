@@ -455,6 +455,36 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     }
 }
 
+contract TestInfiniFi_liUSD4w_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_600_676;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        uint32 unwindingEpochs = 4;
+        address liUSD = address(0x66bCF6151D5558AfB47c38B20663589843156078);
+        manager = new InfiniFiWithdrawRequestManager(liUSD, unwindingEpochs);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
+    }
+}
+
 contract TestInfiniFi_liUSD1w_RedemptionQueue_WithdrawRequest is TestWithdrawRequest {
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_414_984;
