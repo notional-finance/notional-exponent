@@ -193,3 +193,19 @@ contract DeployInfiniFi_liUSD1w_WithdrawManager is DeployWithdrawManager {
         impl = address(new InfiniFiWithdrawRequestManager(address(liUSD1w), 1));
     }
 }
+
+contract DeployInfiniFi_liUSD4w_WithdrawManager is DeployWithdrawManager {
+    address constant liUSD4w = address(0x66bCF6151D5558AfB47c38B20663589843156078);
+
+    constructor() {
+        PROXY = payable(0);
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "liUSD4wWithdrawManager";
+    }
+
+    function deployWithdrawManager() internal override returns (address impl) {
+        impl = address(new InfiniFiWithdrawRequestManager(address(liUSD4w), 4));
+    }
+}

@@ -628,3 +628,73 @@ contract liUSD1w is DeployVault {
         return bytes("");
     }
 }
+
+contract liUSD4w is DeployVault {
+    address constant liUSD = address(0x66bCF6151D5558AfB47c38B20663589843156078);
+
+    constructor() {
+        depositAmount = 20_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 80_000e6;
+        skipExit = false;
+        proxy = address(0);
+        MORPHO_LLTV = 0.86e18;
+        feeRate = 0.0025e18;
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "Notional Staking liUSD4w";
+    }
+
+    function symbol() internal pure override returns (string memory) {
+        return "n-st-liUSD4w";
+    }
+
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        vm.startBroadcast();
+        oracle = address(new InfiniFiOracle("liUSD4w Oracle", 4, USDC));
+        vm.stopBroadcast();
+        oracleToken = liUSD;
+        return (oracle, oracleToken);
+    }
+
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(liUSD));
+        return m;
+    }
+
+    function deployVault() public override returns (address impl) {
+        vm.startBroadcast();
+        impl = address(new StakingStrategy(address(USDC), address(liUSD), feeRate));
+        vm.stopBroadcast();
+    }
+
+    function tradePermissions() internal view override returns (bytes[] memory t) {
+        return new bytes[](0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return bytes("");
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return bytes("");
+    }
+}
