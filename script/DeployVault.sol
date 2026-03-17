@@ -639,7 +639,8 @@ contract liUSD4w is DeployVault {
         skipExit = false;
         proxy = address(0);
         MORPHO_LLTV = 0.86e18;
-        feeRate = 0.0025e18;
+        feeRate = 0.001e18;
+        skipExit = true;
     }
 
     function name() internal pure override returns (string memory) {
@@ -651,9 +652,7 @@ contract liUSD4w is DeployVault {
     }
 
     function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
-        vm.startBroadcast();
-        oracle = address(new InfiniFiOracle("liUSD4w Oracle", 4, USDC));
-        vm.stopBroadcast();
+        oracle = address(0xb3B111FFDdEf82d0D519D1732D157C82c2E14761);
         oracleToken = liUSD;
         return (oracle, oracleToken);
     }
