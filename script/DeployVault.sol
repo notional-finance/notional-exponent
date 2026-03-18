@@ -637,7 +637,7 @@ contract liUSD4w is DeployVault {
         supplyAmount = 100_000e6;
         borrowAmount = 80_000e6;
         skipExit = false;
-        proxy = address(0);
+        proxy = address(0x9FB57943926749B49a644F237A28b491c9b465E0);
         MORPHO_LLTV = 0.86e18;
         feeRate = 0.001e18;
         skipExit = true;
