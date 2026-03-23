@@ -101,3 +101,27 @@ interface ICurveStableSwapNG is ICurvePoolV1 {
     function remove_liquidity(uint256 amount, uint256[] calldata _min_amounts) external returns (uint256[] memory);
     function totalSupply() external view returns (uint256);
 }
+
+interface ICurveRouterV2 {
+    function exchange(
+        address _pool,
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint256 _expected,
+        address _receiver
+    )
+        external
+        returns (uint256);
+
+    function exchange_multiple(
+        address[9] calldata _route,
+        uint256[3][4] calldata _swap_params,
+        uint256 _amount,
+        uint256 _expected,
+        address[4] calldata _pools,
+        address _receiver
+    )
+        external
+        returns (uint256);
+}
