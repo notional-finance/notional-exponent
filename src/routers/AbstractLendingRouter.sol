@@ -11,7 +11,8 @@ import {
     LiquidatorHasPosition,
     CannotEnterPosition,
     CannotLiquidateZeroShares,
-    InsufficientSharesHeld
+    InsufficientSharesHeld,
+    CannotCancelWithdraw
 } from "../interfaces/Errors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TokenUtils } from "../utils/TokenUtils.sol";
@@ -321,6 +322,29 @@ abstract contract AbstractLendingRouter is ILendingRouter, ReentrancyGuardTransi
         IYieldStrategy(vault).clearCurrentAccount();
 
         emit ForceWithdraw(account, vault, requestId);
+    }
+
+    function cancelWithdraw(
+        address onBehalf,
+        address vault,
+        bytes calldata data
+    )
+        external
+        override
+        isAuthorized(onBehalf, vault)
+        nonReentrant
+        returns (uint256 sharesMinted)
+    {
+        address asset = IYieldStrategy(vault).asset();
+        sharesMinted = IYieldStrategy(vault).cancelWithdraw(onBehalf, balanceOfCollateral(onBehalf, vault), data);
+
+        if (sharesMinted > 0) _supplyCollateral(onBehalf, vault, asset, sharesMinted);
+
+        // Can only cancel a withdraw if health factor is after the cancellation is processed.
+        (uint256 borrowed,/* */, uint256 maxBorrow) = healthFactor(onBehalf, vault);
+        if (maxBorrow <= borrowed) revert CannotCancelWithdraw(onBehalf);
+
+        emit CancelWithdraw(onBehalf, vault, sharesMinted);
     }
 
     /// @inheritdoc ILendingRouter

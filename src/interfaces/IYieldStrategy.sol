@@ -247,6 +247,21 @@ interface IYieldStrategy is IERC20, IERC20Metadata, IOracle {
     function initiateWithdrawNative(bytes calldata data) external returns (uint256 requestId);
 
     /**
+     * @notice Cancels a withdraw for a given number of shares.
+     *
+     * @param account The address of the account to cancel the withdraw for.
+     * @param sharesHeld The number of shares the account holds.
+     * @param data calldata used to cancel the withdraw.
+     */
+    function cancelWithdraw(
+        address account,
+        uint256 sharesHeld,
+        bytes memory data
+    )
+        external
+        returns (uint256 sharesMinted);
+
+    /**
      * @notice Clears the current account.
      */
     function clearCurrentAccount() external;

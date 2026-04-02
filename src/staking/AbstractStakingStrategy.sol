@@ -194,4 +194,15 @@ abstract contract AbstractStakingStrategy is AbstractYieldStrategy {
                 withdrawRequestManager.tokenizeWithdrawRequest(liquidateAccount, liquidator, sharesToLiquidator);
         }
     }
+
+    function _cancelWithdrawRequest(
+        address account,
+        bytes memory data
+    )
+        internal
+        override
+        returns (uint256 yieldTokensRefunded)
+    {
+        yieldTokensRefunded = withdrawRequestManager.cancelWithdrawRequest(account, data);
+    }
 }

@@ -12,6 +12,7 @@ interface IConcreteVault is IERC4626 {
     function claimWithdrawal(uint256[] memory epochIDs) external;
     function claimWithdrawal(address asset, address user, uint256[] calldata epochIDs, uint8 decimals) external;
     function pastEpochsUnclaimedAssets() external view returns (uint256);
+    function cancelRequest(uint256 epochNumber) external;
 }
 
 interface IConcreteWhitelistHook {

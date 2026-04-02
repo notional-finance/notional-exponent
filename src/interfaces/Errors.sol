@@ -9,6 +9,7 @@ error InsufficientAssetsForRepayment(uint256 assetsToRepay, uint256 assetsWithdr
 error CannotLiquidate(uint256 maxLiquidateShares, uint256 seizedAssets);
 error CannotLiquidateZeroShares();
 error Paused();
+error CannotCancelWithdraw(address account);
 error CannotExitPositionWithinCooldownPeriod();
 error CannotTokenizeWithdrawRequest();
 error CurrentAccountAlreadySet();
