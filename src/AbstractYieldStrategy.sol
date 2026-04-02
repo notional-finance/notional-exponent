@@ -419,7 +419,6 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         returns (uint256 sharesMinted)
     {
         sharesMinted = _cancelWithdraw(account, sharesHeld, data);
-        _checkInvariant();
     }
 
     function _withdraw(
