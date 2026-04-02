@@ -18,4 +18,5 @@ interface IConcreteVault is IERC4626 {
 interface IConcreteWhitelistHook {
     function owner() external view returns (address);
     function whitelistUsers(address[] memory users) external;
+    function isWhitelisted(address account) external view returns (bool);
 }
