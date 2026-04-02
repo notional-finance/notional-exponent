@@ -28,6 +28,7 @@ enum LineItemType {
   WithdrawRequest
   WithdrawRequestFinalized
   TradeExecution
+  EnterPositionWithYieldToken
 }
 
 type Token @entity(immutable: false) {

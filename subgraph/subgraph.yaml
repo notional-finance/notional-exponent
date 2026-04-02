@@ -3,9 +3,9 @@ indexerHints:
   prune: auto
 features:
   - grafting
-graft:
-  base: QmeBG3Cupf9gU3nNLhXjWvYng4ipTzqQ49pZGw7yQkjP5i
-  block: 24294920
+# graft:
+#   base: Qmf4JyvAWdZAWJT5aoqY48N5BXwKrHbTqpqN3r8kY1fZR9
+#   block: 24791865
 schema:
   file: ./schema.graphql
 dataSources:
@@ -138,6 +138,9 @@ templates:
           receipt: true
         - event: LiquidatePosition(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleLiquidatePosition
+          receipt: true
+        - event: EnterPositionWithYieldToken(indexed address,indexed address,uint256,uint256,uint256)
+          handler: handleEnterPositionWithYieldToken
           receipt: true
   - name: WithdrawRequestManager
     kind: ethereum/contract

@@ -210,7 +210,6 @@ contract MorphoLendingRouter is
         t_vaultSharesReceived =
             _enterOrMigrate(onBehalf, vault, asset, assets + depositAssetAmount, depositData, migrateFrom);
 
-        MarketParams memory m = marketParams(vault, asset);
         // Borrow the assets in order to repay the flash loan
         (/* */, t_borrowShares) = _borrow(vault, asset, assets, onBehalf);
 

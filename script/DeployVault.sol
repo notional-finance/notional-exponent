@@ -31,6 +31,7 @@ import { MidasStakingStrategy } from "../src/staking/MidasStakingStrategy.sol";
 import { IMidasVault, MidasOracle } from "../src/oracles/MidasOracle.sol";
 import { TIMELOCK_CONTROLLER } from "../src/utils/Constants.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { InfiniFiOracle } from "../src/oracles/InfiniFiOracle.sol";
 
 address constant MORPHO_IRM = address(0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC);
 MorphoLendingRouter constant MORPHO_LENDING_ROUTER = MorphoLendingRouter(0x9a0c630C310030C4602d1A76583a3b16972ecAa0);
@@ -212,7 +213,8 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
         if (oracle != address(0)) {
             console.log("Custom oracle: ", AggregatorV2V3Interface(oracle).description(), " deployed at", oracle);
             console.log("Custom oracle token: ", oracleToken);
-            console.log("Custom oracle price: ", AggregatorV2V3Interface(oracle).latestAnswer());
+            (, int256 answer,,,) = AggregatorV2V3Interface(oracle).latestRoundData();
+            console.log("Custom oracle price: ", uint256(answer));
 
             timelockCalls[timelockCallIndex++] = getTimelockCall(
                 address(TRADING_MODULE),
@@ -554,5 +556,144 @@ contract mHYPERStaking_77LTV is mHYPERStaking {
         oracle = address(0);
         oracleToken = mHYPER;
         return (oracle, oracleToken);
+    }
+}
+
+contract liUSD1w is DeployVault {
+    address constant liUSD = address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442);
+
+    constructor() {
+        depositAmount = 20_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 80_000e6;
+        skipExit = false;
+        proxy = address(0x0409d36ba4BAd176Ed62a97Faf05253b6B206a3E);
+        MORPHO_LLTV = 0.86e18;
+        feeRate = 0.0025e18;
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "Notional Staking liUSD1w";
+    }
+
+    function symbol() internal pure override returns (string memory) {
+        return "n-st-liUSD1w";
+    }
+
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        vm.startBroadcast();
+        oracle = address(new InfiniFiOracle("liUSD1w Oracle", 1, USDC));
+        vm.stopBroadcast();
+        oracleToken = liUSD;
+        return (oracle, oracleToken);
+    }
+
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(liUSD));
+        return m;
+    }
+
+    function deployVault() public override returns (address impl) {
+        vm.startBroadcast();
+        impl = address(new StakingStrategy(address(USDC), address(liUSD), feeRate));
+        vm.stopBroadcast();
+    }
+
+    function tradePermissions() internal view override returns (bytes[] memory t) {
+        return new bytes[](0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return bytes("");
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return bytes("");
+    }
+}
+
+contract liUSD4w is DeployVault {
+    address constant liUSD = address(0x66bCF6151D5558AfB47c38B20663589843156078);
+
+    constructor() {
+        depositAmount = 20_000e6;
+        supplyAmount = 100_000e6;
+        borrowAmount = 80_000e6;
+        skipExit = false;
+        proxy = address(0x9FB57943926749B49a644F237A28b491c9b465E0);
+        MORPHO_LLTV = 0.86e18;
+        feeRate = 0.001e18;
+        skipExit = true;
+    }
+
+    function name() internal pure override returns (string memory) {
+        return "Notional Staking liUSD4w";
+    }
+
+    function symbol() internal pure override returns (string memory) {
+        return "n-st-liUSD4w";
+    }
+
+    function deployCustomOracle() internal override returns (address oracle, address oracleToken) {
+        oracle = address(0xb3B111FFDdEf82d0D519D1732D157C82c2E14761);
+        oracleToken = liUSD;
+        return (oracle, oracleToken);
+    }
+
+    function managers() internal view override returns (IWithdrawRequestManager[] memory m) {
+        m = new IWithdrawRequestManager[](1);
+        m[0] = ADDRESS_REGISTRY.getWithdrawRequestManager(address(liUSD));
+        return m;
+    }
+
+    function deployVault() public override returns (address impl) {
+        vm.startBroadcast();
+        impl = address(new StakingStrategy(address(USDC), address(liUSD), feeRate));
+        vm.stopBroadcast();
+    }
+
+    function tradePermissions() internal view override returns (bytes[] memory t) {
+        return new bytes[](0);
+    }
+
+    function getRedeemData(
+        address, /* user */
+        uint256 /* shares */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory redeemData)
+    {
+        return bytes("");
+    }
+
+    function getDepositData(
+        address, /* user */
+        uint256 /* assets */
+    )
+        internal
+        pure
+        override
+        returns (bytes memory depositData)
+    {
+        return bytes("");
     }
 }

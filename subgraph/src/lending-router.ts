@@ -1,6 +1,7 @@
-import { Address, BigInt, ByteArray, Bytes, crypto, ethereum } from "@graphprotocol/graph-ts";
+import { Address, BigInt, ByteArray, Bytes, crypto, ethereum, log } from "@graphprotocol/graph-ts";
 import {
   EnterPosition,
+  EnterPositionWithYieldToken,
   ExitPosition,
   ILendingRouter,
   LiquidatePosition,
@@ -32,8 +33,13 @@ function getBorrowSharePrice(
 
 export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
   // Convert the price to 18 decimals precision
-  let pow: u8 = ((18 - underlyingToken.decimals) as u8) + 12;
-  return price.div(BigInt.fromI32(10).pow(pow));
+  // 36 is the oracle precision, 24 is the vault share precision, 18 is the target precision
+  // 6 = 36 - 24 - 18
+  let powDiff: u8 = (underlyingToken.decimals as u8) - 6;
+
+  if (powDiff == 0) return price;
+  else if (powDiff > 0) return price.div(BigInt.fromI32(10).pow(powDiff));
+  else return price.times(BigInt.fromI32(10).pow(-powDiff));
 }
 
 export function handleEnterPosition(event: EnterPosition): void {
@@ -77,6 +83,40 @@ export function handleEnterPosition(event: EnterPosition): void {
     underlyingAmountRealized,
     oraclePrice,
     event.params.wasMigrated ? "MigratePosition" : "EnterPosition",
+    event.address,
+    event,
+  );
+
+  parseVaultEvents(account, event.params.vault, event);
+
+  // Get any initial market params for the lending router / vault (market) combination.
+  // Since the subgraph has to stay generic, we need to do this on the first entry.
+  getMarketParams(event.address, event.params.vault, event);
+}
+
+export function handleEnterPositionWithYieldToken(event: EnterPositionWithYieldToken): void {
+  let v = IYieldStrategy.bind(event.params.vault);
+  let underlyingToken = getToken(v.asset().toHexString());
+  let account = loadAccount(event.params.user.toHexString(), event);
+
+  let vaultShare = getToken(event.params.vault.toHexString());
+  // This comes in as 1e36 so divide it by 1e18 to get the price in the correct precision
+  let oraclePrice = convertPrice(v.price1(event.params.user), underlyingToken);
+  // When you enter with yield tokens you get the vault shares at the spot price.
+  let underlyingAmountRealized = event.params.vaultSharesReceived
+    .times(oraclePrice)
+    .times(underlyingToken.precision)
+    .div(DEFAULT_PRECISION)
+    .div(vaultShare.precision);
+
+  setProfitLossLineItem(
+    account,
+    vaultShare,
+    underlyingToken,
+    event.params.vaultSharesReceived,
+    underlyingAmountRealized,
+    oraclePrice,
+    "EnterPositionWithYieldToken",
     event.address,
     event,
   );

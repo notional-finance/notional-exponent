@@ -495,6 +495,31 @@ contract TestStakingStrategy_InfiniFi_liUSD1w is TestStakingStrategy {
     }
 }
 
+contract TestStakingStrategy_InfiniFi_liUSD4w is TestStakingStrategy {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_414_984;
+    }
+
+    function deployYieldStrategy() internal override {
+        address liUSD = address(0x66bCF6151D5558AfB47c38B20663589843156078);
+
+        manager = IWithdrawRequestManager(new InfiniFiWithdrawRequestManager(address(liUSD), 4));
+        withdrawRequest = new TestInfiniFi_liUSD1w_WithdrawRequest();
+        setupWithdrawRequestManager(address(manager));
+        y = new StakingStrategy(address(USDC), address(liUSD), 0.001e18);
+
+        w = ERC20(y.yieldToken());
+        ILockingController lockingController = ILockingController(INFINIFI_GATEWAY.getAddress("lockingController"));
+        uint256 exchangeRate = lockingController.exchangeRate(4);
+        o = new MockOracle(int256(exchangeRate));
+
+        defaultDeposit = 1000e6;
+        defaultBorrow = 9000e6;
+        noInstantRedemption = true;
+        knownTokenPreventsLiquidation = true;
+    }
+}
+
 contract TestStakingStrategy_InfiniFi_siUSD is TestStakingStrategy {
     function overrideForkBlock() internal override {
         FORK_BLOCK = 24_414_984;

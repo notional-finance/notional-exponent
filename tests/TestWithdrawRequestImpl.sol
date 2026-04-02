@@ -404,7 +404,7 @@ contract TestPareto_FalconX_WithdrawRequest is TestWithdrawRequest {
 
 contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
     function overrideForkBlock() internal override {
-        FORK_BLOCK = 24_414_984;
+        FORK_BLOCK = 24_600_676;
     }
 
     function finalizeWithdrawRequest(uint256 requestId) public override {
@@ -436,10 +436,52 @@ contract TestInfiniFi_liUSD1w_WithdrawRequest is TestWithdrawRequest {
             new InfiniFiUnwindingHolder(address(manager), address(0x12b004719fb632f1E7c010c6F5D6009Fb4258442), 1)
         );
         UpgradeableBeacon beacon = UpgradeableBeacon(InfiniFiWithdrawRequestManager(address(manager)).HOLDER_BEACON());
-        vm.startPrank(ADDRESS_REGISTRY.upgradeAdmin());
-        beacon.upgradeTo(newImpl);
+        TimelockController timelockController = TimelockController(payable(0xAD20780E69257C62d107bBd43a1DB628A075416B));
+        vm.startPrank(0x02479BFC7Dce53A02e26fE7baea45a0852CB0909);
+        timelockController.schedule(
+            address(beacon),
+            0,
+            abi.encodeWithSelector(beacon.upgradeTo.selector, newImpl),
+            bytes32(0),
+            bytes32(0),
+            7 days
+        );
+        vm.warp(block.timestamp + 7 days);
+        timelockController.execute(
+            address(beacon), 0, abi.encodeWithSelector(beacon.upgradeTo.selector, newImpl), bytes32(0), bytes32(0)
+        );
         vm.stopPrank();
         assertEq(beacon.implementation(), newImpl);
+    }
+}
+
+contract TestInfiniFi_liUSD4w_WithdrawRequest is TestWithdrawRequest {
+    function overrideForkBlock() internal override {
+        FORK_BLOCK = 24_600_676;
+    }
+
+    function finalizeWithdrawRequest(uint256 requestId) public override {
+        InfiniFiUnwindingHolder holder = InfiniFiUnwindingHolder(payable(address(uint160(requestId))));
+        uint256 s_unwindingTimestamp = holder.s_unwindingTimestamp();
+        IUnwindingModule unwindingModule =
+            IUnwindingModule(ILockingController(INFINIFI_GATEWAY.getAddress("lockingController")).unwindingModule());
+        IUnwindingModule.UnwindingPosition memory position =
+            unwindingModule.positions(keccak256(abi.encode(holder, s_unwindingTimestamp)));
+
+        vm.warp(position.toEpoch * 1 weeks + 3 days);
+    }
+
+    function deployManager() public override {
+        withdrawCallData = "";
+        uint32 unwindingEpochs = 4;
+        address liUSD = address(0x66bCF6151D5558AfB47c38B20663589843156078);
+        manager = new InfiniFiWithdrawRequestManager(liUSD, unwindingEpochs);
+        allowedDepositTokens.push(ERC20(USDC));
+
+        // USDC whale
+        vm.startPrank(0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c);
+        USDC.transfer(address(this), 200_000e6);
+        vm.stopPrank();
     }
 }
 
