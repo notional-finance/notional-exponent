@@ -1,4 +1,4 @@
-import { Address, BigInt, ByteArray, Bytes, crypto, ethereum } from "@graphprotocol/graph-ts";
+import { Address, BigInt, ByteArray, Bytes, crypto, ethereum, log } from "@graphprotocol/graph-ts";
 import {
   EnterPosition,
   EnterPositionWithYieldToken,
@@ -33,8 +33,13 @@ function getBorrowSharePrice(
 
 export function convertPrice(price: BigInt, underlyingToken: Token): BigInt {
   // Convert the price to 18 decimals precision
-  let pow: u8 = ((18 - underlyingToken.decimals) as u8) + 12;
-  return price.div(BigInt.fromI32(10).pow(pow));
+  // 36 is the oracle precision, 24 is the vault share precision, 18 is the target precision
+  // 6 = 36 - 24 - 18
+  let powDiff: u8 = (underlyingToken.decimals as u8) - 6;
+
+  if (powDiff == 0) return price;
+  else if (powDiff > 0) return price.div(BigInt.fromI32(10).pow(powDiff));
+  else return price.times(BigInt.fromI32(10).pow(-powDiff));
 }
 
 export function handleEnterPosition(event: EnterPosition): void {
