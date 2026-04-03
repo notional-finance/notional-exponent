@@ -21,6 +21,7 @@ abstract contract TestWithdrawRequest is Test {
     bytes public withdrawCallData;
     address public forceWithdrawFrom;
     address public owner;
+    bool public canCancelWithdrawRequest = false;
 
     function setManager(address newManager) public virtual {
         manager = IWithdrawRequestManager(newManager);
@@ -545,5 +546,33 @@ abstract contract TestWithdrawRequest is Test {
         assertGe(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals());
         // Ensure that we have the right decimal precision for the exchange rate.
         assertApproxEqRel(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals(), 1e18);
+    }
+
+    function test_cancelWithdrawRequest_RevertIf_NoRequest() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+        vm.expectRevert();
+        manager.cancelWithdrawRequest(staker1, bytes(""));
+    }
+
+    function test_cancelWithdraw_RevertIf_WithdrawRequestTokenized() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+        address splitStaker = makeAddr("splitStaker");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), type(uint256).max);
+        uint256 withdrawAmount = yieldToken.balanceOf(address(this)) / 4;
+
+        uint256 request1 =
+            manager.initiateWithdraw(staker1, withdrawAmount, withdrawAmount, withdrawCallData, forceWithdrawFrom);
+        manager.initiateWithdraw(staker2, withdrawAmount, withdrawAmount, withdrawCallData, forceWithdrawFrom);
+
+        // Split the request once
+        uint256 splitAmount = withdrawAmount / 10;
+        manager.tokenizeWithdrawRequest(staker1, splitStaker, splitAmount);
+
+        // Reverts when staker1 tries to cancel the withdraw request that has been tokenized
+        vm.expectRevert(abi.encodeWithSelector(InvalidWithdrawRequestTokenization.selector));
+        manager.cancelWithdrawRequest(staker1, bytes(""));
     }
 }
