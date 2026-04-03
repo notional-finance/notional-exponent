@@ -575,4 +575,40 @@ abstract contract TestWithdrawRequest is Test {
         vm.expectRevert(abi.encodeWithSelector(InvalidWithdrawRequestTokenization.selector));
         manager.cancelWithdrawRequest(staker1, bytes(""));
     }
+
+    function test_cancelWithdrawRequest_RevertIf_RequestIsFinalized() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId = manager.initiateWithdraw(
+            staker1, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        finalizeWithdrawRequest(requestId);
+
+        manager.finalizeRequestManual(address(this), staker1);
+
+        vm.expectRevert(abi.encodeWithSelector(WithdrawRequestAlreadyFinalized.selector));
+        manager.cancelWithdrawRequest(staker1, bytes(""));
+    }
+
+    function test_cancelWithdrawRequest_Success() public approveVaultAndStakeTokens {
+        vm.skip(!canCancelWithdrawRequest);
+        address staker1 = makeAddr("staker1");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId = manager.initiateWithdraw(
+            staker1, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        uint256 yieldTokensRefunded = manager.cancelWithdrawRequest(staker1, bytes(""));
+    }
 }

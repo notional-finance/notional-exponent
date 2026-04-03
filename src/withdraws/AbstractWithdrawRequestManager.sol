@@ -13,7 +13,8 @@ import {
     Unauthorized,
     ExistingWithdrawRequest,
     NoWithdrawRequest,
-    InvalidWithdrawRequestTokenization
+    InvalidWithdrawRequestTokenization,
+    WithdrawRequestAlreadyFinalized
 } from "../interfaces/Errors.sol";
 import { TypeConvert } from "../utils/TypeConvert.sol";
 import { TokenUtils } from "../utils/TokenUtils.sol";
@@ -201,6 +202,11 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         // Cannot cancel a withdraw request that has been tokenized since there are multiple accounts involved.
         if (tokenizedWithdraw.totalYieldTokenAmount != accountWithdraw.yieldTokenAmount) {
             revert InvalidWithdrawRequestTokenization();
+        }
+        // It may be that _finalizeWithdraw has not yet been called but it could be, that should cause a revert
+        // inside _cancelWithdrawRequest since it is implementation specific.
+        if (tokenizedWithdraw.finalized) {
+            revert WithdrawRequestAlreadyFinalized();
         }
 
         yieldTokensRefunded = _cancelWithdrawRequest(requestId, data);

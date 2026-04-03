@@ -31,6 +31,7 @@ error InvalidLendingRouter();
 error ExistingWithdrawRequest(address vault, address account, uint256 requestId);
 error NoWithdrawRequest(address vault, address account);
 error InvalidWithdrawRequestTokenization();
+error WithdrawRequestAlreadyFinalized();
 
 error InvalidPrice(uint256 oraclePrice, uint256 spotPrice);
 error PoolShareTooHigh(uint256 poolClaim, uint256 maxSupplyThreshold);
