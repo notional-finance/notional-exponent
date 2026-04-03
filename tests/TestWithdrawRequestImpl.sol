@@ -708,6 +708,7 @@ abstract contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
     }
 
     function deployManager() public override {
+        canCancelWithdrawRequest = true;
         withdrawCallData = "";
         manager = new ConcreteWithdrawRequestManager(concreteVault);
         allowedDepositTokens.push(ERC20(manager.STAKING_TOKEN()));
@@ -740,6 +741,80 @@ abstract contract TestConcrete_WithdrawRequest is TestWithdrawRequest {
         vm.startPrank(whitelistHook.owner());
         whitelistHook.whitelistUsers(users);
         vm.stopPrank();
+    }
+
+    function checkCancelledWithdrawRequest(uint256 requestId, address staker) public override {
+        // Ensure that the withdraw request has been deleted
+        (uint128 withdrawAmount, uint128 epochNumber) =
+            ConcreteWithdrawRequestManager(address(manager)).s_ConcreteWithdrawRequest(requestId);
+        assertEq(withdrawAmount, 0);
+        assertEq(epochNumber, 0);
+
+        // Ensure that the epoch claim data has been updated
+        (uint128 totalWithdrawals, uint120 totalUnderlyingClaimed, bool hasClaimed) =
+            ConcreteWithdrawRequestManager(address(manager)).s_epochClaimData(epochNumber);
+        assertEq(totalWithdrawals, 0);
+        assertEq(totalUnderlyingClaimed, 0);
+        assertEq(hasClaimed, false);
+    }
+
+    function test_cancelWithdrawRequest_Success_UpdatesEpochClaimData(bool multipleStakers)
+        public
+        approveVaultAndStakeTokens
+    {
+        vm.skip(!canCancelWithdrawRequest);
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.approve(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this)) / 2;
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId1 = manager.initiateWithdraw(
+            staker1, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+        uint256 requestId2 = manager.initiateWithdraw(
+            staker2, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        (/* */, uint128 epochNumber) =
+            ConcreteWithdrawRequestManager(address(manager)).s_ConcreteWithdrawRequest(requestId1);
+        (
+            uint256 initialTotalWithdrawals,
+            /* */, /* */
+        ) = ConcreteWithdrawRequestManager(address(manager)).s_epochClaimData(epochNumber);
+        assertEq(initialTotalWithdrawals, initialYieldTokenBalance * 2);
+
+        uint256 yieldTokensRefunded = manager.cancelWithdrawRequest(staker1, bytes(""));
+        assertEq(yieldTokensRefunded, initialYieldTokenBalance);
+
+        (
+            uint256 totalWithdrawals,
+            /* */, /* */
+        ) = ConcreteWithdrawRequestManager(address(manager)).s_epochClaimData(epochNumber);
+        assertEq(totalWithdrawals, initialYieldTokenBalance);
+
+        finalizeWithdrawRequest(requestId2);
+        uint256 tokensClaimed =
+            manager.finalizeAndRedeemWithdrawRequest(staker2, initialYieldTokenBalance, sharesAmount);
+
+        assertEq(tokensClaimed, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+
+        (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) =
+            manager.getWithdrawRequest(address(this), staker2);
+        assertEq(request.yieldTokenAmount, 0);
+        assertEq(request.sharesAmount, 0);
+        assertEq(request.requestId, 0);
+        assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+        assertEq(tokenizedRequest.totalWithdraw, 0);
+        assertEq(tokenizedRequest.finalized, false);
+
+        (uint256 totalWithdrawalsFinal, uint256 totalUnderlyingClaimedFinal, bool hasClaimedFinal) =
+            ConcreteWithdrawRequestManager(address(manager)).s_epochClaimData(epochNumber);
+        assertEq(totalWithdrawalsFinal, initialYieldTokenBalance);
+        assertEq(totalUnderlyingClaimedFinal, tokensClaimed);
+        assertEq(hasClaimedFinal, true);
     }
 }
 

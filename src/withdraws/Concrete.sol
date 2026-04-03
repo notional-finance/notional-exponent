@@ -152,11 +152,13 @@ contract ConcreteWithdrawRequestManager is AbstractWithdrawRequestManager {
         // Deduct the yield tokens refunded from the total yield tokens received.
         totalYieldTokensReceived = totalYieldTokensReceived - yieldTokensRefunded;
 
-        // Initiate a new withdraw request with the remaining yield tokens.
-        ERC20(YIELD_TOKEN).checkApprove(address(ConcreteVault), totalYieldTokensReceived);
-        ConcreteVault.redeem(totalYieldTokensReceived, address(this), address(this));
-
         epochClaimData.totalWithdrawals = totalYieldTokensReceived.toUint128();
         delete s_ConcreteWithdrawRequest[requestId];
+
+        if (totalYieldTokensReceived > 0) {
+            // Initiate a new withdraw request with the remaining yield tokens.
+            ERC20(YIELD_TOKEN).checkApprove(address(ConcreteVault), totalYieldTokensReceived);
+            ConcreteVault.redeem(totalYieldTokensReceived, address(this), address(this));
+        }
     }
 }
