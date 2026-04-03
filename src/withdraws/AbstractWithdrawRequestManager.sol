@@ -194,12 +194,14 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         nonReentrant
         returns (uint256 yieldTokensRefunded)
     {
-        WithdrawRequest storage accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
-        TokenizedWithdrawRequest memory tokenizedWithdraw = s_tokenizedWithdrawRequest[accountWithdraw.requestId];
+        WithdrawRequest memory accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
         uint256 requestId = accountWithdraw.requestId;
+        TokenizedWithdrawRequest memory tokenizedWithdraw = s_tokenizedWithdrawRequest[requestId];
         require(requestId > 0);
         // Cannot cancel a withdraw request that has been tokenized since there are multiple accounts involved.
-        if (tokenizedWithdraw.totalYieldTokenAmount > 0) revert InvalidWithdrawRequestTokenization();
+        if (tokenizedWithdraw.totalYieldTokenAmount != accountWithdraw.yieldTokenAmount) {
+            revert InvalidWithdrawRequestTokenization();
+        }
 
         yieldTokensRefunded = _cancelWithdrawRequest(requestId, data);
 

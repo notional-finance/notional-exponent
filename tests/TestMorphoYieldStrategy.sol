@@ -903,4 +903,16 @@ contract TestMorphoYieldStrategy is TestEnvironment {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
         y.mintSharesFromYieldToken(yieldTokenAmount, user);
     }
+
+    function test_cancelWithdraw_RevertsIf_CalledDirectly() public {
+        address user = msg.sender;
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, address(this)));
+        y.cancelWithdraw(user, 100e18, bytes(""));
+    }
+
+    function test_cancelWithdraw_RevertsIf_NotAuthorized() public {
+        address user = msg.sender;
+        vm.expectRevert(abi.encodeWithSelector(NotAuthorized.selector, address(this), user));
+        lendingRouter.cancelWithdraw(user, address(y), bytes(""));
+    }
 }

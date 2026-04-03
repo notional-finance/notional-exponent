@@ -416,6 +416,8 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         external
         override
         nonReentrant
+        onlyLendingRouter
+        setCurrentAccount(account)
         returns (uint256 sharesMinted)
     {
         sharesMinted = _cancelWithdraw(account, sharesHeld, data);

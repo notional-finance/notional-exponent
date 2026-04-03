@@ -652,4 +652,17 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
         checkTransientsCleared();
     }
+
+    function test_cancelWithdraw_RevertsIf_NotImplemented() public {
+        if (keccak256(abi.encodePacked(strategyName)) == keccak256(abi.encodePacked("Pendle PT"))) vm.skip(true);
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+
+        vm.expectRevert("Not implemented");
+        lendingRouter.cancelWithdraw(msg.sender, address(y), bytes(""));
+        vm.stopPrank();
+    }
 }
