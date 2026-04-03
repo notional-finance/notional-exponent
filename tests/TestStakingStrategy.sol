@@ -655,6 +655,8 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
     function test_cancelWithdraw_RevertsIf_NotImplemented() public {
         if (keccak256(abi.encodePacked(strategyName)) == keccak256(abi.encodePacked("Pendle PT"))) vm.skip(true);
+        vm.skip(canCancelWithdraw);
+
         _enterPosition(msg.sender, defaultDeposit, 0);
         uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
 
@@ -664,5 +666,51 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
         vm.expectRevert("Not implemented");
         lendingRouter.cancelWithdraw(msg.sender, address(y), bytes(""));
         vm.stopPrank();
+    }
+
+    function test_cancelWithdraw_Success() public {
+        vm.skip(!canCancelWithdraw);
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        uint256 effectiveSupplyBefore = y.effectiveSupply();
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+
+        // This is necessary to ensure that the vault exchange rate changes.
+        vm.warp(block.timestamp + 7 days);
+
+        uint256 vaultShareExchangeRateBefore = y.convertSharesToYieldToken(10 ** y.decimals());
+
+        lendingRouter.cancelWithdraw(msg.sender, address(y), bytes(""));
+        checkTransientsCleared();
+
+        uint256 vaultShareExchangeRateAfter = y.convertSharesToYieldToken(10 ** y.decimals());
+        uint256 effectiveSupplyAfter = y.effectiveSupply();
+
+        assertEq(
+            vaultShareExchangeRateAfter, vaultShareExchangeRateBefore, "Vault share exchange rate should not change"
+        );
+        assertEq(effectiveSupplyAfter, effectiveSupplyBefore, "Effective supply should not change");
+        vm.stopPrank();
+
+        // Ensure that we can continue to enter position after canceling the withdraw
+        _enterPosition(msg.sender, defaultDeposit, 0);
+    }
+
+    function test_cancelWithdraw_RevertsIf_InsufficientCollateral() public {
+        vm.skip(!canCancelWithdraw);
+        // TODO: need to put this at the max borrow amount and withdraw liquidity
+        _enterPosition(msg.sender, defaultDeposit, 0);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+
+        vm.startPrank(msg.sender);
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        vm.stopPrank();
+
+        // TODO: warp time to ensure that this reverts
+
+        vm.expectRevert(abi.encodeWithSelector(CannotCancelWithdraw.selector, msg.sender));
+        lendingRouter.cancelWithdraw(msg.sender, address(y), bytes(""));
     }
 }

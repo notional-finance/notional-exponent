@@ -14,6 +14,7 @@ contract TestMorphoYieldStrategy is TestEnvironment {
     using TokenUtils for ERC20;
 
     bool canMintYieldTokens;
+    bool canCancelWithdraw;
 
     function deployYieldStrategy() internal virtual override {
         w = new MockWrapperERC20(ERC20(address(USDC)), 18);

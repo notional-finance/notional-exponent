@@ -565,6 +565,7 @@ contract TestStakingStrategy_Royco is TestStakingStrategy {
         defaultDeposit = 1000e6;
         defaultBorrow = 9000e6;
         noInstantRedemption = true;
+        canCancelWithdraw = true;
     }
 
     function postDeploySetup() internal virtual override {
@@ -582,6 +583,21 @@ contract TestStakingStrategy_Royco is TestStakingStrategy {
 
         vm.startPrank(whitelistHook.owner());
         whitelistHook.whitelistUsers(users);
+        vm.stopPrank();
+    }
+
+    function test_enterPosition_RevertsIf_NotWhitelisted() public {
+        address user = makeAddr("not whitelisted");
+        vm.startPrank(msg.sender);
+        asset.transfer(user, defaultDeposit);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        asset.approve(address(lendingRouter), defaultDeposit);
+        bytes memory depositData = getDepositData(user, defaultDeposit + defaultBorrow);
+        vm.expectRevert();
+        lendingRouter.enterPosition(user, address(y), defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
     }
 }
