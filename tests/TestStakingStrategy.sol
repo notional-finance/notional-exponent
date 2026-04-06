@@ -700,17 +700,30 @@ abstract contract TestStakingStrategy is TestMorphoYieldStrategy {
 
     function test_cancelWithdraw_RevertsIf_InsufficientCollateral() public {
         vm.skip(!canCancelWithdraw);
-        // TODO: need to put this at the max borrow amount and withdraw liquidity
-        _enterPosition(msg.sender, defaultDeposit, 0);
-        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
-
-        vm.startPrank(msg.sender);
-        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+        uint256 depositAmount = defaultDeposit * 94e18 / 100e18;
+        _enterPosition(msg.sender, depositAmount, defaultBorrow);
+        vm.startPrank(owner);
+        MORPHO.withdraw(
+            MorphoLendingRouter(address(lendingRouter)).marketParams(address(y)),
+            500_000 * 10 ** asset.decimals() - defaultBorrow,
+            0,
+            owner,
+            owner
+        );
         vm.stopPrank();
 
-        // TODO: warp time to ensure that this reverts
+        vm.startPrank(msg.sender);
+        uint256 balanceBefore = lendingRouter.balanceOfCollateral(msg.sender, address(y));
+        lendingRouter.initiateWithdraw(msg.sender, address(y), getWithdrawRequestData(msg.sender, balanceBefore));
+
+        vm.warp(block.timestamp + 14 days);
+
+        (uint256 borrowed, uint256 collateralValue, uint256 maxBorrow) =
+            lendingRouter.healthFactor(msg.sender, address(y));
+        assertLt(maxBorrow, borrowed, "Max borrow should be greater than borrowed");
 
         vm.expectRevert(abi.encodeWithSelector(CannotCancelWithdraw.selector, msg.sender));
         lendingRouter.cancelWithdraw(msg.sender, address(y), bytes(""));
+        vm.stopPrank();
     }
 }
