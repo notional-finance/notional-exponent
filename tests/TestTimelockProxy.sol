@@ -24,6 +24,11 @@ contract MockInitializable is Initializable {
     }
 }
 
+interface IAddressRegistry {
+    function upgradeAdmin() external view returns (address);
+    function pauseAdmin() external view returns (address);
+}
+
 contract TestTimelockProxy is Test {
     string RPC_URL = vm.envString("RPC_URL");
     uint256 FORK_BLOCK = 23_033_352;
@@ -535,5 +540,33 @@ contract TestTimelockProxy is Test {
         vm.stopPrank();
 
         assertEq(TimelockUpgradeableProxy(payable(morphoLendingRouter)).isPaused(), true);
+    }
+
+    function test_pauseAdmin_AddressRegistry() public {
+        vm.startPrank(upgradeOwner);
+        pauseAdmin.addPendingPauser(pauser);
+        bytes4[] memory selectors = new bytes4[](7);
+        selectors[0] = TimelockUpgradeableProxy.pause.selector;
+        selectors[1] = TimelockUpgradeableProxy.unpause.selector;
+        selectors[2] = TimelockUpgradeableProxy.whitelistSelectors.selector;
+        selectors[3] = TimelockUpgradeableProxy.getImplementation.selector;
+        selectors[4] = AddressRegistry.getAllPausableContracts.selector;
+        selectors[5] = IAddressRegistry.upgradeAdmin.selector;
+        selectors[6] = IAddressRegistry.pauseAdmin.selector;
+
+        pauseAdmin.whitelistSelectors(address(ADDRESS_REGISTRY), selectors, true);
+        vm.stopPrank();
+
+        vm.startPrank(pauser);
+        pauseAdmin.acceptPauser();
+        pauseAdmin.pause(address(ADDRESS_REGISTRY));
+        pauseAdmin.pauseAll();
+        vm.stopPrank();
+
+        vm.startPrank(upgradeOwner);
+        pauseAdmin.unpause(address(ADDRESS_REGISTRY));
+        vm.stopPrank();
+
+        assertFalse(TimelockUpgradeableProxy(payable(address(ADDRESS_REGISTRY))).isPaused());
     }
 }
