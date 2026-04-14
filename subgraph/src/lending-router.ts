@@ -14,7 +14,7 @@ import { Account, Token } from "../generated/schema";
 import { DEFAULT_PRECISION, ZERO_ADDRESS } from "./constants";
 import { getMarketParams } from "./entities/market";
 
-function getBorrowSharePrice(
+export function getBorrowSharePrice(
   borrowAssets: BigInt,
   borrowShares: BigInt,
   underlyingToken: Token,

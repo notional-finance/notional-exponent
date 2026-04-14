@@ -3,9 +3,9 @@ indexerHints:
   prune: auto
 features:
   - grafting
-# graft:
-#   base: Qmf4JyvAWdZAWJT5aoqY48N5BXwKrHbTqpqN3r8kY1fZR9
-#   block: 24791865
+graft:
+  base: QmP6x78AJiRopfGeViwcA23AtjNkntnpdG1okxpA68T1cv
+  block: 24873680
 schema:
   file: ./schema.graphql
 dataSources:
@@ -99,6 +99,49 @@ dataSources:
           handler: handlePriceOracleUpdate
         - event: TokenPermissionsUpdated(address,address,(bool,uint32,uint32))
           handler: handleTokenPermissionsUpdate
+  - name: Morpho
+    kind: ethereum/contract
+    network: mainnet
+    source:
+      abi: IMorpho
+      address: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
+      startBlock: 23027728
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/morpho.ts
+      abis:
+        - name: IMorpho
+          file: ./abis/IMorpho.json
+        - name: AddressRegistry
+          file: ./abis/AddressRegistry.json
+        - name: IYieldStrategy
+          file: ./abis/IYieldStrategy.json
+        - name: IERC20Metadata
+          file: ./abis/IERC20Metadata.json
+        - name: IWithdrawRequestManager
+          file: ./abis/IWithdrawRequestManager.json
+        - name: Aggregator
+          file: ./abis/AggregatorV2V3Interface.json
+        - name: ILendingRouter
+          file: ./abis/ILendingRouter.json
+        - name: ITradingModule
+          file: ./abis/ITradingModule.json
+        - name: IPPrincipalToken
+          file: ./abis/IPPrincipalToken.json
+        - name: MorphoLendingRouter
+          file: ./abis/MorphoLendingRouter.json
+        - name: TimelockUpgradeableProxy
+          file: ./abis/TimelockUpgradeableProxy.json
+      entities:
+        - Balance
+        - BalanceSnapshot
+        - ProfitLossLineItem
+      eventHandlers:
+        - event: Repay(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handleMorphoRepay
+          receipt: true
 templates:
   - name: LendingRouter
     kind: ethereum/contract

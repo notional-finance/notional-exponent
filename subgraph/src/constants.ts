@@ -15,3 +15,4 @@ export const ADDRESS_REGISTRY = Address.fromHexString("0xe335d314BD4eF7DD44F103d
 export const USD_ASSET_ID = "0x000000000000000000000000000000000000F147";
 export const ORACLE_REGISTRY_ID = "0";
 export const SIX_HOURS = BigInt.fromI32(21_600);
+export const MORPHO_LENDING_ROUTER = Address.fromHexString("0x9a0c630C310030C4602d1A76583a3b16972ecAa0") as Address;
