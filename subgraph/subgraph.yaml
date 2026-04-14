@@ -3,9 +3,9 @@ indexerHints:
   prune: auto
 features:
   - grafting
-graft:
-  base: QmP6x78AJiRopfGeViwcA23AtjNkntnpdG1okxpA68T1cv
-  block: 24873680
+# graft:
+#   base: QmP6x78AJiRopfGeViwcA23AtjNkntnpdG1okxpA68T1cv
+#   block: 24873680
 schema:
   file: ./schema.graphql
 dataSources:

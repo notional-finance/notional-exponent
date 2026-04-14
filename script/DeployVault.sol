@@ -10,7 +10,7 @@ import { AddressRegistry } from "../src/proxy/AddressRegistry.sol";
 import { TimelockUpgradeableProxy } from "../src/proxy/TimelockUpgradeableProxy.sol";
 import { Initializable } from "../src/proxy/Initializable.sol";
 import { ADDRESS_REGISTRY, WETH } from "../src/utils/Constants.sol";
-import { MORPHO } from "../src/interfaces/Morpho/IMorpho.sol";
+import { MORPHO, MarketParams } from "../src/interfaces/Morpho/IMorpho.sol";
 import {
     TRADING_MODULE,
     ITradingModule,
@@ -202,7 +202,7 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
 
         uint256 directCallIndex = 0;
         // The +1 is for the MorphoLendingRouter.initializeMarket call
-        uint256 totalDirectCalls = m.length + 1;
+        uint256 totalDirectCalls = m.length + 2;
         uint256 timelockCallIndex = 0;
         uint256 totalTimelockCalls = t.length;
 
@@ -238,6 +238,26 @@ abstract contract DeployVault is ProxyHelper, GnosisHelper, Test {
             value: 0,
             callData: abi.encodeWithSelector(
                 MorphoLendingRouter.initializeMarket.selector, proxy, MORPHO_IRM, MORPHO_LLTV
+            )
+        });
+
+        // Add morpho dead supply deposit
+        directCalls[directCallIndex++] = MethodCall({
+            to: address(MORPHO),
+            value: 0,
+            callData: abi.encodeWithSelector(
+                MORPHO.supply.selector,
+                MarketParams({
+                    loanToken: IYieldStrategy(proxy).asset(),
+                    collateralToken: address(proxy),
+                    oracle: address(proxy),
+                    irm: MORPHO_IRM,
+                    lltv: MORPHO_LLTV
+                }),
+                0,
+                1e9,
+                0x000000000000000000000000000000000000dEaD,
+                ""
             )
         });
     }
