@@ -9,6 +9,7 @@ import { IYieldStrategy } from "../generated/templates/LendingRouter/IYieldStrat
 import { ILendingRouter } from "../generated/templates/LendingRouter/ILendingRouter";
 import { getBorrowSharePrice } from "./lending-router";
 
+// Special handling for direct Morpho repayments
 export function handleMorphoRepay(event: Repay): void {
   let morpho = IMorpho.bind(event.address);
   let marketParams = morpho.idToMarketParams(event.params.id);
@@ -19,10 +20,10 @@ export function handleMorphoRepay(event: Repay): void {
   let isFound = findExitPositionEvent(event.params.onBehalf, vaultAddress, event);
   if (isFound) return;
   let account = loadAccount(event.params.onBehalf.toHexString(), event);
-  let borrowShare = getBorrowShare(vaultAddress, MORPHO_LENDING_ROUTER, event);
+  let borrowShare = getBorrowShare(vaultAddress, Address.fromBytes(MORPHO_LENDING_ROUTER), event);
   let v = IYieldStrategy.bind(vaultAddress);
   let underlyingToken = getToken(v.asset().toHexString());
-  let l = ILendingRouter.bind(MORPHO_LENDING_ROUTER);
+  let l = ILendingRouter.bind(Address.fromBytes(MORPHO_LENDING_ROUTER));
   let borrowAssetsRepaid = l.convertBorrowSharesToAssets(vaultAddress, event.params.shares);
   let borrowSharePrice = getBorrowSharePrice(borrowAssetsRepaid, event.params.shares, underlyingToken, borrowShare);
 
@@ -36,7 +37,7 @@ export function handleMorphoRepay(event: Repay): void {
     borrowAssetsRepaid.neg(),
     borrowSharePrice,
     "ExitPosition",
-    event.address,
+    Address.fromBytes(MORPHO_LENDING_ROUTER),
     event,
   );
 }
