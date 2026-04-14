@@ -15,6 +15,7 @@ import "../src/interfaces/IPareto.sol";
 import "../src/staking/ParetoStakingStrategy.sol";
 import "../src/withdraws/InfiniFi.sol";
 import "../src/withdraws/Concrete.sol";
+import "../src/staking/RoycoStakingStrategy.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./TestStakingStrategy.sol";
 import "./Mocks.sol";
@@ -556,7 +557,7 @@ contract TestStakingStrategy_Royco is TestStakingStrategy {
         withdrawRequest = new TestConcrete_WithdrawRequest_Royco();
         setupWithdrawRequestManager(address(manager));
         withdrawRequest.setManager(address(manager));
-        y = new StakingStrategy(address(USDC), address(roycoVault), 0.001e18);
+        y = new RoycoStakingStrategy(address(USDC), address(roycoVault), 0.001e18);
 
         w = ERC20(y.yieldToken());
         o = new MockOracle(int256(IERC4626(address(roycoVault)).convertToAssets(1e6) * 1e18 / 1e6));
@@ -564,6 +565,7 @@ contract TestStakingStrategy_Royco is TestStakingStrategy {
         defaultDeposit = 1000e6;
         defaultBorrow = 9000e6;
         noInstantRedemption = true;
+        canCancelWithdraw = true;
     }
 
     function postDeploySetup() internal virtual override {
@@ -581,6 +583,21 @@ contract TestStakingStrategy_Royco is TestStakingStrategy {
 
         vm.startPrank(whitelistHook.owner());
         whitelistHook.whitelistUsers(users);
+        vm.stopPrank();
+    }
+
+    function test_enterPosition_RevertsIf_NotWhitelisted() public {
+        address user = makeAddr("not whitelisted");
+        vm.startPrank(msg.sender);
+        asset.transfer(user, defaultDeposit);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        if (!MORPHO.isAuthorized(user, address(lendingRouter))) MORPHO.setAuthorization(address(lendingRouter), true);
+        asset.approve(address(lendingRouter), defaultDeposit);
+        bytes memory depositData = getDepositData(user, defaultDeposit + defaultBorrow);
+        vm.expectRevert();
+        lendingRouter.enterPosition(user, address(y), defaultDeposit, defaultBorrow, depositData);
         vm.stopPrank();
     }
 }

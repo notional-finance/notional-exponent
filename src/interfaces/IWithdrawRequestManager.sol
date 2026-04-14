@@ -197,4 +197,9 @@ interface IWithdrawRequestManager {
     /// @return hasKnownAmount whether the amount is known
     /// @return amount the amount of withdraw tokens
     function getKnownWithdrawTokenAmount(uint256 requestId) external view returns (bool hasKnownAmount, uint256 amount);
+
+    /// @notice Cancels a withdraw request and refunds the yield tokens to the user
+    /// @param account the account to cancel the withdraw request for
+    /// @return yieldTokensRefunded the amount of yield tokens refunded
+    function cancelWithdrawRequest(address account, bytes calldata data) external returns (uint256 yieldTokensRefunded);
 }

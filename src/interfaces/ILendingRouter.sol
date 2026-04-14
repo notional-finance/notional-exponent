@@ -44,6 +44,8 @@ interface ILendingRouter {
 
     event ForceWithdraw(address indexed account, address indexed vault, uint256 requestId);
 
+    event CancelWithdraw(address indexed account, address indexed vault, uint256 sharesMinted);
+
     /**
      * @dev Returns the name of the lending router.
      *
@@ -238,6 +240,23 @@ interface ILendingRouter {
      * @return requestId The request id.
      */
     function forceWithdraw(address account, address vault, bytes calldata data) external returns (uint256 requestId);
+
+    /**
+     * @dev Cancels a withdraw request for a user for a given vault.
+     *
+     * @param onBehalf The address of the user to cancel the withdraw on behalf of.
+     * @param vault The address of the vault.
+     * @param data Vault specific instructions for the cancel.
+     *
+     * @return sharesMinted The amount of shares minted to account for the refund of yield tokens.
+     */
+    function cancelWithdraw(
+        address onBehalf,
+        address vault,
+        bytes calldata data
+    )
+        external
+        returns (uint256 sharesMinted);
 
     /**
      * @dev Claims rewards for a user for a given vault.

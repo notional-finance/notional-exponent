@@ -13,7 +13,8 @@ import {
     Unauthorized,
     ExistingWithdrawRequest,
     NoWithdrawRequest,
-    InvalidWithdrawRequestTokenization
+    InvalidWithdrawRequestTokenization,
+    WithdrawRequestAlreadyFinalized
 } from "../interfaces/Errors.sol";
 import { TypeConvert } from "../utils/TypeConvert.sol";
 import { TokenUtils } from "../utils/TokenUtils.sol";
@@ -181,6 +182,39 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         emit WithdrawRequestRedeemed(msg.sender, account, requestId, withdrawYieldTokenAmount, sharesToBurn, isCleared);
 
         ERC20(WITHDRAW_TOKEN).safeTransfer(msg.sender, tokensWithdrawn);
+    }
+
+    /// @inheritdoc IWithdrawRequestManager
+    function cancelWithdrawRequest(
+        address account,
+        bytes calldata data
+    )
+        external
+        override
+        onlyApprovedVault
+        nonReentrant
+        returns (uint256 yieldTokensRefunded)
+    {
+        WithdrawRequest memory accountWithdraw = s_accountWithdrawRequest[msg.sender][account];
+        uint256 requestId = accountWithdraw.requestId;
+        TokenizedWithdrawRequest memory tokenizedWithdraw = s_tokenizedWithdrawRequest[requestId];
+        require(requestId > 0);
+        // Cannot cancel a withdraw request that has been tokenized since there are multiple accounts involved.
+        if (tokenizedWithdraw.totalYieldTokenAmount != accountWithdraw.yieldTokenAmount) {
+            revert InvalidWithdrawRequestTokenization();
+        }
+        // It may be that _finalizeWithdraw has not yet been called but it could be, that should cause a revert
+        // inside _cancelWithdrawRequest since it is implementation specific.
+        if (tokenizedWithdraw.finalized) {
+            revert WithdrawRequestAlreadyFinalized();
+        }
+
+        yieldTokensRefunded = _cancelWithdrawRequest(requestId, data);
+
+        // Remove the withdraw request from the account.
+        delete s_accountWithdrawRequest[msg.sender][account];
+
+        ERC20(YIELD_TOKEN).safeTransfer(msg.sender, yieldTokensRefunded);
     }
 
     /// @inheritdoc IWithdrawRequestManager
@@ -442,5 +476,17 @@ abstract contract AbstractWithdrawRequestManager is IWithdrawRequestManager, Ini
         // Covers the base case where the yield token is an ERC4626 vault and returns
         // the exchange rate of the yield token back to the staking token.
         return IERC4626(YIELD_TOKEN).convertToAssets(10 ** ERC20(YIELD_TOKEN).decimals());
+    }
+
+    function _cancelWithdrawRequest(
+        uint256 requestId,
+        bytes calldata data
+    )
+        internal
+        virtual
+        returns (uint256 yieldTokensRefunded)
+    {
+        // By default, we do not support canceling withdraw requests.
+        revert("Not implemented");
     }
 }

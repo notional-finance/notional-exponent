@@ -408,6 +408,21 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         _checkInvariant();
     }
 
+    function cancelWithdraw(
+        address account,
+        uint256 sharesHeld,
+        bytes memory data
+    )
+        external
+        override
+        nonReentrant
+        onlyLendingRouter
+        setCurrentAccount(account)
+        returns (uint256 sharesMinted)
+    {
+        sharesMinted = _cancelWithdraw(account, sharesHeld, data);
+    }
+
     function _withdraw(
         address account,
         uint256 sharesHeld,
@@ -429,6 +444,45 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         // during reward claims when using the RewardManagerMixin.
         s_escrowedShares += sharesHeld;
         s_yieldTokenBalance -= yieldTokenAmount;
+    }
+
+    function _cancelWithdraw(
+        address account,
+        uint256 sharesHeld,
+        bytes memory data
+    )
+        internal
+        returns (uint256 sharesMinted)
+    {
+        if (sharesHeld == 0) revert InsufficientSharesHeld();
+
+        _accrueFees();
+        uint256 yieldTokensBefore = ERC20(yieldToken).balanceOf(address(this));
+        _cancelWithdrawRequest(account, data);
+        uint256 yieldTokensAfter = ERC20(yieldToken).balanceOf(address(this));
+        uint256 yieldTokensRefunded = yieldTokensAfter - yieldTokensBefore;
+
+        // Current yield token amount should be less than or equal to the yield tokens refunded
+        // since fees will always decrease the ratio of vault shares to yield tokens.
+        uint256 currentYieldTokenAmount = convertSharesToYieldToken(sharesHeld);
+        require(currentYieldTokenAmount <= yieldTokensRefunded);
+
+        // We will mint additional shares to the account to bring their ratio of vault shares to yield tokens
+        // back to the original ratio.
+        sharesMinted = ((yieldTokensRefunded - currentYieldTokenAmount) * effectiveSupply())
+            / (s_yieldTokenBalance - feesAccrued() + VIRTUAL_YIELD_TOKENS);
+
+        s_yieldTokenBalance += yieldTokensRefunded;
+        s_escrowedShares -= sharesHeld;
+
+        if (sharesMinted > 0) {
+            _mint(account, sharesMinted);
+            t_AllowTransfer_To = t_CurrentLendingRouter;
+            t_AllowTransfer_Amount = sharesMinted;
+            // Transfer the shares to the lending router so it can supply collateral
+            _transfer(account, t_CurrentLendingRouter, sharesMinted);
+        }
+        _checkInvariant();
     }
 
     /**
@@ -647,6 +701,17 @@ abstract contract AbstractYieldStrategy is Initializable, ERC20, ReentrancyGuard
         internal
         virtual
         returns (uint256 requestId);
+
+    function _cancelWithdrawRequest(
+        address account,
+        bytes memory data
+    )
+        internal
+        virtual
+        returns (uint256 yieldTokensRefunded)
+    {
+        revert("Not implemented");
+    }
 
     /// @inheritdoc IYieldStrategy
     function convertToAssets(uint256 shares) public view virtual override returns (uint256) {

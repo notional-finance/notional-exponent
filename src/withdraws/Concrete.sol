@@ -128,4 +128,38 @@ contract ConcreteWithdrawRequestManager is AbstractWithdrawRequestManager {
         // Once the epoch price is set, the withdraw request can be finalized.
         return ConcreteVault.getEpochPricePerShare(request.epochNumber) > 0;
     }
+
+    function _cancelWithdrawRequest(
+        uint256 requestId,
+        bytes calldata /* data */
+    )
+        internal
+        override
+        returns (uint256 yieldTokensRefunded)
+    {
+        ConcreteWithdrawRequest memory request = s_ConcreteWithdrawRequest[requestId];
+        EpochClaimData storage epochClaimData = s_epochClaimData[request.epochNumber];
+        require(epochClaimData.hasClaimed == false, "Epoch claimed");
+
+        // In order to cancel a withdraw request, we will cancel the entire epoch and refund the
+        // yield tokens to the user and then put all the other yield tokens back into the withdraw queue.
+        uint256 balanceBefore = ERC20(YIELD_TOKEN).balanceOf(address(this));
+        ConcreteVault.cancelRequest(request.epochNumber);
+        uint256 balanceAfter = ERC20(YIELD_TOKEN).balanceOf(address(this));
+        uint256 totalYieldTokensReceived = balanceAfter - balanceBefore;
+        require(totalYieldTokensReceived == epochClaimData.totalWithdrawals, "Total Withdraws Mismatch");
+
+        yieldTokensRefunded = request.withdrawAmount;
+        // Deduct the yield tokens refunded from the total yield tokens received.
+        totalYieldTokensReceived = totalYieldTokensReceived - yieldTokensRefunded;
+
+        epochClaimData.totalWithdrawals = totalYieldTokensReceived.toUint128();
+        delete s_ConcreteWithdrawRequest[requestId];
+
+        if (totalYieldTokensReceived > 0) {
+            // Initiate a new withdraw request with the remaining yield tokens.
+            ERC20(YIELD_TOKEN).checkApprove(address(ConcreteVault), totalYieldTokensReceived);
+            ConcreteVault.redeem(totalYieldTokensReceived, address(this), address(this));
+        }
+    }
 }

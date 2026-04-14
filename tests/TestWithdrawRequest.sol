@@ -21,6 +21,7 @@ abstract contract TestWithdrawRequest is Test {
     bytes public withdrawCallData;
     address public forceWithdrawFrom;
     address public owner;
+    bool public canCancelWithdrawRequest = false;
 
     function setManager(address newManager) public virtual {
         manager = IWithdrawRequestManager(newManager);
@@ -31,6 +32,8 @@ abstract contract TestWithdrawRequest is Test {
     function overrideForkBlock() internal virtual { }
 
     function postDeploySetup() internal virtual { }
+
+    function checkCancelledWithdrawRequest(uint256 requestId, address staker) public virtual { }
 
     function setUp() public virtual {
         overrideForkBlock();
@@ -545,5 +548,155 @@ abstract contract TestWithdrawRequest is Test {
         assertGe(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals());
         // Ensure that we have the right decimal precision for the exchange rate.
         assertApproxEqRel(exchangeRate, 10 ** ERC20(manager.WITHDRAW_TOKEN()).decimals(), 1e18);
+    }
+
+    function test_cancelWithdrawRequest_RevertIf_NoRequest() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+        vm.expectRevert();
+        manager.cancelWithdrawRequest(staker1, bytes(""));
+    }
+
+    function test_cancelWithdraw_RevertIf_WithdrawRequestTokenized() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+        address splitStaker = makeAddr("splitStaker");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), type(uint256).max);
+        uint256 withdrawAmount = yieldToken.balanceOf(address(this)) / 4;
+
+        uint256 request1 =
+            manager.initiateWithdraw(staker1, withdrawAmount, withdrawAmount, withdrawCallData, forceWithdrawFrom);
+        manager.initiateWithdraw(staker2, withdrawAmount, withdrawAmount, withdrawCallData, forceWithdrawFrom);
+
+        // Split the request once
+        uint256 splitAmount = withdrawAmount / 10;
+        manager.tokenizeWithdrawRequest(staker1, splitStaker, splitAmount);
+
+        // Reverts when staker1 tries to cancel the withdraw request that has been tokenized
+        vm.expectRevert(abi.encodeWithSelector(InvalidWithdrawRequestTokenization.selector));
+        manager.cancelWithdrawRequest(staker1, bytes(""));
+    }
+
+    function test_cancelWithdrawRequest_RevertIf_RequestIsFinalized() public approveVaultAndStakeTokens {
+        address staker1 = makeAddr("staker1");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId = manager.initiateWithdraw(
+            staker1, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+
+        finalizeWithdrawRequest(requestId);
+
+        manager.finalizeRequestManual(address(this), staker1);
+
+        vm.expectRevert(abi.encodeWithSelector(WithdrawRequestAlreadyFinalized.selector));
+        manager.cancelWithdrawRequest(staker1, bytes(""));
+    }
+
+    function test_cancelWithdrawRequest_Success(bool multipleStakers) public approveVaultAndStakeTokens {
+        vm.skip(!canCancelWithdrawRequest);
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this));
+        if (multipleStakers) initialYieldTokenBalance = initialYieldTokenBalance / 2;
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId1 = manager.initiateWithdraw(
+            staker1, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+        uint256 requestId2 = 0;
+        if (multipleStakers) {
+            requestId2 = manager.initiateWithdraw(
+                staker2, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+            );
+        }
+
+        uint256 yieldTokensRefunded = manager.cancelWithdrawRequest(staker1, bytes(""));
+        assertEq(yieldTokensRefunded, initialYieldTokenBalance);
+
+        // The withdraw request should be removed from the account
+        (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) =
+            manager.getWithdrawRequest(address(this), staker1);
+        assertEq(request.requestId, 0);
+        assertEq(request.yieldTokenAmount, 0);
+        assertEq(request.sharesAmount, 0);
+        assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+        assertEq(tokenizedRequest.totalWithdraw, 0);
+        assertEq(tokenizedRequest.finalized, false);
+
+        // We should have received the yield tokens back.
+        assertEq(yieldToken.balanceOf(address(this)), yieldTokensRefunded);
+
+        checkCancelledWithdrawRequest(requestId1, staker1);
+
+        // Cannot cancel again.
+        vm.expectRevert();
+        manager.cancelWithdrawRequest(staker1, bytes(""));
+
+        if (multipleStakers) {
+            yieldTokensRefunded = manager.cancelWithdrawRequest(staker2, bytes(""));
+            assertEq(yieldTokensRefunded, initialYieldTokenBalance);
+
+            // The withdraw request should be removed from the account
+            (request, tokenizedRequest) = manager.getWithdrawRequest(address(this), staker2);
+            assertEq(request.requestId, 0);
+            assertEq(request.yieldTokenAmount, 0);
+            assertEq(request.sharesAmount, 0);
+            assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+            assertEq(tokenizedRequest.totalWithdraw, 0);
+            assertEq(tokenizedRequest.finalized, false);
+
+            // We should have received the yield tokens back.
+            assertEq(yieldToken.balanceOf(address(this)), yieldTokensRefunded * 2);
+
+            checkCancelledWithdrawRequest(requestId2, staker2);
+        }
+    }
+
+    function test_cancelWithdrawRequest_Success_WithFinalization() public approveVaultAndStakeTokens {
+        vm.skip(!canCancelWithdrawRequest);
+        address staker1 = makeAddr("staker1");
+        address staker2 = makeAddr("staker2");
+
+        ERC20 yieldToken = ERC20(manager.YIELD_TOKEN());
+        yieldToken.checkApprove(address(manager), yieldToken.balanceOf(address(this)));
+        uint256 initialYieldTokenBalance = yieldToken.balanceOf(address(this)) / 2;
+        uint256 sharesAmount = initialYieldTokenBalance / 2;
+
+        uint256 requestId1 = manager.initiateWithdraw(
+            staker1, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+        uint256 requestId2 = manager.initiateWithdraw(
+            staker2, initialYieldTokenBalance, sharesAmount, withdrawCallData, forceWithdrawFrom
+        );
+        uint256 yieldTokensRefunded = manager.cancelWithdrawRequest(staker1, bytes(""));
+        assertEq(yieldTokensRefunded, initialYieldTokenBalance);
+
+        finalizeWithdrawRequest(requestId2);
+        manager.finalizeRequestManual(address(this), staker2);
+        (bool hasKnownAmount, uint256 amount) = manager.getKnownWithdrawTokenAmount(requestId2);
+
+        uint256 tokensClaimed =
+            manager.finalizeAndRedeemWithdrawRequest(staker2, initialYieldTokenBalance, sharesAmount);
+
+        assertEq(tokensClaimed, ERC20(manager.WITHDRAW_TOKEN()).balanceOf(address(this)));
+        if (hasKnownAmount) assertEq(amount, tokensClaimed);
+
+        (WithdrawRequest memory request, TokenizedWithdrawRequest memory tokenizedRequest) =
+            manager.getWithdrawRequest(address(this), staker2);
+        assertEq(request.yieldTokenAmount, 0);
+        assertEq(request.sharesAmount, 0);
+        assertEq(request.requestId, 0);
+        assertEq(tokenizedRequest.totalYieldTokenAmount, 0);
+        assertEq(tokenizedRequest.totalWithdraw, 0);
+        assertEq(tokenizedRequest.finalized, false);
     }
 }
