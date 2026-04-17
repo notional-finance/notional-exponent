@@ -49,6 +49,14 @@ struct Signature {
 /// @dev This interface is used for factorizing IMorphoStaticTyping and IMorpho.
 /// @dev Consider using the IMorpho interface instead of this one.
 interface IMorphoBase {
+    /// @notice Emitted when a repayment occurs.
+    /// @param id The id of the market.
+    /// @param caller The caller of the repayment.
+    /// @param onBehalf The address of the onBehalf.
+    /// @param assets The amount of assets repaid.
+    /// @param shares The amount of shares burned.
+    event Repay(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares);
+
     /// @notice The EIP-712 domain separator.
     /// @dev Warning: Every EIP-712 signed message based on this domain separator can be reused on chains sharing the
     /// same chain id and on forks because the domain separator would be the same.
