@@ -1,4 +1,4 @@
-import { Address, ByteArray, Bytes, crypto, ethereum } from "@graphprotocol/graph-ts";
+import { Address, ByteArray, Bytes, crypto, ethereum, log } from "@graphprotocol/graph-ts";
 import { Repay, IMorpho } from "../generated/Morpho/IMorpho";
 import { Vault } from "../generated/schema";
 import { setProfitLossLineItem } from "./entities/balance";
@@ -52,7 +52,7 @@ function findExitPositionEvent(account: Address, vaultAddress: Address, event: e
     ) {
       let user = Address.fromBytes(changetype<Bytes>(_log.topics[1].slice(12)));
       let vault = Address.fromBytes(changetype<Bytes>(_log.topics[2].slice(12)));
-      if (user.toHexString() === account.toHexString() && vault.toHexString() === vaultAddress.toHexString()) {
+      if (user.toHexString() == account.toHexString() && vault.toHexString() == vaultAddress.toHexString()) {
         return true;
       }
     }
